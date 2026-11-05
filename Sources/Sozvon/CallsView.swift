@@ -175,7 +175,7 @@ struct CallRow: View {
 
     /// «Проект · люди · длительность» одной тихой строкой.
     private var subtitle: String {
-        [call.project == call.title ? "" : call.project, call.people, call.durationText]
+        [call.project == call.title ? "" : call.project, shortPeople(splitList(call.people)), call.durationText]
             .filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
@@ -203,6 +203,7 @@ struct CallRow: View {
                 }
                 Text(subtitle.isEmpty ? " " : subtitle).lineLimit(1)
             }
+            .help(call.people)
             .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.vertical, 3)
@@ -229,7 +230,7 @@ struct CallDetail: View {
     private var meta: String {
         var parts: [String] = []
         if let d = call.date { parts.append(d.formatted(.dateTime.day().month(.wide).hour().minute())) }
-        parts += [call.durationText, call.sizeText, call.people].filter { !$0.isEmpty }
+        parts += [call.durationText, call.sizeText].filter { !$0.isEmpty }
         return parts.joined(separator: " · ")
     }
 
@@ -247,6 +248,13 @@ struct CallDetail: View {
                         Text(meta)
                     }
                     .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                    // Участники отдельной строкой с переносом: при 5-6 людях видны все.
+                    if !call.people.isEmpty {
+                        Label(call.people, systemImage: "person.2")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
                 }
                 if call.hasTranscript || call.hasSummary {
                     MarkdownText(text: tab == 0 && call.hasSummary ? summaryText : transcriptBody)

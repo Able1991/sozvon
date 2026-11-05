@@ -243,4 +243,13 @@ final class CallCacheTests: TempDirTestCase {
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: dir.path)
         XCTAssertEqual(cache.size(dir), 15)
     }
+
+    func testManyPeopleAreShortened() {
+        XCTAssertEqual(shortPeople(["Анна"]), "Анна")
+        XCTAssertEqual(shortPeople(["Анна", "Олег", "Иван"]), "Анна, Олег, Иван")
+        XCTAssertEqual(shortPeople(["Анна", "Олег", "Иван", "Мария", "Пётр", "Ли"]), "Анна, Олег +4")
+        let name = callDirName("2026-11-04 15-01",
+                               CallInfo(names: "Анна, Олег, Иван, Мария, Пётр, Ли", topic: "планёрка"), projectTitle: "Acme")
+        XCTAssertEqual(name, "2026-11-04 15-01 · Acme · планёрка · Анна, Олег, Иван +3")
+    }
 }

@@ -52,8 +52,8 @@ TRANSCRIPT_ACME = [
 ]
 
 CALLS = [
-    ("2026-11-05 11-00 · Acme · релиз 2.4 · Иван Петров, Мария Соколова", "acme", "релиз 2.4",
-     ["Иван Петров", "Мария Соколова"], 1712, "ru", SUMMARY_ACME, TRANSCRIPT_ACME),
+    ("2026-11-05 11-00 · Acme · релиз 2.4 · Иван Петров, Мария Соколова, Олег +3", "acme", "релиз 2.4",
+     ["Иван Петров", "Мария Соколова", "Олег", "Анна Крылова", "Дмитрий", "Света"], 1712, "ru", SUMMARY_ACME, TRANSCRIPT_ACME),
     ("2026-11-05 15-30 · Northwind · billing webhooks · Sarah Miller", "northwind", "billing webhooks",
      ["Sarah Miller"], 1395, "en",
      "## Summary\nAgreed on the webhook format for invoices. Sandbox access goes live on Friday.\n\n## Action Items\n- [ ] Tom: enable sandbox keys, Friday.\n- [ ] Аня: send the SLA draft.",

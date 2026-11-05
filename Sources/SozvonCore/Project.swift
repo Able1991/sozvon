@@ -101,6 +101,12 @@ public func splitList(_ s: String) -> [String] {
     s.split(whereSeparator: { $0 == "," || $0 == "\n" }).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
 }
 
+/// Коротко о людях для тесных мест: «Анна, Олег +4». Если скрыт был бы только один, показываем всех.
+public func shortPeople(_ names: [String], max: Int = 2) -> String {
+    guard names.count > max + 1 else { return names.joined(separator: ", ") }
+    return names.prefix(max).joined(separator: ", ") + " +\(names.count - max)"
+}
+
 /// Люди проекта для подсказок: с прошлых звонков проекта (частые первыми) и из профиля.
 /// Себя (`me`) не предлагаем; «Анна Петрова» из профиля не дублирует «Анна» со звонков.
 public func knownPeople(_ slug: String, calls: [Call], projects: [Project], me: String, limit: Int = 12) -> [String] {

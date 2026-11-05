@@ -236,7 +236,8 @@ public func callDirName(_ current: String, _ i: CallInfo, projectTitle: String?)
     if let t = projectTitle?.trimmingCharacters(in: .whitespaces), !t.isEmpty { parts.append(t) }
     let topic = i.topic.trimmingCharacters(in: .whitespacesAndNewlines)
     if !topic.isEmpty { parts.append(topic) }
-    let names = splitList(i.names).joined(separator: ", ")
+    // Пять-шесть участников не помещаются: три имени и «+N», полный список в call.json.
+    let names = shortPeople(splitList(i.names), max: 3)
     if !names.isEmpty { parts.append(names) }
     let bad = CharacterSet(charactersIn: "/:\\")
     let joined = parts.joined(separator: " · ")
