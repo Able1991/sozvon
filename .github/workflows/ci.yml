@@ -22,7 +22,10 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Python-тесты (без моделей, быстрые)
         working-directory: engine
-        run: uv run --frozen pytest -q -m "not slow"
+        run: |
+          uv sync --frozen
+          ln -sf "$(.venv/bin/python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg
+          uv run --frozen pytest -q -m "not slow"
       - name: Переводы
         run: python3 tools/l10n.py check
       - name: Swift-тесты (SwiftPM)
