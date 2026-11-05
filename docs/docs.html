@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Документация Sozvon</title>
+<meta name="description" content="Как установить Sozvon, записывать звонки, настроить проекты, модели, саммари и подключить Claude Code и Codex через MCP.">
+<link rel="icon" href="images/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<style>
+.doc { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 56px; padding-block: 40px 96px; }
+.toc { position: sticky; top: 24px; align-self: start; font-size: 15px; }
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc li { margin-bottom: 8px; }
+.toc a { color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--ink); }
+.body { max-width: 720px; }
+.body h1 { font-size: clamp(36px, 4.6vw, 52px); margin-bottom: 16px; }
+.body > p.lead { margin-bottom: 8px; }
+.body h2 { font-size: 30px; margin: 72px 0 16px; padding-top: 24px; border-top: 1px solid var(--rule); scroll-margin-top: 16px; }
+.body h3 { font: 600 19px var(--sans); margin: 32px 0 8px; }
+.body p, .body li { max-width: 40em; }
+.body ul, .body ol { padding-left: 22px; }
+.body li { margin-bottom: 6px; }
+.body table { width: 100%; border-collapse: collapse; font-size: 15px; margin: 12px 0; }
+.body th { text-align: left; font: 500 14px var(--sans); color: var(--muted); padding: 0 12px 10px 0; }
+.body td { padding: 10px 12px 10px 0; border-top: 1px solid var(--rule); vertical-align: top; }
+.body td:first-child { white-space: nowrap; }
+.note { border-left: 3px solid var(--accent); padding: 2px 0 2px 16px; color: var(--muted); }
+kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: var(--sheet); }
+@media (max-width: 900px) {
+  .doc { grid-template-columns: 1fr; gap: 24px; }
+  .toc { position: static; }
+  .toc ol { columns: 2; }
+  .body td:first-child { white-space: normal; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="./"><img src="images/icon.png" alt=""> Sozvon</a>
+    <a class="link" href="https://github.com/Able1991/sozvon">GitHub</a>
+    <button class="lang" id="lang" aria-label="Switch language">EN</button>
+  </nav>
+
+  <!-- ======================= RU ======================= -->
+  <div class="doc" lang="ru" id="ru">
+    <aside class="toc"><ol>
+      <li><a href="#install">Установка</a></li>
+      <li><a href="#record">Запись звонка</a></li>
+      <li><a href="#after">После звонка</a></li>
+      <li><a href="#calls">Окно «Звонки»</a></li>
+      <li><a href="#projects">Проекты</a></li>
+      <li><a href="#models">Модели</a></li>
+      <li><a href="#summary">Саммари</a></li>
+      <li><a href="#mcp">Claude Code и Codex</a></li>
+      <li><a href="#settings">Настройки</a></li>
+      <li><a href="#files">Где лежат файлы</a></li>
+      <li><a href="#trouble">Если что-то не так</a></li>
+      <li><a href="#uninstall">Удаление</a></li>
+      <li><a href="#source">Сборка из исходников</a></li>
+    </ol></aside>
+    <article class="body">
+      <h1>Документация</h1>
+      <p class="lead">Всё, что нужно знать, чтобы записывать созвоны и получать из них текст. Если чего-то не хватает, <a href="https://github.com/Able1991/sozvon/issues">напиши в issues</a>.</p>
+
+      <h2 id="install">Установка</h2>
+      <p><b>Нужно:</b> Mac на Apple Silicon (M1 и новее), macOS 15 Sequoia или новее, 2-5 ГБ свободного места. Для саммари и поиска проектов дополнительно <a href="https://claude.com/code">Claude Code</a> или <a href="https://github.com/openai/codex">Codex CLI</a>, это необязательно.</p>
+      <ol>
+        <li>Скачай <a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Sozvon.dmg</a>, открой и перетащи Sozvon в «Программы».</li>
+        <li>Запусти. Мастер спросит, как тебя подписывать в расшифровке, на каких языках звонки, какую модель распознавания поставить и кто будет делать саммари.</li>
+        <li>Мастер сам поставит движок: Python, модель и разбивку по голосам. Это 5-10 минут и 1-4 ГБ в зависимости от модели. Регистрации и токены не нужны.</li>
+        <li>Разреши доступ, когда macOS спросит: «Микрофон» (твой голос) и «Запись экрана и системного аудио» (голоса собеседников). Видео не записывается, только звук.</li>
+      </ol>
+      <p class="note">Если разрешение случайно отклонено, включи его в «Системных настройках», раздел «Конфиденциальность и безопасность», и перезапусти Sozvon.</p>
+
+      <h2 id="record">Запись звонка</h2>
+      <p>Начать запись можно двумя способами:</p>
+      <ul>
+        <li><b>Плавающая панель.</b> Висит поверх всех окон, даже над Zoom на весь экран. Нажми на неё, чтобы начать запись. Панель можно перетаскивать: простое перетаскивание запись не запускает.</li>
+        <li><b>Значок в строке меню.</b> Пункт «Записать», во время записи «Остановить».</li>
+      </ul>
+      <p>Во время записи панель показывает таймер и живую волну двух голосов: твоего микрофона и звука компьютера. Если микрофон молчит слишком долго, панель предупредит «Тебя не слышно»: проверь, что выбран нужный микрофон и он не выключен в самом звонке.</p>
+      <p>Sozvon не подключается к звонку и не добавляет ботов. Он пишет то, что слышит твой Mac, поэтому работает с любым приложением: Zoom, Google Meet, Telegram, TrueConf, браузер. Предупреждать собеседников о записи твоя ответственность, в разных странах свои правила.</p>
+      <p>Если выйти из Sozvon во время записи, он сначала аккуратно допишет файлы. Если выйти во время расшифровки, спросит, прервать ли её.</p>
+
+      <h2 id="after">После звонка</h2>
+      <p>После «Стоп» появляется окно «О чём был звонок». Все поля необязательные, но они заметно улучшают результат:</p>
+      <table>
+        <tr><td>Проект</td><td>Клиент или команда. Подставляет людей, термины и автозамены проекта.</td></tr>
+        <tr><td>Тема</td><td>Попадает в название папки и в заголовок расшифровки.</td></tr>
+        <tr><td>Участники</td><td>Собеседники через запятую, по порядку, как начали говорить. Sozvon подсказывает людей с прошлых звонков проекта.</td></tr>
+        <tr><td>Ключевые слова</td><td>Имена, продукты и жаргон этого звонка, чтобы модель писала их правильно.</td></tr>
+        <tr><td>Язык</td><td>Языки этого звонка, если они отличаются от обычных.</td></tr>
+        <tr><td>Саммари</td><td>Делать ли саммари для этого звонка.</td></tr>
+      </table>
+      <p>Кнопка «Расшифровать» ставит звонок в очередь, «Не расшифровывать» просто сохраняет запись. Расшифровку можно запустить позже из окна «Звонки».</p>
+      <p>Что происходит дальше: дорожки выравниваются по времени, речь распознаётся с подсказкой из проекта, из микрофона убирается эхо собеседников, голоса собеседников разводятся, помощник подписывает людей по именам по смыслу разговора и пишет саммари. Час звонка на Whisper Turbo обрабатывается за несколько минут. Когда всё готово, приходит уведомление.</p>
+
+      <h2 id="calls">Окно «Звонки»</h2>
+      <p>Открывается из меню. Слева звонки по дням, справа саммари и расшифровка выбранного.</p>
+      <ul>
+        <li>Поиск ищет по дате, теме, проекту, участникам и по тексту саммари и расшифровок.</li>
+        <li>Из меню звонка: открыть папку в Finder, расшифровать заново (например, с другой моделью или исправленными участниками), переместить в корзину.</li>
+        <li>Звонок, который сейчас записывается, отмечен «Идёт запись», его нельзя удалить или расшифровать.</li>
+      </ul>
+
+      <h2 id="projects">Проекты</h2>
+      <p>Проект хранит то, что помогает распознаванию в звонках с одним клиентом:</p>
+      <ul>
+        <li><b>Люди.</b> Имена участников, подсказываются в окне после звонка и помогают подписать говорящих.</li>
+        <li><b>Термины.</b> Названия продуктов, компаний и жаргон. Whisper получает их как подсказку и пишет правильно.</li>
+        <li><b>Автозамены.</b> Что модель упорно слышит неправильно и как это исправить: «экма» на «Acme».</li>
+      </ul>
+      <p>Проекты редактируются в окне «Проекты» из меню. Люди с размеченных звонков добавляются в проект сами.</p>
+      <h3>Найти проекты автоматически</h3>
+      <p>Кнопка «Найти проекты» просит Claude Code или Codex просмотреть твои сессии и заметки и предложить проекты с людьми и терминами. Ты выбираешь, что сохранить. Помощник получает названия папок проектов, заметки памяти и ответы открытых сессий, это уходит в Anthropic или OpenAI. Claude технически ограничен папкой <code>~/.claude</code>. У Codex песочница запрещает запись, но не чтение: ограничение папкой <code>~/.codex</code> только в инструкции.</p>
+
+      <h2 id="models">Модели распознавания</h2>
+      <table>
+        <thead><tr><th>Модель</th><th>Размер</th><th>Когда выбирать</th></tr></thead>
+        <tr><td>Whisper Turbo</td><td>1,6 ГБ</td><td>По умолчанию. Быстро, точно, 99 языков, понимает термины проекта.</td></tr>
+        <tr><td>Whisper Large v3</td><td>3,1 ГБ</td><td>Когда важна каждая фраза и не жалко времени: примерно вдвое медленнее.</td></tr>
+        <tr><td>Whisper Small</td><td>0,5 ГБ</td><td>Mac с 8 ГБ памяти.</td></tr>
+        <tr><td>GigaAM v3</td><td>0,2 ГБ</td><td>Только русский. Лучше всех знает русскую речь и очень быстрая, но не использует термины проекта.</td></tr>
+        <tr><td>Parakeet v3</td><td>0,7 ГБ</td><td>25 европейских языков, быстрая, без терминов проекта.</td></tr>
+      </table>
+      <p>Модель меняется в «Настройки», вкладка «Распознавание». Новая модель скачивается один раз. Разбивка по голосам (pyannote, 31 МБ) ставится вместе с приложением для любой модели.</p>
+      <p><b>Несколько языков.</b> В «Языках звонков» можно отметить несколько: язык определяется для каждой дорожки. Если собеседники переходят с языка на язык посреди разговора, включи «Язык может меняться посреди речи», тогда язык определяется для каждой фразы, это медленнее на 20-30%.</p>
+
+      <h2 id="summary">Саммари</h2>
+      <p>Саммари пишется на языке разговора: коротко о звонке, решения, задачи с исполнителями, открытые вопросы. Его делает помощник, который уже стоит у тебя:</p>
+      <ul>
+        <li><b>Claude Code</b> по твоей подписке, по умолчанию модель Sonnet.</li>
+        <li><b>Codex CLI</b> по твоей подписке OpenAI.</li>
+        <li><b>Только локально:</b> без саммари и подписи имён, текст расшифровки никуда не уходит.</li>
+      </ul>
+      <p>Помощник выбирается в «Настройки», вкладка «Основные». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
+
+      <h2 id="mcp">Claude Code и Codex (MCP)</h2>
+      <p>Sozvon может отдавать звонки твоему ассистенту: «что решили с Acme на прошлой неделе?», «найди, где обсуждали SLA». Пока Sozvon запущен, он держит один общий MCP-сервер на <code>127.0.0.1:47816</code> для всех сессий, около 40 МБ памяти. Сервер доступен только с этого Mac и требует пароль (bearer-токен).</p>
+      <h3>Подключить</h3>
+      <p>«Настройки», вкладка «Claude и Codex», кнопка «Подключить» рядом с нужным ассистентом. Sozvon сам пропишет адрес и пароль.</p>
+      <h3>Вручную</h3>
+      <p>Пароль лежит в <code>~/Library/Application Support/Sozvon/.mcp-token</code>.</p>
+      <pre><code>TOKEN=$(cat ~/Library/Application\ Support/Sozvon/.mcp-token)
+claude mcp add --scope user --transport http sozvon http://127.0.0.1:47816/mcp \
+  --header "Authorization: Bearer $TOKEN"</code></pre>
+      <p>Для Codex:</p>
+      <pre><code>codex mcp add sozvon --url http://127.0.0.1:47816/mcp</code></pre>
+      <p>и в секцию <code>[mcp_servers.sozvon]</code> файла <code>~/.codex/config.toml</code> добавить строку:</p>
+      <pre><code>http_headers = { "Authorization" = "Bearer &lt;пароль&gt;" }</code></pre>
+      <h3>Инструменты</h3>
+      <table>
+        <tr><td><code>list_calls</code></td><td>Список звонков: дата, тема, проект, люди, длительность. Фильтр по любому тексту.</td></tr>
+        <tr><td><code>get_call</code></td><td>Саммари, расшифровка или и то и другое по id звонка.</td></tr>
+        <tr><td><code>search_calls</code></td><td>Поиск фразы по всем расшифровкам, с таймкодами.</td></tr>
+        <tr><td><code>transcribe</code></td><td>Расшифровать любой аудио- или видеофайл, можно с разбивкой по голосам и терминами проекта.</td></tr>
+        <tr><td><code>list_profiles</code></td><td>Проекты.</td></tr>
+        <tr><td><code>add_terms</code></td><td>Добавить термины в проект или общий словарь.</td></tr>
+        <tr><td><code>add_replacement</code>, <code>remove_replacement</code></td><td>Автозамены.</td></tr>
+        <tr><td><code>list_models</code>, <code>show_vocab</code>, <code>preview_prompt</code></td><td>Модели, словарь и то, какую подсказку получит модель.</td></tr>
+      </table>
+      <p>То, что ассистент прочитал через MCP, уходит в Anthropic или OpenAI вместе с твоим вопросом, как любой другой контекст сессии.</p>
+
+      <h2 id="settings">Настройки</h2>
+      <table>
+        <tr><td>Основные</td><td>Имя в расшифровке, язык интерфейса, помощник для саммари.</td></tr>
+        <tr><td>Распознавание</td><td>Модель, языки звонков, смена языка посреди речи, «Не мешать работе»: расшифровка уступает процессор твоим программам, чтобы Zoom, браузер и сборки не тормозили.</td></tr>
+        <tr><td>Панель</td><td>Показывать ли плавающую панель во время записи и без неё, звук при старте и остановке.</td></tr>
+        <tr><td>Claude и Codex</td><td>Подключение MCP.</td></tr>
+        <tr><td>Дополнительно</td><td>Папка записей, папка данных, переустановка движка, проверка обновлений, свой токен Hugging Face (необязательно), состояние движка и журналы.</td></tr>
+      </table>
+
+      <h2 id="files">Где лежат файлы</h2>
+      <p>Каждый звонок это папка в <code>~/Documents/Calls</code> (меняется в настройках), например <code>2026-11-04 15-01 · Acme · запуск · Анна</code>:</p>
+      <table>
+        <tr><td><code>mic.m4a</code>, <code>system.m4a</code></td><td>Твой микрофон и звук компьютера, отдельными дорожками.</td></tr>
+        <tr><td><code>transcript.md</code>, <code>.txt</code></td><td>Расшифровка: кто что сказал, с таймкодами.</td></tr>
+        <tr><td><code>summary.md</code></td><td>Саммари, если было.</td></tr>
+        <tr><td><code>call.json</code></td><td>Данные звонка: проект, люди, тема, статус.</td></tr>
+        <tr><td><code>process.log</code></td><td>Журнал расшифровки.</td></tr>
+      </table>
+      <p>Это обычные файлы: их можно читать, переносить, класть в заметки. Движок, модели и проекты лежат в <code>~/Library/Application Support/Sozvon</code>. Как устроено взаимодействие приложения и движка, описано в <a href="https://github.com/Able1991/sozvon/blob/main/docs/CONTRACT.md">CONTRACT.md</a>.</p>
+
+      <h2 id="trouble">Если что-то не так</h2>
+      <h3>«В записи нет звука»</h3>
+      <p>Проверь разрешения «Микрофон» и «Запись экрана и системного аудио» в «Системных настройках», затем перезапусти Sozvon. Если в звонке ты был в наушниках с отдельным микрофоном, убедись, что macOS использует именно его.</p>
+      <h3>Mac тормозит во время расшифровки</h3>
+      <p>Включи «Не мешать работе» на вкладке «Распознавание». Расшифровка станет чуть дольше, зато не будет мешать.</p>
+      <h3>«Движок сломан» или «Модель не скачана»</h3>
+      <p>«Настройки», вкладка «Дополнительно», «Переустановить…». Записи при этом не трогаются.</p>
+      <h3>Ассистент не видит звонки</h3>
+      <p>Sozvon должен быть запущен. На вкладке «Дополнительно» в «Состоянии движка» видно, работает ли MCP-сервер. Переподключи ассистента кнопкой на вкладке «Claude и Codex» и перезапусти сессию.</p>
+      <h3>Журналы</h3>
+      <ul>
+        <li><code>process.log</code> в папке звонка: расшифровка.</li>
+        <li><code>~/Library/Logs/Sozvon/recorder.log</code>: запись звука.</li>
+        <li><code>~/Library/Application Support/Sozvon/setup.log</code> и <code>mcp.log</code>: установка и MCP-сервер.</li>
+      </ul>
+      <p>Если не помогло, <a href="https://github.com/Able1991/sozvon/issues">открой issue</a> и приложи нужный журнал. В журналах нет текста звонков, но проверь перед отправкой.</p>
+
+      <h2 id="uninstall">Удаление</h2>
+      <ol>
+        <li>Если подключал ассистентов: <code>claude mcp remove sozvon --scope user</code> и <code>codex mcp remove sozvon</code>.</li>
+        <li>Выйди из Sozvon и перетащи его из «Программ» в корзину.</li>
+        <li>Удали движок и модели: папку <code>~/Library/Application Support/Sozvon</code> и журналы <code>~/Library/Logs/Sozvon</code>.</li>
+      </ol>
+      <p>Записи в <code>~/Documents/Calls</code> остаются, удали их сам, если они не нужны.</p>
+
+      <h2 id="source">Сборка из исходников</h2>
+      <p>Нужны Xcode 26 и <a href="https://docs.astral.sh/uv/">uv</a>.</p>
+      <pre><code>git clone https://github.com/Able1991/sozvon && cd sozvon
+./test.sh              # тесты движка, переводов и приложения
+./build.sh install     # ~/Applications/Sozvon.app
+./build.sh dmg         # build/Sozvon.dmg</code></pre>
+      <p>Устройство проекта описано в <a href="https://github.com/Able1991/sozvon#readme">README</a>, подпись и выпуск релизов в <a href="https://github.com/Able1991/sozvon/blob/main/docs/SIGNING.md">SIGNING.md</a>.</p>
+    </article>
+  </div>
+
+  <!-- ======================= EN ======================= -->
+  <div class="doc" lang="en" id="en" hidden>
+    <aside class="toc"><ol>
+      <li><a href="#en-install">Install</a></li>
+      <li><a href="#en-record">Recording a call</a></li>
+      <li><a href="#en-after">After the call</a></li>
+      <li><a href="#en-calls">Calls window</a></li>
+      <li><a href="#en-projects">Projects</a></li>
+      <li><a href="#en-models">Models</a></li>
+      <li><a href="#en-summary">Summaries</a></li>
+      <li><a href="#en-mcp">Claude Code and Codex</a></li>
+      <li><a href="#en-settings">Settings</a></li>
+      <li><a href="#en-files">Where files live</a></li>
+      <li><a href="#en-trouble">Troubleshooting</a></li>
+      <li><a href="#en-uninstall">Uninstall</a></li>
+      <li><a href="#en-source">Build from source</a></li>
+    </ol></aside>
+    <article class="body">
+      <h1>Documentation</h1>
+      <p class="lead">Everything you need to record calls and get text out of them. Missing something? <a href="https://github.com/Able1991/sozvon/issues">Open an issue</a>.</p>
+
+      <h2 id="en-install">Install</h2>
+      <p><b>Requirements:</b> a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later, 2-5 GB of free space. For summaries and project discovery, optionally <a href="https://claude.com/code">Claude Code</a> or <a href="https://github.com/openai/codex">Codex CLI</a>.</p>
+      <ol>
+        <li>Download <a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Sozvon.dmg</a>, open it and drag Sozvon to Applications.</li>
+        <li>Launch it. The assistant asks how to label you in transcripts, which languages your calls are in, which recognition model to install and who writes summaries.</li>
+        <li>It installs the engine itself: Python, the model and speaker separation. That takes 5-10 minutes and 1-4 GB depending on the model. No accounts or tokens.</li>
+        <li>Allow access when macOS asks: Microphone (your voice) and Screen &amp; System Audio Recording (the other side). No video is recorded, only sound.</li>
+      </ol>
+      <p class="note">If you denied a permission by accident, turn it on in System Settings, Privacy &amp; Security, and restart Sozvon.</p>
+
+      <h2 id="en-record">Recording a call</h2>
+      <ul>
+        <li><b>Floating panel.</b> It sits above every window, even full-screen Zoom. Click it to start recording. You can drag it around; dragging doesn’t start a recording.</li>
+        <li><b>Menu bar icon.</b> Record, and Stop while recording.</li>
+      </ul>
+      <p>While recording, the panel shows a timer and a live waveform of both sides: your microphone and your computer’s audio. If your mic stays silent for too long, the panel warns that it can’t hear you: check the selected microphone and that you aren’t muted in the call.</p>
+      <p>Sozvon doesn’t join the call or add bots. It records what your Mac hears, so it works with any app: Zoom, Google Meet, Telegram, a browser. Telling others you’re recording is up to you, and the rules differ by country.</p>
+      <p>If you quit during a recording, Sozvon finishes writing the files first. If you quit during transcription, it asks whether to stop it.</p>
+
+      <h2 id="en-after">After the call</h2>
+      <p>After Stop, the “What was the call about?” window appears. Every field is optional, but each one makes the result better:</p>
+      <table>
+        <tr><td>Project</td><td>A client or team. Brings in the project’s people, terms and fixes.</td></tr>
+        <tr><td>Topic</td><td>Goes into the folder name and the transcript title.</td></tr>
+        <tr><td>Participants</td><td>The other people, comma-separated, in the order they first speak. Sozvon suggests people from the project’s earlier calls.</td></tr>
+        <tr><td>Keywords</td><td>Names, products and jargon from this call, so the model spells them right.</td></tr>
+        <tr><td>Language</td><td>This call’s languages, if they differ from your usual ones.</td></tr>
+        <tr><td>Summary</td><td>Whether to write a summary for this call.</td></tr>
+      </table>
+      <p>Transcribe queues the call; Don’t Transcribe just keeps the recording. You can transcribe it later from the Calls window.</p>
+      <p>What happens next: the tracks are aligned, speech is recognized with hints from the project, the other side’s echo is removed from your mic, voices are separated, the assistant names speakers from context and writes the summary. An hour-long call takes a few minutes on Whisper Turbo. You get a notification when it’s done.</p>
+
+      <h2 id="en-calls">Calls window</h2>
+      <ul>
+        <li>Search covers date, topic, project, participants and the text of summaries and transcripts.</li>
+        <li>From a call’s menu: show in Finder, transcribe again (say, with another model or corrected participants), move to Trash.</li>
+        <li>The call being recorded right now is marked as recording and can’t be deleted or transcribed.</li>
+      </ul>
+
+      <h2 id="en-projects">Projects</h2>
+      <ul>
+        <li><b>People.</b> Participant names, suggested after a call and used to label speakers.</li>
+        <li><b>Terms.</b> Product and company names, jargon. Whisper gets them as a hint and spells them right.</li>
+        <li><b>Fixes.</b> What the model keeps mishearing and what it should be.</li>
+      </ul>
+      <p>Edit projects in the Projects window from the menu. People from labelled calls are added automatically.</p>
+      <h3>Discover projects</h3>
+      <p>Find Projects asks Claude Code or Codex to look through your sessions and notes and suggest projects with people and terms; you choose what to keep. The assistant gets project folder names, memory notes and replies from open sessions, which go to Anthropic or OpenAI. Claude is technically limited to <code>~/.claude</code>. The Codex sandbox blocks writes but not reads, so its limit to <code>~/.codex</code> is only an instruction.</p>
+
+      <h2 id="en-models">Models</h2>
+      <table>
+        <thead><tr><th>Model</th><th>Size</th><th>When to pick it</th></tr></thead>
+        <tr><td>Whisper Turbo</td><td>1.6 GB</td><td>Default. Fast, accurate, 99 languages, uses project terms.</td></tr>
+        <tr><td>Whisper Large v3</td><td>3.1 GB</td><td>When every phrase matters: about twice as slow.</td></tr>
+        <tr><td>Whisper Small</td><td>0.5 GB</td><td>Macs with 8 GB of memory.</td></tr>
+        <tr><td>GigaAM v3</td><td>0.2 GB</td><td>Russian only. Best at Russian speech and very fast, but ignores project terms.</td></tr>
+        <tr><td>Parakeet v3</td><td>0.7 GB</td><td>25 European languages, fast, no project terms.</td></tr>
+      </table>
+      <p>Switch in Settings, Recognition tab. A new model downloads once. Speaker separation (pyannote, 31 MB) ships with the app for every model.</p>
+      <p><b>Several languages.</b> Pick several in Call languages and the language is detected per track. If people switch languages mid-conversation, turn on mid-sentence switching: the language is then detected per phrase, 20-30% slower.</p>
+
+      <h2 id="en-summary">Summaries</h2>
+      <p>Summaries are written in the language of the call: overview, decisions, action items with owners, open questions. They come from an assistant you already have:</p>
+      <ul>
+        <li><b>Claude Code</b> on your subscription, Sonnet by default.</li>
+        <li><b>Codex CLI</b> on your OpenAI subscription.</li>
+        <li><b>Local only:</b> no summaries or speaker naming; the transcript stays on your Mac.</li>
+      </ul>
+      <p>Pick it in Settings, General tab. If a summary fails (no network, limit reached), the transcript is still saved.</p>
+
+      <h2 id="en-mcp">Claude Code and Codex (MCP)</h2>
+      <p>Sozvon can hand your calls to your assistant: “what did we agree with Acme last week?”, “find where we discussed the SLA”. While Sozvon is running, it keeps one shared MCP server on <code>127.0.0.1:47816</code> for every session, about 40 MB of memory. It is reachable only from this Mac and requires a password (bearer token).</p>
+      <h3>Connect</h3>
+      <p>Settings, Claude &amp; Codex tab, Connect next to the assistant. Sozvon writes the address and the password for you.</p>
+      <h3>Manually</h3>
+      <p>The password is in <code>~/Library/Application Support/Sozvon/.mcp-token</code>.</p>
+      <pre><code>TOKEN=$(cat ~/Library/Application\ Support/Sozvon/.mcp-token)
+claude mcp add --scope user --transport http sozvon http://127.0.0.1:47816/mcp \
+  --header "Authorization: Bearer $TOKEN"</code></pre>
+      <p>For Codex:</p>
+      <pre><code>codex mcp add sozvon --url http://127.0.0.1:47816/mcp</code></pre>
+      <p>then add this line to the <code>[mcp_servers.sozvon]</code> section of <code>~/.codex/config.toml</code>:</p>
+      <pre><code>http_headers = { "Authorization" = "Bearer &lt;password&gt;" }</code></pre>
+      <h3>Tools</h3>
+      <table>
+        <tr><td><code>list_calls</code></td><td>Calls with date, topic, project, people, duration. Filter by any text.</td></tr>
+        <tr><td><code>get_call</code></td><td>Summary, transcript or both, by call id.</td></tr>
+        <tr><td><code>search_calls</code></td><td>Find a phrase across all transcripts, with timestamps.</td></tr>
+        <tr><td><code>transcribe</code></td><td>Transcribe any audio or video file, optionally with speakers and project terms.</td></tr>
+        <tr><td><code>list_profiles</code></td><td>Projects.</td></tr>
+        <tr><td><code>add_terms</code></td><td>Add terms to a project or the shared vocabulary.</td></tr>
+        <tr><td><code>add_replacement</code>, <code>remove_replacement</code></td><td>Fixes for mishearings.</td></tr>
+        <tr><td><code>list_models</code>, <code>show_vocab</code>, <code>preview_prompt</code></td><td>Models, vocabulary and the hint the model will get.</td></tr>
+      </table>
+      <p>Whatever the assistant reads through MCP goes to Anthropic or OpenAI along with your question, like any other session context.</p>
+
+      <h2 id="en-settings">Settings</h2>
+      <table>
+        <tr><td>General</td><td>Your name in transcripts, interface language, summary assistant.</td></tr>
+        <tr><td>Recognition</td><td>Model, call languages, mid-sentence switching, “Don’t slow down my Mac”: transcription yields the CPU so Zoom, your browser and builds stay smooth.</td></tr>
+        <tr><td>Panel</td><td>Floating panel during and outside recording, start and stop sounds.</td></tr>
+        <tr><td>Claude &amp; Codex</td><td>MCP connection.</td></tr>
+        <tr><td>Advanced</td><td>Recordings folder, data folder, reinstalling the engine, update checks, your own Hugging Face token (optional), engine status and logs.</td></tr>
+      </table>
+
+      <h2 id="en-files">Where files live</h2>
+      <p>Each call is a folder in <code>~/Documents/Calls</code> (configurable), for example <code>2026-11-04 15-01 · Acme · launch · Anna</code>:</p>
+      <table>
+        <tr><td><code>mic.m4a</code>, <code>system.m4a</code></td><td>Your microphone and your computer’s audio, as separate tracks.</td></tr>
+        <tr><td><code>transcript.md</code>, <code>.txt</code></td><td>Who said what, with timestamps.</td></tr>
+        <tr><td><code>summary.md</code></td><td>The summary, if any.</td></tr>
+        <tr><td><code>call.json</code></td><td>Call data: project, people, topic, status.</td></tr>
+        <tr><td><code>process.log</code></td><td>Transcription log.</td></tr>
+      </table>
+      <p>They are plain files you can read, move or drop into your notes. The engine, models and projects live in <code>~/Library/Application Support/Sozvon</code>. The app and engine interface is described in <a href="https://github.com/Able1991/sozvon/blob/main/docs/CONTRACT.md">CONTRACT.md</a>.</p>
+
+      <h2 id="en-trouble">Troubleshooting</h2>
+      <h3>“No sound in the recording”</h3>
+      <p>Check Microphone and Screen &amp; System Audio Recording in System Settings, then restart Sozvon. If you used a headset, make sure macOS is using its microphone.</p>
+      <h3>My Mac slows down while transcribing</h3>
+      <p>Turn on “Don’t slow down my Mac” in the Recognition tab. Transcription takes a bit longer but stays out of your way.</p>
+      <h3>“Engine is broken” or “Model not downloaded”</h3>
+      <p>Settings, Advanced, Reinstall. Your recordings are not touched.</p>
+      <h3>The assistant doesn’t see my calls</h3>
+      <p>Sozvon has to be running. Engine status in the Advanced tab shows whether the MCP server is up. Reconnect from the Claude &amp; Codex tab and restart the session.</p>
+      <h3>Logs</h3>
+      <ul>
+        <li><code>process.log</code> in the call folder: transcription.</li>
+        <li><code>~/Library/Logs/Sozvon/recorder.log</code>: audio recording.</li>
+        <li><code>~/Library/Application Support/Sozvon/setup.log</code> and <code>mcp.log</code>: setup and the MCP server.</li>
+      </ul>
+      <p>Still stuck? <a href="https://github.com/Able1991/sozvon/issues">Open an issue</a> with the relevant log. Logs don’t contain call text, but check before you send.</p>
+
+      <h2 id="en-uninstall">Uninstall</h2>
+      <ol>
+        <li>If you connected assistants: <code>claude mcp remove sozvon --scope user</code> and <code>codex mcp remove sozvon</code>.</li>
+        <li>Quit Sozvon and drag it from Applications to the Trash.</li>
+        <li>Delete the engine and models in <code>~/Library/Application Support/Sozvon</code> and logs in <code>~/Library/Logs/Sozvon</code>.</li>
+      </ol>
+      <p>Your recordings in <code>~/Documents/Calls</code> stay; delete them yourself if you don’t need them.</p>
+
+      <h2 id="en-source">Build from source</h2>
+      <p>You need Xcode 26 and <a href="https://docs.astral.sh/uv/">uv</a>.</p>
+      <pre><code>git clone https://github.com/Able1991/sozvon && cd sozvon
+./test.sh              # engine, translation and app tests
+./build.sh install     # ~/Applications/Sozvon.app
+./build.sh dmg         # build/Sozvon.dmg</code></pre>
+      <p>See the <a href="https://github.com/Able1991/sozvon#readme">README</a> for the project layout and <a href="https://github.com/Able1991/sozvon/blob/main/docs/SIGNING.md">SIGNING.md</a> for signing and releases.</p>
+    </article>
+  </div>
+
+  <footer>
+    <span>Sozvon, MIT</span>
+    <a href="./" data-ru="Главная" data-en="Home">Главная</a>
+    <a href="https://github.com/Able1991/sozvon">GitHub</a>
+  </footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement, btn = document.getElementById("lang");
+  function apply(lang) {
+    root.lang = lang;
+    document.getElementById("ru").hidden = lang !== "ru";
+    document.getElementById("en").hidden = lang !== "en";
+    document.querySelectorAll("[data-ru]").forEach(function (el) { el.innerHTML = el.getAttribute("data-" + lang); });
+    document.title = lang === "ru" ? "Документация Sozvon" : "Sozvon documentation";
+    btn.textContent = lang === "ru" ? "EN" : "RU";
+    try { localStorage.setItem("lang", lang); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("lang"); } catch (e) {}
+  var lang = saved || ((navigator.language || "ru").slice(0, 2) === "ru" ? "ru" : "en");
+  // Ссылка на раздел другого языка (#en-...) открывает нужный язык
+  if (location.hash.indexOf("#en-") === 0) lang = "en";
+  if (lang !== "ru") apply(lang);
+  btn.addEventListener("click", function () { apply(root.lang === "ru" ? "en" : "ru"); });
+})();
+</script>
+</body>
+</html>

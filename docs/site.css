@@ -1,0 +1,128 @@
+:root {
+  --paper: #f5f6f8; --sheet: #ffffff; --ink: #15171c; --muted: #5d6472; --rule: #dfe2e8;
+  --accent: #d21f57; --accent-ink: #ffffff; --code: #eceef2;
+  --you: #2b59c3; --them: #1d7f57; --them2: #9a5b12;
+  --sans: "Onest", -apple-system, system-ui, sans-serif;
+  --serif: "Literata", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #17191d; --sheet: #1f2228; --ink: #eceef2; --muted: #9aa1ad; --rule: #30343c;
+    --accent: #ff4d80; --code: #262a31;
+    --you: #8aa8ff; --them: #5cc99a; --them2: #e0a456;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+img { max-width: 100%; height: auto; display: block; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+[hidden] { display: none !important; }
+
+/* Шапка */
+nav { display: flex; align-items: center; gap: 22px; padding-block: 20px; font-size: 15px; }
+nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; text-decoration: none; margin-right: auto; }
+nav .brand img { width: 30px; height: 30px; }
+nav a.link { color: var(--muted); text-decoration: none; }
+nav a.link:hover { color: var(--ink); }
+.lang { background: none; border: 1px solid var(--rule); color: var(--ink); border-radius: 7px; padding: 3px 9px; font: 500 13px var(--sans); cursor: pointer; }
+@media (max-width: 560px) { nav a.hide-sm { display: none; } }
+
+/* Первый экран */
+.hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 56px; align-items: start; padding-block: 64px 88px; }
+h1 { font: 700 clamp(40px, 5.6vw, 68px)/1.02 var(--sans); letter-spacing: -0.035em; margin: 0 0 24px; text-wrap: balance; }
+.lead { font-size: 20px; line-height: 1.5; color: var(--muted); margin: 0 0 32px; max-width: 30em; }
+.download { display: inline-flex; align-items: center; gap: 12px; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 15px 24px; border-radius: 10px; font-weight: 600; font-size: 17px; }
+.download:hover { filter: brightness(1.07); }
+.download svg { width: 18px; height: 18px; }
+.fine { margin: 16px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 30em; }
+
+/* Лист стенограммы */
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 28px 32px 30px; box-shadow: 0 1px 0 var(--rule), 0 24px 48px -32px rgba(20, 24, 34, .35); }
+.sheet-head { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 13px; padding-bottom: 14px; border-bottom: 1px solid var(--rule); margin-bottom: 18px; }
+.sheet-head b { color: var(--ink); font-weight: 600; }
+.line { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 4px 14px; margin-bottom: 14px; }
+.line time { font: 500 13px/1.9 var(--sans); color: var(--muted); font-variant-numeric: tabular-nums; }
+.line p { margin: 0; font: 400 17px/1.55 var(--serif); }
+.line .who { font: 600 14px var(--sans); margin-right: 6px; }
+.who.you { color: var(--you); } .who.them { color: var(--them); } .who.them2 { color: var(--them2); }
+.summary { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 15px; }
+.summary h3 { font: 600 15px var(--sans); margin: 0 0 6px; }
+.summary h3 + p { margin: 0 0 14px; color: var(--muted); }
+.summary ul { list-style: none; padding: 0; margin: 0; }
+.summary li { display: flex; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.summary li::before { content: ""; flex: none; width: 13px; height: 13px; border: 1.5px solid var(--muted); border-radius: 3px; transform: translateY(2px); }
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal { opacity: 0; transform: translateY(4px); transition: opacity .45s ease, transform .45s ease; }
+  .js .reveal.on { opacity: 1; transform: none; }
+}
+
+/* Разделы */
+section { padding-block: 88px; border-top: 1px solid var(--rule); }
+h2 { font: 700 clamp(30px, 3.6vw, 42px)/1.1 var(--sans); letter-spacing: -0.025em; margin: 0 0 16px; max-width: 18em; text-wrap: balance; }
+.intro { color: var(--muted); font-size: 19px; margin: 0 0 48px; max-width: 34em; }
+.window { border-radius: 12px; box-shadow: 0 30px 60px -36px rgba(20, 24, 34, .5); margin-inline: auto; }
+
+/* Как проходит звонок: настоящая последовательность */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; counter-reset: step; }
+.steps li { counter-increment: step; }
+.steps li::before { content: counter(step); display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: var(--paper); font: 600 14px var(--sans); margin-bottom: 14px; }
+.steps h3 { font: 600 19px/1.3 var(--sans); margin: 0 0 6px; }
+.steps p { margin: 0; color: var(--muted); font-size: 16px; }
+.steps figure { margin: 22px 0 0; }
+.steps figure img { border-radius: 10px; }
+
+/* Возможности: список, не карточки */
+.features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 64px; }
+.feature { padding-block: 22px; border-top: 1px solid var(--rule); }
+.feature h3 { font: 600 19px/1.3 var(--sans); margin: 0 0 6px; }
+.feature p { margin: 0; color: var(--muted); max-width: 32em; }
+
+/* Сеть */
+.net { width: 100%; border-collapse: collapse; font-size: 16px; }
+.net td { padding: 16px 0; border-top: 1px solid var(--rule); vertical-align: top; }
+.net td:first-child { width: 46%; padding-right: 32px; }
+.net td:last-child { color: var(--muted); }
+.net tr.none td:last-child { color: var(--them); font-weight: 500; }
+.audit { margin-top: 28px; color: var(--muted); font-size: 15px; max-width: 40em; }
+
+/* Модели */
+.tablewrap { overflow-x: auto; }
+.models { width: 100%; border-collapse: collapse; font-size: 16px; min-width: 560px; }
+.models th { text-align: left; font: 500 14px var(--sans); color: var(--muted); padding: 0 16px 12px 0; }
+.models td { padding: 14px 16px 14px 0; border-top: 1px solid var(--rule); vertical-align: top; }
+.models td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.models tr.rec td:first-child { font-weight: 600; }
+
+/* Документация */
+.docs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
+.docs h3 { font: 600 20px var(--sans); margin: 0 0 12px; }
+.docs ol { padding-left: 20px; margin: 0; } .docs li { margin-bottom: 10px; }
+code, pre { font-family: var(--mono); font-size: 13.5px; }
+code { background: var(--code); padding: 1px 6px; border-radius: 5px; }
+pre { background: var(--code); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; line-height: 1.6; }
+pre code { background: none; padding: 0; }
+details { border-top: 1px solid var(--rule); padding-block: 16px; }
+details:last-of-type { border-bottom: 1px solid var(--rule); }
+summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--muted); margin: 10px 0 0; max-width: 36em; }
+footer { color: var(--muted); font-size: 14px; padding-block: 40px 64px; border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 8px 24px; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; gap: 48px; padding-block: 40px 64px; }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .features, .docs { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .sheet { padding: 20px 18px 22px; }
+  .line { grid-template-columns: 1fr; gap: 0; }
+  .steps { grid-template-columns: 1fr; }
+  .net td { display: block; width: auto !important; padding: 0 0 4px; border: 0; }
+  .net tr { display: block; border-top: 1px solid var(--rule); padding-block: 14px; }
+  section { padding-block: 64px; }
+}

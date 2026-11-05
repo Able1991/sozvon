@@ -10,7 +10,7 @@
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
 </p>
 
-<p align="center"><b><a href="https://github.com/Able1991/sozvon/releases/latest">Скачать для Mac</a></b> · <a href="https://able1991.github.io/sozvon/">Сайт</a> · <a href="#english">English</a></p>
+<p align="center"><b><a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Скачать для Mac</a></b> · <a href="https://able1991.github.io/sozvon/">Сайт</a> · <a href="https://able1991.github.io/sozvon/docs.html">Документация</a> · <a href="#english">English</a></p>
 
 <p align="center"><img src="docs/images/ru-calls.png" width="820" alt="Окно «Звонки»"></p>
 
@@ -69,7 +69,7 @@
 | `transcribe` | расшифровать любой аудио- или видеофайл |
 | `list_profiles`, `add_terms`, `add_replacement` | проекты, термины и автозамены |
 
-Подключить вручную: `claude mcp add --scope user --transport http sozvon http://127.0.0.1:47816/mcp` или `codex mcp add sozvon --url http://127.0.0.1:47816/mcp`.
+Подключить вручную и все подробности: [документация](https://able1991.github.io/sozvon/docs.html#mcp). Сервер требует пароль из `~/Library/Application Support/Sozvon/.mcp-token`.
 
 ## Что уходит в сеть
 

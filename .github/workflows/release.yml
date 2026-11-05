@@ -70,7 +70,8 @@ jobs:
         run: |
           export VERSION="${VERSION#v}"
           ./build.sh dmg
-          mv build/Sozvon.dmg "build/Sozvon-$VERSION.dmg"
+          # Sozvon.dmg без версии: постоянная ссылка releases/latest/download/Sozvon.dmg для сайта и README
+          cp build/Sozvon.dmg "build/Sozvon-$VERSION.dmg"
           shasum -a 256 "build/Sozvon-$VERSION.dmg" > "build/Sozvon-$VERSION.dmg.sha256"
 
       - name: GitHub Release
@@ -81,5 +82,5 @@ jobs:
           V="${GITHUB_REF_NAME#v}"
           FLAGS="--generate-notes"
           [ "$SIGNED" = "true" ] || FLAGS="$FLAGS --prerelease"
-          gh release create "$GITHUB_REF_NAME" build/Sozvon-$V.dmg build/Sozvon-$V.dmg.sha256 \
+          gh release create "$GITHUB_REF_NAME" build/Sozvon.dmg build/Sozvon-$V.dmg build/Sozvon-$V.dmg.sha256 \
             --title "Sozvon $V" $FLAGS
