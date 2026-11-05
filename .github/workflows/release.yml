@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
       - name: Select Xcode 26 (macOS 26 SDK for Liquid Glass)
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)" && xcodebuild -version
-      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Tests
         run: ./test.sh
