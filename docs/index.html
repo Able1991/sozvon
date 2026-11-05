@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sozvon: созвоны в текст прямо на Mac</title>
+<meta name="description" content="Записывает созвоны в Zoom, Meet, Telegram и где угодно и расшифровывает их локально на Apple Silicon. Кто что сказал, саммари, проекты, MCP для Claude и Codex.">
+<meta property="og:title" content="Sozvon">
+<meta property="og:description" content="Созвоны в текст прямо на Mac. Локально, бесплатно, с открытым кодом.">
+<meta property="og:image" content="https://able1991.github.io/sozvon/images/ru-calls.png">
+<link rel="icon" href="images/icon.png">
+<style>
+:root {
+  --bg: #fbfbfd; --surface: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --line: #e5e5ea;
+  --accent: #e0245e; --accent-ink: #ffffff; --soft: #f2f2f7;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b0b0d; --surface: #161618; --fg: #f5f5f7; --muted: #a1a1a6; --line: #2c2c2e;
+          --accent: #ff4f7e; --soft: #1c1c1e; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+nav { display: flex; align-items: center; gap: 16px; padding-block: 18px; }
+nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--fg); }
+nav .brand img { width: 28px; height: 28px; }
+nav .sp { flex: 1; }
+nav a.link { color: var(--muted); font-size: 15px; }
+.lang { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 4px 10px; font: 500 13px var(--font); cursor: pointer; }
+.hero { text-align: center; padding-block: 56px 32px; }
+.hero img.icon { width: 120px; height: 120px; }
+h1 { font: 700 clamp(40px, 7vw, 64px)/1.05 var(--display); letter-spacing: -0.03em; margin: 18px 0 12px; text-wrap: balance; }
+.lead { font-size: clamp(19px, 2.4vw, 23px); color: var(--muted); max-width: 640px; margin: 0 auto 28px; text-wrap: balance; }
+.cta { display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: var(--accent-ink); padding: 14px 26px; border-radius: 980px; font-weight: 600; font-size: 17px; }
+.cta:hover { text-decoration: none; filter: brightness(1.06); }
+.meta { color: var(--muted); font-size: 14px; margin-top: 12px; }
+.badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.shot { display: block; max-width: 100%; height: auto; margin: 40px auto 0; border-radius: 14px; }
+section { padding-block: 64px; border-top: 1px solid var(--line); }
+h2 { font: 700 clamp(28px, 4vw, 38px)/1.15 var(--display); letter-spacing: -0.02em; margin: 0 0 12px; text-wrap: balance; }
+.sub { color: var(--muted); max-width: 640px; margin: 0 0 32px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; min-width: 0; }
+.card h3 { font: 600 18px/1.3 var(--display); margin: 10px 0 6px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.card .ic { font-size: 26px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; align-items: center; }
+.pair img { max-width: 100%; height: auto; border-radius: 12px; justify-self: center; }
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+code, pre { font-family: var(--mono); font-size: 14px; }
+pre { background: var(--soft); border-radius: 12px; padding: 14px 16px; overflow-x: auto; margin: 12px 0; }
+code { background: var(--soft); padding: 1px 6px; border-radius: 6px; }
+pre code { background: none; padding: 0; }
+ol.steps { padding-left: 22px; } ol.steps li { margin-bottom: 10px; }
+details { border-bottom: 1px solid var(--line); padding-block: 14px; }
+summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--muted); margin: 10px 0 0; }
+footer { color: var(--muted); font-size: 14px; padding-block: 40px 60px; border-top: 1px solid var(--line); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="images/icon.png" alt=""> Sozvon</a>
+    <span class="sp"></span>
+    <a class="link" href="#docs" data-ru="Документация" data-en="Docs">Документация</a>
+    <a class="link" href="https://github.com/Able1991/sozvon">GitHub</a>
+    <button class="lang" id="lang" aria-label="Language">EN</button>
+  </nav>
+
+  <header class="hero">
+    <img class="icon" src="images/icon.png" alt="Sozvon">
+    <h1 data-ru="Созвоны в текст. Прямо на Mac." data-en="Calls to text. Right on your Mac.">Созвоны в текст. Прямо на Mac.</h1>
+    <p class="lead" data-ru="Записывает Zoom, Meet, Telegram и что угодно, расшифровывает локально: кто что сказал, с таймкодами, и короткое саммари с решениями и задачами." data-en="Records Zoom, Meet, Telegram or anything else and transcribes it locally: who said what, with timestamps, and a short summary with decisions and action items.">Записывает Zoom, Meet, Telegram и что угодно, расшифровывает локально: кто что сказал, с таймкодами, и короткое саммари с решениями и задачами.</p>
+    <a class="cta" href="https://github.com/Able1991/sozvon/releases/latest" data-ru="Скачать для Mac" data-en="Download for Mac">Скачать для Mac</a>
+    <div class="meta" data-ru="Бесплатно · открытый код · macOS 15+, Apple Silicon" data-en="Free · open source · macOS 15+, Apple silicon">Бесплатно · открытый код · macOS 15+, Apple Silicon</div>
+    <div class="badges">
+      <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml"><img src="https://github.com/Able1991/sozvon/actions/workflows/security.yml/badge.svg" alt="Security: Gitleaks, Semgrep, CodeQL" height="20"></a>
+      <a href="https://github.com/Able1991/sozvon/actions/workflows/ci.yml"><img src="https://github.com/Able1991/sozvon/actions/workflows/ci.yml/badge.svg" alt="CI" height="20"></a>
+      <a href="https://github.com/Able1991/sozvon/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" height="20"></a>
+    </div>
+    <p class="meta" data-ru="Каждый коммит проверяют Gitleaks (секреты), Semgrep и CodeQL (уязвимости и бэкдоры). Весь код открыт." data-en="Every commit is checked by Gitleaks (secrets), Semgrep and CodeQL (vulnerabilities and backdoors). All code is open.">Каждый коммит проверяют Gitleaks (секреты), Semgrep и CodeQL (уязвимости и бэкдоры). Весь код открыт.</p>
+    <img class="shot" id="shot-main" src="images/ru-calls.png" width="980" alt="Окно «Звонки»">
+  </header>
+
+  <section>
+    <h2 data-ru="Нажал, созвонился, получил текст" data-en="Press, talk, get the text">Нажал, созвонился, получил текст</h2>
+    <p class="sub" data-ru="Без виртуальных аудиодрайверов и ботов в звонке: Sozvon пишет звук компьютера и микрофон отдельными дорожками." data-en="No virtual audio drivers, no bots joining your call: Sozvon records system audio and your microphone on separate tracks.">Без виртуальных аудиодрайверов и ботов в звонке: Sozvon пишет звук компьютера и микрофон отдельными дорожками.</p>
+    <div class="grid">
+      <div class="card"><div class="ic">🎙</div><h3 data-ru="Одна кнопка" data-en="One button">Одна кнопка</h3><p data-ru="Плавающая панель поверх всех окон, даже над Zoom на весь экран. Таймер, живая волна голосов, стоп." data-en="A floating panel above every window, even full-screen Zoom. Timer, live voice waveform, stop.">Плавающая панель поверх всех окон, даже над Zoom на весь экран. Таймер, живая волна голосов, стоп.</p></div>
+      <div class="card"><div class="ic">🔒</div><h3 data-ru="Локально" data-en="Private">Локально</h3><p data-ru="Распознавание и разбивка по голосам на Apple Silicon. Звук не покидает Mac, без регистраций и токенов." data-en="Recognition and speaker separation run on Apple silicon. Audio never leaves your Mac. No accounts, no tokens.">Распознавание и разбивка по голосам на Apple Silicon. Звук не покидает Mac, без регистраций и токенов.</p></div>
+      <div class="card"><div class="ic">👥</div><h3 data-ru="Кто что сказал" data-en="Who said what">Кто что сказал</h3><p data-ru="Собеседники разводятся по голосам и подписываются по именам по смыслу разговора." data-en="Speakers are separated by voice and named from the conversation itself.">Собеседники разводятся по голосам и подписываются по именам по смыслу разговора.</p></div>
+      <div class="card"><div class="ic">📝</div><h3 data-ru="Саммари" data-en="Summaries">Саммари</h3><p data-ru="Коротко, решения, задачи с исполнителями. На языке разговора, через Claude Code или Codex по твоей подписке." data-en="Overview, decisions, action items with owners. In the call’s language, via your Claude Code or Codex subscription.">Коротко, решения, задачи с исполнителями. На языке разговора, через Claude Code или Codex по твоей подписке.</p></div>
+      <div class="card"><div class="ic">🗂</div><h3 data-ru="Проекты" data-en="Projects">Проекты</h3><p data-ru="Люди, термины и автозамены по каждому клиенту. Можно собрать автоматически из сессий Claude Code и Codex." data-en="People, terms and mishearing fixes per client. Can be collected automatically from your Claude Code and Codex sessions.">Люди, термины и автозамены по каждому клиенту. Можно собрать автоматически из сессий Claude Code и Codex.</p></div>
+      <div class="card"><div class="ic">🤖</div><h3 data-ru="Claude и Codex видят звонки" data-en="Claude and Codex see your calls">Claude и Codex видят звонки</h3><p data-ru="Один MCP-сервер на все сессии: «что решили с клиентом на прошлой неделе?»" data-en="One MCP server for all sessions: “what did we decide with the client last week?”">Один MCP-сервер на все сессии: «что решили с клиентом на прошлой неделе?»</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="pair">
+      <div>
+        <h2 data-ru="После звонка" data-en="After the call">После звонка</h2>
+        <p class="sub" data-ru="Укажи проект, и Sozvon сам подскажет людей, которые уже бывали на его звонках. Папка звонка назовётся по дате, проекту, теме и участникам." data-en="Pick the project and Sozvon suggests people who have been on its calls before. The call folder is named by date, project, topic and participants.">Укажи проект, и Sozvon сам подскажет людей, которые уже бывали на его звонках. Папка звонка назовётся по дате, проекту, теме и участникам.</p>
+      </div>
+      <img id="shot-callinfo" src="images/ru-callinfo.png" width="440" alt="">
+    </div>
+  </section>
+
+  <section>
+    <h2 data-ru="Модели" data-en="Models">Модели</h2>
+    <p class="sub" data-ru="Скачиваются один раз при установке, меняются в настройках." data-en="Downloaded once during setup, switchable in Settings.">Скачиваются один раз при установке, меняются в настройках.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th data-ru="Модель" data-en="Model">Модель</th><th data-ru="Размер" data-en="Size">Размер</th><th data-ru="Языки" data-en="Languages">Языки</th><th data-ru="Особенности" data-en="Notes">Особенности</th></tr></thead>
+      <tbody>
+        <tr><td><b>Whisper Turbo</b></td><td>1,6 GB</td><td>99</td><td data-ru="Рекомендуем: быстро, точно, понимает словарь проекта" data-en="Recommended: fast, accurate, uses your project vocabulary">Рекомендуем: быстро, точно, понимает словарь проекта</td></tr>
+        <tr><td>Whisper Large v3</td><td>3,1 GB</td><td>99</td><td data-ru="Самая точная, медленнее" data-en="Most accurate, slower">Самая точная, медленнее</td></tr>
+        <tr><td>Whisper Small</td><td>0,5 GB</td><td>99</td><td data-ru="Для Mac с 8 ГБ памяти" data-en="For Macs with 8 GB of memory">Для Mac с 8 ГБ памяти</td></tr>
+        <tr><td>GigaAM v3</td><td>0,2 GB</td><td data-ru="русский" data-en="Russian">русский</td><td data-ru="Лёгкая и быстрая, без словаря проектов" data-en="Light and fast, no project vocabulary">Лёгкая и быстрая, без словаря проектов</td></tr>
+        <tr><td>Parakeet v3</td><td>0,7 GB</td><td data-ru="25 европейских" data-en="25 European">25 европейских</td><td data-ru="Очень быстрая, без словаря проектов" data-en="Very fast, no project vocabulary">Очень быстрая, без словаря проектов</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="docs">
+    <h2 data-ru="Документация" data-en="Documentation">Документация</h2>
+    <h3 data-ru="Установка" data-en="Install">Установка</h3>
+    <ol class="steps">
+      <li data-ru="Скачай Sozvon.dmg и перетащи Sozvon в «Программы». Приложение подписано и нотаризовано Apple." data-en="Download Sozvon.dmg and drag Sozvon to Applications. The app is signed and notarized by Apple.">Скачай Sozvon.dmg и перетащи Sozvon в «Программы». Приложение подписано и нотаризовано Apple.</li>
+      <li data-ru="Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут." data-en="Launch it and follow the assistant: name, call languages, model, summary assistant. The engine installs itself in 5-10 minutes.">Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут.</li>
+      <li data-ru="Разреши «Микрофон» и «Запись экрана и системного аудио». Видео не записывается." data-en="Allow Microphone and Screen &amp; System Audio Recording. No video is recorded.">Разреши «Микрофон» и «Запись экрана и системного аудио». Видео не записывается.</li>
+    </ol>
+    <h3 data-ru="Claude Code и Codex" data-en="Claude Code and Codex">Claude Code и Codex</h3>
+    <p data-ru="Настройки → Claude и Codex → Подключить. Или вручную:" data-en="Settings → Claude &amp; Codex → Connect. Or manually:">Настройки → Claude и Codex → Подключить. Или вручную:</p>
+    <pre><code>claude mcp add --scope user --transport http sozvon http://127.0.0.1:47816/mcp
+codex mcp add sozvon --url http://127.0.0.1:47816/mcp</code></pre>
+    <p data-ru="Инструменты: list_calls, get_call, search_calls, transcribe, list_profiles, add_terms, add_replacement. Сервер работает, пока запущен Sozvon." data-en="Tools: list_calls, get_call, search_calls, transcribe, list_profiles, add_terms, add_replacement. The server runs while Sozvon is open.">Инструменты: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. Сервер работает, пока запущен Sozvon.</p>
+    <h3 data-ru="Что уходит в сеть" data-en="What goes online">Что уходит в сеть</h3>
+    <div class="tablewrap"><table>
+      <tbody>
+        <tr><td data-ru="Запись, расшифровка, голоса" data-en="Recording, transcript, voices">Запись, расшифровка, голоса</td><td data-ru="никуда, только ~/Documents/Calls" data-en="nowhere, only ~/Documents/Calls">никуда, только ~/Documents/Calls</td></tr>
+        <tr><td data-ru="Модели и Python-окружение" data-en="Models and Python runtime">Модели и Python-окружение</td><td data-ru="PyPI, huggingface.co, github.com, один раз при установке" data-en="PyPI, huggingface.co, github.com, once, during setup">PyPI, huggingface.co, github.com, один раз при установке</td></tr>
+        <tr><td data-ru="Текст для саммари и имён" data-en="Text for summaries and names">Текст для саммари и имён</td><td data-ru="Anthropic или OpenAI, только если выбран помощник" data-en="Anthropic or OpenAI, only if you pick an assistant">Anthropic или OpenAI, только если выбран помощник</td></tr>
+        <tr><td data-ru="То, что читает ассистент через MCP" data-en="What the assistant reads through MCP">То, что читает ассистент через MCP</td><td data-ru="Anthropic или OpenAI, только когда ты его спрашиваешь" data-en="Anthropic or OpenAI, only when you ask it">Anthropic или OpenAI, только когда ты его спрашиваешь</td></tr>
+        <tr><td data-ru="Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude; песочница Codex запрещает запись, но не чтение" data-en="Project discovery: folder names, notes, session replies. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads">Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude; песочница Codex запрещает запись, но не чтение</td><td data-ru="Anthropic или OpenAI, только по кнопке" data-en="Anthropic or OpenAI, only when you click it">Anthropic или OpenAI, только по кнопке</td></tr>
+        <tr><td data-ru="Проверка обновлений" data-en="Update check">Проверка обновлений</td><td data-ru="api.github.com раз в сутки, отключается" data-en="api.github.com once a day, can be turned off">api.github.com раз в сутки, отключается</td></tr>
+      </tbody>
+    </table></div>
+    <h3 data-ru="Вопросы" data-en="FAQ">Вопросы</h3>
+    <details><summary data-ru="Нужен ли интернет во время звонка?" data-en="Do I need internet during a call?">Нужен ли интернет во время звонка?</summary><p data-ru="Нет. Запись и расшифровка работают офлайн. Интернет нужен только для установки и, по желанию, для саммари." data-en="No. Recording and transcription work offline. Internet is only needed for setup and, optionally, summaries.">Нет. Запись и расшифровка работают офлайн. Интернет нужен только для установки и, по желанию, для саммари.</p></details>
+    <details><summary data-ru="Собеседник узнает, что я записываю?" data-en="Will the other side know I’m recording?">Собеседник узнает, что я записываю?</summary><p data-ru="Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность: в разных странах свои правила." data-en="Sozvon doesn’t join the call; it records audio on your Mac. Telling others you’re recording is up to you, and rules differ by country.">Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность: в разных странах свои правила.</p></details>
+    <details><summary data-ru="Почему не Intel?" data-en="Why not Intel?">Почему не Intel?</summary><p data-ru="Распознавание работает на MLX, а он есть только на Apple Silicon." data-en="Recognition runs on MLX, which is Apple silicon only.">Распознавание работает на MLX, а он есть только на Apple Silicon.</p></details>
+    <details><summary data-ru="Mac тормозит во время расшифровки" data-en="My Mac slows down while transcribing">Mac тормозит во время расшифровки</summary><p data-ru="Включи «Настройки → Распознавание → Не мешать работе»: расшифровка будет уступать другим программам." data-en="Turn on Settings → Recognition → Don’t slow down my Mac: transcription yields to your other apps.">Включи «Настройки → Распознавание → Не мешать работе»: расшифровка будет уступать другим программам.</p></details>
+  </section>
+
+  <footer>
+    <span data-ru="Sozvon, MIT. Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA)." data-en="Sozvon, MIT. Whisper (OpenAI), pyannote, GigaAM (Sber), Parakeet (NVIDIA).">Sozvon, MIT. Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA).</span>
+    · <a href="https://github.com/Able1991/sozvon">GitHub</a>
+  </footer>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById("lang");
+  function apply(lang) {
+    document.documentElement.lang = lang;
+    document.querySelectorAll("[data-ru]").forEach(function (el) { el.innerHTML = el.getAttribute("data-" + lang); });
+    document.getElementById("shot-main").src = "images/" + lang + "-calls.png";
+    document.getElementById("shot-callinfo").src = "images/" + lang + "-callinfo.png";
+    document.title = lang === "ru" ? "Sozvon: созвоны в текст прямо на Mac" : "Sozvon: calls to text, right on your Mac";
+    btn.textContent = lang === "ru" ? "EN" : "RU";
+    try { localStorage.setItem("lang", lang); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("lang"); } catch (e) {}
+  var lang = saved || ((navigator.language || "ru").slice(0, 2) === "ru" ? "ru" : "en");
+  if (lang !== "ru") apply(lang);
+  btn.addEventListener("click", function () { apply(document.documentElement.lang === "ru" ? "en" : "ru"); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+# Проверка безопасности: секреты (Gitleaks), опасные паттерны и бэкдоры (Semgrep),
+# глубокий анализ кода (CodeQL: Python, Swift, сами воркфлоу).
+# Любая критичная находка роняет проверку, и плашка в README краснеет.
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"  # раз в неделю, чтобы ловить новые правила
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: Секреты (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0  # вся история, а не только последний коммит
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.182.1@sha256:451b3d875c00dac7ed5db5293e584a07de11449a409c10b3c2d2652f429630b6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Semgrep (падает на ERROR)
+        run: >
+          semgrep scan
+          --config p/default --config p/secrets --config p/python --config p/bash
+          --severity ERROR --error --metrics off
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ${{ matrix.language == 'swift' && 'macos-15' || 'ubuntu-latest' }}
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+          - language: swift
+            build-mode: manual
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: github/codeql-action/init@9418214df1f2c4b8128c770156c409013b07d6b9 # v3.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+      - if: matrix.build-mode == 'manual'
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          swift build -c release --arch arm64
+      - uses: github/codeql-action/analyze@9418214df1f2c4b8128c770156c409013b07d6b9 # v3.39.3
+        with:
+          category: /language:${{ matrix.language }}
+      - name: Упасть на критичных находках
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 10
+          n=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?state=open&severity=critical&tool_name=CodeQL&ref=${{ github.ref }}" --jq 'length' 2>/dev/null || echo 0)
+          h=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?state=open&severity=high&tool_name=CodeQL&ref=${{ github.ref }}" --jq 'length' 2>/dev/null || echo 0)
+          echo "CodeQL: critical=$n high=$h"
+          [ "$n" = "0" ] && [ "$h" = "0" ]

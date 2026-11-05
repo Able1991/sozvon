@@ -1,0 +1,85 @@
+# Релиз: тег vX.Y.Z → сборка, подпись Developer ID, нотаризация, DMG в GitHub Releases.
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Секреты репозитория (Settings → Secrets and variables → Actions):
+#   DEVELOPER_ID_P12          сертификат «Developer ID Application» в .p12, base64
+#   DEVELOPER_ID_P12_PASSWORD пароль от .p12
+#   NOTARY_KEY_P8             ключ App Store Connect API (.p8), base64
+#   NOTARY_KEY_ID             Key ID
+#   NOTARY_ISSUER_ID          Issuer ID
+# Без секретов релиз всё равно соберётся, но без подписи (пометится как pre-release).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    # Очередь нотаризации Apple иногда держит часами: лучше упасть и перезапустить.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Xcode 26 (нужен SDK macOS 26 для Liquid Glass)
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)" && xcodebuild -version
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+
+      - name: Тесты
+        run: ./test.sh
+
+      - name: Сертификат Developer ID
+        id: cert
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          if [ -z "$P12" ]; then echo "signed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          KC="$RUNNER_TEMP/build.keychain-db"
+          security create-keychain -p ci "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p ci "$KC"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KC"
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Профиль нотаризации
+        if: steps.cert.outputs.signed == 'true'
+        env:
+          KEY: ${{ secrets.NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          echo "$KEY" | base64 --decode > "$RUNNER_TEMP/key.p8"
+          xcrun notarytool store-credentials sozvon --key "$RUNNER_TEMP/key.p8" --key-id "$KEY_ID" --issuer "$ISSUER"
+          rm "$RUNNER_TEMP/key.p8"
+
+      - name: Сборка DMG
+        env:
+          VERSION: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          NOTARY_PROFILE: ${{ steps.cert.outputs.signed == 'true' && 'sozvon' || '' }}
+        run: |
+          export VERSION="${VERSION#v}"
+          ./build.sh dmg
+          mv build/Sozvon.dmg "build/Sozvon-$VERSION.dmg"
+          shasum -a 256 "build/Sozvon-$VERSION.dmg" > "build/Sozvon-$VERSION.dmg.sha256"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ steps.cert.outputs.signed }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          FLAGS="--generate-notes"
+          [ "$SIGNED" = "true" ] || FLAGS="$FLAGS --prerelease"
+          gh release create "$GITHUB_REF_NAME" build/Sozvon-$V.dmg build/Sozvon-$V.dmg.sha256 \
+            --title "Sozvon $V" $FLAGS

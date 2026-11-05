@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Sozvon records your voice during a call for local transcription.";
+"NSScreenCaptureUsageDescription" = "Sozvon records the other participants’ audio during a call. No video is recorded.";

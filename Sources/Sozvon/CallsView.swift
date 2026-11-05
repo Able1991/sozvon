@@ -1,0 +1,395 @@
+// Окно «Звонки»: список записей по дням (как в «Диктофоне») и карточка звонка
+// с саммари, расшифровкой и действиями.
+
+import AppKit
+import SozvonCore
+import SwiftUI
+
+/// Список звонков для окна. Перечитывается по событиям папки звонков (DirectoryWatcher)
+/// и когда расшифровка начинается или заканчивается.
+@MainActor
+final class CallsModel: ObservableObject {
+    @Published var calls: [Call] = []
+    @Published var selection: Call.ID?
+    @Published var search = "" { didSet { if search != oldValue { scheduleTextSearch() } } }
+    /// Звонки, в саммари или расшифровке которых есть `textQuery` (ищется в фоне с паузой 250 мс).
+    @Published private(set) var textMatches: Set<Call.ID> = []
+    private var textQuery = ""
+    private var searchTask: Task<Void, Never>?
+    private var sizeTask: Task<Void, Never>?
+    /// Папки, которые сейчас расшифровываются.
+    @Published var processing: Set<String> = []
+    /// Папка идущей записи: её нельзя удалить или расшифровать, пока захват не дописан.
+    @Published var recordingDir: URL?
+    var onRetranscribe: (Call) -> Void = { _ in }
+    private var watcher: DirectoryWatcher?
+
+    func isProcessing(_ url: URL) -> Bool { processing.contains(url.standardizedFileURL.path) }
+    func isRecording(_ url: URL) -> Bool { recordingDir?.standardizedFileURL.path == url.standardizedFileURL.path }
+    /// Расшифровывается или пишется: удалять и расшифровывать нельзя.
+    func isBusy(_ url: URL) -> Bool { isProcessing(url) || isRecording(url) }
+
+    /// Список перечитывается сразу (только call.json), размеры папок и поиск по тексту в фоне.
+    func reload() {
+        let sel = selection
+        let projects = Project.titles(Project.all())
+        let sizes = Dictionary(calls.map { ($0.id, $0.bytes) }, uniquingKeysWith: { a, _ in a })
+        calls = Call.all(projects: projects, defaults: CallInfo(languages: Settings.shared.languages)).map {
+            var c = $0
+            c.bytes = sizes[c.id] ?? 0  // прошлый размер, пока считается новый: строка не мигает
+            return c
+        }
+        if let sel, !calls.contains(where: { $0.id == sel }) { selection = calls.first?.id }
+        updateSizes()
+        CallTextCache.shared.retain(Set(calls.flatMap { [$0.summaryURL.path, $0.transcriptURL.path] }))
+        if !textQuery.isEmpty { scheduleTextSearch(delay: false) }
+    }
+
+    private func updateSizes() {
+        sizeTask?.cancel()
+        let dirs = calls.map(\.url)
+        sizeTask = Task { [weak self] in
+            let sizes = await Task.detached(priority: .utility) {
+                Dictionary(dirs.map { ($0.path, FolderSizeCache.shared.size($0)) }, uniquingKeysWith: { a, _ in a })
+            }.value
+            guard let self, !Task.isCancelled else { return }
+            for i in self.calls.indices {
+                if let b = sizes[self.calls[i].id], self.calls[i].bytes != b { self.calls[i].bytes = b }
+            }
+        }
+    }
+
+    private static func normalize(_ q: String) -> String { q.trimmingCharacters(in: .whitespaces).lowercased() }
+
+    /// Поиск по саммари и расшифровкам: после паузы в наборе, в фоне, тексты из кеша по (путь, mtime).
+    private func scheduleTextSearch(delay: Bool = true) {
+        searchTask?.cancel()
+        let q = Self.normalize(search)
+        guard !q.isEmpty else {
+            textQuery = ""
+            textMatches = []
+            return
+        }
+        let files = calls.map { (id: $0.id, urls: [$0.summaryURL, $0.transcriptURL]) }
+        searchTask = Task { [weak self] in
+            if delay { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !Task.isCancelled else { return }
+            let found = await Task.detached(priority: .userInitiated) {
+                CallTextCache.shared.matching(q, in: files)
+            }.value
+            guard let self, !Task.isCancelled else { return }
+            self.textQuery = q
+            self.textMatches = found
+        }
+    }
+
+    /// Следить за папкой звонков, пока открыто окно.
+    func startWatching() {
+        reload()
+        if watcher == nil { watcher = DirectoryWatcher(Paths.calls) { [weak self] in self?.reload() } }
+        watcher?.start()
+    }
+
+    func stopWatching() { watcher?.stop() }
+
+    var filtered: [Call] {
+        let q = Self.normalize(search)
+        guard !q.isEmpty else { return calls }
+        let df = DateFormatter()
+        df.dateStyle = .long
+        let text = textQuery == q ? textMatches : []
+        return calls.filter { c in
+            if text.contains(c.id) { return true }
+            // Метаданные: тема, проект, люди, ключевые слова, языки, дата, имя папки.
+            var meta = [c.title, c.project, c.people, c.info.terms, c.url.lastPathComponent,
+                        c.languages.map(\.title).joined(separator: " ")]
+            if let d = c.date { meta.append(df.string(from: d)) }
+            return meta.contains(where: { $0.lowercased().contains(q) })
+        }
+    }
+
+    /// Группы по дням: «Сегодня», «Вчера», дата.
+    var groups: [(String, [Call])] {
+        let cal = Calendar.current
+        let f = DateFormatter()
+        f.dateStyle = .long
+        f.timeStyle = .none
+        var out: [(String, [Call])] = []
+        for c in filtered {
+            let key: String
+            if let d = c.date {
+                key = cal.isDateInToday(d) ? L("Сегодня") : cal.isDateInYesterday(d) ? L("Вчера") : f.string(from: d)
+            } else {
+                key = L("Без даты")
+            }
+            if let i = out.firstIndex(where: { $0.0 == key }) { out[i].1.append(c) } else { out.append((key, [c])) }
+        }
+        return out
+    }
+
+    var selected: Call? { calls.first { $0.id == selection } }
+
+    /// Как в Finder: без вопроса, со звуком корзины; ⌘Z возвращает звонок на место.
+    func trash(_ c: Call, undo: UndoManager? = nil) {
+        guard !isBusy(c.url) else { NSSound.beep(); return }  // не удалять то, что пишется или расшифровывается
+        // Следующим выделяем соседний звонок, как в «Почте».
+        let list = filtered
+        if let i = list.firstIndex(where: { $0.id == c.id }) {
+            selection = (i + 1 < list.count ? list[i + 1] : (i > 0 ? list[i - 1] : nil))?.id
+        }
+        Task { @MainActor in
+            if let moved = try? await NSWorkspace.shared.recycle([c.url]) {
+                Sounds.trash()
+                if let trashed = moved[c.url] {
+                    undo?.registerUndo(withTarget: self) { m in
+                        MainActor.assumeIsolated { m.restore(trashed, to: c.url, undo: undo) }
+                    }
+                    undo?.setActionName(L("Удаление звонка"))
+                }
+            }
+            reload()
+        }
+    }
+
+    func restore(_ trashed: URL, to original: URL, undo: UndoManager?) {
+        guard (try? FileManager.default.moveItem(at: trashed, to: original)) != nil else { return }
+        reload()
+        selection = original.path
+        if let c = calls.first(where: { $0.url == original }) {
+            undo?.registerUndo(withTarget: self) { m in MainActor.assumeIsolated { m.trash(c, undo: undo) } }
+        }
+    }
+}
+
+/// Цвет проекта по названию: приглушённая системная палитра, только для точки.
+func projectColor(_ name: String) -> Color {
+    let palette: [Color] = [.blue, .purple, .pink, .orange, .teal, .indigo, .green, .brown]
+    let h = name.unicodeScalars.reduce(5381) { ($0 &* 33) &+ Int($1.value) }
+    return palette[abs(h) % palette.count].opacity(0.85)
+}
+
+struct CallRow: View {
+    let call: Call
+    let processing: Bool
+    var recording = false
+
+    /// «Проект · люди · длительность» одной тихой строкой.
+    private var subtitle: String {
+        [call.project == call.title ? "" : call.project, call.people, call.durationText]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(call.title).font(.body.weight(.semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+                if recording {
+                    Image(systemName: "record.circle").font(.caption).foregroundStyle(.red)
+                        .help(L("идёт запись"))
+                } else if processing {
+                    ProgressView().controlSize(.mini)
+                } else if !call.hasTranscript {
+                    Image(systemName: "waveform.slash").font(.caption).foregroundStyle(.tertiary)
+                        .help(L("без расшифровки"))
+                }
+                if let d = call.date {
+                    Text(d, style: .time).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+            }
+            HStack(spacing: 5) {
+                if !call.project.isEmpty {
+                    Circle().fill(projectColor(call.project)).frame(width: 6, height: 6)
+                }
+                Text(subtitle.isEmpty ? " " : subtitle).lineLimit(1)
+            }
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+    }
+}
+
+struct CallDetail: View {
+    let call: Call
+    @ObservedObject var m: CallsModel
+    @Binding var tab: Int
+    @Environment(\.undoManager) private var undo
+
+    private func read(_ u: URL) -> String { (try? String(contentsOf: u, encoding: .utf8)) ?? "" }
+
+    /// Саммари и расшифровка без заголовка и шапки, которые уже есть в карточке.
+    private var summaryText: String { read(call.summaryURL) }
+    private var transcriptBody: String {
+        let t = read(call.transcriptURL)
+        if let r = t.range(of: "\n---\n") { return String(t[r.upperBound...]) }
+        return t.components(separatedBy: "\n").drop { !$0.hasPrefix("**[") }.joined(separator: "\n")
+    }
+
+    /// «4 ноября, 21:50 · 1:38:00 · 117,6 МБ · Юрий»
+    private var meta: String {
+        var parts: [String] = []
+        if let d = call.date { parts.append(d.formatted(.dateTime.day().month(.wide).hour().minute())) }
+        parts += [call.durationText, call.sizeText, call.people].filter { !$0.isEmpty }
+        return parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(call.title).font(.title2.weight(.bold)).textSelection(.enabled)
+                    HStack(spacing: 5) {
+                        if !call.project.isEmpty {
+                            Circle().fill(projectColor(call.project)).frame(width: 7, height: 7)
+                            Text(call.project)
+                            Text("·")
+                        }
+                        Text(meta)
+                    }
+                    .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if call.hasTranscript || call.hasSummary {
+                    MarkdownText(text: tab == 0 && call.hasSummary ? summaryText : transcriptBody)
+                } else {
+                    VStack(spacing: 8) {
+                        let recording = m.isRecording(call.url)
+                        Image(systemName: recording ? "record.circle" : m.isProcessing(call.url) ? "hourglass" : "waveform.slash")
+                            .font(.system(size: 28)).foregroundStyle(recording ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary))
+                        Text(recording ? L("Идёт запись") : m.isProcessing(call.url) ? L("Расшифровывается…") : L("Нет расшифровки"))
+                            .font(.headline).foregroundStyle(.secondary)
+                        if call.hasAudio && !m.isBusy(call.url) {
+                            Button(L("Расшифровать…")) { m.onRetranscribe(call) }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+                }
+            }
+            .frame(maxWidth: 680, alignment: .leading)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 22)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                if call.hasSummary && call.hasTranscript {
+                    Picker("", selection: $tab) {
+                        Text(L("Саммари")).tag(0)
+                        Text(L("Расшифровка")).tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                if call.hasTranscript {
+                    Button { NSWorkspace.shared.open(call.transcriptURL) } label: { Label(L("Открыть"), systemImage: "doc.text") }
+                        .help(L("Открыть расшифровку"))
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(read(tab == 0 && call.hasSummary ? call.summaryURL : call.transcriptURL), forType: .string)
+                    } label: { Label(L("Копировать"), systemImage: "doc.on.doc") }
+                        .help(L("Копировать"))
+                }
+                Menu {
+                    if call.hasAudio && !m.isBusy(call.url) {
+                        Button(call.hasTranscript ? L("Расшифровать заново…") : L("Расшифровать…")) { m.onRetranscribe(call) }
+                    }
+                    Button(L("Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([call.url]) }
+                    if FileManager.default.fileExists(atPath: call.logURL.path) {
+                        Button(L("Журнал обработки")) { NSWorkspace.shared.open(call.logURL) }
+                    }
+                    Divider()
+                    Button(L("Удалить в корзину")) { m.trash(call, undo: undo) }
+                        .keyboardShortcut(.delete, modifiers: .command)
+                        .disabled(m.isBusy(call.url))
+                } label: { Label(L("Ещё"), systemImage: "ellipsis.circle") }
+            }
+        }
+    }
+}
+
+/// Markdown построчно: заголовки, списки, чек-листы, жирный текст.
+struct MarkdownText: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(text.components(separatedBy: "\n").enumerated()), id: \.offset) { _, raw in
+                let line = raw.trimmingCharacters(in: .whitespaces)
+                if line.isEmpty {
+                    EmptyView()
+                } else if line.hasPrefix("## ") || line.hasPrefix("# ") {
+                    Text(line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces))
+                        .font(.headline).padding(.top, 6)
+                } else if line.hasPrefix("- [ ] ") || line.hasPrefix("- [x] ") {
+                    Label { inline(String(line.dropFirst(6))) } icon: {
+                        Image(systemName: line.hasPrefix("- [x]") ? "checkmark.square" : "square").foregroundStyle(.secondary)
+                    }
+                } else if line.hasPrefix("- ") {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("•").foregroundStyle(.secondary)
+                        inline(String(line.dropFirst(2)))
+                    }
+                } else if line == "---" {
+                    Divider()
+                } else {
+                    inline(line)
+                }
+            }
+        }
+        .textSelection(.enabled)
+    }
+
+    private func inline(_ s: String) -> Text {
+        if let a = try? AttributedString(markdown: s) { return Text(a) }
+        return Text(s)
+    }
+}
+
+struct CallsView: View {
+    @ObservedObject var m: CallsModel
+    @State private var tab = 0
+    @Environment(\.undoManager) private var undo
+
+    var body: some View {
+        NavigationSplitView {
+            List(selection: $m.selection) {
+                ForEach(m.groups, id: \.0) { group in
+                    Section(group.0) {
+                        ForEach(group.1) { c in
+                            CallRow(call: c, processing: m.isProcessing(c.url), recording: m.isRecording(c.url)).tag(c.id)
+                                .contextMenu {
+                                    if c.hasTranscript { Button(L("Открыть расшифровку")) { NSWorkspace.shared.open(c.transcriptURL) } }
+                                    Button(L("Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([c.url]) }
+                                    if c.hasAudio && !m.isBusy(c.url) { Button(L("Расшифровать заново…")) { m.onRetranscribe(c) } }
+                                    Divider()
+                                    Button(L("Удалить в корзину")) { m.trash(c, undo: undo) }
+                                        .disabled(m.isBusy(c.url))
+                                }
+                        }
+                    }
+                }
+            }
+            .onDeleteCommand { if let c = m.selected { m.trash(c, undo: undo) } }
+            .searchable(text: $m.search, placement: .sidebar, prompt: Text(L("Поиск по звонкам")))
+            .navigationSplitViewColumnWidth(min: 260, ideal: 300)
+            .overlay {
+                if m.calls.isEmpty {
+                    ContentUnavailableView(L("Звонков пока нет"), systemImage: "waveform",
+                                           description: Text(L("Нажми «Записать» на панели или в меню Sozvon.")))
+                }
+            }
+        } detail: {
+            if let c = m.selected {
+                CallDetail(call: c, m: m, tab: $tab).id(c.id)
+                    .onAppear { tab = c.hasSummary ? 0 : 1 }
+            } else {
+                ContentUnavailableView(L("Выбери звонок"), systemImage: "list.bullet.rectangle")
+            }
+        }
+        .frame(minWidth: 820, minHeight: 520)
+        .onAppear { if m.selection == nil { m.selection = m.calls.first?.id } }
+    }
+}
