@@ -21,7 +21,7 @@ APP="$OUT/Sozvon.app"
 RES="$APP/Contents/Resources"
 SRC=Sources/Sozvon
 
-echo "==> Компилирую"
+echo "==> Compiling"
 SWIFT_FLAGS=(-c release --arch arm64)
 if [ "$MODE" = "preview" ]; then SWIFT_FLAGS+=(-Xswiftc -DSOZVON_PREVIEW); fi
 swift build "${SWIFT_FLAGS[@]}"
@@ -31,7 +31,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$RES/engine"
 cp "$BIN/Sozvon" "$APP/Contents/MacOS/Sozvon"
 
-echo "==> Кладу движок"
+echo "==> Bundling engine"
 # Всё дерево движка, кроме тестов и локального окружения разработчика.
 rsync -a --delete \
   --exclude 'tests/' --exclude '.venv/' --exclude '__pycache__/' --exclude '*.pyc' --exclude '.pytest_cache/' \
@@ -43,24 +43,24 @@ rsync -a --delete \
   > "$RES/engine/ENGINE_VERSION"
 # Без этого движок в папке данных не запустится (контракт, раздел 3).
 for f in server.py setup.sh models.json pyproject.toml uv.lock vocab.default.json bin/process_call.py bin/discover_projects.py; do
-  [ -e "$RES/engine/$f" ] || { echo "ОШИБКА: в бандле нет engine/$f" >&2; exit 1; }
+  [ -e "$RES/engine/$f" ] || { echo "ERROR: engine/$f is missing from the bundle" >&2; exit 1; }
 done
 
 # Модели разбивки по голосам внутри приложения (29 МБ): установка не зависит от сети GitHub.
 if [ ! -f build/pyannote-models-v1.tar.gz ]; then
   curl -fsSL -o build/pyannote-models-v1.tar.gz \
     https://github.com/Able1991/sozvon/releases/download/models-v1/pyannote-models-v1.tar.gz \
-    || echo "ВНИМАНИЕ: нет build/pyannote-models-v1.tar.gz, установка будет качать его из релиза"
+    || echo "WARNING: no build/pyannote-models-v1.tar.gz, setup will download it from the release"
 fi
 if [ -f build/pyannote-models-v1.tar.gz ]; then
   cp build/pyannote-models-v1.tar.gz "$RES/engine/"
 elif [ -n "${CI:-}" ]; then
-  echo "ОШИБКА: в CI нет архива моделей pyannote (релиз models-v1)" >&2; exit 1
+  echo "ERROR: pyannote model archive (release models-v1) is required in CI" >&2; exit 1
 fi
 
 if [ -f "$SRC/Resources/AppIcon.icns" ]; then cp "$SRC/Resources/AppIcon.icns" "$RES/"; fi
 cp -R "$SRC"/Resources/*.lproj "$RES/"
-python3 tools/l10n.py check >/dev/null || { python3 tools/l10n.py check; echo "ОШИБКА: строки без перевода" >&2; exit 1; }
+python3 tools/l10n.py check >/dev/null || { python3 tools/l10n.py check; echo "ERROR: untranslated strings" >&2; exit 1; }
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -94,35 +94,35 @@ if [ -z "${SIGN_ID:-}" ]; then
   fi
   SIGN_ID="${SIGN_ID:--}"
 fi
-echo "==> Подписываю: $SIGN_ID"
+echo "==> Signing: $SIGN_ID"
 ENTITLEMENTS="$SRC/Sozvon.entitlements"
 if [[ "$SIGN_ID" == Developer\ ID* ]]; then
   codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 else
   codesign --force --options runtime --timestamp=none --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 fi
-echo "Собрано: $APP ($VERSION, сборка $BUILD)"
+echo "Built: $APP ($VERSION, build $BUILD)"
 
 case "$MODE" in
   install)
     rm -rf "$HOME/Applications/Sozvon.app"
     cp -R "$APP" "$HOME/Applications/"
-    echo "Установлено: ~/Applications/Sozvon.app"
+    echo "Installed: ~/Applications/Sozvon.app"
     ;;
   dmg)
     # Порядок: .app нотаризуется и степлится до упаковки (тикет внутри .app работает и без сети
     # после копирования из DMG), затем DMG подписывается, нотаризуется и степлится сам.
     if [ -n "${NOTARY_PROFILE:-}" ] && [[ "$SIGN_ID" != Developer\ ID* ]]; then
-      echo "ОШИБКА: NOTARY_PROFILE задан, но подпись не Developer ID ($SIGN_ID)" >&2; exit 1
+      echo "ERROR: NOTARY_PROFILE is set but the identity is not Developer ID ($SIGN_ID)" >&2; exit 1
     fi
     notarize() {  # $1: файл для notarytool (zip или dmg); ошибка, если Apple не приняла
       local out
       out=$(xcrun notarytool submit "$1" --keychain-profile "$NOTARY_PROFILE" --wait --timeout 2h 2>&1) || { echo "$out" >&2; return 1; }
       echo "$out"
-      grep -q "status: Accepted" <<<"$out" || { echo "ОШИБКА: нотаризация $1 не принята" >&2; return 1; }
+      grep -q "status: Accepted" <<<"$out" || { echo "ERROR: notarization of $1 was not accepted" >&2; return 1; }
     }
     if [ -n "${NOTARY_PROFILE:-}" ]; then
-      echo "==> Нотаризация приложения"
+      echo "==> Notarizing app"
       ZIP="$OUT/Sozvon-notarize.zip"
       rm -f "$ZIP"
       ditto -c -k --keepParent "$APP" "$ZIP"
@@ -130,7 +130,7 @@ case "$MODE" in
       rm -f "$ZIP"
       xcrun stapler staple "$APP"
     fi
-    echo "==> Собираю DMG"
+    echo "==> Creating DMG"
     STAGE="$OUT/dmg"
     rm -rf "$STAGE" "$OUT/Sozvon.dmg"
     mkdir -p "$STAGE"
@@ -139,13 +139,13 @@ case "$MODE" in
     # На машинах CI hdiutil иногда отвечает «Resource busy» (файлы держит XProtect): повторяем.
     for i in 1 2 3 4 5; do
       hdiutil create -volname Sozvon -srcfolder "$STAGE" -ov -format UDZO "$OUT/Sozvon.dmg" >/dev/null && break
-      [ "$i" = 5 ] && { echo "ОШИБКА: hdiutil не создал DMG" >&2; exit 1; }
-      echo "hdiutil занят, попытка $((i + 1)) через $((i * 5)) с"; sleep $((i * 5))
+      [ "$i" = 5 ] && { echo "ERROR: hdiutil failed to create the DMG" >&2; exit 1; }
+      echo "hdiutil busy, retry $((i + 1)) in $((i * 5))s"; sleep $((i * 5))
     done
     rm -rf "$STAGE"
     if [[ "$SIGN_ID" == Developer\ ID* ]]; then codesign --sign "$SIGN_ID" --timestamp "$OUT/Sozvon.dmg"; fi
     if [ -n "${NOTARY_PROFILE:-}" ]; then
-      echo "==> Нотаризация DMG"
+      echo "==> Notarizing DMG"
       notarize "$OUT/Sozvon.dmg"
       xcrun stapler staple "$OUT/Sozvon.dmg"
     fi

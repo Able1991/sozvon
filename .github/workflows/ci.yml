@@ -17,20 +17,20 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - name: Xcode 26 (нужен SDK macOS 26 для Liquid Glass)
+      - name: Select Xcode 26 (macOS 26 SDK for Liquid Glass)
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)" && xcodebuild -version
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
-      - name: Python-тесты (без моделей, быстрые)
+      - name: Engine tests (fast, no models)
         working-directory: engine
         run: |
           uv sync --frozen
           ln -sf "$(.venv/bin/python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg
           uv run --frozen pytest -q -m "not slow"
-      - name: Переводы
+      - name: Localization check
         run: python3 tools/l10n.py check
-      - name: Swift-тесты (SwiftPM)
+      - name: App tests (SwiftPM)
         run: swift test
-      - name: Сборка Sozvon.app и DMG
+      - name: Build Sozvon.app and DMG
         run: ./build.sh dmg
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

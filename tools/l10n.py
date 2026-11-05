@@ -94,15 +94,15 @@ def main(cmd):
     en = load_en()
     for k in keys:
         if k not in en:
-            bad.append(f"нет английского перевода: \"{k}\"")
+            bad.append(f"missing English translation: \"{k}\"")
         elif en[k].count("%@") != k.count("%@"):
-            bad.append(f"разное число %@ в переводе: \"{k}\"")
+            bad.append(f"placeholder count differs: \"{k}\"")
     unused = [k for k in en if k not in keys]
     for k in unused:
-        print(f"предупреждение: лишний перевод \"{k}\"")
+        print(f"warning: unused translation \"{k}\"")
     for b in bad:
         print(b)
-    print(f"l10n: {len(keys)} строк, ошибок {len(bad)}")
+    print(f"l10n: {len(keys)} strings, {len(bad)} errors")
     return 1 if bad else 0
 
 

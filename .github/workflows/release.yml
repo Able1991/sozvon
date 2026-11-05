@@ -26,14 +26,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - name: Xcode 26 (нужен SDK macOS 26 для Liquid Glass)
+      - name: Select Xcode 26 (macOS 26 SDK for Liquid Glass)
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)" && xcodebuild -version
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
 
-      - name: Тесты
+      - name: Tests
         run: ./test.sh
 
-      - name: Сертификат Developer ID
+      - name: Import Developer ID certificate
         id: cert
         env:
           P12: ${{ secrets.DEVELOPER_ID_P12 }}
@@ -51,7 +51,7 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Профиль нотаризации
+      - name: Notarization profile
         if: steps.cert.outputs.signed == 'true'
         env:
           KEY: ${{ secrets.NOTARY_KEY_P8 }}
@@ -62,7 +62,7 @@ jobs:
           xcrun notarytool store-credentials sozvon --key "$RUNNER_TEMP/key.p8" --key-id "$KEY_ID" --issuer "$ISSUER"
           rm "$RUNNER_TEMP/key.p8"
 
-      - name: Сборка DMG
+      - name: Build, sign and notarize DMG
         env:
           VERSION: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
