@@ -1,0 +1,3 @@
+/* Permission prompts shown by macOS (English). */
+"NSMicrophoneUsageDescription" = "Sozvon records your voice during a call to transcribe it locally.";
+"NSScreenCaptureUsageDescription" = "Sozvon records the other participants' audio during a call. No video is recorded.";

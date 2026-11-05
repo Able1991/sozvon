@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sozvon: стенограмма любого созвона прямо на Mac</title>
+<meta name="description" content="Записывает созвоны в Zoom, Meet, Telegram и где угодно и расшифровывает их локально на Apple Silicon: кто что сказал, с таймкодами, и саммари с решениями и задачами.">
+<meta property="og:title" content="Sozvon">
+<meta property="og:description" content="Стенограмма любого созвона прямо на Mac. Локально, бесплатно, с открытым кодом.">
+<meta property="og:image" content="https://able1991.github.io/sozvon/images/ru-calls.png">
+<link rel="icon" href="images/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="images/icon.png" alt=""> Sozvon</a>
+    <a class="link hide-sm" href="#how" data-ru="Как это работает" data-en="How it works">Как это работает</a>
+    <a class="link hide-sm" href="docs.html" data-ru="Документация" data-en="Docs">Документация</a>
+    <a class="link" href="https://github.com/Able1991/sozvon">GitHub</a>
+    <button class="lang" id="lang" aria-label="Switch language">EN</button>
+  </nav>
+
+  <header class="hero">
+    <div>
+      <h1 data-ru="Стенограмма любого созвона, прямо на&nbsp;Mac" data-en="A transcript of every call, made on your&nbsp;Mac">Стенограмма любого созвона, прямо на&nbsp;Mac</h1>
+      <p class="lead" data-ru="Zoom, Meet, Telegram, TrueConf, что угодно. Нажимаешь «Записать», после звонка получаешь текст: кто что сказал, с таймкодами, и саммари с решениями и задачами. Звук не покидает компьютер." data-en="Zoom, Meet, Telegram, anything. Press Record, and after the call you get the text: who said what, with timestamps, plus a summary with decisions and action items. Audio never leaves your computer.">Zoom, Meet, Telegram, TrueConf, что угодно. Нажимаешь «Записать», после звонка получаешь текст: кто что сказал, с таймкодами, и саммари с решениями и задачами. Звук не покидает компьютер.</p>
+      <a class="download" href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12"/></svg>
+        <span data-ru="Скачать для Mac" data-en="Download for Mac">Скачать для Mac</span>
+      </a>
+      <p class="fine" data-ru="Бесплатно, открытый код (MIT). Для macOS 15 и новее на Apple Silicon. Без регистрации и токенов." data-en="Free and open source (MIT). macOS 15 or later on Apple silicon. No account, no tokens.">Бесплатно, открытый код (MIT). Для macOS 15 и новее на Apple Silicon. Без регистрации и токенов.</p>
+    </div>
+
+    <article class="sheet" aria-label="Пример расшифровки">
+      <div class="sheet-head">
+        <span><b data-ru="Acme, запуск кампании" data-en="Acme, campaign launch">Acme, запуск кампании</b></span>
+        <span data-ru="4 ноября, 15:01, 23 мин" data-en="Nov 4, 3:01 pm, 23 min">4 ноября, 15:01, 23 мин</span>
+      </div>
+      <div class="line reveal"><time>00:02</time><p><span class="who them" data-ru="Анна" data-en="Anna">Анна</span><span data-ru="Давай по запуску. Стартуем в понедельник?" data-en="Let’s talk launch. Are we starting Monday?">Давай по запуску. Стартуем в понедельник?</span></p></div>
+      <div class="line reveal"><time>00:07</time><p><span class="who you" data-ru="Ты" data-en="You">Ты</span><span data-ru="Да, если до пятницы получим ключи от песочницы." data-en="Yes, if we get the sandbox keys by Friday.">Да, если до пятницы получим ключи от песочницы.</span></p></div>
+      <div class="line reveal"><time>00:13</time><p><span class="who them2" data-ru="Олег" data-en="Oleg">Олег</span><span data-ru="Ключи выдам завтра, черновик SLA пришлю в четверг." data-en="I’ll issue the keys tomorrow and send the SLA draft on Thursday.">Ключи выдам завтра, черновик SLA пришлю в четверг.</span></p></div>
+      <div class="line reveal"><time>00:21</time><p><span class="who them" data-ru="Анна" data-en="Anna">Анна</span><span data-ru="Тогда фиксируем понедельник." data-en="Then Monday it is.">Тогда фиксируем понедельник.</span></p></div>
+      <div class="summary reveal">
+        <h3 data-ru="Решения" data-en="Decisions">Решения</h3>
+        <p data-ru="Запуск кампании в понедельник." data-en="The campaign launches on Monday.">Запуск кампании в понедельник.</p>
+        <h3 data-ru="Задачи" data-en="Action items">Задачи</h3>
+        <ul>
+          <li data-ru="Олег: выдать ключи от песочницы, завтра" data-en="Oleg: issue sandbox keys, tomorrow">Олег: выдать ключи от песочницы, завтра</li>
+          <li data-ru="Олег: черновик SLA, четверг" data-en="Oleg: SLA draft, Thursday">Олег: черновик SLA, четверг</li>
+        </ul>
+      </div>
+    </article>
+  </header>
+
+  <section id="how">
+    <h2 data-ru="Как проходит звонок" data-en="How a call goes">Как проходит звонок</h2>
+    <p class="intro" data-ru="Без виртуальных аудиодрайверов и ботов в звонке. Sozvon пишет звук компьютера и твой микрофон отдельными дорожками, поэтому всегда знает, где ты, а где собеседники." data-en="No virtual audio drivers, no bots joining the call. Sozvon records system audio and your microphone on separate tracks, so it always knows which voice is yours.">Без виртуальных аудиодрайверов и ботов в звонке. Sozvon пишет звук компьютера и твой микрофон отдельными дорожками, поэтому всегда знает, где ты, а где собеседники.</p>
+    <ol class="steps">
+      <li>
+        <h3 data-ru="Записать" data-en="Record">Записать</h3>
+        <p data-ru="Плавающая панель висит поверх всех окон, даже над Zoom на весь экран. Или значок в строке меню." data-en="A floating panel sits above every window, even full-screen Zoom. Or use the menu bar icon.">Плавающая панель висит поверх всех окон, даже над Zoom на весь экран. Или значок в строке меню.</p>
+        <figure><img id="shot-panel" src="images/ru-panel.png" width="300" alt="" loading="lazy"></figure>
+      </li>
+      <li>
+        <h3 data-ru="Стоп" data-en="Stop">Стоп</h3>
+        <p data-ru="Таймер и живая волна голосов показывают, что пишутся обе стороны. Если тебя не слышно, панель скажет." data-en="A timer and live waveform show both sides are being recorded. If your mic is silent, the panel tells you.">Таймер и живая волна голосов показывают, что пишутся обе стороны. Если тебя не слышно, панель скажет.</p>
+      </li>
+      <li>
+        <h3 data-ru="О чём был звонок" data-en="What was it about">О чём был звонок</h3>
+        <p data-ru="Выбираешь проект, Sozvon подсказывает людей с его прошлых звонков. Всё необязательно." data-en="Pick the project and Sozvon suggests people from its earlier calls. All optional.">Выбираешь проект, Sozvon подсказывает людей с его прошлых звонков. Всё необязательно.</p>
+        <figure><img id="shot-callinfo" src="images/ru-callinfo.png" width="440" alt="" loading="lazy"></figure>
+      </li>
+      <li>
+        <h3 data-ru="Текст" data-en="Text">Текст</h3>
+        <p data-ru="Через несколько минут приходит уведомление: расшифровка и саммари лежат в папке звонка и в окне «Звонки»." data-en="A few minutes later you get a notification: the transcript and summary are in the call folder and in the Calls window.">Через несколько минут приходит уведомление: расшифровка и саммари лежат в папке звонка и в окне «Звонки».</p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <h2 data-ru="Все звонки в одном окне" data-en="All your calls in one window">Все звонки в одном окне</h2>
+    <p class="intro" data-ru="Поиск по датам, людям, проектам и тексту расшифровок. Саммари и стенограмма рядом." data-en="Search by date, people, project and the transcripts themselves. Summary and transcript side by side.">Поиск по датам, людям, проектам и тексту расшифровок. Саммари и стенограмма рядом.</p>
+    <img class="window" id="shot-main" src="images/ru-calls.png" width="980" alt="" loading="lazy">
+  </section>
+
+  <section>
+    <h2 data-ru="Что ещё умеет" data-en="What else it does">Что ещё умеет</h2>
+    <div class="features">
+      <div class="feature"><h3 data-ru="Подписывает людей по именам" data-en="Names the speakers">Подписывает людей по именам</h3><p data-ru="Собеседники разводятся по голосам, а имена берутся из разговора: «Маша, как у тебя?»" data-en="Voices are separated, and names come from the conversation itself: “Mary, how’s it going?”">Собеседники разводятся по голосам, а имена берутся из разговора: «Маша, как у тебя?»</p></div>
+      <div class="feature"><h3 data-ru="Знает словарь твоих проектов" data-en="Knows your project vocabulary">Знает словарь твоих проектов</h3><p data-ru="Люди, термины и автозамены по каждому клиенту, чтобы распознавание правильно писало имена и жаргон. Проекты можно собрать из сессий Claude Code или Codex." data-en="People, terms and mishearing fixes per client, so names and jargon come out right. Projects can be collected from your Claude Code or Codex sessions.">Люди, термины и автозамены по каждому клиенту, чтобы распознавание правильно писало имена и жаргон. Проекты можно собрать из сессий Claude Code или Codex.</p></div>
+      <div class="feature"><h3 data-ru="Саммари на языке разговора" data-en="Summaries in the call’s language">Саммари на языке разговора</h3><p data-ru="Коротко, решения, задачи с исполнителями, открытые вопросы. Через Claude Code или Codex по твоей подписке, если хочешь." data-en="Overview, decisions, action items with owners, open questions. Through your Claude Code or Codex subscription, if you want it.">Коротко, решения, задачи с исполнителями, открытые вопросы. Через Claude Code или Codex по твоей подписке, если хочешь.</p></div>
+      <div class="feature"><h3 data-ru="Отвечает Claude и Codex про звонки" data-en="Lets Claude and Codex read your calls">Отвечает Claude и Codex про звонки</h3><p data-ru="Один MCP-сервер на все сессии: «что решили с Acme на прошлой неделе?»" data-en="One MCP server for every session: “what did we agree with Acme last week?”">Один MCP-сервер на все сессии: «что решили с Acme на прошлой неделе?»</p></div>
+      <div class="feature"><h3 data-ru="Понимает смену языка" data-en="Handles mixed languages">Понимает смену языка</h3><p data-ru="Русский и английский в одном звонке, интерфейс на обоих языках, светлая и тёмная тема." data-en="Russian and English in one call, the interface in both, light and dark mode.">Русский и английский в одном звонке, интерфейс на обоих языках, светлая и тёмная тема.</p></div>
+      <div class="feature"><h3 data-ru="Не мешает работать" data-en="Stays out of your way">Не мешает работать</h3><p data-ru="Расшифровка может уступать процессор другим программам, чтобы Mac не тормозил." data-en="Transcription can yield the CPU to your other apps so your Mac stays responsive.">Расшифровка может уступать процессор другим программам, чтобы Mac не тормозил.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 data-ru="Что уходит в сеть" data-en="What goes online">Что уходит в сеть</h2>
+    <p class="intro" data-ru="Ни телеметрии, ни своих серверов. Вот полный список." data-en="No telemetry, no servers of our own. Here is the complete list.">Ни телеметрии, ни своих серверов. Вот полный список.</p>
+    <table class="net">
+      <tbody>
+        <tr class="none"><td data-ru="Запись, расшифровка, разбивка по голосам" data-en="Recording, transcript, speaker separation">Запись, расшифровка, разбивка по голосам</td><td data-ru="Никуда. Только папка ~/Documents/Calls" data-en="Nowhere. Only the ~/Documents/Calls folder">Никуда. Только папка ~/Documents/Calls</td></tr>
+        <tr><td data-ru="Модели и Python-окружение" data-en="Models and Python runtime">Модели и Python-окружение</td><td data-ru="PyPI, huggingface.co, github.com, один раз при установке" data-en="PyPI, huggingface.co, github.com, once during setup">PyPI, huggingface.co, github.com, один раз при установке</td></tr>
+        <tr><td data-ru="Текст расшифровки для саммари и имён" data-en="Transcript text for summaries and names">Текст расшифровки для саммари и имён</td><td data-ru="Anthropic или OpenAI, только если выбран помощник" data-en="Anthropic or OpenAI, only if you pick an assistant">Anthropic или OpenAI, только если выбран помощник</td></tr>
+        <tr><td data-ru="То, что читает ассистент через MCP" data-en="What the assistant reads through MCP">То, что читает ассистент через MCP</td><td data-ru="Anthropic или OpenAI, только когда ты его спрашиваешь" data-en="Anthropic or OpenAI, only when you ask it">Anthropic или OpenAI, только когда ты его спрашиваешь</td></tr>
+        <tr><td data-ru="Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение" data-en="Project discovery: folder names, notes, session replies. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads">Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение</td><td data-ru="Anthropic или OpenAI, только по кнопке" data-en="Anthropic or OpenAI, only when you click the button">Anthropic или OpenAI, только по кнопке</td></tr>
+        <tr><td data-ru="Проверка новой версии" data-en="Update check">Проверка новой версии</td><td data-ru="api.github.com раз в сутки, отключается" data-en="api.github.com once a day, can be turned off">api.github.com раз в сутки, отключается</td></tr>
+      </tbody>
+    </table>
+    <p class="audit" data-ru="Весь код открыт. Каждый коммит проверяют <a href=&quot;https://github.com/Able1991/sozvon/actions/workflows/security.yml&quot;>Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код." data-en="All code is open. Every commit is checked by <a href=&quot;https://github.com/Able1991/sozvon/actions/workflows/security.yml&quot;>Gitleaks, Semgrep and CodeQL</a> for secrets, vulnerabilities and suspicious code.">Весь код открыт. Каждый коммит проверяют <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код.</p>
+  </section>
+
+  <section>
+    <h2 data-ru="Модели распознавания" data-en="Speech recognition models">Модели распознавания</h2>
+    <p class="intro" data-ru="Скачиваются один раз при установке и меняются в настройках." data-en="Downloaded once during setup, switchable in Settings.">Скачиваются один раз при установке и меняются в настройках.</p>
+    <div class="tablewrap"><table class="models">
+      <thead><tr><th data-ru="Модель" data-en="Model">Модель</th><th data-ru="Размер" data-en="Size">Размер</th><th data-ru="Языки" data-en="Languages">Языки</th><th data-ru="Чем хороша" data-en="Good for">Чем хороша</th></tr></thead>
+      <tbody>
+        <tr class="rec"><td>Whisper Turbo</td><td class="num" data-ru="1,6 ГБ" data-en="1.6 GB">1,6 ГБ</td><td class="num">99</td><td data-ru="Рекомендуем: быстро, точно, понимает словарь проекта" data-en="Recommended: fast, accurate, uses your project vocabulary">Рекомендуем: быстро, точно, понимает словарь проекта</td></tr>
+        <tr><td>Whisper Large v3</td><td class="num" data-ru="3,1 ГБ" data-en="3.1 GB">3,1 ГБ</td><td class="num">99</td><td data-ru="Самая точная, примерно вдвое медленнее" data-en="Most accurate, about twice as slow">Самая точная, примерно вдвое медленнее</td></tr>
+        <tr><td>Whisper Small</td><td class="num" data-ru="0,5 ГБ" data-en="0.5 GB">0,5 ГБ</td><td class="num">99</td><td data-ru="Для Mac с 8 ГБ памяти" data-en="For Macs with 8 GB of memory">Для Mac с 8 ГБ памяти</td></tr>
+        <tr><td>GigaAM v3</td><td class="num" data-ru="0,2 ГБ" data-en="0.2 GB">0,2 ГБ</td><td data-ru="русский" data-en="Russian">русский</td><td data-ru="Лучше всех знает русский, очень быстрая, без словаря проектов" data-en="Best at Russian, very fast, no project vocabulary">Лучше всех знает русский, очень быстрая, без словаря проектов</td></tr>
+        <tr><td>Parakeet v3</td><td class="num" data-ru="0,7 ГБ" data-en="0.7 GB">0,7 ГБ</td><td data-ru="25 европейских" data-en="25 European">25 европейских</td><td data-ru="Быстрая, без словаря проектов" data-en="Fast, no project vocabulary">Быстрая, без словаря проектов</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="docs">
+    <h2 data-ru="Документация" data-en="Documentation">Документация</h2>
+    <div class="docs">
+      <div>
+        <h3 data-ru="Установка" data-en="Install">Установка</h3>
+        <ol>
+          <li data-ru="Скачай Sozvon.dmg и перетащи Sozvon в «Программы»." data-en="Download Sozvon.dmg and drag Sozvon to Applications.">Скачай Sozvon.dmg и перетащи Sozvon в «Программы».</li>
+          <li data-ru="Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут." data-en="Launch it and follow the assistant: name, call languages, model, summary assistant. The engine installs itself in 5-10 minutes.">Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут.</li>
+          <li data-ru="Разреши «Микрофон» и «Запись экрана и системного аудио». Видео не записывается." data-en="Allow Microphone and Screen &amp; System Audio Recording. No video is recorded.">Разреши «Микрофон» и «Запись экрана и системного аудио». Видео не записывается.</li>
+        </ol>
+      </div>
+      <div>
+        <h3 data-ru="Claude Code и Codex" data-en="Claude Code and Codex">Claude Code и Codex</h3>
+        <p data-ru="«Настройки», вкладка «Claude и Codex», кнопка «Подключить». Подключение вручную описано <a href=&quot;docs.html#mcp&quot;>в документации</a>." data-en="Settings, Claude &amp; Codex tab, Connect. Manual setup is described <a href=&quot;docs.html#mcp&quot;>in the docs</a>.">«Настройки», вкладка «Claude и Codex», кнопка «Подключить». Подключение вручную описано <a href="docs.html#mcp">в документации</a>.</p>
+        <p data-ru="Инструменты: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. Сервер работает, пока запущен Sozvon." data-en="Tools: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. The server runs while Sozvon is open.">Инструменты: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. Сервер работает, пока запущен Sozvon.</p>
+      </div>
+    </div>
+    <p style="margin:40px 0 0"><a href="docs.html" data-ru="Вся документация: запись, проекты, модели, MCP, настройки, решение проблем, удаление" data-en="Full documentation: recording, projects, models, MCP, settings, troubleshooting, uninstall">Вся документация: запись, проекты, модели, MCP, настройки, решение проблем, удаление</a></p>
+    <div style="margin-top:32px">
+      <details><summary data-ru="Нужен ли интернет во время звонка?" data-en="Do I need internet during a call?">Нужен ли интернет во время звонка?</summary><p data-ru="Нет. Запись и расшифровка работают офлайн. Интернет нужен для установки и, по желанию, для саммари." data-en="No. Recording and transcription work offline. Internet is needed for setup and, optionally, summaries.">Нет. Запись и расшифровка работают офлайн. Интернет нужен для установки и, по желанию, для саммари.</p></details>
+      <details><summary data-ru="Собеседник узнает, что я записываю?" data-en="Will the other side know I’m recording?">Собеседник узнает, что я записываю?</summary><p data-ru="Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность, в разных странах свои правила." data-en="Sozvon doesn’t join the call; it records audio on your Mac. Telling others you’re recording is up to you, and the rules differ by country.">Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность, в разных странах свои правила.</p></details>
+      <details><summary data-ru="Почему не работает на Intel?" data-en="Why not Intel?">Почему не работает на Intel?</summary><p data-ru="Распознавание идёт на MLX, а он есть только на Apple Silicon." data-en="Recognition runs on MLX, which is Apple silicon only.">Распознавание идёт на MLX, а он есть только на Apple Silicon.</p></details>
+      <details><summary data-ru="Mac тормозит во время расшифровки" data-en="My Mac slows down while transcribing">Mac тормозит во время расшифровки</summary><p data-ru="Включи «Не мешать работе» в настройках, на вкладке «Распознавание»: расшифровка будет уступать другим программам." data-en="Turn on “Don’t slow down my Mac” in Settings, Recognition tab: transcription will yield to your other apps.">Включи «Не мешать работе» в настройках, на вкладке «Распознавание»: расшифровка будет уступать другим программам.</p></details>
+    </div>
+  </section>
+
+  <footer>
+    <span data-ru="Sozvon, лицензия MIT" data-en="Sozvon, MIT license">Sozvon, лицензия MIT</span>
+    <span data-ru="Модели: Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA)" data-en="Models: Whisper (OpenAI), pyannote, GigaAM (Sber), Parakeet (NVIDIA)">Модели: Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA)</span>
+    <a href="https://github.com/Able1991/sozvon">GitHub</a>
+  </footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  root.classList.add("js");
+  var btn = document.getElementById("lang");
+  var titles = { ru: "Sozvon: стенограмма любого созвона прямо на Mac", en: "Sozvon: a transcript of every call, made on your Mac" };
+  function apply(lang) {
+    root.lang = lang;
+    document.querySelectorAll("[data-ru]").forEach(function (el) { el.innerHTML = el.getAttribute("data-" + lang); });
+    ["main:calls", "callinfo:callinfo", "panel:panel"].forEach(function (p) {
+      var k = p.split(":"); document.getElementById("shot-" + k[0]).src = "images/" + lang + "-" + k[1] + ".png";
+    });
+    document.title = titles[lang];
+    btn.textContent = lang === "ru" ? "EN" : "RU";
+    try { localStorage.setItem("lang", lang); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("lang"); } catch (e) {}
+  var lang = saved || ((navigator.language || "ru").slice(0, 2) === "ru" ? "ru" : "en");
+  if (lang !== "ru") apply(lang);
+  btn.addEventListener("click", function () { apply(root.lang === "ru" ? "en" : "ru"); });
+
+  // Единственная анимация: реплики стенограммы появляются по очереди, как при расшифровке.
+  var lines = document.querySelectorAll(".reveal");
+  var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  lines.forEach(function (el, i) {
+    if (still) { el.classList.add("on"); return; }
+    setTimeout(function () { el.classList.add("on"); }, 350 + i * 520);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "_comment": "Единственный список моделей Sozvon: установка (setup.sh -> install.py), движок (sozvon_engine/models.py) и тесты приложения. revision закрепляет точную версию на Hugging Face.",
+  "models": {
+    "turbo":    {"kind": "whisper", "repo": "mlx-community/whisper-large-v3-turbo", "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb", "dir": "whisper-large-v3-turbo", "files": ["config.json", "weights.safetensors"], "size_gb": 1.6},
+    "large-v3": {"kind": "whisper", "repo": "mlx-community/whisper-large-v3-mlx",   "revision": "49e6aa286ad60c14352c404340ded53710378a11", "dir": "whisper-large-v3",       "files": ["config.json", "weights.npz"],         "size_gb": 3.1},
+    "small":    {"kind": "whisper", "repo": "mlx-community/whisper-small-mlx",      "revision": "45f3915923c7a79a5a5b5a7d909d39aeb0e5630e", "dir": "whisper-small",          "files": ["config.json", "weights.npz"],         "size_gb": 0.5},
+    "gigaam":   {"kind": "onnx", "onnx_name": "gigaam-v3-e2e-rnnt", "repo": "istupakov/gigaam-v3-onnx", "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02", "dir": "gigaam-v3-onnx",
+                 "files": ["config.json", "v3_e2e_rnnt.yaml", "v3_e2e_rnnt_vocab.txt", "v3_e2e_rnnt_encoder.int8.onnx", "v3_e2e_rnnt_decoder.int8.onnx", "v3_e2e_rnnt_joint.int8.onnx"], "size_gb": 0.2},
+    "parakeet": {"kind": "onnx", "onnx_name": "nemo-parakeet-tdt-0.6b-v3", "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx", "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce", "dir": "parakeet-tdt-0.6b-v3-onnx",
+                 "files": ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"], "size_gb": 0.7}
+  },
+  "vad": {"repo": "istupakov/silero-vad-onnx", "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6", "dir": "silero-vad-onnx", "files": ["config.json", "silero_vad.onnx"]}
+}

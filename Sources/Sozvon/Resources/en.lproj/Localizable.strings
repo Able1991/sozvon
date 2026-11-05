@@ -1,0 +1,292 @@
+/* Sozvon, English. Keys are the Russian source strings. Check: tools/l10n.py check */
+
+/* Engine, panel, recorder */
+"Не удалось запустить: %@" = "Couldn't start: %@";
+"Только локально" = "Local only";
+"Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic." = "Summaries and project discovery, including asking your open sessions. Text is sent to Anthropic.";
+"Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI." = "Summaries and project discovery from past sessions. Text is sent to OpenAI.";
+"Без саммари. Ничего не покидает Mac." = "No summaries. Nothing leaves your Mac.";
+"Русский" = "Russian";
+"Українська" = "Ukrainian";
+"Определять сам" = "Detect automatically";
+"Их не слышно %@" = "Can't hear them %@";
+"Остановить и расшифровать" = "Stop and Transcribe";
+"Расшифровка…" = "Transcribing…";
+"Записать" = "Record";
+"Начать запись звонка" = "Start recording the call";
+"Скрыть панель (вернуть: меню Sozvon → Плавающая панель)" = "Hide panel (bring it back: Sozvon menu → Floating Panel)";
+"Нет дисплея для захвата" = "No display available for capture";
+
+/* Setup */
+"Назад" = "Back";
+"Далее" = "Next";
+"Установить" = "Install";
+"Готово" = "Done";
+"Пропустить" = "Skip";
+"Продолжить" = "Continue";
+"Добро пожаловать в Sozvon" = "Welcome to Sozvon";
+"Записывает созвоны в Zoom, Meet, Telegram и где угодно, а потом расшифровывает их прямо на этом Mac." = "Records calls in Zoom, Meet, Telegram or anywhere else, then transcribes them right on this Mac.";
+"Одна кнопка" = "One Button";
+"Нажал в строке меню, созвонился, остановил." = "Click in the menu bar, take the call, stop.";
+"Локально" = "Private";
+"Whisper и разбивка по голосам работают на Apple Silicon без интернета." = "Whisper and speaker separation run on Apple silicon, no internet needed.";
+"Кто что сказал" = "Who Said What";
+"Ты и собеседники по отдельности, с таймкодами." = "You and the other side, separately, with timestamps.";
+"Саммари" = "Summary";
+"Решения, задачи и открытые вопросы. По желанию." = "Decisions, action items and open questions. Optional.";
+"Помощник для саммари" = "Summary Assistant";
+"Расшифровка всегда локальная. Саммари и поиск проектов делает CLI, который у тебя уже есть, по твоей подписке." = "Transcription is always local. Summaries and project discovery use a CLI you already have, on your own subscription.";
+"установлен" = "installed";
+"не найден" = "not found";
+"Пара деталей" = "A Few Details";
+"Как тебя подписывать" = "Your name";
+"Аня" = "Anna";
+"Движок установлен" = "Engine Installed";
+"Установка движка" = "Install the Engine";
+"Что-то пошло не так. Лог лежит в setup.log в папке данных." = "Something went wrong. See setup.log in the data folder.";
+"Разрешения" = "Permissions";
+"Микрофон нужен для твоего голоса, запись экрана и системного аудио для голосов собеседников. Видео не пишется." = "The microphone captures your voice, Screen & System Audio Recording captures the other side. No video is recorded.";
+"Микрофон" = "Microphone";
+"Разрешено" = "Allowed";
+"Нужен доступ" = "Access needed";
+"Разрешить" = "Allow";
+"Запись экрана и системного аудио" = "Screen & System Audio Recording";
+"Включи Sozvon в списке, потом перезапусти" = "Turn on Sozvon in the list, then relaunch";
+"Я включил, перезапустить Sozvon" = "I turned it on, relaunch Sozvon";
+"Проекты" = "Projects";
+"Для каждого проекта можно задать людей и термины, чтобы Whisper правильно их писал. Проект выбирается после звонка." = "Give each project its people and terms so Whisper spells them right. You pick the project after a call.";
+"Найти проекты через %@" = "Find Projects with %@";
+"Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа." = "Claude looks through your Claude Code sessions and asks the open ones what they’re working on.";
+"Codex посмотрит прошлые сессии и соберёт проекты, людей и термины." = "Codex looks through past sessions and collects projects, people and terms.";
+"Или потом: меню Sozvon → Проекты. Собеседники звонков сами дописываются в свой проект." = "Or later: Sozvon menu → Projects. Call participants are added to their project automatically.";
+
+/* After a call */
+"Проект" = "Project";
+"Без проекта" = "No Project";
+"Новый проект…" = "New Project…";
+"Тема" = "Topic";
+"запуск рекламной кампании" = "ad campaign launch";
+"Собеседники" = "Participants";
+"Анна, Иван" = "Anna, John";
+"Ключевые слова" = "Keywords";
+"HPA, стримкодер" = "HPA, streamcoder";
+"Язык" = "Language";
+"Собеседников без себя, через запятую, по порядку, кто заговорит первым. Всё можно оставить пустым." = "Others on the call, comma-separated, in the order they first speak. Everything here is optional.";
+"Помощник не выбран в настройках" = "No assistant selected in Settings";
+"Через %@, текст уйдёт в %@" = "Via %@, text is sent to %@";
+"Не расшифровывать" = "Don’t Transcribe";
+"О чём был звонок?" = "What Was the Call About?";
+"Расшифровать" = "Transcribe";
+
+/* Projects */
+"Название" = "Name";
+"О чём созвоны" = "About";
+"Инфраструктура видеоплатформы" = "Video platform infrastructure";
+"Новый проект" = "New Project";
+"Люди" = "People";
+"Анна Петрова, Иван" = "Anna Smith, John";
+"Термины" = "Terms";
+"Kubernetes, HPA, стримкодер" = "Kubernetes, HPA, streamcoder";
+"Через запятую. Самое важное первым: в подсказку Whisper влезает около 25 слов." = "Comma-separated, most important first: Whisper’s prompt fits about 25 words.";
+"Отмена" = "Cancel";
+"Сохранить" = "Save";
+"Проектов пока нет" = "No projects yet";
+"%@ чел. · %@ терм." = "%@ people · %@ terms";
+"Ищу проекты…" = "Looking for projects…";
+"Новый" = "New";
+"Найти через %@" = "Find with %@";
+"Папка" = "Folder";
+
+/* Settings */
+"Имя в расшифровке" = "Name in transcripts";
+" (не найден)" = " (not found)";
+"Движок" = "Engine";
+"Папка данных" = "Data folder";
+"Показать в Finder" = "Show in Finder";
+"Записи" = "Recordings";
+"Язык интерфейса" = "Language";
+"Как в системе" = "System Default";
+"Перезапустить Sozvon" = "Relaunch Sozvon";
+
+/* Menu */
+"Sozvon: идёт запись %@" = "Sozvon: recording %@";
+"Нужна настройка" = "Setup needed";
+"Идёт запись · %@" = "Recording · %@";
+"Готов к записи" = "Ready to record";
+"Завершить настройку…" = "Finish Setup…";
+"Проект и собеседники…" = "Project and Participants…";
+"Начать запись" = "Start Recording";
+"Последняя расшифровка" = "Latest Transcript";
+"Расшифровать заново…" = "Transcribe Again…";
+"Проекты…" = "Projects…";
+"Плавающая панель" = "Floating Panel";
+"Открывать при входе" = "Open at Login";
+"Настройки…" = "Settings…";
+"Выйти из Sozvon" = "Quit Sozvon";
+
+/* Alerts and notifications */
+"Нужны разрешения" = "Permissions Needed";
+"«Запись экрана и системного аудио»" = "“Screen & System Audio Recording”";
+"«Микрофон»" = "“Microphone”";
+"Включи Sozvon в Системных настройках → Конфиденциальность и безопасность → %@. После записи экрана перезапусти Sozvon." = "Turn on Sozvon in System Settings → Privacy & Security → %@. After enabling screen recording, relaunch Sozvon.";
+" и " = " and ";
+"Открыть настройки" = "Open System Settings";
+"Проект и собеседники" = "Project and Participants";
+"Расшифровать заново" = "Transcribe Again";
+"Расшифровка готова" = "Transcript Ready";
+"Не получилось расшифровать" = "Transcription Failed";
+"Подробности в process.log" = "Details in process.log";
+"Запись прервалась" = "Recording Stopped";
+"Не удалось начать запись" = "Couldn’t Start Recording";
+"%@\n\nПроверь разрешения: Системные настройки → Конфиденциальность и безопасность → «Запись экрана и системного аудио» и «Микрофон». После включения перезапусти Sozvon." = "%@\n\nCheck permissions: System Settings → Privacy & Security → “Screen & System Audio Recording” and “Microphone”. After enabling, relaunch Sozvon.";
+
+/* Models */
+"1,6 ГБ" = "1.6 GB";
+"3,1 ГБ" = "3.1 GB";
+"0,5 ГБ" = "0.5 GB";
+"Быстро и точно. Час звонка за 3-4 минуты на M1." = "Fast and accurate. An hour-long call in 3-4 minutes on M1.";
+"Самая точная, примерно в 2 раза медленнее Turbo." = "Most accurate, about 2× slower than Turbo.";
+"Лёгкая: для Mac с 8 ГБ памяти и экономии места. Точность ниже." = "Lightweight: for Macs with 8 GB of memory or to save space. Less accurate.";
+"Имя пишется в расшифровке рядом с твоими репликами. Язык можно поменять для любого звонка." = "Your name labels your lines in the transcript. You can change the language for any call.";
+"Модель распознавания" = "Speech Model";
+"Работает на этом Mac. Модель скачается один раз, потом её можно сменить в настройках." = "Runs on this Mac. The model is downloaded once; you can switch later in Settings.";
+"рекомендуем" = "recommended";
+"Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут." = "Python, the Whisper model and speaker separation are downloaded once, 2-4 GB. Usually 5-10 minutes.";
+"Распознавание" = "Recognition";
+"Модель" = "Model";
+"Скачать модель…" = "Download Model…";
+"Свой токен Hugging Face" = "Own Hugging Face token";
+"не обязательно" = "optional";
+
+/* Settings v2 */
+"Плавающая панель во время записи" = "Show floating panel while recording";
+"Показывать панель и без записи" = "Show panel when not recording";
+"Дополнительно" = "Advanced";
+"Не обязателен: все модели качаются без него. С токеном выше лимиты Hugging Face, если с одного адреса качают многие." = "Optional: all models download without it. A token raises Hugging Face rate limits when many people download from one address.";
+"Основные" = "General";
+"Панель" = "Panel";
+"Панель поверх всех окон, даже поверх Zoom на весь экран: таймер, голоса и кнопка стоп. Перетаскивается мышью." = "Stays above all windows, even full-screen Zoom: timer, voices and a stop button. Drag it anywhere.";
+"Переустановить…" = "Reinstall…";
+
+/* Languages */
+"Языки звонков" = "Call languages";
+"Язык может меняться посреди речи" = "Language can change mid-sentence";
+"Можно отметить несколько: язык будет определяться среди них. Для конкретного звонка меняется в окне после записи." = "Pick several and Sozvon detects among them. You can change it for a specific call after recording.";
+"Язык определяется для каждой дорожки. Со сменой посреди речи ещё и для каждой фразы, это медленнее на 20-30%." = "The language is detected per track. With mid-sentence switching, also per phrase, which is 20-30% slower.";
+"Остановить" = "Stop";
+"Продолжить установку" = "Resume Install";
+"Установка остановлена. Скачанное сохранится, продолжить можно в любой момент." = "Install stopped. What's downloaded is kept; you can resume anytime.";
+"Поиск остановлен" = "Search stopped";
+"%@ · обычно 2-5 минут" = "%@ · usually 2-5 minutes";
+"Скрыть панель" = "Hide Panel";
+
+/* Calls window */
+"Звонок" = "Call";
+"Сегодня" = "Today";
+"Вчера" = "Yesterday";
+"Без даты" = "No Date";
+"без расшифровки" = "not transcribed";
+"Открыть" = "Open";
+"Копировать" = "Copy";
+"Расшифровать…" = "Transcribe…";
+"Журнал обработки" = "Processing Log";
+"Расшифровка" = "Transcript";
+"Расшифровывается…" = "Transcribing…";
+"Нет расшифровки" = "No Transcript";
+"Открыть расшифровку" = "Open Transcript";
+"Удалить в корзину" = "Move to Trash";
+"Поиск по звонкам" = "Search calls";
+"Звонков пока нет" = "No Calls Yet";
+"Нажми «Записать» на панели или в меню Sozvon." = "Click Record on the panel or in the Sozvon menu.";
+"Выбери звонок" = "Select a Call";
+"Звонки…" = "Calls…";
+"Звонки" = "Calls";
+"Звук при старте и остановке записи" = "Play sound when recording starts and stops";
+"Удаление звонка" = "Delete Call";
+
+/* Main menu */
+"О программе Sozvon" = "About Sozvon";
+"Скрыть Sozvon" = "Hide Sozvon";
+"Правка" = "Edit";
+"Отменить" = "Undo";
+"Повторить" = "Redo";
+"Вырезать" = "Cut";
+"Вставить" = "Paste";
+"Выбрать все" = "Select All";
+"Окно" = "Window";
+"Свернуть" = "Minimize";
+"Закрыть" = "Close";
+"Ещё" = "More";
+"0,2 ГБ" = "0.2 GB";
+"0,7 ГБ" = "0.7 GB";
+"Только русский, от Сбера. Лёгкая и быстрая, но без словаря проектов." = "Russian only, by Sber. Light and fast, but no project vocabulary.";
+"25 европейских языков, от NVIDIA. Очень быстрая, но без словаря проектов." = "25 European languages, by NVIDIA. Very fast, but no project vocabulary.";
+
+/* MCP */
+"Не найден %@" = "%@ not found";
+"Claude и Codex" = "Claude & Codex";
+"не установлен" = "not installed";
+"Подключён" = "Connected";
+"Отключить" = "Disconnect";
+"Подключить" = "Connect";
+"Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого Mac." = "Your assistant can search calls and read summaries and transcripts: “what did we decide with the client last week?”. One shared server for all sessions, available while Sozvon is running. Data is read from this Mac.";
+
+/* Updates */
+"Доступна версия %@…" = "Version %@ Available…";
+"Доступна версия %@" = "Version %@ available";
+"Новая версия Sozvon на GitHub" = "A new version of Sozvon is on GitHub";
+"Проверять обновления" = "Check for updates";
+"Версия" = "Version";
+"Проверить" = "Check";
+"Проверяю…" = "Checking…";
+"Доступна %@" = "%@ available";
+"%@, последняя" = "%@, up to date";
+"Тебя не слышно %@" = "Can't hear you %@";
+"Записано" = "Saved";
+"Не мешать работе" = "Don’t slow down my Mac";
+"Расшифровка уступает твоим программам: Zoom, браузер и сборки не тормозят." = "Transcription yields to your other apps: Zoom, your browser and builds stay smooth.";
+"Расшифровка на полной скорости, Mac может подтормаживать." = "Transcription at full speed; your Mac may slow down.";
+"Уже расшифровывается" = "Already transcribing";
+"Не получилось обновить движок" = "Couldn’t update the engine";
+"Подробности в setup.log" = "Details in setup.log";
+"Расшифрую после обновления движка" = "Will transcribe after the engine update";
+"Обновляю движок…" = "Updating engine…";
+
+/* Состояние движка и итоги расшифровки */
+"MCP-сервер не запустился, подробности в mcp.log" = "The MCP server did not start, see mcp.log";
+"MCP-сервер завершился с кодом %@, подробности в mcp.log" = "The MCP server exited with code %@, see mcp.log";
+"Открыть журнал" = "Open Log";
+"Проверить разрешения" = "Check Permissions";
+"Переустановить движок" = "Reinstall Engine";
+"Скачать модель" = "Download Model";
+"Код завершения %@" = "Exit code %@";
+"Движок не оставил transcript.md" = "The engine did not produce transcript.md";
+"В записи нет звука" = "The recording has no sound";
+"Ни одна дорожка не записалась. Проверь разрешения на микрофон и запись экрана." = "Neither track was recorded. Check the microphone and screen recording permissions.";
+"Движок сломан" = "The engine is broken";
+"Переустанови движок в настройках" = "Reinstall the engine in Settings";
+"Модель не скачана" = "The model is not downloaded";
+"Скачай модель распознавания" = "Download the recognition model";
+"Запись повреждена" = "The recording is damaged";
+"Не удалось прочитать дорожки звонка. Подробности в process.log" = "Could not read the call tracks. See process.log";
+"окружение на месте" = "environment installed";
+"скачана" = "downloaded";
+"не скачана" = "not downloaded";
+"MCP-сервер" = "MCP server";
+"проверяю…" = "checking…";
+"Последняя ошибка" = "Last error";
+"Журнал" = "Log";
+"Состояние движка" = "Engine Status";
+"работает" = "running";
+"не отвечает" = "not responding";
+"не принял пароль" = "rejected the token";
+"ответил кодом %@" = "responded with code %@";
+"Идёт расшифровка" = "Transcription in progress";
+"Если выйти, расшифровка прервётся. Её можно будет запустить заново в окне «Звонки»." = "Quitting will stop the transcription. You can start it again from the Calls window.";
+"Выйти" = "Quit";
+"Движок обновляется" = "The engine is updating";
+"Движок обновляется в фоне. Установка станет доступна, когда обновление закончится." = "The engine is updating in the background. Installation will be available when the update finishes.";
+"Sozvon уже запущен" = "Sozvon is already running";
+"Другая копия Sozvon уже работает с этой папкой данных. Её значок в строке меню. Эта копия закроется." = "Another copy of Sozvon is already using this data folder. Its icon is in the menu bar. This copy will quit.";
+"идёт запись" = "recording";
+"Идёт запись" = "Recording";

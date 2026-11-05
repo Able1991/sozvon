@@ -1,0 +1,7 @@
+# Updates for SHA-pinned GitHub Actions: a weekly pull request with new versions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
