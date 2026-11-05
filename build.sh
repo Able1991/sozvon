@@ -136,7 +136,12 @@ case "$MODE" in
     mkdir -p "$STAGE"
     ditto "$APP" "$STAGE/Sozvon.app"  # ditto сохраняет подпись, тикет и атрибуты
     ln -s /Applications "$STAGE/Applications"
-    hdiutil create -volname Sozvon -srcfolder "$STAGE" -ov -format UDZO "$OUT/Sozvon.dmg" >/dev/null
+    # На машинах CI hdiutil иногда отвечает «Resource busy» (файлы держит XProtect): повторяем.
+    for i in 1 2 3 4 5; do
+      hdiutil create -volname Sozvon -srcfolder "$STAGE" -ov -format UDZO "$OUT/Sozvon.dmg" >/dev/null && break
+      [ "$i" = 5 ] && { echo "ОШИБКА: hdiutil не создал DMG" >&2; exit 1; }
+      echo "hdiutil занят, попытка $((i + 1)) через $((i * 5)) с"; sleep $((i * 5))
+    done
     rm -rf "$STAGE"
     if [[ "$SIGN_ID" == Developer\ ID* ]]; then codesign --sign "$SIGN_ID" --timestamp "$OUT/Sozvon.dmg"; fi
     if [ -n "${NOTARY_PROFILE:-}" ]; then
