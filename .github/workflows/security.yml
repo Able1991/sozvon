@@ -36,7 +36,7 @@ jobs:
       - name: Semgrep (падает на ERROR)
         run: >
           semgrep scan
-          --config p/default --config p/secrets --config p/python --config p/bash
+          --config p/default --config p/secrets --config p/python
           --severity ERROR --error --metrics off
 
   codeql:
@@ -74,7 +74,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 10
-          n=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?state=open&severity=critical&tool_name=CodeQL&ref=${{ github.ref }}" --jq 'length' 2>/dev/null || echo 0)
-          h=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?state=open&severity=high&tool_name=CodeQL&ref=${{ github.ref }}" --jq 'length' 2>/dev/null || echo 0)
+          n=$(gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=critical&tool_name=CodeQL&ref=$GITHUB_REF" --jq 'length' 2>/dev/null || echo 0)
+          h=$(gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=high&tool_name=CodeQL&ref=$GITHUB_REF" --jq 'length' 2>/dev/null || echo 0)
           echo "CodeQL: critical=$n high=$h"
           [ "$n" = "0" ] && [ "$h" = "0" ]

@@ -101,7 +101,9 @@ def install_pyannote(engine: EngineDir, sources: list, sha: str = PYANNOTE_SHA,
                 fetch(url, archive)
                 if sha256(archive) != sha:
                     continue
-                with tarfile.open(archive, "r:gz") as tar:
+                # filter="data" (PEP 706) отбрасывает абсолютные пути, ../ и ссылки наружу;
+                # правило trailofbits этот фильтр не распознаёт
+                with tarfile.open(archive, "r:gz") as tar:  # nosemgrep: trailofbits.python.tarfile-extractall-traversal.tarfile-extractall-traversal
                     tar.extractall(engine.root, filter="data")
             except (OSError, subprocess.CalledProcessError, tarfile.TarError):
                 continue
