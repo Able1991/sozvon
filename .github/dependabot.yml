@@ -1,0 +1,7 @@
+# Обновления закреплённых по SHA действий GitHub: раз в неделю pull request с новыми версиями.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
