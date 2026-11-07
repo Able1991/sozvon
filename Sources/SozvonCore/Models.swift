@@ -3,12 +3,13 @@
 import Foundation
 
 public enum Assistant: String, CaseIterable, Identifiable, Sendable {
-    case claude, codex, none
+    case claude, codex, cursor, none
     public var id: String { rawValue }
     public var title: String {
         switch self {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
+        case .cursor: return "Cursor"
         case .none: return L("Только локально")
         }
     }
@@ -16,6 +17,7 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claude: return L("Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic.")
         case .codex: return L("Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI.")
+        case .cursor: return L("Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели.")
         case .none: return L("Без саммари. Ничего не покидает Mac.")
         }
     }
@@ -23,12 +25,26 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claude: return "sparkles"
         case .codex: return "chevron.left.forwardslash.chevron.right"
+        case .cursor: return "cursorarrow.rays"
         case .none: return "lock.shield.fill"
         }
     }
     /// Who receives the summary text.
-    public var vendor: String { self == .claude ? "Anthropic" : "OpenAI" }
-    public var cli: String? { self == .none ? nil : rawValue }
+    public var vendor: String {
+        switch self {
+        case .claude: return "Anthropic"
+        case .codex: return "OpenAI"
+        case .cursor: return "Cursor"
+        case .none: return ""
+        }
+    }
+    public var cli: String? {
+        switch self {
+        case .claude, .codex: return rawValue
+        case .cursor: return "cursor-agent"
+        case .none: return nil
+        }
+    }
 
     /// Where to look for the assistant's CLI.
     public static let searchDirs = ["\(Paths.home.path)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
@@ -41,9 +57,9 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
 
     public var isAvailable: Bool { cli == nil || cliPath != nil }
 
-    /// Default assistant: whichever one is installed.
+    /// Default assistant: the first installed of Claude Code, Codex, Cursor.
     public static func detect() -> Assistant {
-        Assistant.claude.isAvailable ? .claude : (Assistant.codex.isAvailable ? .codex : .none)
+        [Assistant.claude, .codex, .cursor].first { $0.isAvailable } ?? .none
     }
 }
 

@@ -1,8 +1,8 @@
-"""Cloud assistant for summaries and project discovery: Claude Code or Codex CLI.
+"""Cloud assistant for summaries and project discovery: Claude Code, Codex CLI or Cursor CLI.
 
-Choice: SOZVON_LLM = auto | claude | codex | none (default auto: claude if
-installed, otherwise codex). Uses the user's subscription in the respective CLI.
-Text goes to Anthropic (claude) or OpenAI (codex).
+Choice: SOZVON_LLM = auto | claude | codex | cursor | none (default auto: the first
+installed of claude, codex, cursor). Uses the user's subscription in the respective CLI.
+Text goes to Anthropic (claude), OpenAI (codex) or Cursor and the model chosen there (cursor).
 """
 import json
 import shutil
@@ -26,21 +26,25 @@ def _find(name: str):
     return None
 
 
+# Backend name -> CLI binary, in auto-detection order.
+BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent"}
+
+
 def backend(settings: config.Settings | None = None):
-    """-> ('claude'|'codex', path) or (None, None)."""
+    """-> ('claude'|'codex'|'cursor', path) or (None, None)."""
     want = (settings or config.load()).llm
     if want == "none":
         return None, None
-    order = [want] if want in ("claude", "codex") else ["claude", "codex"]
+    order = [want] if want in BINARIES else list(BINARIES)
     for name in order:
-        path = _find(name)
+        path = _find(BINARIES[name])
         if path:
             return name, path
     return None, None
 
 
 def vendor(name) -> str:
-    return {"claude": "Anthropic", "codex": "OpenAI"}.get(name, "")
+    return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor"}.get(name, "")
 
 
 def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_event=None):
@@ -52,7 +56,7 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     settings = config.load()
     name, path = backend(settings)
     if not name:
-        return None, None, "не найден ни claude, ни codex CLI"
+        return None, None, "не найден ни claude, ни codex, ни cursor-agent CLI"
     if name == "claude":
         # --setting-sources project: skip ~/.claude/settings.json, otherwise the user's allow rules
         # (Bash, Write ...) would widen the assistant's permissions.
@@ -78,6 +82,9 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
             return None, name, (r.stderr or out)[:500]
         return out, name, ""
 
+    if name == "cursor":
+        return _cursor(path, prompt, agentic, timeout, settings)
+
     # codex exec: read-only sandbox, no session persistence, answer written to a file.
     with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
         out_file = tf.name
@@ -97,6 +104,48 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     if r.returncode != 0 or not out:
         return None, name, (r.stderr or r.stdout)[-500:]
     return out, name, ""
+
+
+# Short argument for a summary: the request itself is in request.md, never in argv
+# (a transcript can exceed the argument size limit and would show up in `ps`).
+CURSOR_FILE_PROMPT = ("Read the file request.md in the current workspace and do exactly what it says. "
+                      "Reply only with the answer it asks for, nothing else.")
+
+
+def _cursor(path, prompt, agentic, timeout, settings):
+    """cursor-agent -p in read-only ask mode with the sandbox on.
+
+    agentic (project discovery): the short prompt goes as the argument, workspace ~/.cursor
+    so it can read ~/.cursor/projects. Otherwise the prompt is written to request.md in a fresh
+    temporary folder, which is the workspace.
+    """
+    cmd = [path, "-p", "--mode", "ask", "--sandbox", "enabled", "--trust", "--output-format", "text"]
+    if settings.cursor_model:
+        cmd += ["--model", settings.cursor_model]
+    tmp = None
+    try:
+        if agentic:
+            workspace = Path.home() / ".cursor"
+            workspace.mkdir(exist_ok=True)
+            arg = prompt
+        else:
+            tmp = tempfile.mkdtemp(prefix="sozvon-cursor-")
+            workspace = Path(tmp)
+            (workspace / "request.md").write_text(prompt, encoding="utf-8")
+            arg = CURSOR_FILE_PROMPT
+        cmd += ["--workspace", str(workspace), arg]
+        try:
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                               timeout=timeout, cwd=str(workspace))
+        except subprocess.TimeoutExpired:
+            return None, "cursor", "timeout"
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+    out = r.stdout.strip()
+    if r.returncode != 0 or not out:
+        return None, "cursor", (r.stderr or r.stdout)[-500:]
+    return out, "cursor", ""
 
 
 def _claude_stream(cmd, prompt, cwd, timeout, on_event):

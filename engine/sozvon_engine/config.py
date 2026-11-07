@@ -19,6 +19,7 @@ KEYS = {
     "smart_names": ("SOZVON_SMART_NAMES",),
     "hf_token": ("HF_TOKEN",),
     "codex_model": ("SOZVON_CODEX_MODEL",),
+    "cursor_model": ("SOZVON_CURSOR_MODEL",),
     "server_url": ("SOZVON_SERVER_URL",),
     "server_password": ("SOZVON_SERVER_PASSWORD",),
     "sync_voices": ("SOZVON_SYNC_VOICES",),
@@ -41,6 +42,7 @@ class Settings:
     smart_names: bool = True
     hf_token: str = ""
     codex_model: str = ""
+    cursor_model: str = ""
     server_url: str = ""
     server_password: str = ""
     sync_voices: bool = True
@@ -91,6 +93,7 @@ def load(env_file: Path | None = None, environ=None) -> Settings:
         smart_names=(raw["smart_names"] or "1").lower() not in {"0", "false", "no", "off"},
         hf_token=raw["hf_token"] or "",
         codex_model=raw["codex_model"] or "",
+        cursor_model=raw["cursor_model"] or "",
         server_url=raw["server_url"] or "",
         server_password=raw["server_password"] or "",
         sync_voices=(raw["sync_voices"] or "1").lower() not in {"0", "false", "no", "off"},

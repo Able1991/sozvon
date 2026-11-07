@@ -10,7 +10,7 @@ public struct CallNote: Equatable, Sendable, Identifiable {
     /// ISO 8601 UTC, "2026-11-05T10:01:02Z".
     public let at: String
     public let text: String
-    /// "claude-code", "codex", "claude", "chatgpt", "app", ...
+    /// "claude-code", "codex", "cursor", "claude", "chatgpt", "app", ...
     public let source: String
 
     public init(id: String, at: String, text: String, source: String) {

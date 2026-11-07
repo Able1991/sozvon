@@ -80,3 +80,21 @@ def test_apply_adds_replacements(tmp_path):
     dp.apply_projects([{"slug": "acme", "title": "Acme", "replacements": [["АКМЕ", "Acme"], ["эй пи ай", "API"]]}], tmp_path)
     d = json.loads((tmp_path / "acme.json").read_text())
     assert d["replacements"] == [["акме", "Acme"], ["эй пи ай", "API"]]
+
+
+def test_main_cursor_gets_cursor_extra_and_cursor_dir(tmp_path, monkeypatch, capsys):
+    from sozvon_engine import discover, llm
+    monkeypatch.setenv("HOME", str(tmp_path))
+    seen = {}
+
+    def fake_run(prompt, cwd, agentic=False, timeout=600, on_event=None):
+        seen.update(prompt=prompt, cwd=cwd, agentic=agentic, on_event=on_event)
+        return '[{"slug": "acme", "title": "Acme"}]', "cursor", ""
+
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("cursor", "/x/cursor-agent"))
+    monkeypatch.setattr(llm, "run", fake_run)
+    monkeypatch.setattr(discover.profiles, "root", lambda: tmp_path / "profiles")
+    assert discover.main() == 0
+    assert discover.CURSOR_EXTRA in seen["prompt"] and discover.CODEX_EXTRA not in seen["prompt"]
+    assert seen["cwd"] == tmp_path / ".cursor" and seen["agentic"] and seen["on_event"] is None
+    assert (tmp_path / "profiles" / "acme.json").exists()

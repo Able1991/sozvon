@@ -1,4 +1,4 @@
-"""Speaker names from the conversation content via the assistant (Claude Code or Codex CLI).
+"""Speaker names from the conversation content via the assistant (Claude Code, Codex CLI or Cursor CLI).
 
 Voices start unnamed ("Speaker 1"); the assistant matches them to people by forms of address,
 introductions and verb gender. If it fails: names in order of voice appearance.

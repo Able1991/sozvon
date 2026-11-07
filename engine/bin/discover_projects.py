@@ -1,4 +1,4 @@
-"""Discover the user's projects via Claude Code or Codex CLI and write them to profiles/.
+"""Discover the user's projects via Claude Code, Codex CLI or Cursor CLI and write them to profiles/.
 
 Progress lines are "STATUS: ...", the last line is the result (docs/CONTRACT.md).
 """

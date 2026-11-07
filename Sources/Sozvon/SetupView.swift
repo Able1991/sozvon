@@ -312,7 +312,7 @@ struct SetupView: View {
                 SetupFeature(symbol: "person.2", title: L("Кто что сказал"),
                              text: L("Реплики разбиваются по голосам. Запомни голоса один раз, и имена подставятся сами."))
                 SetupFeature(symbol: "sparkles", title: L("Саммари"),
-                             text: L("Коротко, решения и задачи через Claude Code или Codex. Потом можно спросить ассистента о любом звонке."))
+                             text: L("Коротко, решения и задачи через Claude Code, Codex или Cursor. Потом можно спросить ассистента о любом звонке."))
             }
             .frame(maxWidth: 440)
             .padding(.top, 4)
@@ -337,7 +337,16 @@ struct SetupView: View {
         switch a {
         case .claude: "chevron.left.chevron.right"
         case .codex: "apple.terminal"
+        case .cursor: "cursorarrow.rays"
         case .none: "shield"
+        }
+    }
+
+    private static func discoveryNote(_ a: Assistant) -> String {
+        switch a {
+        case .claude: L("Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа.")
+        case .cursor: L("Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины.")
+        case .codex, .none: L("Codex посмотрит прошлые сессии и соберёт проекты, людей и термины.")
         }
     }
 
@@ -347,6 +356,7 @@ struct SetupView: View {
         switch a {
         case .claude: L("Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале.")
         case .codex: L("Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex.")
+        case .cursor: L("Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor.")
         case .none: L("Только расшифровка. Ничего не покидает Mac. Можно включить позже в Настройках.")
         }
     }
@@ -586,9 +596,7 @@ struct SetupView: View {
                     }
                     .controlSize(.large)
                     .disabled(m.discovery.isRunning)
-                    Text(s.assistant == .claude
-                         ? L("Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа.")
-                         : L("Codex посмотрит прошлые сессии и соберёт проекты, людей и термины."))
+                    Text(Self.discoveryNote(s.assistant))
                         .font(.callout).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 400)

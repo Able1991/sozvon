@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Документация Sozvon</title>
-<meta name="description" content="Как установить Sozvon, записывать звонки, настроить проекты, модели, саммари и подключить Claude Code и Codex через MCP.">
+<meta name="description" content="Как установить Sozvon, записывать звонки, настроить проекты, модели, саммари и подключить Claude Code, Codex и Cursor через MCP.">
 <link rel="icon" href="images/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,7 +79,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#voices">Голоса</a></li>
       <li><a href="#models">Модели</a></li>
       <li><a href="#summary">Саммари</a></li>
-      <li><a href="#mcp">Claude Code и Codex</a></li>
+      <li><a href="#mcp">Claude Code, Codex и Cursor</a></li>
       <li><a href="#server">Свой сервер</a></li>
       <li><a href="#sync">Синхронизация</a></li>
       <li><a href="#settings">Настройки</a></li>
@@ -93,7 +93,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p class="lead">Всё, что нужно знать, чтобы записывать созвоны и получать из них текст. Если чего-то не хватает, <a href="https://github.com/Able1991/sozvon/issues">напиши в issues</a>.</p>
 
       <h2 id="install">Установка</h2>
-      <p><b>Нужно:</b> Mac на Apple Silicon (M1 и новее), macOS 15 Sequoia или новее, 2-5 ГБ свободного места. Для саммари и поиска проектов дополнительно <a href="https://claude.com/code">Claude Code</a> или <a href="https://github.com/openai/codex">Codex CLI</a>, это необязательно.</p>
+      <p><b>Нужно:</b> Mac на Apple Silicon (M1 и новее), macOS 15 Sequoia или новее, 2-5 ГБ свободного места. Для саммари и поиска проектов дополнительно <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> или <a href="https://cursor.com/cli">Cursor CLI</a>, это необязательно.</p>
       <ol>
         <li>Скачай <a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Sozvon.dmg</a>, открой и перетащи Sozvon в «Программы».</li>
         <li>Запусти. Мастер спросит, как тебя подписывать в расшифровке, на каких языках звонки, какую модель распознавания поставить и кто будет делать саммари.</li>
@@ -176,9 +176,9 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>«Настройки», «Основные», «Автоудаление аудио»: никогда (по умолчанию), через неделю, 15, 30 или 60 дней. У расшифрованных звонков старше этого срока удаляется только звук, расшифровка, саммари и заметки остаются. У таких звонков пропадают плеер и «Расшифровать заново». Со <a href="#server">своего сервера</a> звук этих звонков тоже удаляется. Если после смены настройки звук удалится сразу, Sozvon сначала покажет, у скольких звонков и сколько места освободится.</p>
 
       <h2 id="notes">Заметки</h2>
-      <p>К звонку можно оставить заметку: решение, договорённость, уточнение на потом. Свою добавляешь кнопкой «Добавить» в карточке «Заметки» в окне «Звонки», а удаляешь кнопкой «⋯» рядом с заметкой. Claude Code и Codex оставляют заметки инструментом <code>add_note</code>, а Claude и ChatGPT на телефоне делают то же через <a href="#server">свой сервер</a>.</p>
+      <p>К звонку можно оставить заметку: решение, договорённость, уточнение на потом. Свою добавляешь кнопкой «Добавить» в карточке «Заметки» в окне «Звонки», а удаляешь кнопкой «⋯» рядом с заметкой. Claude Code, Codex и Cursor оставляют заметки инструментом <code>add_note</code>, а Claude и ChatGPT на телефоне делают то же через <a href="#server">свой сервер</a>.</p>
       <ul>
-        <li>У каждой заметки видно дату и кто её добавил: ты, Claude, Codex или ChatGPT.</li>
+        <li>У каждой заметки видно дату и кто её добавил: ты, Claude, Codex, Cursor или ChatGPT.</li>
         <li>Заметку нельзя изменить, но можно удалить: кнопка «⋯» рядом с ней, пункт «Удалить заметку». Ассистент тоже может удалить заметку, если попросишь (<code>delete_note</code>).</li>
         <li>Заметки находят поиск в окне «Звонки», <code>search_calls</code> и <code>get_call</code>.</li>
         <li>Заметки лежат в <code>call.json</code> звонка и синхронизируются со своим сервером в обе стороны. Удалённая заметка не вернётся с другого Mac.</li>
@@ -194,7 +194,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ul>
       <p>Проекты редактируются в окне «Проекты» из меню. Люди с размеченных звонков добавляются в проект сами.</p>
       <h3>Найти проекты автоматически</h3>
-      <p>Кнопка «Найти проекты» просит Claude Code или Codex просмотреть твои сессии и заметки и предложить проекты с людьми и терминами. Ты выбираешь, что сохранить. Помощник получает названия папок проектов, заметки памяти и ответы открытых сессий, это уходит в Anthropic или OpenAI. Claude технически ограничен папкой <code>~/.claude</code>. У Codex песочница запрещает запись, но не чтение: ограничение папкой <code>~/.codex</code> только в инструкции.</p>
+      <p>Кнопка «Найти проекты» просит Claude Code, Codex или Cursor просмотреть твои сессии и заметки и предложить проекты с людьми и терминами. Ты выбираешь, что сохранить. Помощник получает названия папок проектов, заметки памяти и ответы открытых сессий, это уходит в Anthropic, OpenAI или Cursor и выбранной там модели. Claude технически ограничен папкой <code>~/.claude</code>. У Codex песочница запрещает запись, но не чтение: ограничение папкой <code>~/.codex</code> только в инструкции. Cursor работает в режиме только для чтения (<code>--mode ask</code>) и смотрит прошлые чаты в <code>~/.cursor/projects</code>; ограничение этой папкой тоже только в инструкции.</p>
 
       <h2 id="voices">Голоса</h2>
       <p>Sozvon может узнавать людей по голосу, а не только угадывать имена по смыслу разговора. Так два Александра в одном проекте больше не путаются.</p>
@@ -223,14 +223,15 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li><b>Claude Code</b> по твоей подписке, по умолчанию модель Sonnet.</li>
         <li><b>Codex CLI</b> по твоей подписке OpenAI.</li>
+        <li><b>Cursor CLI</b> (<code>cursor-agent</code>) по твоей подписке Cursor, с моделью, выбранной в Cursor.</li>
         <li><b>Только локально:</b> без саммари и подписи имён, текст расшифровки никуда не уходит.</li>
       </ul>
-      <p>Помощник выбирается в «Настройки», вкладка «Основные». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
+      <p>Помощник выбирается в «Настройки», вкладка «Ассистенты». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
 
-      <h2 id="mcp">Claude Code и Codex (MCP)</h2>
+      <h2 id="mcp">Claude Code, Codex и Cursor (MCP)</h2>
       <p>Sozvon может отдавать звонки твоему ассистенту: «что решили с Acme на прошлой неделе?», «найди, где обсуждали SLA». Пока Sozvon запущен, он держит один общий MCP-сервер на <code>127.0.0.1:47816</code> для всех сессий, около 40 МБ памяти. Сервер доступен только с этого Mac и требует пароль (bearer-токен).</p>
       <h3>Подключить</h3>
-      <p>«Настройки», вкладка «Ассистенты», кнопка «Подключить» рядом с нужным ассистентом. Это всё: в новой сессии Claude Code или Codex звонки уже видны. «Отключить» убирает Sozvon из настроек ассистента.</p>
+      <p>«Настройки», вкладка «Ассистенты», кнопка «Подключить» рядом с нужным ассистентом. Это всё: в новой сессии Claude Code, Codex или Cursor звонки уже видны. «Отключить» убирает Sozvon из настроек ассистента.</p>
 
       <h3>Что происходит под капотом</h3>
       <p><b>Один сервер на всех.</b> MCP-сервер запускает само приложение Sozvon, а не каждая сессия ассистента. Если бы каждая сессия поднимала свою копию, десять открытых сессий держали бы десять Python-процессов. Общий сервер занимает около 40 МБ, ассистенты подключаются к нему по адресу <code>http://127.0.0.1:47816/mcp</code>. Сервер живёт, пока запущен Sozvon, и завершается вместе с ним.</p>
@@ -240,6 +241,11 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
   --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Sozvon/.mcp-token)"</code></pre>
       <p>Для Codex выполняет <code>codex mcp add sozvon --url http://127.0.0.1:47816/mcp</code> и дописывает пароль в секцию <code>[mcp_servers.sozvon]</code> файла <code>~/.codex/config.toml</code>:</p>
       <pre><code>http_headers = { "Authorization" = "Bearer &lt;пароль&gt;" }</code></pre>
+      <p>У Cursor нет команды <code>mcp add</code>, поэтому Sozvon сам дописывает запись первой в <code>"mcpServers"</code> файла <code>~/.cursor/mcp.json</code>. Комментарии и другие серверы в файле остаются как были. Этот же файл читают и приложение Cursor, и Cursor CLI. Если файл не получается разобрать, Sozvon его не трогает и предлагает скопировать запись:</p>
+      <pre><code>"sozvon": {
+  "url": "http://127.0.0.1:47816/mcp",
+  "headers": { "Authorization": "Bearer &lt;пароль&gt;" }
+}</code></pre>
       <p>Эти же команды можно выполнить руками, результат будет тот же. Кнопка с двумя листками рядом с «Подключить» копирует готовую команду с паролем. Другой MCP-клиент подключается так же: HTTP-адрес выше и заголовок <code>Authorization: Bearer &lt;пароль&gt;</code>.</p>
       <h3>Инструменты</h3>
       <table>
@@ -254,7 +260,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td><code>add_replacement</code>, <code>remove_replacement</code></td><td>Автозамены.</td></tr>
         <tr><td><code>list_models</code>, <code>show_vocab</code>, <code>preview_prompt</code></td><td>Модели, словарь и то, какую подсказку получит модель.</td></tr>
       </table>
-      <p>То, что ассистент прочитал через MCP, уходит в Anthropic или OpenAI вместе с твоим вопросом, как любой другой контекст сессии.</p>
+      <p>То, что ассистент прочитал через MCP, уходит в Anthropic, OpenAI или Cursor вместе с твоим вопросом, как любой другой контекст сессии.</p>
 
       <h2 id="server">Свой сервер: звонки с телефона</h2>
       <p>Необязательно. Если хочется спросить Claude или ChatGPT о звонке с телефона, когда Mac далеко, Sozvon может держать копии расшифровок на твоём собственном сервере. Это сделано ради твоей безопасности и приватности: каждый поднимает свой сервер в своём аккаунте Cloudflare (бесплатного тарифа хватает), поэтому звонки не попадают ни к нам, ни в какой-то общий сервис. Мы не видим твои данные, а удалить их все можно в любой момент.</p>
@@ -296,7 +302,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Предлагать запись при звонке» (<a href="#record">вопрос «Записать?»</a>, включено по умолчанию), «Предупреждать о тишине», звук при старте и остановке. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>. «Обновления»: проверка и версия.</td></tr>
         <tr><td>Распознавание</td><td>«Модель»: модель распознавания, языки звонков, смена языка посреди речи. «Производительность»: расшифровка с низким приоритетом, чтобы Zoom, браузер и сборки не тормозили. «Движок»: состояние Python, модели и MCP-сервера с кнопкой «Проверить», последняя ошибка с журналом. «Файлы»: папка записей, папка данных, «Переустановить…».</td></tr>
-        <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code и Codex по MCP, команда для терминала, если подключаешь вручную.</td></tr>
+        <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code, Codex и Cursor по MCP, команда для терминала, если подключаешь вручную.</td></tr>
         <tr><td>Облако</td><td>«Подключить Cloudflare» для <a href="#server">своего сервера</a>, «Обновить сервер», адрес коннектора и пароль, кнопки «Открыть Claude» и «Открыть ChatGPT», «Отправлять аудио звонков» и «Отправлять отпечатки голосов», состояние <a href="#sync">синхронизации</a>, раздел «Свой адрес» для сервера, поднятого вручную.</td></tr>
       </table>
 
@@ -347,7 +353,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
 
       <h2 id="uninstall">Удаление</h2>
       <ol>
-        <li>Если подключал ассистентов: <code>claude mcp remove sozvon --scope user</code> и <code>codex mcp remove sozvon</code>.</li>
+        <li>Если подключал ассистентов: <code>claude mcp remove sozvon --scope user</code>, <code>codex mcp remove sozvon</code>, а для Cursor убери запись <code>"sozvon"</code> из <code>~/.cursor/mcp.json</code>.</li>
         <li>Выйди из Sozvon и перетащи его из «Программ» в корзину.</li>
         <li>Удали движок и модели: папку <code>~/Library/Application Support/Sozvon</code> и журналы <code>~/Library/Logs/Sozvon</code>.</li>
       </ol>
@@ -381,7 +387,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#en-voices">Voices</a></li>
       <li><a href="#en-models">Models</a></li>
       <li><a href="#en-summary">Summaries</a></li>
-      <li><a href="#en-mcp">Claude Code and Codex</a></li>
+      <li><a href="#en-mcp">Claude Code, Codex and Cursor</a></li>
       <li><a href="#en-server">Your own server</a></li>
       <li><a href="#en-sync">Sync</a></li>
       <li><a href="#en-settings">Settings</a></li>
@@ -395,7 +401,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p class="lead">Everything you need to record calls and get text out of them. Missing something? <a href="https://github.com/Able1991/sozvon/issues">Open an issue</a>.</p>
 
       <h2 id="en-install">Install</h2>
-      <p><b>Requirements:</b> a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later, 2-5 GB of free space. For summaries and project discovery, optionally <a href="https://claude.com/code">Claude Code</a> or <a href="https://github.com/openai/codex">Codex CLI</a>.</p>
+      <p><b>Requirements:</b> a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later, 2-5 GB of free space. For summaries and project discovery, optionally <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> or <a href="https://cursor.com/cli">Cursor CLI</a>.</p>
       <ol>
         <li>Download <a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Sozvon.dmg</a>, open it and drag Sozvon to Applications.</li>
         <li>Launch it. The assistant asks how to label you in transcripts, which languages your calls are in, which recognition model to install and who writes summaries.</li>
@@ -476,9 +482,9 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Settings, General, Delete audio automatically: never (the default), after a week, 15, 30 or 60 days. Transcribed calls older than that lose only their sound; the transcript, summary and notes stay. Such calls have no player and no Transcribe Again. Their audio is deleted from <a href="#en-server">your own server</a> too. If the new setting would delete audio right away, Sozvon first shows how many calls and how much space.</p>
 
       <h2 id="en-notes">Notes</h2>
-      <p>Leave a note on a call: a decision, an agreement, something for later. Add your own with Add in the Notes card of the Calls window and delete one with the ⋯ button next to it. Claude Code and Codex add notes with the <code>add_note</code> tool, and Claude and ChatGPT on your phone do the same through <a href="#en-server">your own server</a>.</p>
+      <p>Leave a note on a call: a decision, an agreement, something for later. Add your own with Add in the Notes card of the Calls window and delete one with the ⋯ button next to it. Claude Code, Codex and Cursor add notes with the <code>add_note</code> tool, and Claude and ChatGPT on your phone do the same through <a href="#en-server">your own server</a>.</p>
       <ul>
-        <li>Each note shows its date and who added it: you, Claude, Codex or ChatGPT.</li>
+        <li>Each note shows its date and who added it: you, Claude, Codex, Cursor or ChatGPT.</li>
         <li>A note can’t be edited, but you can delete it: the ⋯ button next to it, Delete Note. An assistant can delete a note too when you ask (<code>delete_note</code>).</li>
         <li>Search in the Calls window, <code>search_calls</code> and <code>get_call</code> find notes.</li>
         <li>Notes live in the call’s <code>call.json</code> and sync with your own server both ways. A deleted note doesn’t come back from another Mac.</li>
@@ -493,7 +499,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ul>
       <p>Edit projects in the Projects window from the menu. People from labelled calls are added automatically.</p>
       <h3>Discover projects</h3>
-      <p>Find Projects asks Claude Code or Codex to look through your sessions and notes and suggest projects with people and terms; you choose what to keep. The assistant gets project folder names, memory notes and replies from open sessions, which go to Anthropic or OpenAI. Claude is technically limited to <code>~/.claude</code>. The Codex sandbox blocks writes but not reads, so its limit to <code>~/.codex</code> is only an instruction.</p>
+      <p>Find Projects asks Claude Code, Codex or Cursor to look through your sessions and notes and suggest projects with people and terms; you choose what to keep. The assistant gets project folder names, memory notes and replies from open sessions, which go to Anthropic, OpenAI or Cursor and the model chosen there. Claude is technically limited to <code>~/.claude</code>. The Codex sandbox blocks writes but not reads, so its limit to <code>~/.codex</code> is only an instruction. Cursor runs in read-only mode (<code>--mode ask</code>) and looks at past chats in <code>~/.cursor/projects</code>; its limit to that folder is also only an instruction.</p>
 
       <h2 id="en-voices">Voices</h2>
       <p>Sozvon can recognize people by voice instead of only guessing names from the conversation. Two people called Alexander in one project are no longer mixed up.</p>
@@ -522,14 +528,15 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li><b>Claude Code</b> on your subscription, Sonnet by default.</li>
         <li><b>Codex CLI</b> on your OpenAI subscription.</li>
+        <li><b>Cursor CLI</b> (<code>cursor-agent</code>) on your Cursor subscription, with the model chosen in Cursor.</li>
         <li><b>Local only:</b> no summaries or speaker naming; the transcript stays on your Mac.</li>
       </ul>
-      <p>Pick it in Settings, General tab. If a summary fails (no network, limit reached), the transcript is still saved.</p>
+      <p>Pick it in Settings, Assistants tab. If a summary fails (no network, limit reached), the transcript is still saved.</p>
 
-      <h2 id="en-mcp">Claude Code and Codex (MCP)</h2>
+      <h2 id="en-mcp">Claude Code, Codex and Cursor (MCP)</h2>
       <p>Sozvon can hand your calls to your assistant: “what did we agree with Acme last week?”, “find where we discussed the SLA”. While Sozvon is running, it keeps one shared MCP server on <code>127.0.0.1:47816</code> for every session, about 40 MB of memory. It is reachable only from this Mac and requires a password (bearer token).</p>
       <h3>Connect</h3>
-      <p>Settings, Assistants tab, Connect next to the assistant. That’s it: a new Claude Code or Codex session already sees your calls. Disconnect removes Sozvon from the assistant’s settings.</p>
+      <p>Settings, Assistants tab, Connect next to the assistant. That’s it: a new Claude Code, Codex or Cursor session already sees your calls. Disconnect removes Sozvon from the assistant’s settings.</p>
 
       <h3>Under the hood</h3>
       <p><b>One server for everyone.</b> The MCP server is started by the Sozvon app, not by each assistant session. If every session ran its own copy, ten open sessions would mean ten Python processes. The shared server takes about 40 MB, and assistants connect to it at <code>http://127.0.0.1:47816/mcp</code>. It runs while Sozvon is open and exits with it.</p>
@@ -539,6 +546,11 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
   --header "Authorization: Bearer $(cat ~/Library/Application\ Support/Sozvon/.mcp-token)"</code></pre>
       <p>For Codex it runs <code>codex mcp add sozvon --url http://127.0.0.1:47816/mcp</code> and adds the password to the <code>[mcp_servers.sozvon]</code> section of <code>~/.codex/config.toml</code>:</p>
       <pre><code>http_headers = { "Authorization" = "Bearer &lt;password&gt;" }</code></pre>
+      <p>Cursor has no <code>mcp add</code> command, so Sozvon adds the entry itself, first in <code>"mcpServers"</code> of <code>~/.cursor/mcp.json</code>. Comments and other servers in the file stay as they were. The Cursor app and Cursor CLI both read this file. If the file can’t be parsed, Sozvon leaves it alone and offers to copy the entry:</p>
+      <pre><code>"sozvon": {
+  "url": "http://127.0.0.1:47816/mcp",
+  "headers": { "Authorization": "Bearer &lt;password&gt;" }
+}</code></pre>
       <p>You can run the same commands by hand with the same result. The copy button next to Connect puts the ready command, password included, on the clipboard. Any other MCP client connects the same way: the HTTP address above plus an <code>Authorization: Bearer &lt;password&gt;</code> header.</p>
       <h3>Tools</h3>
       <table>
@@ -553,7 +565,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td><code>add_replacement</code>, <code>remove_replacement</code></td><td>Fixes for mishearings.</td></tr>
         <tr><td><code>list_models</code>, <code>show_vocab</code>, <code>preview_prompt</code></td><td>Models, vocabulary and the hint the model will get.</td></tr>
       </table>
-      <p>Whatever the assistant reads through MCP goes to Anthropic or OpenAI along with your question, like any other session context.</p>
+      <p>Whatever the assistant reads through MCP goes to Anthropic, OpenAI or Cursor along with your question, like any other session context.</p>
 
       <h2 id="en-server">Your own server: calls from your phone</h2>
       <p>Optional. If you want to ask Claude or ChatGPT about a call from your phone while your Mac is away, Sozvon can keep copies of your transcripts on your own server. This is about your security and privacy: everyone runs their own server in their own Cloudflare account (the free plan is enough), so your calls never go to us or to any shared service. We never see your data, and you can delete all of it at any time.</p>
@@ -595,7 +607,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><td>General</td><td>Profile: your name in transcripts and the interface language. Recording: the floating panel, showing it when idle, Offer to record when a call starts (<a href="#en-record">the call prompt</a>, on by default), Warn about silence, start and stop sounds. Voices: <a href="#en-voices">your voice</a> (Record again…, Add sample…) and other people's voices (Manage…: the list, delete one or all). After a call: <a href="#en-calendar">topic and participants from Calendar</a>, <a href="#en-keep-audio">deleting audio automatically</a>. Updates: the check and the version.</td></tr>
         <tr><td>Recognition</td><td>Model: the recognition model, call languages, mid-sentence switching. Performance: transcribe at low priority so Zoom, your browser and builds stay smooth. Engine: Python, model and MCP server status with Check, the last error with its log. Files: the recordings folder, the data folder, Reinstall….</td></tr>
-        <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code and Codex over MCP, and the Terminal command for a manual setup.</td></tr>
+        <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code, Codex and Cursor over MCP, and the Terminal command for a manual setup.</td></tr>
         <tr><td>Cloud</td><td>Connect Cloudflare for <a href="#en-server">your own server</a>, Update server, the connector address and password, Open Claude and Open ChatGPT, Send call audio and Send voice prints, <a href="#en-sync">sync</a> status, and Own address for a server you deployed by hand.</td></tr>
       </table>
 
@@ -646,7 +658,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
 
       <h2 id="en-uninstall">Uninstall</h2>
       <ol>
-        <li>If you connected assistants: <code>claude mcp remove sozvon --scope user</code> and <code>codex mcp remove sozvon</code>.</li>
+        <li>If you connected assistants: <code>claude mcp remove sozvon --scope user</code>, <code>codex mcp remove sozvon</code>, and for Cursor remove the <code>"sozvon"</code> entry from <code>~/.cursor/mcp.json</code>.</li>
         <li>Quit Sozvon and drag it from Applications to the Trash.</li>
         <li>Delete the engine and models in <code>~/Library/Application Support/Sozvon</code> and logs in <code>~/Library/Logs/Sozvon</code>.</li>
       </ol>

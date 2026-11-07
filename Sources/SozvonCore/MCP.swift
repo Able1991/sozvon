@@ -1,5 +1,6 @@
-// MCP: Sozvon as a tool for Claude Code and Codex. One shared engine server on 127.0.0.1
-// (the app keeps it running), and the assistant CLIs connect to it with a password.
+// MCP: Sozvon as a tool for Claude Code, Codex and Cursor. One shared engine server on 127.0.0.1
+// (the app keeps it running), and the assistants connect to it with a password. Claude Code and Codex
+// are set up through their CLIs; Cursor has no `mcp add`, so its ~/.cursor/mcp.json is edited directly.
 
 import Foundation
 import os
@@ -84,6 +85,7 @@ public enum MCP {
 
     /// Whether and how Sozvon is connected in this CLI. Runs the CLI: don't call from the main thread.
     public static func connection(_ a: Assistant) -> Connection {
+        if a == .cursor { return cursorConnection() }
         guard let exe = a.cliPath else { return .none }
         let (code, out) = run(exe, ["mcp", "get", name])
         return connection(exitCode: code, output: out)
@@ -92,6 +94,7 @@ public enum MCP {
     /// Connect: the CLI talks to Sozvon's shared server at a local address instead of starting
     /// its own copy in every session (a copy per session ate memory). Don't call from the main thread.
     public static func connect(_ a: Assistant) -> (Bool, String) {
+        if a == .cursor { return cursorConnect() }
         guard let exe = a.cliPath else { return (false, L("Не найден %@", a.title)) }
         let token = self.token
         let args: [String] = a == .claude
@@ -121,14 +124,91 @@ public enum MCP {
             # then add this line to the [mcp_servers.\(name)] section of ~/.codex/config.toml:
             # http_headers = { "Authorization" = "Bearer \(token)" }
             """
+        case .cursor:
+            return CursorMCPConfig.snippet(name: name, url: url, token: token)
         case .none:
             return "\(url)\nAuthorization: Bearer \(token)"
         }
     }
 
     public static func disconnect(_ a: Assistant) {
+        if a == .cursor { _ = cursorDisconnect(); return }
         guard let exe = a.cliPath else { return }
         _ = run(exe, ["mcp", "remove", name] + (a == .claude ? ["--scope", "user"] : []))
+    }
+
+    /// Whether there is something to connect: the CLI, or for Cursor also the app or its ~/.cursor folder
+    /// (the Cursor app and Cursor CLI read the same ~/.cursor/mcp.json).
+    public static func isInstalled(_ a: Assistant) -> Bool {
+        guard a == .cursor else { return a.cliPath != nil }
+        let fm = FileManager.default
+        return a.cliPath != nil || fm.fileExists(atPath: cursorDir.path)
+            || ["/Applications/Cursor.app", "\(Paths.home.path)/Applications/Cursor.app"].contains { fm.fileExists(atPath: $0) }
+    }
+
+    // MARK: Cursor (~/.cursor/mcp.json)
+
+    public static var cursorDir: URL { Paths.home.appendingPathComponent(".cursor") }
+    public static var cursorConfig: URL { cursorDir.appendingPathComponent("mcp.json") }
+
+    public static func cursorConnection(file: URL = cursorConfig, token: String = MCP.token) -> Connection {
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return .none }
+        if CursorMCPConfig.hasServer(text, name: name, url: url, token: token) { return .connected }
+        return CursorMCPConfig.hasEntry(text, name: name) ? .outdated : .none
+    }
+
+    /// Adds or updates the Sozvon entry, keeping comments and other servers. Creates the file
+    /// (mode 600: it holds the password) and ~/.cursor if missing.
+    public static func cursorConnect(file: URL = cursorConfig, token: String = MCP.token) -> (Bool, String) {
+        let fm = FileManager.default
+        let target = file.resolvingSymlinksInPath()
+        let exists = fm.fileExists(atPath: target.path)
+        let text: String
+        if exists {
+            guard let t = try? String(contentsOf: target, encoding: .utf8) else { return (false, cursorManualHint) }
+            text = t
+        } else {
+            text = ""
+        }
+        guard let edited = CursorMCPConfig.upsert(text, name: name, url: url, token: token) else {
+            return (false, cursorManualHint)
+        }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    /// Removes the Sozvon entry. Missing file or no entry: nothing to do.
+    @discardableResult
+    public static func cursorDisconnect(file: URL = cursorConfig) -> (Bool, String) {
+        let target = file.resolvingSymlinksInPath()
+        guard let text = try? String(contentsOf: target, encoding: .utf8) else { return (true, "") }
+        guard let edited = CursorMCPConfig.remove(text, name: name) else { return (false, cursorManualHint) }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static var cursorManualHint: String {
+        L("Не получилось разобрать ~/.cursor/mcp.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже.")
+    }
+
+    /// Atomic write (a temp file alongside, then rename) with the old file's permissions; a new file gets 600.
+    static func writeKeepingPermissions(_ text: String, to url: URL) throws {
+        let fm = FileManager.default
+        let mode = (try? fm.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.int16Value
+        try PrivateFile.write(Data(text.utf8), to: url)
+        if let mode, mode != 0o600 {
+            try fm.setAttributes([.posixPermissions: NSNumber(value: mode)], ofItemAtPath: url.path)
+        }
     }
 }
 

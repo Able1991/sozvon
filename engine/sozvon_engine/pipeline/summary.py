@@ -1,4 +1,4 @@
-"""Call summary via the assistant (Claude Code or Codex CLI, the user's subscription).
+"""Call summary via the assistant (Claude Code, Codex CLI or Cursor CLI, the user's subscription).
 
 The transcript text goes to the chosen assistant's cloud. The summary is written in the
 conversation language, or in the app language when the conversation language is unknown.

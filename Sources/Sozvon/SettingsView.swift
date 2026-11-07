@@ -1,6 +1,6 @@
 // Settings window: a standard Mac preferences window. Toolbar tabs (NSTabViewController, .toolbar style) over
-// four grouped SwiftUI forms; the window takes each pane's height with an animation. Claude and Codex
-// integration, engine status and the own server live here too.
+// four grouped SwiftUI forms; the window takes each pane's height with an animation. Claude Code, Codex
+// and Cursor integration, engine status and the own server live here too.
 
 import AppKit
 import Combine
@@ -654,10 +654,12 @@ private struct AssistantsPane: View {
     }
 }
 
-/// Claude Code and Codex: connect Sozvon as an MCP server so the assistant can see calls.
-/// Assistant CLIs run off the main thread so the window doesn't freeze.
+/// Claude Code, Codex and Cursor: connect Sozvon as an MCP server so the assistant can see calls.
+/// Assistant CLIs (and the Cursor config edit) run off the main thread so the window doesn't freeze.
 struct IntegrationsSection: View {
-    /// nil until the first check of both CLIs has finished.
+    nonisolated static let assistants: [Assistant] = [.claude, .codex, .cursor]
+
+    /// nil until the first check of all assistants has finished.
     @State private var connections: [Assistant: MCP.Connection]?
     @State private var busy = false
     @State private var message = ""
@@ -666,8 +668,7 @@ struct IntegrationsSection: View {
 
     var body: some View {
         Section {
-            connection(.claude)
-            connection(.codex)
+            ForEach(Self.assistants) { connection($0) }
         } header: {
             Text(L("Подключения"))
         } footer: {
@@ -676,10 +677,9 @@ struct IntegrationsSection: View {
         .onAppear { perform { "" } }
 
         Section {
-            command(.claude)
-            command(.codex)
+            ForEach(Self.assistants) { command($0) }
         } header: {
-            Text(L("Команда для терминала"))
+            Text(L("Подключить вручную"))
         } footer: {
             SettingsFooter(L("Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого Mac."))
         }
@@ -704,7 +704,7 @@ struct IntegrationsSection: View {
         } label: {
             Text(a.title)
             // The short form; the copied command also carries the transport and the password header.
-            Text(verbatim: (a == .claude ? "claude" : "codex") + " mcp add \(MCP.name) \(MCP.url)")
+            Text(verbatim: Self.shortCommand(a))
                 .monospaced()
                 .lineLimit(1).truncationMode(.middle)
                 .textSelection(.enabled)
@@ -712,8 +712,14 @@ struct IntegrationsSection: View {
         }
     }
 
+    /// Cursor has no `mcp add`: its row shows the file the entry goes into.
+    private static func shortCommand(_ a: Assistant) -> String {
+        a == .cursor ? "~/.cursor/mcp.json: \"\(MCP.name)\": \(MCP.url)"
+            : (a.cli ?? "") + " mcp add \(MCP.name) \(MCP.url)"
+    }
+
     @ViewBuilder private func status(_ a: Assistant) -> some View {
-        if a.cliPath == nil {
+        if !MCP.isInstalled(a) {
             Text(L("Не установлен")).foregroundStyle(.secondary)
         } else if let connections {
             switch connections[a] ?? .none {
@@ -728,12 +734,16 @@ struct IntegrationsSection: View {
     }
 
     @ViewBuilder private func action(_ a: Assistant) -> some View {
-        if a.cliPath != nil, let connections {
+        if MCP.isInstalled(a), let connections {
             switch connections[a] ?? .none {
             case .connected:
                 Button(L("Отключить…")) {
                     guard confirmDisconnect(a) else { return }
-                    perform { MCP.disconnect(a); return "" }
+                    perform {
+                        guard a == .cursor else { MCP.disconnect(a); return "" }
+                        let (ok, out) = MCP.cursorDisconnect()
+                        return ok ? "" : out
+                    }
                 }
                 .disabled(busy)
             case .outdated, .none:
@@ -771,7 +781,7 @@ struct IntegrationsSection: View {
             let (msg, state) = await Task.detached {
                 let msg = action()
                 var r: [Assistant: MCP.Connection] = [:]
-                for a in [Assistant.claude, .codex] { r[a] = MCP.connection(a) }
+                for a in IntegrationsSection.assistants { r[a] = MCP.connection(a) }
                 return (msg, r)
             }.value
             message = msg

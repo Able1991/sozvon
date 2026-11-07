@@ -1,4 +1,4 @@
-"""Discover projects via Claude Code (or Codex CLI) and turn them into Sozvon profiles.
+"""Discover projects via Claude Code (or Codex CLI, or Cursor CLI) and turn them into Sozvon profiles.
 
 Claude looks at local Claude Code sessions (~/.claude/projects: folder names,
 CLAUDE.md, memory) and, if it can, asks active sessions what they are working on.
@@ -9,6 +9,10 @@ appended to them.
 Text Claude reads is sent to Anthropic, same as for summaries.
 Claude gets read-only tools (Read, Glob, Grep) plus ListAgents and
 SendMessage to ask other sessions.
+Codex and Cursor can't ask sessions: they look at their own past sessions
+(~/.codex/sessions, ~/.cursor/projects) and ~/.claude/projects instead.
+Codex runs in a read-only sandbox, Cursor in read-only ask mode with its sandbox on;
+text they read goes to OpenAI or to Cursor and the model chosen there.
 """
 import json
 import re
@@ -55,6 +59,18 @@ CODEX_EXTRA = """
 ~/.codex/sessions (там JSONL прошлых сессий Codex: в начале каждой cwd и первые
 сообщения) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
 """
+
+CURSOR_EXTRA = """
+У тебя нет ListAgents/SendMessage: вместо вопросов живым сессиям посмотри
+~/.cursor/projects (каждая папка это рабочая директория, слэши заменены на «-»;
+внутри agent-transcripts с прошлыми чатами Cursor: только Grep по именам и терминам,
+целиком не читай) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
+"""
+
+EXTRA = {"codex": CODEX_EXTRA, "cursor": CURSOR_EXTRA}
+
+# Working folder per backend: the CLI's private folder, not home.
+CLI_DIRS = {"claude": ".claude", "codex": ".codex", "cursor": ".cursor"}
 
 
 def status(text: str):
@@ -176,12 +192,12 @@ def main() -> int:
     if not name:
         print(t("discover_no_cli"), file=sys.stderr)
         return 1
-    prompt = PROMPT + (CODEX_EXTRA if name == "codex" else "") + (
+    prompt = PROMPT + EXTRA.get(name, "") + (
         "\nВсе рабочие папки из ~/.claude/projects (разбери КАЖДУЮ: это проект клиента или нет; "
         "путь вроде Projects/acme/app тоже может быть проектом, смотри заметки и сессии):\n" + dirs_block() + "\n")
     # Working dir: a private CLI folder, not home. Otherwise the CLI looks into ~/Documents,
     # ~/Desktop etc., and macOS asks Sozvon for access to them.
-    cwd = Path.home() / (".claude" if name == "claude" else ".codex")
+    cwd = Path.home() / CLI_DIRS[name]
     cwd.mkdir(exist_ok=True)
     state = {"asked": 0, "read": 0}
 
