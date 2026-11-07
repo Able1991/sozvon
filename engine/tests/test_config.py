@@ -36,6 +36,14 @@ def test_codex_model(data):
     assert config.load(environ={}).codex_model == "gpt-5"
 
 
+def test_cursor_llm_and_model(data):
+    write_env(data, "SOZVON_LLM=Cursor\nSOZVON_CURSOR_MODEL=sonnet-4\n")
+    s = config.load(environ={})
+    assert (s.llm, s.cursor_model, s.codex_model) == ("cursor", "sonnet-4", "")
+    assert config.load(environ={"SOZVON_CURSOR_MODEL": "gpt-5"}).cursor_model == "gpt-5"
+    assert config.load(environ={}).cursor_model == "sonnet-4"
+
+
 def test_env_overrides_env_file(data):
     write_env(data, "SOZVON_ME=Из файла\nSOZVON_MODEL=small\nSOZVON_LANG_SWITCH=1\n")
     s = config.load(environ={"SOZVON_ME": "Из окружения", "SOZVON_MODEL": "turbo", "SOZVON_LANG_SWITCH": "0"})

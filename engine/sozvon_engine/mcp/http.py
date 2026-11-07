@@ -1,4 +1,4 @@
-"""Shared MCP server for all Claude and Codex sessions: 127.0.0.1, password, lives as long as Sozvon.
+"""Shared MCP server for all Claude, Codex and Cursor sessions: 127.0.0.1, password, lives as long as Sozvon.
 
 Two layers of protection. The FastMCP Host and Origin check (DNS rebinding) blocks websites in the
 browser; a bearer token (SOZVON_MCP_TOKEN, constant-time comparison) blocks other local

@@ -26,16 +26,16 @@
 - **No echo without headphones.** On speakers your mic hears the other side too; Sozvon removes that echo from your track before recognition, on the Mac, and raises a very quiet mic; the player plays this cleaned voice, so you hear yourself without the echo. During a recording it warns when the system input volume is below 50% or your voice has been barely audible for three minutes. Headphones are still best.
 - **Who said what.** Your voice and the other side are recorded on separate tracks, remote speakers are separated by voice, and the assistant names them from the conversation ("Masha, how are you?").
 - **Knows voices.** Record a 20-second sample of your voice in Settings > General > My voice (add one per call language if you like). Settings > General > Voices > Show… lists every saved voice and deletes any of them. When a transcript names everyone right, Remember Voices confirms them in one click. Name a speaker in a call once, and Sozvon saves their voice print for the project and names that voice by itself in the project's next calls, even two people with the same first name. Voice prints are biometric data: they stay on your Mac (and your own server, if you use one), and deleting one deletes it everywhere.
-- **Summary** in the language of the call: a short overview, decisions, action items with owners, open questions. Optional, through Claude Code or Codex on your own subscription.
-- **Projects.** People, terms and replacements per client, so recognition spells names and jargon correctly. Projects can be discovered automatically from your Claude Code or Codex sessions.
+- **Summary** in the language of the call: a short overview, decisions, action items with owners, open questions. Optional, through Claude Code, Codex or Cursor on your own subscription.
+- **Projects.** People, terms and replacements per client, so recognition spells names and jargon correctly. Projects can be discovered automatically from your Claude Code, Codex or Cursor sessions.
 - **Calls window.** Calls grouped by day, search across everything including transcript text, a card with the summary, the transcript and notes.
 - **Listen along.** Click a transcript line and the call plays from there, with the current line highlighted. Back and forward 15 s, 1x, 1.5x, 2x.
 - **Fix the transcript.** Rename a speaker (with name suggestions, in the whole transcript or just one line), swap two mixed-up people, or fix a misheard word and let the project remember the fix for the next calls. Then Update Summary rewrites only the summary to match.
 - **Delete audio automatically** after a week, 15, 30 or 60 days if you like, on your own server too: transcripts, summaries and notes stay.
 - **Import recordings.** Drop an old m4a, mp3, wav, mp4 or mov onto the Calls window and it is transcribed like a new call.
 - **Tasks to Reminders.** Your action items from the summary, and notes if you want, go to Apple Reminders, with due dates when the call named a clear day.
-- **Notes.** Leave a note on a call (a decision, a follow-up), or let Claude and Codex add one. Notes show under the call and search finds them.
-- **Claude and Codex can read your calls** through MCP: "what did we decide with the client last week?". Ranked search finds any word form, and the assistant passes alternative phrasings, because speech is transcribed as it was said.
+- **Notes.** Leave a note on a call (a decision, a follow-up), or let Claude, Codex and Cursor add one. Notes show under the call and search finds them.
+- **Claude, Codex and Cursor can read your calls** through MCP: "what did we decide with the client last week?". Ranked search finds any word form, and the assistant passes alternative phrasings, because speech is transcribed as it was said.
 - **Ask about a call from your phone (optional).** Your own small server in your own free Cloudflare account, set up with one button, lets Claude or ChatGPT answer from the phone or the web while the Mac is off. We never see your data.
 - **Sync across Macs.** A second Mac connected to the same server gets your calls with their audio, notes and voice prints; a call you delete in Sozvon goes away on the others too (to the Trash).
 - **Multiple languages** in one call, Russian and English UI, light and dark mode.
@@ -52,7 +52,7 @@
 2. Launch it. The setup assistant asks for your name, the language of your calls, a recognition model and an assistant for summaries, then installs the engine: 5-10 minutes, 1-4 GB depending on the model. No tokens or sign-ups.
 3. Allow the Microphone, Screen Recording and System Audio Recording (System Settings shows the last two under Screen & System Audio Recording; setup and Settings > General > Permissions have buttons for each). Video is not recorded, only audio. System audio comes through a Core Audio process tap, so FaceTime calls are heard too. Setup ends with a three second test recording that proves recording works before the first call; until setup is finished, the rest of the menu is unavailable. Access to Reminders is asked only when you first use To Reminders. The call prompt needs no permission.
 
-**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code) or [Codex CLI](https://github.com/openai/codex) installed, optional.
+**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional.
 
 <p align="center">
 <img src="docs/images/en-setup-model.png" width="360" alt="Choosing a model">
@@ -72,9 +72,9 @@
 
 Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 MB, installed with the app). Switch models in Settings → Recognition. The same tab has "Transcribe at low priority": transcription yields to other apps.
 
-## Claude Code and Codex (MCP)
+## Claude Code, Codex and Cursor (MCP)
 
-Settings → Assistants → Connect. While running, Sozvon keeps one shared MCP server on `127.0.0.1` for all sessions (about 40 MB). The assistant gets these tools:
+Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cursor Sozvon adds its entry to `~/.cursor/mcp.json` itself, keeping comments and other servers; the Cursor app and Cursor CLI both read that file. While running, Sozvon keeps one shared MCP server on `127.0.0.1` for all sessions (about 40 MB). The assistant gets these tools:
 
 | Tool | What it does |
 |---|---|
@@ -104,9 +104,9 @@ To ask Claude or ChatGPT about your calls from your phone or the web while the M
 | Tasks and notes you send to Reminders | nowhere, the Reminders app on this Mac (if Reminders syncs through iCloud, Apple syncs them further) | only when you press To Reminders |
 | Python environment, models | PyPI, huggingface.co | once, during setup |
 | uv binary (if missing), CPython for `uv sync`, fallback archive of the speaker separation models (release `models-v1`) | github.com | once, during setup |
-| Transcript text for the summary and speaker names | Anthropic (Claude Code) or OpenAI (Codex) | only if an assistant is selected |
-| Whatever the assistant reads through MCP | Anthropic or OpenAI | only when you ask it |
-| Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`), replies of open sessions. Claude is limited to reading inside `~/.claude`. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads | Anthropic or OpenAI | only when you click Find Projects |
+| Transcript text for the summary and speaker names | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
+| Whatever the assistant reads through MCP | Anthropic, OpenAI or Cursor | only when you ask it |
+| Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`, or past chats in `~/.cursor/projects`), replies of open sessions. Claude is limited to reading inside `~/.claude`. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads. Cursor runs in read-only ask mode, and its limit to those folders is also only an instruction | Anthropic, OpenAI or Cursor | only when you click Find Projects |
 | Update check | api.github.com | once a day, can be turned off |
 | Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone | your own server in your own Cloudflare account, never us ([how it works](docs/SERVER.md)) | only if you set one up |
 | Call audio, so a new Mac can play your calls (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send call audio on (the default) |

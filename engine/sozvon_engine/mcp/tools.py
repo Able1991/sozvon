@@ -1,6 +1,6 @@
 """MCP tools: thin wrappers over the package.
 
-Tool descriptions are in English: any user's Claude or Codex reads them.
+Tool descriptions are in English: any user's Claude, Codex or Cursor reads them.
 Human-readable texts in responses are in the app language (SOZVON_UI_LANG).
 """
 import sqlite3

@@ -51,6 +51,18 @@ final class SettingsTests: TempDirTestCase {
         XCTAssertEqual(w.assistant, .none, "неизвестный помощник: определяем заново")
     }
 
+    func testCursorAssistantRoundTrips() throws {
+        XCTAssertEqual(SettingsValues(env: ["SOZVON_LLM": "cursor"], detect: { .none }).assistant, .cursor)
+        let s = Settings()
+        s.assistant = .cursor
+        s.save()
+        let env = try String(contentsOf: Paths.env, encoding: .utf8)
+        XCTAssertTrue(env.contains(#"SOZVON_LLM="cursor""#))
+        XCTAssertEqual(Settings().assistant, .cursor)
+        XCTAssertEqual(Assistant.cursor.cli, "cursor-agent")
+        XCTAssertEqual(Assistant.cursor.vendor, "Cursor")
+    }
+
     func testSyncVoicesDefaultsOnAndRoundTrips() throws {
         XCTAssertTrue(SettingsValues(env: [:], detect: { .none }).syncVoices, "absent key: on")
         XCTAssertTrue(SettingsValues(env: ["SOZVON_SYNC_VOICES": "1"], detect: { .none }).syncVoices)

@@ -1,4 +1,4 @@
-"""Sozvon MCP server: calls, transcripts, vocabulary and projects for Claude and Codex.
+"""Sozvon MCP server: calls, transcripts, vocabulary and projects for Claude, Codex and Cursor.
 
   python server.py          MCP over stdio (one assistant session)
   python server.py --http   shared server on 127.0.0.1:$SOZVON_MCP_PORT with token $SOZVON_MCP_TOKEN

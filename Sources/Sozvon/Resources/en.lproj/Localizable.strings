@@ -5,6 +5,7 @@
 "Только локально" = "Local only";
 "Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic." = "Summaries and project discovery, including asking your open sessions. Text is sent to Anthropic.";
 "Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI." = "Summaries and project discovery from past sessions. Text is sent to OpenAI.";
+"Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели." = "Summaries and project discovery from past Cursor chats. Text is sent to Cursor and the model chosen there.";
 "Без саммари. Ничего не покидает Mac." = "No summaries. Nothing leaves your Mac.";
 "Русский" = "Russian";
 "Українська" = "Ukrainian";
@@ -47,6 +48,7 @@
 "Найти проекты через %@" = "Find Projects with %@";
 "Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа." = "Claude looks through your Claude Code sessions and asks the open ones what they’re working on.";
 "Codex посмотрит прошлые сессии и соберёт проекты, людей и термины." = "Codex looks through past sessions and collects projects, people and terms.";
+"Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины." = "Cursor looks through past chats and collects projects, people and terms.";
 
 /* After a call */
 "Проект" = "Project";
@@ -190,6 +192,7 @@
 
 /* MCP */
 "Не найден %@" = "%@ not found";
+"Не получилось разобрать ~/.cursor/mcp.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.cursor/mcp.json. Add Sozvon by hand: use the Copy button below.";
 "Подключён" = "Connected";
 "Отключить" = "Disconnect";
 "Подключить" = "Connect";
@@ -435,7 +438,7 @@
 "Открыть Sozvon" = "Open Sozvon";
 
 /* UI review fixes */
-"Команда для терминала" = "Terminal command";
+"Подключить вручную" = "Connect Manually";
 "Скопировано" = "Copied";
 "Скопировать" = "Copy";
 "Не установлен" = "Not installed";
@@ -591,11 +594,12 @@
 "Запись из строки меню или плавающей капсулы. Sozvon сам предложит записать, когда начнётся звонок." = "Record from the menu bar or the floating capsule. Sozvon offers to record when a call starts.";
 "Расшифровка идёт на Mac. Ничего не покидает его, пока ты не включишь саммари через ассистента." = "Transcription runs on your Mac. Nothing leaves it until you turn on summaries by an assistant.";
 "Реплики разбиваются по голосам. Запомни голоса один раз, и имена подставятся сами." = "Lines are split by voice. Remember voices once, and names fill in by themselves.";
-"Коротко, решения и задачи через Claude Code или Codex. Потом можно спросить ассистента о любом звонке." = "Summary, decisions and action items by Claude Code or Codex. Later, ask the assistant about any call.";
+"Коротко, решения и задачи через Claude Code, Codex или Cursor. Потом можно спросить ассистента о любом звонке." = "Summary, decisions and action items by Claude Code, Codex or Cursor. Later, ask the assistant about any call.";
 "Кто будет писать «Коротко», «Решения» и «Задачи». Текст звонка уходит в сервис помощника, аудио остаётся на Mac." = "Who writes the Summary, Decisions and Action items. The call text goes to the assistant's service, the audio stays on your Mac.";
 "Без саммари" = "No summaries";
 "Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале." = "Text goes to Anthropic. Later, ask about your calls right in the terminal.";
 "Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex." = "Text goes to OpenAI. Later, ask about your calls in Codex.";
+"Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor." = "Text goes to Cursor and the model chosen there. Later, ask about your calls in Cursor.";
 "Только расшифровка. Ничего не покидает Mac. Можно включить позже в Настройках." = "Transcripts only. Nothing leaves your Mac. You can turn summaries on later in Settings.";
 "Имя пишется в расшифровке рядом с твоими репликами. Языки помогают модели не путать слова." = "Your name appears in the transcript next to your lines. Languages keep the model from mixing up words.";
 "Расшифровка уступает твоим программам: при звонке она не мешает Zoom и браузеру." = "Transcription yields to your apps: during a call it does not slow down Zoom or the browser.";

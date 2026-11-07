@@ -53,13 +53,14 @@ the ones marked "manual" below):
 | Key | Values |
 |---|---|
 | `SOZVON_ME` | how to label the user |
-| `SOZVON_LLM` | `claude`, `codex`, `none`, `auto` |
+| `SOZVON_LLM` | `claude`, `codex`, `cursor`, `none`, `auto` (the first installed of `claude`, `codex`, `cursor-agent`) |
 | `SOZVON_SUMMARY_MODEL` | Claude model for summaries, speaker naming and project discovery (default `sonnet`). Manual |
 | `SOZVON_LANGUAGE` | call languages: `ru`, `ru,en`, `auto` |
 | `SOZVON_LANG_SWITCH` | `1`: detect the language of each phrase |
 | `SOZVON_MODEL` | key from `models.json`: `turbo`, `large-v3`, `small`, `gigaam`, `parakeet` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |
+| `SOZVON_CURSOR_MODEL` | Cursor model (`cursor-agent --model`); empty: the default model from the Cursor settings. Manual |
 | `HF_TOKEN` | Hugging Face token: higher download limits when many people download from one address (the speaker separation models ship with the app and need none). Manual |
 | `SOZVON_SERVER_URL` | address of the user's own server (`docs/SERVER.md`), `https://` only (`http://` only for `localhost` and `127.0.0.1`, for testing). Empty: no server |
 | `SOZVON_SERVER_PASSWORD` | password of the own server, sent as `Authorization: Bearer <password>`; never logged |
@@ -297,7 +298,7 @@ the edits).
 
 **Notes** (optional, schema stays 1): comments on the call, oldest first. `id` is a UUID (1 to 64 letters, digits
 or dashes), `at` the UTC time in ISO 8601, `text` 1 to 4000 characters (code points), `source` who added it
-(`claude-code`, `codex`, `claude`, `chatgpt`, `app`, another short MCP client name, or `assistant`). At most 200
+(`claude-code`, `codex`, `cursor`, `claude`, `chatgpt`, `app`, another short MCP client name, or `assistant`). At most 200
 notes per call. Notes are append-only: nobody edits one. Added by the MCP tool `add_note`, by the Calls window and
 by sync (notes from the own server). `add_note` and the engine's note writes fail on a call that is gone (moved to the Trash meanwhile) and never
 recreate its folder. The app or the MCP tool `delete_note` deletes a note: it leaves the list and its id goes to

@@ -1,4 +1,4 @@
-"""Choosing and calling Claude Code / Codex CLI (with fake binaries)."""
+"""Choosing and calling Claude Code / Codex / Cursor CLI (with fake binaries)."""
 import stat
 from pathlib import Path
 
@@ -98,6 +98,81 @@ def test_failure_returns_error(bins, tmp_path):
 
 def test_vendor():
     assert llm.vendor("claude") == "Anthropic" and llm.vendor("codex") == "OpenAI"
+    assert llm.vendor("cursor") == "Cursor"
+
+
+def test_auto_falls_back_to_cursor(bins):
+    fake_cli(bins, "cursor-agent", "echo hi")
+    assert llm.backend()[0] == "cursor"
+    fake_cli(bins, "codex", "echo hi")
+    assert llm.backend()[0] == "codex", "codex раньше cursor"
+
+
+def test_explicit_cursor(bins, monkeypatch):
+    fake_cli(bins, "claude", "echo hi")
+    fake_cli(bins, "cursor-agent", "echo hi")
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    name, path = llm.backend()
+    assert name == "cursor" and path.endswith("/cursor-agent")
+
+
+# Fake cursor-agent: logs its arguments (one per line) and working dir, copies request.md to keep it
+# for the test, answers with the file content or the prompt argument (the last one).
+CURSOR_FAKE = """printf '%s\n' "$@" > {log}
+pwd > {cwd}
+ws=""; prev=""
+for a in "$@"; do if [ "$prev" = "--workspace" ]; then ws="$a"; fi; prev="$a"; done
+echo "$ws" > {ws}
+if [ -f "$ws/request.md" ]; then cp "$ws/request.md" {req}; echo "ответ на: $(cat "$ws/request.md")"
+else echo "agentic: ${{@: -1}}"; fi
+"""
+
+
+def cursor_fake(bins, tmp_path):
+    files = {k: tmp_path / k for k in ("log", "cwd", "ws", "req")}
+    fake_cli(bins, "cursor-agent", CURSOR_FAKE.format(**files))
+    return files
+
+
+def test_cursor_summary_prompt_goes_through_request_md(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    monkeypatch.setenv("SOZVON_CURSOR_MODEL", "sonnet-4")
+    f = cursor_fake(bins, tmp_path)
+    long_prompt = "РАСШИФРОВКА " * 20000
+    out, name, err = llm.run(long_prompt, tmp_path)
+    assert name == "cursor" and err == "" and out == "ответ на: " + long_prompt.strip()
+    args = f["log"].read_text().splitlines()
+    ws = f["ws"].read_text().strip()
+    assert args[:9] == ["-p", "--mode", "ask", "--sandbox", "enabled", "--trust", "--output-format", "text",
+                        "--model"] and args[9] == "sonnet-4"
+    assert args[-3:] == ["--workspace", ws, llm.CURSOR_FILE_PROMPT]
+    assert "РАСШИФРОВКА" not in "".join(args), "текст звонка не в аргументах"
+    assert f["req"].read_text() == long_prompt
+    assert Path(f["cwd"].read_text().strip()).resolve() == Path(ws).resolve()
+    assert ws != str(tmp_path) and not Path(ws).exists(), "временная папка удалена"
+    for bad in ("--force", "--yolo", "--approve-mcps"):
+        assert bad not in args
+
+
+def test_cursor_without_model_and_agentic(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    monkeypatch.setenv("HOME", str(tmp_path))
+    f = cursor_fake(bins, tmp_path)
+    out, name, err = llm.run("найди проекты", tmp_path, agentic=True)
+    assert (out, name, err) == ("agentic: найди проекты", "cursor", "")
+    args = f["log"].read_text().splitlines()
+    assert "--model" not in args and "--mode" in args and args[args.index("--mode") + 1] == "ask"
+    assert args[-3:] == ["--workspace", str(Path.home() / ".cursor"), "найди проекты"]
+    assert not f["req"].exists()
+
+
+def test_cursor_failure_and_timeout(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    fake_cli(bins, "cursor-agent", "echo boom >&2; exit 2")
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and name == "cursor" and "boom" in err
+    fake_cli(bins, "cursor-agent", "exec sleep 5")
+    assert llm.run("x", tmp_path, timeout=1) == (None, "cursor", "timeout")
 
 
 def test_claude_stream_reports_steps_and_result(bins, tmp_path):

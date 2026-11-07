@@ -1,6 +1,6 @@
 """Call notes: comments on a call in call.json["notes"] (docs/CONTRACT.md, section 4).
 
-A note is {"id": uuid4, "at": ISO 8601 UTC, "text": "...", "source": "claude-code|codex|app|..."}.
+A note is {"id": uuid4, "at": ISO 8601 UTC, "text": "...", "source": "claude-code|codex|cursor|app|..."}.
 Notes are append-only: nobody edits one. The app or the delete_note tool deletes a note, and then its id goes to
 call.json["notes_deleted"], a tombstone that sync carries to the server (docs/SERVER.md), so a copy
 elsewhere can't bring it back. Every change is a read-modify-write of call.json under the
@@ -19,7 +19,7 @@ MAX_NOTES = 200  # per call
 MAX_SOURCE = 40
 ID_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
 KNOWN_SOURCES = (("claude-code", "claude-code"), ("claude code", "claude-code"), ("codex", "codex"),
-                 ("chatgpt", "chatgpt"), ("openai", "chatgpt"), ("claude", "claude"))
+                 ("cursor", "cursor"), ("chatgpt", "chatgpt"), ("openai", "chatgpt"), ("claude", "claude"))
 
 
 class NoteError(ValueError):
@@ -47,7 +47,7 @@ def now() -> str:
 
 
 def source_name(raw: str | None) -> str:
-    """Short lowercase source from an MCP client name: "claude-code", "codex", "claude", "chatgpt"..."""
+    """Short lowercase source from an MCP client name: "claude-code", "codex", "cursor", "claude", "chatgpt"..."""
     name = " ".join(str(raw or "").lower().replace("_", "-").split())
     for needle, source in KNOWN_SOURCES:
         if needle in name:

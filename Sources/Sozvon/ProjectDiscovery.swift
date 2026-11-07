@@ -1,4 +1,4 @@
-// "Find projects with Claude Code / Codex": `bin/discover_projects.py` asks the assistant to look through past
+// "Find projects with Claude Code / Codex / Cursor": `bin/discover_projects.py` asks the assistant to look through past
 // sessions and writes the projects it finds. Used by the setup assistant and the Projects window.
 
 import SozvonCore

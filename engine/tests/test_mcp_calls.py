@@ -149,6 +149,7 @@ def test_source_names():
     assert source_name("claude-code") == "claude-code"
     assert source_name("Claude Code/2.1") == "claude-code"
     assert source_name("codex-mcp-client") == "codex"
+    assert source_name("cursor-vscode") == "cursor" and source_name("Cursor") == "cursor"
     assert source_name("claude-ai") == "claude"
     assert source_name("ChatGPT") == "chatgpt"
     assert source_name("openai-mcp") == "chatgpt"

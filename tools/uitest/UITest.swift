@@ -173,7 +173,7 @@ func fail(_ control: String, _ problem: String) {
 let actionable: Set<String> = ["AXButton", "AXMenuButton", "AXPopUpButton", "AXCheckBox", "AXTextField", "AXTextArea",
                                "AXRadioButton", "AXSlider", "AXLink", "AXComboBox"]
 /// Buttons that leave the app (browser, Finder, Terminal) or end it: hit-tested, never clicked.
-let external = ["Finder", "Подключ", "Connect", "Claude", "ChatGPT", "Codex", "Терминал", "Terminal", "Выйти", "Quit",
+let external = ["Finder", "Подключ", "Connect", "Claude", "ChatGPT", "Codex", "Cursor", "Терминал", "Terminal", "Выйти", "Quit",
                 "браузер", "Перезапустить", "Relaunch", "Cloudflare", "Открыть сайт", "GitHub", "Системные настройки",
                 "Скачать модель", "Переустановить", "Установить", "Повторить", "Записать", "Обновить сервер",
                 "Проверить", "Синхронизировать", "Импорт"]
