@@ -4,249 +4,839 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sozvon: стенограмма любого созвона прямо на Mac</title>
-<meta name="description" content="Записывает созвоны в Zoom, Meet, FaceTime, Telegram и где угодно и расшифровывает их локально на Apple Silicon: кто что сказал, с таймкодами, и саммари с решениями и задачами.">
+<meta name="description" content="Записывает созвоны в Zoom, Meet, FaceTime, Telegram и где угодно и расшифровывает их локально на Apple Silicon: кто что сказал, с таймкодами, и саммари. Claude Code, Codex и Cursor знают каждый звонок.">
 <meta property="og:title" content="Sozvon">
-<meta property="og:description" content="Стенограмма любого созвона прямо на Mac. Локально, бесплатно, с открытым кодом.">
-<meta property="og:image" content="https://able1991.github.io/sozvon/images/ru-calls.png">
+<meta property="og:description" content="Нажал и записал. Остальное Mac сделает сам. Локально, бесплатно, с открытым кодом.">
+<meta property="og:image" content="https://able1991.github.io/sozvon/images/og-hero.jpg">
 <link rel="icon" href="images/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,500&family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f5f6f8; --sheet: #ffffff; --ink: #15171c; --muted: #5d6472; --rule: #dfe2e8;
+    --accent: #d21f57; --accent-ink: #ffffff; --chip: #eceef2; --stage-bg: #eceef4;
+    --stage-shadow: 0 1px 0 rgba(20, 24, 34, 0.04), 0 30px 60px -36px rgba(20, 24, 34, 0.5);
+    --stage-ring: rgba(20, 24, 34, 0.08);
+    --sans: "Onest", -apple-system, system-ui, "Segoe UI", sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #17191d; --sheet: #1f2228; --ink: #eceef2; --muted: #9aa1ad; --rule: #30343c;
+      --accent: #ff4d80; --accent-ink: #ffffff; --chip: #262a31; --stage-bg: #111319;
+      --stage-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8); --stage-ring: rgba(255, 255, 255, 0.08);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #17191d; --sheet: #1f2228; --ink: #eceef2; --muted: #9aa1ad; --rule: #30343c;
+    --accent: #ff4d80; --accent-ink: #ffffff; --chip: #262a31; --stage-bg: #111319;
+    --stage-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.8); --stage-ring: rgba(255, 255, 255, 0.08);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  /* header */
+  .nav { display: flex; align-items: center; gap: 20px; height: 64px; font-size: 15px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; text-decoration: none; margin-right: auto; }
+  .brand img { width: 28px; height: 28px; display: block; }
+  .nav a.link { color: var(--muted); text-decoration: none; }
+  .nav a.link:hover { color: var(--ink); }
+  .nav a.gh { display: inline-flex; align-items: center; gap: 7px; }
+  .nav a.gh svg { width: 17px; height: 17px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; padding: 2px; gap: 2px; }
+  .seg button { background: none; border: 0; color: var(--muted); font: 500 12.5px/1 var(--sans); padding: 5px 8px; border-radius: 6px; cursor: pointer; display: inline-grid; place-items: center; min-width: 28px; min-height: 24px; }
+  .seg button:hover { color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--chip); color: var(--ink); }
+  .seg svg { width: 14px; height: 14px; }
+  .tools { display: flex; align-items: center; gap: 8px; }
+
+  /* hero */
+  .hero { text-align: center; padding-top: 22px; }
+  h1 { font: 700 clamp(32px, 3.6vw, 46px)/1.08 var(--sans); letter-spacing: -0.032em; margin: 0 auto 12px; max-width: 24em; text-wrap: balance; }
+  .lead { font-size: 18px; line-height: 1.5; color: var(--muted); margin: 0 auto 20px; max-width: 48em; text-wrap: balance; }
+  .cta { display: flex; justify-content: center; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .download { display: inline-flex; align-items: center; gap: 10px; background: var(--accent); color: var(--accent-ink); text-decoration: none; padding: 12px 22px; border-radius: 10px; font-weight: 600; font-size: 16.5px; line-height: 1.4; }
+  .download:hover { filter: brightness(1.07); }
+  .download svg { width: 17px; height: 17px; }
+  .more { color: var(--ink); font-weight: 500; font-size: 16px; text-decoration: none; }
+  .more:hover { text-decoration: underline; }
+  .more span { color: var(--accent); }
+  .fine { margin: 9px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.4; }
+
+  /* live animation */
+  .stage { --above: 300px; position: relative; margin: 26px auto 0; width: min(100%, 960px, max(560px, calc((100svh - var(--above)) * 16 / 9))); aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--stage-bg); box-shadow: 0 0 0 1px var(--stage-ring), var(--stage-shadow); isolation: isolate; }
+  .stage[data-kind="v"] { width: 100%; aspect-ratio: 9 / 16; border-radius: 18px; }
+  .stage-host { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .stage-toggle { position: absolute; right: 10px; bottom: 10px; z-index: 2; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(20, 22, 28, 0.42); color: #fff; display: grid; place-items: center; cursor: pointer; opacity: 0; transition: opacity 0.2s ease; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+  .stage:hover .stage-toggle, .stage-toggle:focus-visible, .stage-toggle[aria-pressed="true"] { opacity: 1; }
+  .stage-toggle svg { width: 12px; height: 12px; }
+  @media (hover: none) { .stage-toggle { opacity: 0.85; } }
+
+  /* facts */
+  .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 48px; padding-block: 88px 80px; }
+  .fact { border-top: 1px solid var(--rule); padding-top: 22px; }
+  .fact .ic { width: 34px; height: 34px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--accent); display: grid; place-items: center; margin-bottom: 16px; }
+  .fact .ic svg { width: 19px; height: 19px; }
+  .fact h2 { font: 600 20px/1.3 var(--sans); letter-spacing: -0.01em; margin: 0 0 6px; }
+  .fact p { margin: 0 0 12px; color: var(--muted); font-size: 16px; }
+  .fact a { color: var(--ink); font-size: 15px; font-weight: 500; text-decoration: none; }
+  .fact a:hover { text-decoration: underline; }
+  .fact a span { color: var(--accent); }
+
+  /* footer */
+  footer { border-top: 1px solid var(--rule); padding-block: 64px 40px; }
+  footer h2 { font: 700 clamp(26px, 3vw, 34px)/1.15 var(--sans); letter-spacing: -0.025em; margin: 0 0 28px; }
+  .steps { list-style: none; padding: 0; margin: 0 0 56px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px 48px; counter-reset: step; }
+  .steps li { counter-increment: step; }
+  .steps li::before { content: counter(step); display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--paper); font: 600 13px var(--sans); margin-bottom: 12px; }
+  .steps h3 { font: 600 17px/1.35 var(--sans); margin: 0 0 4px; }
+  .steps p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px 32px; padding-top: 22px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 14px; }
+  .foot nav { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+  .foot a { text-decoration: none; }
+  .foot a:hover { color: var(--ink); text-decoration: underline; }
+
+  @media (max-width: 900px) {
+    .facts { grid-template-columns: 1fr; gap: 32px; padding-block: 64px; }
+    .steps { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .nav { gap: 14px; }
+    .nav a.gh span { display: none; }
+    .hero { padding-top: 14px; }
+    .lead { font-size: 16.5px; }
+    .cta { gap: 16px; }
+    .stage { margin-top: 24px; }
+  }
+  @media (max-width: 480px) {
+    .nav { gap: 12px; }
+    .brand span { display: none; }
+    .tools { gap: 6px; }
+    .seg button { padding: 4px 5px; min-width: 24px; }
+  }
+</style>
 </head>
 <body>
+
 <div class="wrap">
-  <nav>
-    <a class="brand" href="#"><img src="images/icon.png" alt=""> Sozvon</a>
-    <a class="link hide-sm" href="#how" data-ru="Как это работает" data-en="How it works">Как это работает</a>
-    <a class="link hide-sm" href="#assistants" data-ru="Ассистенты" data-en="Assistants">Ассистенты</a>
-    <a class="link" href="docs.html" data-ru="Документация" data-en="Docs">Документация</a>
-    <a class="link" href="https://github.com/Able1991/sozvon">GitHub</a>
-    <button class="lang" id="lang" aria-label="Switch language">EN</button>
-  </nav>
-
-  <header class="hero">
-    <div>
-      <h1 data-ru="Стенограмма любого созвона, прямо на&nbsp;Mac" data-en="A transcript of every call, made on your&nbsp;Mac">Стенограмма любого созвона, прямо на&nbsp;Mac</h1>
-      <p class="lead" data-ru="Zoom, Meet, FaceTime, Telegram, TrueConf, что угодно. Нажимаешь «Записать», после звонка получаешь текст: кто что сказал, с таймкодами, и саммари с решениями и задачами. Распознавание идёт прямо на компьютере." data-en="Zoom, Meet, FaceTime, Telegram, anything. Press Record, and after the call you get the text: who said what, with timestamps, plus a summary with decisions and action items. Recognition runs right on your computer.">Zoom, Meet, FaceTime, Telegram, TrueConf, что угодно. Нажимаешь «Записать», после звонка получаешь текст: кто что сказал, с таймкодами, и саммари с решениями и задачами. Распознавание идёт прямо на компьютере.</p>
-      <a class="download" href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12"/></svg>
-        <span data-ru="Скачать для Mac" data-en="Download for Mac">Скачать для Mac</span>
-      </a>
-      <p class="fine" data-ru="Бесплатно, открытый код (MIT). Для macOS 15 и новее на Apple Silicon. Без регистрации и токенов." data-en="Free and open source (MIT). macOS 15 or later on Apple silicon. No account, no tokens.">Бесплатно, открытый код (MIT). Для macOS 15 и новее на Apple Silicon. Без регистрации и токенов.</p>
+  <header class="nav">
+    <a class="brand" href="#top"><img src="images/icon.png" alt="" width="28" height="28"><span>Sozvon</span></a>
+    <a class="link" data-href-ru="docs.html" data-href-en="docs.html#en" href="docs.html" data-ru="Документация" data-en="Docs">Документация</a>
+    <a class="link gh" href="https://github.com/Able1991/sozvon" aria-label="GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Language">
+        <button type="button" data-set-lang="ru" aria-pressed="true">RU</button>
+        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+      </div>
+      <div class="seg" role="group" aria-label="Theme">
+        <button type="button" data-set-theme="auto" aria-pressed="true" data-title-ru="Как в системе" data-title-en="Match system" title="Как в системе"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" data-set-theme="light" aria-pressed="false" data-title-ru="Светлая" data-title-en="Light" title="Светлая"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg></button>
+        <button type="button" data-set-theme="dark" aria-pressed="false" data-title-ru="Тёмная" data-title-en="Dark" title="Тёмная"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.6 10.3A6 6 0 0 1 5.7 2.4a6 6 0 1 0 7.9 7.9z"/></svg></button>
+      </div>
     </div>
-
-    <article class="sheet" aria-label="Пример расшифровки">
-      <div class="sheet-head">
-        <span><b data-ru="Acme, запуск кампании" data-en="Acme, campaign launch">Acme, запуск кампании</b></span>
-        <span data-ru="4 ноября, 15:01, 23 мин" data-en="Nov 4, 3:01 pm, 23 min">4 ноября, 15:01, 23 мин</span>
-      </div>
-      <div class="line reveal"><time>00:02</time><p><span class="who them" data-ru="Анна" data-en="Anna">Анна</span><span data-ru="Давай по запуску. Стартуем в понедельник?" data-en="Let’s talk launch. Are we starting Monday?">Давай по запуску. Стартуем в понедельник?</span></p></div>
-      <div class="line reveal"><time>00:07</time><p><span class="who you" data-ru="Ты" data-en="You">Ты</span><span data-ru="Да, если до пятницы получим ключи от песочницы." data-en="Yes, if we get the sandbox keys by Friday.">Да, если до пятницы получим ключи от песочницы.</span></p></div>
-      <div class="line reveal"><time>00:13</time><p><span class="who them2" data-ru="Олег" data-en="Oleg">Олег</span><span data-ru="Ключи выдам завтра, черновик SLA пришлю в четверг." data-en="I’ll issue the keys tomorrow and send the SLA draft on Thursday.">Ключи выдам завтра, черновик SLA пришлю в четверг.</span></p></div>
-      <div class="line reveal"><time>00:21</time><p><span class="who them" data-ru="Анна" data-en="Anna">Анна</span><span data-ru="Тогда фиксируем понедельник." data-en="Then Monday it is.">Тогда фиксируем понедельник.</span></p></div>
-      <div class="summary reveal">
-        <h3 data-ru="Решения" data-en="Decisions">Решения</h3>
-        <p data-ru="Запуск кампании в понедельник." data-en="The campaign launches on Monday.">Запуск кампании в понедельник.</p>
-        <h3 data-ru="Задачи" data-en="Action items">Задачи</h3>
-        <ul>
-          <li data-ru="Олег: выдать ключи от песочницы, завтра" data-en="Oleg: issue sandbox keys, tomorrow">Олег: выдать ключи от песочницы, завтра</li>
-          <li data-ru="Олег: черновик SLA, четверг" data-en="Oleg: SLA draft, Thursday">Олег: черновик SLA, четверг</li>
-        </ul>
-      </div>
-    </article>
   </header>
 
-  <section id="how">
-    <h2 data-ru="Как проходит звонок" data-en="How a call goes">Как проходит звонок</h2>
-    <p class="intro" data-ru="Без виртуальных аудиодрайверов и ботов в звонке. Sozvon пишет звук компьютера и твой микрофон отдельными дорожками, поэтому всегда знает, где ты, а где собеседники." data-en="No virtual audio drivers, no bots joining the call. Sozvon records system audio and your microphone on separate tracks, so it always knows which voice is yours.">Без виртуальных аудиодрайверов и ботов в звонке. Sozvon пишет звук компьютера и твой микрофон отдельными дорожками, поэтому всегда знает, где ты, а где собеседники.</p>
-    <ol class="steps">
-      <li>
-        <h3 data-ru="Записать" data-en="Record">Записать</h3>
-        <p data-ru="Плавающая панель поверх всех окон, даже над Zoom на весь экран, или значок в строке меню. Когда начинается звонок, Sozvon спросит «Записать?», но сам ничего не пишет." data-en="A floating panel above every window, even full-screen Zoom, or the menu bar icon. When a call starts, Sozvon asks “Record?”, but never records by itself.">Плавающая панель поверх всех окон, даже над Zoom на весь экран, или значок в строке меню. Когда начинается звонок, Sozvon спросит «Записать?», но сам ничего не пишет.</p>
-        <figure><img id="shot-panel" src="images/ru-panel.png" width="300" alt="" loading="lazy"></figure>
-      </li>
-      <li>
-        <h3 data-ru="Стоп" data-en="Stop">Стоп</h3>
-        <p data-ru="Таймер и живая волна голосов показывают, что пишутся обе стороны. Если тебя не слышно, панель скажет." data-en="A timer and live waveform show both sides are being recorded. If your mic is silent, the panel tells you.">Таймер и живая волна голосов показывают, что пишутся обе стороны. Если тебя не слышно, панель скажет.</p>
-      </li>
-      <li>
-        <h3 data-ru="О чём был звонок" data-en="What was it about">О чём был звонок</h3>
-        <p data-ru="Выбираешь проект, Sozvon подсказывает людей с его прошлых звонков. Всё необязательно, а если некогда, жми «Позже»: Sozvon напомнит." data-en="Pick the project and Sozvon suggests people from its earlier calls. All optional, and if you are busy, press Later: Sozvon reminds you.">Выбираешь проект, Sozvon подсказывает людей с его прошлых звонков. Всё необязательно, а если некогда, жми «Позже»: Sozvon напомнит.</p>
-        <figure><img id="shot-callinfo" src="images/ru-callinfo.png" width="440" alt="" loading="lazy"></figure>
-      </li>
-      <li>
-        <h3 data-ru="Текст" data-en="Text">Текст</h3>
-        <p data-ru="Через несколько минут приходит уведомление: расшифровка и саммари лежат в папке звонка и в окне «Звонки»." data-en="A few minutes later you get a notification: the transcript and summary are in the call folder and in the Calls window.">Через несколько минут приходит уведомление: расшифровка и саммари лежат в папке звонка и в окне «Звонки».</p>
-      </li>
-    </ol>
-  </section>
-
-  <section>
-    <h2 data-ru="Все звонки в одном окне" data-en="All your calls in one window">Все звонки в одном окне</h2>
-    <p class="intro" data-ru="Поиск по датам, людям, проектам и тексту расшифровок. Саммари и стенограмма рядом." data-en="Search by date, people, project and the transcripts themselves. Summary and transcript side by side.">Поиск по датам, людям, проектам и тексту расшифровок. Саммари и стенограмма рядом.</p>
-    <img class="window" id="shot-main" src="images/ru-calls.png" width="980" alt="" loading="lazy">
-  </section>
-
-  <section>
-    <h2 data-ru="Что ещё умеет" data-en="What else it does">Что ещё умеет</h2>
-    <div class="features">
-      <div class="feature"><h3 data-ru="Подписывает людей по именам" data-en="Names the speakers">Подписывает людей по именам</h3><p data-ru="Собеседники разводятся по голосам, а имена берутся из разговора: «Маша, как у тебя?»" data-en="Voices are separated, and names come from the conversation itself: “Mary, how’s it going?”">Собеседники разводятся по голосам, а имена берутся из разговора: «Маша, как у тебя?»</p></div>
-      <div class="feature"><h3 data-ru="Узнаёт по голосу" data-en="Knows voices">Узнаёт по голосу</h3><p data-ru="Назвал собеседника в расшифровке один раз, и в следующих звонках проекта Sozvon подпишет его сам, даже двух Александров. Свой голос записываешь за 20 секунд. Голоса хранятся у тебя и удаляются одной кнопкой." data-en="Name a speaker in a transcript once, and Sozvon labels them by itself in the project’s next calls, even two people called Alexander. Your own voice takes a 20-second sample. Voices stay with you and are deleted in one click.">Назвал собеседника в расшифровке один раз, и в следующих звонках проекта Sozvon подпишет его сам, даже двух Александров. Свой голос записываешь за 20 секунд. Голоса хранятся у тебя и удаляются одной кнопкой.</p></div>
-      <div class="feature"><h3 data-ru="Знает словарь твоих проектов" data-en="Knows your project vocabulary">Знает словарь твоих проектов</h3><p data-ru="Люди, термины и автозамены по каждому клиенту, чтобы распознавание правильно писало имена и жаргон. Исправил слово в расшифровке, и проект его запомнит, а саммари обновится одной кнопкой. Проекты можно собрать из сессий Claude Code, Codex или Cursor." data-en="People, terms and mishearing fixes per client, so names and jargon come out right. Fix a word in a transcript and the project remembers it, and the summary updates in one click. Projects can be collected from your Claude Code, Codex or Cursor sessions.">Люди, термины и автозамены по каждому клиенту, чтобы распознавание правильно писало имена и жаргон. Исправил слово в расшифровке, и проект его запомнит, а саммари обновится одной кнопкой. Проекты можно собрать из сессий Claude Code, Codex или Cursor.</p></div>
-      <div class="feature"><h3 data-ru="Саммари на языке разговора" data-en="Summaries in the call’s language">Саммари на языке разговора</h3><p data-ru="Коротко, решения, задачи с исполнителями, открытые вопросы. Через Claude Code, Codex или Cursor по твоей подписке, если хочешь." data-en="Overview, decisions, action items with owners, open questions. Through your Claude Code, Codex or Cursor subscription, if you want it.">Коротко, решения, задачи с исполнителями, открытые вопросы. Через Claude Code, Codex или Cursor по твоей подписке, если хочешь.</p></div>
-      <div class="feature"><h3 data-ru="Понимает смену языка" data-en="Handles mixed languages">Понимает смену языка</h3><p data-ru="Русский и английский в одном звонке, интерфейс на обоих языках, светлая и тёмная тема." data-en="Russian and English in one call, the interface in both, light and dark mode.">Русский и английский в одном звонке, интерфейс на обоих языках, светлая и тёмная тема.</p></div>
-      <div class="feature"><h3 data-ru="Можно без наушников" data-en="Works without headphones">Можно без наушников</h3><p data-ru="Эхо собеседников из динамиков Sozvon убирает из твоего микрофона прямо на Mac, а тихий микрофон делает громче. Если громкость входа низкая, предупредит во время записи." data-en="Sozvon removes the other side’s echo from the speakers out of your microphone, right on the Mac, and raises a quiet mic. If the input volume is low, it warns you during the recording.">Эхо собеседников из динамиков Sozvon убирает из твоего микрофона прямо на Mac, а тихий микрофон делает громче. Если громкость входа низкая, предупредит во время записи.</p></div>
-      <div class="feature"><h3 data-ru="Не мешает работать" data-en="Stays out of your way">Не мешает работать</h3><p data-ru="Расшифровка может уступать процессор другим программам, чтобы Mac не тормозил." data-en="Transcription can yield the CPU to your other apps so your Mac stays responsive.">Расшифровка может уступать процессор другим программам, чтобы Mac не тормозил.</p></div>
-      <div class="feature"><h3 data-ru="Заметки к звонкам" data-en="Notes on calls">Заметки к звонкам</h3><p data-ru="Решение, договорённость, уточнение на потом. Пишешь сам или просишь Claude, заметки видны под звонком, их находит поиск." data-en="A decision, an agreement, something for later. Write one yourself or ask Claude; notes show under the call and search finds them.">Решение, договорённость, уточнение на потом. Пишешь сам или просишь Claude, заметки видны под звонком, их находит поиск.</p></div>
-      <div class="feature"><h3 data-ru="Слушай с любой реплики" data-en="Play from any line">Слушай с любой реплики</h3><p data-ru="Нажми на реплику, и звонок заиграет с этого места. Текущая реплика подсвечена, скорость до 2×." data-en="Click a line and the call plays from there. The current line is highlighted, speed up to 2×.">Нажми на реплику, и звонок заиграет с этого места. Текущая реплика подсвечена, скорость до 2×.</p></div>
-      <div class="feature"><h3 data-ru="Старые записи и задачи" data-en="Old recordings and tasks">Старые записи и задачи</h3><p data-ru="Перетащи старую запись в окно «Звонки», и она расшифруется как новая. Твои задачи из саммари одной кнопкой уходят в Напоминания." data-en="Drop an old recording onto the Calls window and it is transcribed like a new call. Your action items go to Reminders in one click.">Перетащи старую запись в окно «Звонки», и она расшифруется как новая. Твои задачи из саммари одной кнопкой уходят в Напоминания.</p></div>
-      <div class="feature"><h3 data-ru="Отмечай важное" data-en="Mark what matters">Отмечай важное</h3><p data-ru="Звёздочка на панели или ⌃⌥I во время звонка: момент подсвечен в расшифровке и разобран в саммари. Если пропал звук, Sozvon сам его переподхватит." data-en="The star on the panel or ⌃⌥I during the call: the moment is highlighted in the transcript and covered in the summary. If the sound drops, Sozvon picks it up again by itself.">Звёздочка на панели или ⌃⌥I во время звонка: момент подсвечен в расшифровке и разобран в саммари. Если пропал звук, Sozvon сам его переподхватит.</p></div>
-      <div class="feature"><h3 data-ru="Помнит календарь" data-en="Knows your calendar">Помнит календарь</h3><p data-ru="После звонка тема, участники и проект уже подставлены из встречи в Календаре. Старый звук может удаляться сам, текст остаётся." data-en="After the call, the topic, participants and project are already filled in from the Calendar meeting. Old audio can delete itself; the text stays.">После звонка тема, участники и проект уже подставлены из встречи в Календаре. Старый звук может удаляться сам, текст остаётся.</p></div>
-      <div class="feature"><h3 data-ru="Синхронизирует несколько Mac" data-en="Syncs your Macs">Синхронизирует несколько Mac</h3><p data-ru="Второй Mac со своим сервером получает все звонки со звуком, заметки и голоса. Удалил звонок в Sozvon на одном, на других он уходит в Корзину." data-en="A second Mac on your own server gets every call with its audio, every note and voice. Delete a call in Sozvon on one, and it goes to the Trash on the others.">Второй Mac со своим сервером получает все звонки со звуком, заметки и голоса. Удалил звонок в Sozvon на одном, на других он уходит в Корзину.</p></div>
-    </div>
-  </section>
-
-  <section id="assistants">
-    <h2 data-ru="Спроси ассистента про любой звонок" data-en="Ask your assistant about any call">Спроси ассистента про любой звонок</h2>
-    <p class="intro" data-ru="Claude, ChatGPT, Claude Code, Codex и Cursor сами находят нужный звонок, читают расшифровку и отвечают с таймкодами. Ищут по смыслу и по любой форме слова, потому что речь записана так, как её сказали. Подключаются через MCP одной кнопкой." data-en="Claude, ChatGPT, Claude Code, Codex and Cursor find the right call themselves, read the transcript and answer with timestamps. They search by meaning and any word form, because speech is written down as it was said. One button connects them through MCP.">Claude, ChatGPT, Claude Code, Codex и Cursor сами находят нужный звонок, читают расшифровку и отвечают с таймкодами. Ищут по смыслу и по любой форме слова, потому что речь записана так, как её сказали. Подключаются через MCP одной кнопкой.</p>
-    <div class="chats">
-      <article class="chat" aria-label="Пример диалога">
-        <div class="chat-head"><b data-ru="Claude Code на Mac" data-en="Claude Code on your Mac">Claude Code на Mac</b><span>MCP · Mac</span></div>
-        <p class="q" data-ru="Что решили с Acme по запуску и кто делает SLA?" data-en="What did we decide with Acme on the launch, and who does the SLA?">Что решили с Acme по запуску и кто делает SLA?</p>
-        <div class="tools"><span class="tool">search_calls</span><span class="tool">get_call</span></div>
-        <p class="a" data-ru="Запуск в понедельник, решили 4 ноября на звонке «Acme, запуск кампании» (00:21). Черновик SLA пришлёт Олег в четверг (00:13), ключи от песочницы он выдаёт завтра." data-en="Launch on Monday, agreed on Nov 4 in “Acme, campaign launch” (00:21). Oleg sends the SLA draft on Thursday (00:13) and issues the sandbox keys tomorrow.">Запуск в понедельник, решили 4 ноября на звонке «Acme, запуск кампании» (00:21). Черновик SLA пришлёт Олег в четверг (00:13), ключи от песочницы он выдаёт завтра.</p>
-      </article>
-      <article class="chat" aria-label="Пример диалога">
-        <div class="chat-head"><b data-ru="Claude или ChatGPT в телефоне" data-en="Claude or ChatGPT on your phone">Claude или ChatGPT в телефоне</b><span data-ru="MCP · свой сервер" data-en="MCP · your server">MCP · свой сервер</span></div>
-        <p class="q" data-ru="Что мы обещали Acme в среду? Запиши, что ключи уже получили." data-en="What did we promise Acme on Wednesday? Note that we got the keys.">Что мы обещали Acme в среду? Запиши, что ключи уже получили.</p>
-        <div class="tools"><span class="tool">list_calls</span><span class="tool">get_call</span><span class="tool">add_note</span></div>
-        <p class="a" data-ru="Стартовать в понедельник, если до пятницы будут ключи от песочницы. Добавил заметку к звонку: «Ключи получены, запуск в понедельник в силе»." data-en="To start on Monday if the sandbox keys arrive by Friday. I added a note to the call: “Keys received, Monday launch is on”.">Стартовать в понедельник, если до пятницы будут ключи от песочницы. Добавил заметку к звонку: «Ключи получены, запуск в понедельник в силе».</p>
-      </article>
-      <article class="chat" aria-label="Пример диалога">
-        <div class="chat-head"><b data-ru="Любой файл, без звонка" data-en="Any file, no call needed">Любой файл, без звонка</b><span>MCP · Mac</span></div>
-        <p class="q" data-ru="Расшифруй ~/Downloads/interview.m4a по спикерам, это проект Acme." data-en="Transcribe ~/Downloads/interview.m4a by speaker, it’s the Acme project.">Расшифруй ~/Downloads/interview.m4a по спикерам, это проект Acme.</p>
-        <div class="tools"><span class="tool">transcribe</span><span class="tool">list_profiles</span></div>
-        <p class="a" data-ru="Готово: 41 минута, 3 собеседника, термины Acme подставлены из словаря проекта. Файл расшифрован на этом Mac и никуда не уходил." data-en="Done: 41 minutes, 3 speakers, Acme terms taken from the project vocabulary. The file was transcribed on this Mac and never left it.">Готово: 41 минута, 3 собеседника, термины Acme подставлены из словаря проекта. Файл расшифрован на этом Mac и никуда не уходил.</p>
-      </article>
-    </div>
-
-    <h3 class="sub" data-ru="Два MCP-сервера, выбирай любой или оба" data-en="Two MCP servers: pick one or both">Два MCP-сервера, выбирай любой или оба</h3>
-    <div class="tablewrap"><table class="models mcp">
-      <thead><tr><th></th><th data-ru="На Mac" data-en="On your Mac">На Mac</th><th data-ru="Свой сервер" data-en="Your own server">Свой сервер</th></tr></thead>
-      <tbody>
-        <tr><td data-ru="Кто спрашивает" data-en="Who asks">Кто спрашивает</td><td data-ru="Claude Code, Codex, Cursor и любой MCP-клиент на этом Mac" data-en="Claude Code, Codex, Cursor and any MCP client on this Mac">Claude Code, Codex, Cursor и любой MCP-клиент на этом Mac</td><td data-ru="Claude и ChatGPT в браузере и в приложениях на телефоне" data-en="Claude and ChatGPT on the web and in their phone apps">Claude и ChatGPT в браузере и в приложениях на телефоне</td></tr>
-        <tr><td data-ru="Когда работает" data-en="When it works">Когда работает</td><td data-ru="Пока запущен Sozvon" data-en="While Sozvon is running">Пока запущен Sozvon</td><td data-ru="Всегда, даже когда Mac выключен" data-en="Always, even when your Mac is off">Всегда, даже когда Mac выключен</td></tr>
-        <tr><td data-ru="Что умеет" data-en="What it can do">Что умеет</td><td data-ru="Звонки, поиск, заметки, расшифровка любого аудио и видео, словари проектов" data-en="Calls, search, notes, transcribing any audio or video, project vocabularies">Звонки, поиск, заметки, расшифровка любого аудио и видео, словари проектов</td><td data-ru="Звонки, поиск и заметки" data-en="Calls, search and notes">Звонки, поиск и заметки</td></tr>
-        <tr><td data-ru="Где данные" data-en="Where the data is">Где данные</td><td data-ru="Только на твоём Mac" data-en="Only on your Mac">Только на твоём Mac</td><td data-ru="Текст звонков на твоём сервере в твоём Cloudflare" data-en="Call text on your own server in your Cloudflare account">Текст звонков на твоём сервере в твоём Cloudflare</td></tr>
-        <tr><td data-ru="Как подключить" data-en="How to connect">Как подключить</td><td data-ru="«Настройки», «Ассистенты», «Подключить»" data-en="Settings, Assistants, Connect">«Настройки», «Ассистенты», «Подключить»</td><td data-ru="«Настройки», «Облако», «Подключить Cloudflare»" data-en="Settings, Cloud, Connect Cloudflare">«Настройки», «Облако», «Подключить Cloudflare»</td></tr>
-      </tbody>
-    </table></div>
-
-    <h3 class="sub" data-ru="Свой сервер: звонки с телефона" data-en="Your own server: calls from your phone">Свой сервер: звонки с телефона</h3>
-    <div class="features">
-      <div class="feature"><h3 data-ru="Твой сервер, не наш" data-en="Your server, not ours">Твой сервер, не наш</h3><p data-ru="Он живёт в твоём аккаунте Cloudflare. Мы ничего не храним и не видим твоих данных, удалить всё можно в любой момент." data-en="It runs in your own Cloudflare account. We host nothing and never see your data, and you can delete all of it at any time.">Он живёт в твоём аккаунте Cloudflare. Мы ничего не храним и не видим твоих данных, удалить всё можно в любой момент.</p></div>
-      <div class="feature"><h3 data-ru="Одна кнопка" data-en="One button">Одна кнопка</h3><p data-ru="«Настройки», «Облако», «Подключить Cloudflare». Sozvon сам создаст базу, загрузит сервер и придумает пароль, а «Открыть Claude» добавит коннектор." data-en="Settings, Cloud, Connect Cloudflare. Sozvon creates the database, uploads the server and picks a password, and Open Claude adds the connector.">«Настройки», «Облако», «Подключить Cloudflare». Sozvon сам создаст базу, загрузит сервер и придумает пароль, а «Открыть Claude» добавит коннектор.</p></div>
-      <div class="feature"><h3 data-ru="Бесплатный тариф" data-en="Free plan">Бесплатный тариф</h3><p data-ru="Для личного использования хватает бесплатного тарифа Cloudflare с большим запасом, и он никогда не выставляет счёт." data-en="Personal use fits the Cloudflare free plan with room to spare. The free plan never bills.">Для личного использования хватает бесплатного тарифа Cloudflare с большим запасом, и он никогда не выставляет счёт.</p></div>
-      <div class="feature"><h3 data-ru="Ассистентам только текст" data-en="Text only for assistants">Ассистентам только текст</h3><p data-ru="На сервер уходят расшифровки, саммари и заметки, а звук и отпечатки голосов, только пока включены их переключатели. Ассистенты видят только текст: читают звонки, добавляют и удаляют заметки, но сами звонки не трогают." data-en="Transcripts, summaries and notes go up, audio and voice prints only while their toggles are on. Assistants see only text: they read calls and add or delete notes, but never touch the calls themselves.">На сервер уходят расшифровки, саммари и заметки, а звук и отпечатки голосов, только пока включены их переключатели. Ассистенты видят только текст: читают звонки, добавляют и удаляют заметки, но сами звонки не трогают.</p></div>
-    </div>
-    <p style="margin:32px 0 0"><a href="docs.html#mcp" data-ru="MCP на Mac: инструменты и ручное подключение" data-en="MCP on the Mac: tools and manual setup">MCP на Mac: инструменты и ручное подключение</a> · <a href="docs.html#server" data-ru="Свой сервер: как устроен и что знать заранее" data-en="Your own server: how it works and what to know first">Свой сервер: как устроен и что знать заранее</a></p>
-  </section>
-  <section>
-    <h2 data-ru="Что уходит в сеть" data-en="What goes online">Что уходит в сеть</h2>
-    <p class="intro" data-ru="Ни телеметрии, ни своих серверов. Вот полный список." data-en="No telemetry, no servers of our own. Here is the complete list.">Ни телеметрии, ни своих серверов. Вот полный список.</p>
-    <table class="net">
-      <tbody>
-        <tr class="none"><td data-ru="Запись, расшифровка, удаление эха, разбивка и отпечатки голосов" data-en="Recording, transcript, echo removal, speaker separation, voice prints">Запись, расшифровка, удаление эха, разбивка и отпечатки голосов</td><td data-ru="Никуда. Только этот Mac: папка ~/Documents/Calls и данные Sozvon" data-en="Nowhere. Only this Mac: the ~/Documents/Calls folder and Sozvon’s data">Никуда. Только этот Mac: папка ~/Documents/Calls и данные Sozvon</td></tr>
-        <tr><td data-ru="Модели и Python-окружение" data-en="Models and Python runtime">Модели и Python-окружение</td><td data-ru="PyPI, huggingface.co, github.com, один раз при установке" data-en="PyPI, huggingface.co, github.com, once during setup">PyPI, huggingface.co, github.com, один раз при установке</td></tr>
-        <tr><td data-ru="Текст расшифровки для саммари и имён" data-en="Transcript text for summaries and names">Текст расшифровки для саммари и имён</td><td data-ru="Anthropic, OpenAI или Cursor, только если выбран помощник" data-en="Anthropic, OpenAI or Cursor, only if you pick an assistant">Anthropic, OpenAI или Cursor, только если выбран помощник</td></tr>
-        <tr><td data-ru="То, что читает ассистент через MCP" data-en="What the assistant reads through MCP">То, что читает ассистент через MCP</td><td data-ru="Anthropic, OpenAI или Cursor, только когда ты его спрашиваешь" data-en="Anthropic, OpenAI or Cursor, only when you ask it">Anthropic, OpenAI или Cursor, только когда ты его спрашиваешь</td></tr>
-        <tr><td data-ru="Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение" data-en="Project discovery: folder names, notes, session replies. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads">Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение</td><td data-ru="Anthropic, OpenAI или Cursor, только по кнопке" data-en="Anthropic, OpenAI or Cursor, only when you click the button">Anthropic, OpenAI или Cursor, только по кнопке</td></tr>
-        <tr><td data-ru="Проверка новой версии" data-en="Update check">Проверка новой версии</td><td data-ru="api.github.com раз в сутки, отключается" data-en="api.github.com once a day, can be turned off">api.github.com раз в сутки, отключается</td></tr>
-        <tr><td data-ru="Расшифровки, саммари, заметки и данные звонков, чтобы Claude или ChatGPT отвечали с телефона. Звук и отпечатки голосов, чтобы другие Mac их получили (ассистенты их не видят), если не выключено на вкладке «Облако»" data-en="Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone. Audio and voice prints, so your other Macs get them (assistants never see them), unless turned off on the Cloud tab">Расшифровки, саммари, заметки и данные звонков, чтобы Claude или ChatGPT отвечали с телефона. Звук и отпечатки голосов, чтобы другие Mac их получили (ассистенты их не видят), если не выключено на вкладке «Облако»</td><td data-ru="Твой собственный сервер в твоём аккаунте Cloudflare, не к нам. Только если ты его поднял" data-en="Your own server in your own Cloudflare account, never us. Only if you set one up">Твой собственный сервер в твоём аккаунте Cloudflare, не к нам. Только если ты его поднял</td></tr>
-        <tr><td data-ru="Вход в Cloudflare и настройка своего сервера" data-en="Cloudflare sign-in and setting up your own server">Вход в Cloudflare и настройка своего сервера</td><td data-ru="dash.cloudflare.com и api.cloudflare.com, только по кнопке «Подключить Cloudflare» или «Обновить сервер»" data-en="dash.cloudflare.com and api.cloudflare.com, only when you press Connect Cloudflare or Update server">dash.cloudflare.com и api.cloudflare.com, только по кнопке «Подключить Cloudflare» или «Обновить сервер»</td></tr>
-      </tbody>
-    </table>
-    <p class="audit" data-ru="Весь код открыт. Каждый коммит проверяют <a href=&quot;https://github.com/Able1991/sozvon/actions/workflows/security.yml&quot;>Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код." data-en="All code is open. Every commit is checked by <a href=&quot;https://github.com/Able1991/sozvon/actions/workflows/security.yml&quot;>Gitleaks, Semgrep and CodeQL</a> for secrets, vulnerabilities and suspicious code.">Весь код открыт. Каждый коммит проверяют <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код.</p>
-  </section>
-
-  <section>
-    <h2 data-ru="Модели распознавания" data-en="Speech recognition models">Модели распознавания</h2>
-    <p class="intro" data-ru="Скачиваются один раз при установке и меняются в настройках." data-en="Downloaded once during setup, switchable in Settings.">Скачиваются один раз при установке и меняются в настройках.</p>
-    <div class="tablewrap"><table class="models">
-      <thead><tr><th data-ru="Модель" data-en="Model">Модель</th><th data-ru="Размер" data-en="Size">Размер</th><th data-ru="Языки" data-en="Languages">Языки</th><th data-ru="Чем хороша" data-en="Good for">Чем хороша</th></tr></thead>
-      <tbody>
-        <tr class="rec"><td>Whisper Turbo</td><td class="num" data-ru="1,6 ГБ" data-en="1.6 GB">1,6 ГБ</td><td class="num">99</td><td data-ru="Рекомендуем: быстро, точно, понимает словарь проекта" data-en="Recommended: fast, accurate, uses your project vocabulary">Рекомендуем: быстро, точно, понимает словарь проекта</td></tr>
-        <tr><td>Whisper Large v3</td><td class="num" data-ru="3,1 ГБ" data-en="3.1 GB">3,1 ГБ</td><td class="num">99</td><td data-ru="Самая точная, примерно вдвое медленнее" data-en="Most accurate, about twice as slow">Самая точная, примерно вдвое медленнее</td></tr>
-        <tr><td>Whisper Small</td><td class="num" data-ru="0,5 ГБ" data-en="0.5 GB">0,5 ГБ</td><td class="num">99</td><td data-ru="Для Mac с 8 ГБ памяти" data-en="For Macs with 8 GB of memory">Для Mac с 8 ГБ памяти</td></tr>
-        <tr><td>GigaAM v3</td><td class="num" data-ru="0,2 ГБ" data-en="0.2 GB">0,2 ГБ</td><td data-ru="русский" data-en="Russian">русский</td><td data-ru="Лучше всех знает русский, очень быстрая, без словаря проектов" data-en="Best at Russian, very fast, no project vocabulary">Лучше всех знает русский, очень быстрая, без словаря проектов</td></tr>
-        <tr><td>Parakeet v3</td><td class="num" data-ru="0,7 ГБ" data-en="0.7 GB">0,7 ГБ</td><td data-ru="25 европейских" data-en="25 European">25 европейских</td><td data-ru="Быстрая, без словаря проектов" data-en="Fast, no project vocabulary">Быстрая, без словаря проектов</td></tr>
-      </tbody>
-    </table></div>
-  </section>
-
-  <section id="docs">
-    <h2 data-ru="Документация" data-en="Documentation">Документация</h2>
-    <div class="docs">
-      <div>
-        <h3 data-ru="Установка" data-en="Install">Установка</h3>
-        <ol>
-          <li data-ru="Скачай Sozvon.dmg и перетащи Sozvon в «Программы»." data-en="Download Sozvon.dmg and drag Sozvon to Applications.">Скачай Sozvon.dmg и перетащи Sozvon в «Программы».</li>
-          <li data-ru="Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут." data-en="Launch it and follow the assistant: name, call languages, model, summary assistant. The engine installs itself in 5-10 minutes.">Запусти и пройди мастер: имя, языки звонков, модель, помощник для саммари. Движок поставится сам за 5-10 минут.</li>
-          <li data-ru="Разреши «Микрофон», «Запись экрана» и «Запись системного аудио». Видео не записывается." data-en="Allow Microphone, Screen Recording and System Audio Recording. No video is recorded.">Разреши «Микрофон», «Запись экрана» и «Запись системного аудио». Видео не записывается.</li>
-        </ol>
+  <main id="top">
+    <section class="hero">
+      <h1 data-ru="Нажал и&nbsp;записал. Остальное Mac сделает сам" data-en="Press record. Your&nbsp;Mac does the&nbsp;rest.">Нажал и&nbsp;записал. Остальное Mac сделает сам</h1>
+      <p class="lead" data-ru="Zoom, Meet, Telegram, FaceTime. Расшифровка прямо на&nbsp;Mac, а&nbsp;твои агенты знают каждый звонок." data-en="Zoom, Meet, Telegram, FaceTime. Transcribed right on your&nbsp;Mac, and your agents know every call.">Zoom, Meet, Telegram, FaceTime. Расшифровка прямо на&nbsp;Mac, а&nbsp;твои агенты знают каждый звонок.</p>
+      <div class="cta">
+        <a class="download" href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5L10 13l4.5-4.5M4 17h12"/></svg><span data-ru="Скачать для Mac" data-en="Download for Mac">Скачать для Mac</span></a>
+        <a class="more" data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#record"><b data-ru="Как это работает" data-en="How it works" style="font-weight:inherit">Как это работает</b> <span aria-hidden="true">→</span></a>
       </div>
-      <div>
-        <h3 data-ru="Claude Code, Codex и Cursor" data-en="Claude Code, Codex and Cursor">Claude Code, Codex и Cursor</h3>
-        <p data-ru="«Настройки», вкладка «Ассистенты», кнопка «Подключить». Подключение вручную описано <a href=&quot;docs.html#mcp&quot;>в документации</a>." data-en="Settings, Assistants tab, Connect. Manual setup is described <a href=&quot;docs.html#mcp&quot;>in the docs</a>.">«Настройки», вкладка «Ассистенты», кнопка «Подключить». Подключение вручную описано <a href="docs.html#mcp">в документации</a>.</p>
-        <p data-ru="Инструменты: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>add_note</code>, <code>delete_note</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. Сервер работает, пока запущен Sozvon." data-en="Tools: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>add_note</code>, <code>delete_note</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. The server runs while Sozvon is open.">Инструменты: <code>list_calls</code>, <code>get_call</code>, <code>search_calls</code>, <code>add_note</code>, <code>delete_note</code>, <code>transcribe</code>, <code>list_profiles</code>, <code>add_terms</code>, <code>add_replacement</code>. Сервер работает, пока запущен Sozvon.</p>
+      <p class="fine" data-ru="Бесплатно · Apple Silicon · macOS 15+" data-en="Free · Apple Silicon · macOS 15+">Бесплатно · Apple Silicon · macOS 15+</p>
+      <div class="stage" id="stage" role="img" data-label-ru="Анимация: входящий звонок, запись одной кнопкой, расшифровка и саммари на Mac, потом Claude на телефоне отвечает по этому звонку" data-label-en="Animation: an incoming call, recording with one button, transcript and summary on the Mac, then Claude on the phone answers about that call" aria-label="">
+        <button class="stage-toggle" id="stage-toggle" type="button" aria-pressed="false" data-title-ru="Пауза" data-title-en="Pause" title="Пауза"><svg id="tg-pause" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1.5" width="2.8" height="9" rx="1"/><rect x="7.2" y="1.5" width="2.8" height="9" rx="1"/></svg><svg id="tg-play" viewBox="0 0 12 12" fill="currentColor" style="display:none"><path d="M3 1.6v8.8a.6.6 0 0 0 .9.5l7-4.4a.6.6 0 0 0 0-1L3.9 1.1a.6.6 0 0 0-.9.5z"/></svg></button>
       </div>
-    </div>
-    <p style="margin:40px 0 0"><a href="docs.html" data-ru="Вся документация: запись, проекты, модели, заметки, MCP, свой сервер, синхронизация, настройки, решение проблем, удаление" data-en="Full documentation: recording, projects, models, notes, MCP, your own server, sync, settings, troubleshooting, uninstall">Вся документация: запись, проекты, модели, заметки, MCP, свой сервер, синхронизация, настройки, решение проблем, удаление</a></p>
-    <div style="margin-top:32px">
-      <details><summary data-ru="Нужен ли интернет во время звонка?" data-en="Do I need internet during a call?">Нужен ли интернет во время звонка?</summary><p data-ru="Нет. Запись и расшифровка работают офлайн. Интернет нужен для установки и, по желанию, для саммари." data-en="No. Recording and transcription work offline. Internet is needed for setup and, optionally, summaries.">Нет. Запись и расшифровка работают офлайн. Интернет нужен для установки и, по желанию, для саммари.</p></details>
-      <details><summary data-ru="Собеседник узнает, что я записываю?" data-en="Will the other side know I’m recording?">Собеседник узнает, что я записываю?</summary><p data-ru="Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность, в разных странах свои правила." data-en="Sozvon doesn’t join the call; it records audio on your Mac. Telling others you’re recording is up to you, and the rules differ by country.">Sozvon не подключается к звонку, он пишет звук на твоём Mac. Предупреждать собеседников о записи твоя ответственность, в разных странах свои правила.</p></details>
-      <details><summary data-ru="Почему не работает на Intel?" data-en="Why not Intel?">Почему не работает на Intel?</summary><p data-ru="Распознавание идёт на MLX, а он есть только на Apple Silicon." data-en="Recognition runs on MLX, which is Apple silicon only.">Распознавание идёт на MLX, а он есть только на Apple Silicon.</p></details>
-      <details><summary data-ru="Mac тормозит во время расшифровки" data-en="My Mac slows down while transcribing">Mac тормозит во время расшифровки</summary><p data-ru="Включи «Расшифровывать с низким приоритетом» в настройках, на вкладке «Распознавание»: расшифровка будет уступать другим программам." data-en="Turn on “Transcribe at low priority” in Settings, Recognition tab: transcription will yield to your other apps.">Включи «Расшифровывать с низким приоритетом» в настройках, на вкладке «Распознавание»: расшифровка будет уступать другим программам.</p></details>
-    </div>
-  </section>
+    </section>
+
+    <section class="facts">
+      <article class="fact">
+        <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.8"/><path d="M7 17h6M10 13.5V17"/><path d="M8.3 8.6l1.2 1.2 2.4-2.6"/></svg></div>
+        <h2 data-ru="Всё остаётся на&nbsp;Mac" data-en="It stays on your&nbsp;Mac">Всё остаётся на&nbsp;Mac</h2>
+        <p data-ru="Запись и&nbsp;расшифровка делаются на самом компьютере. Звук не уходит в&nbsp;облако, у&nbsp;Sozvon нет ни телеметрии, ни своих серверов." data-en="Recording and transcription run on the computer itself. Audio never goes to a&nbsp;cloud, and Sozvon has no telemetry and no servers of its own.">Запись и&nbsp;расшифровка делаются на самом компьютере. Звук не уходит в&nbsp;облако, у&nbsp;Sozvon нет ни телеметрии, ни своих серверов.</p>
+        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#privacy"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+      </article>
+      <article class="fact">
+        <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3" fill="currentColor" stroke="none"/></svg></div>
+        <h2 data-ru="Любой звонок" data-en="Any call">Любой звонок</h2>
+        <p data-ru="Zoom, Meet, Telegram, FaceTime и&nbsp;звонки в&nbsp;браузере. Одна кнопка, а&nbsp;когда звонок начинается, Sozvon сам предложит записать." data-en="Zoom, Meet, Telegram, FaceTime and calls in the browser. One button, and when a&nbsp;call starts, Sozvon notices and offers to record it.">Zoom, Meet, Telegram, FaceTime и&nbsp;звонки в&nbsp;браузере. Одна кнопка, а&nbsp;когда звонок начинается, Sozvon сам предложит записать.</p>
+        <a data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#record"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+      </article>
+      <article class="fact">
+        <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 5.5A2 2 0 0 1 5.5 3.5h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3a2 2 0 0 1-2-2z"/><path d="M7 8.5h6"/></svg></div>
+        <h2 data-ru="Агенты в&nbsp;курсе" data-en="Your agents know">Агенты в&nbsp;курсе</h2>
+        <p data-ru="Claude Code, Codex и&nbsp;Cursor ищут по твоим звонкам. А&nbsp;с&nbsp;телефона через свой сервер, если захочешь." data-en="Claude Code, Codex and Cursor search your calls. From your phone too, through your own server, if you want it.">Claude Code, Codex и&nbsp;Cursor ищут по твоим звонкам. А&nbsp;с&nbsp;телефона через свой сервер, если захочешь.</p>
+        <a data-href-ru="docs.html#mcp" data-href-en="docs.html#en-mcp" href="docs.html#mcp"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+      </article>
+    </section>
+  </main>
 
   <footer>
-    <span data-ru="Sozvon, лицензия MIT" data-en="Sozvon, MIT license">Sozvon, лицензия MIT</span>
-    <span data-ru="Модели: Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA)" data-en="Models: Whisper (OpenAI), pyannote, GigaAM (Sber), Parakeet (NVIDIA)">Модели: Whisper (OpenAI), pyannote, GigaAM (Сбер), Parakeet (NVIDIA)</span>
-    <span data-ru="Сайт считает посещения через Cloudflare Web Analytics, без cookies. Приложение ничего не отправляет." data-en="This site counts visits with Cloudflare Web Analytics, no cookies. The app sends nothing.">Сайт считает посещения через Cloudflare Web Analytics, без cookies. Приложение ничего не отправляет.</span>
-    <a href="https://github.com/Able1991/sozvon">GitHub</a>
+    <h2 data-ru="Начать за 3&nbsp;шага" data-en="Start in 3&nbsp;steps">Начать за 3&nbsp;шага</h2>
+    <ol class="steps">
+      <li><h3 data-ru="Скачай" data-en="Download">Скачай</h3><p data-ru="Открой Sozvon.dmg и&nbsp;перетащи Sozvon в&nbsp;Программы." data-en="Open Sozvon.dmg and drag Sozvon to Applications.">Открой Sozvon.dmg и&nbsp;перетащи Sozvon в&nbsp;Программы.</p></li>
+      <li><h3 data-ru="Мастер всё настроит" data-en="The setup does the rest">Мастер всё настроит</h3><p data-ru="Скачает модель распознавания и&nbsp;спросит разрешения на микрофон, запись экрана и&nbsp;системный звук." data-en="It downloads the speech model and asks for access to the microphone, screen recording and system audio.">Скачает модель распознавания и&nbsp;спросит разрешения на микрофон, запись экрана и&nbsp;системный звук.</p></li>
+      <li><h3 data-ru="Жми капсулу" data-en="Press the capsule">Жми капсулу</h3><p data-ru="Когда начнётся звонок, нажми «Записать» на плавающей панели. После звонка текст уже на&nbsp;Mac." data-en="When a&nbsp;call starts, press Record on the floating panel. After the call, the text is on your&nbsp;Mac.">Когда начнётся звонок, нажми «Записать» на плавающей панели. После звонка текст уже на&nbsp;Mac.</p></li>
+    </ol>
+    <div class="foot">
+      <nav aria-label="Docs">
+        <a data-href-ru="docs.html#models" data-href-en="docs.html#en-models" href="docs.html#models" data-ru="Модели" data-en="Models">Модели</a>
+        <a data-href-ru="docs.html#server" data-href-en="docs.html#en-server" href="docs.html#server" data-ru="Свой сервер" data-en="Your own server">Свой сервер</a>
+        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#privacy" data-ru="Приватность" data-en="Privacy">Приватность</a>
+        <a data-href-ru="docs.html#uninstall" data-href-en="docs.html#en-uninstall" href="docs.html#uninstall" data-ru="Удаление" data-en="Uninstall">Удаление</a>
+      </nav>
+      <nav aria-label="Project">
+        <a href="https://github.com/Able1991/sozvon" data-ru="Открытый код на GitHub" data-en="Open source on GitHub">Открытый код на GitHub</a>
+        <a href="https://github.com/Able1991/sozvon/blob/main/LICENSE" data-ru="Лицензия MIT" data-en="MIT License">Лицензия MIT</a>
+      </nav>
+    </div>
   </footer>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
 (function () {
-  var root = document.documentElement;
-  root.classList.add("js");
-  var btn = document.getElementById("lang");
-  var titles = { ru: "Sozvon: стенограмма любого созвона прямо на Mac", en: "Sozvon: a transcript of every call, made on your Mac" };
-  function apply(lang) {
-    root.lang = lang;
-    document.querySelectorAll("[data-ru]").forEach(function (el) { el.innerHTML = el.getAttribute("data-" + lang); });
-    ["main:calls", "callinfo:callinfo", "panel:panel"].forEach(function (p) {
-      var k = p.split(":"); document.getElementById("shot-" + k[0]).src = "images/" + lang + "-" + k[1] + ".png";
-    });
-    document.title = titles[lang];
-    btn.textContent = lang === "ru" ? "EN" : "RU";
-    try { localStorage.setItem("lang", lang); } catch (e) {}
-  }
-  var saved = null;
-  try { saved = localStorage.getItem("lang"); } catch (e) {}
-  var lang = saved || ((navigator.language || "ru").slice(0, 2) === "ru" ? "ru" : "en");
-  if (lang !== "ru") apply(lang);
-  btn.addEventListener("click", function () { apply(root.lang === "ru" ? "en" : "ru"); });
+  "use strict";
+  /* ---------- the two HyperFrames compositions (ported: shadow-DOM scoped, real-time loop) ---------- */
+  const CSS = {"h": ":host { all: initial; display: block; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }\n\n      /* World = a 3840x2160 retina desktop drawn at 2x pixels, so UI sizes are the screenshot pixels 1:1.\n         The camera (#cam) scales the world into the 1920x1080 frame. */\n      :host {\n        --ui: \"Inter\", -apple-system, \"Helvetica Neue\", sans-serif;\n        --cap: #262626;\n        --red: #eb5855;\n        --me: #5899f8;\n        --them: #ee8184;\n        --ok: #34c759;\n        --accent: #d21f57;\n      }\n      :host([data-theme=\"light\"]) {\n        --wall: radial-gradient(2400px 1700px at 3000px 2600px, #cbd9f6 0%, rgba(203, 217, 246, 0) 70%), radial-gradient(2400px 1700px at 5700px 4100px, #f2d2df 0%, rgba(242, 210, 223, 0) 70%), radial-gradient(1800px 1300px at 4600px 2500px, #e6def4 0%, rgba(230, 222, 244, 0) 70%), #eceef4;\n        --bar-bg: rgba(255, 255, 255, 0.55); --bar-ink: #1d1d1f;\n        --n-bg: rgba(246, 246, 248, 0.97); --n-ink: #1d1d1f; --n-sub: #6e6e73; --n-btn: #e2e2e6; --n-line: rgba(0, 0, 0, 0.1);\n        --cw-bg: #f4f4f6; --cw-bar: #8a8a8f; --tile: #e1e4ea; --tile-ink: #1d1d1f; --ctl: #dcdfe5; --ctl-ink: #3a3a3c; --cw-line: rgba(0, 0, 0, 0.1);\n        --win: #ffffff; --side: #f0f0f2; --sel: #dcdcdf; --block: #f4f4f6; --search: #e3e3e6; --seg: #ebebed; --seg-on: #ffffff;\n        --tx: #1d1d1f; --tx2: #6e6e73; --tx3: #7c7c82; --tdim: #86868b; --lights: #d4d4d7; --wline: rgba(0, 0, 0, 0.12); --tbtn: #ebebed;\n        --ph-scr: #faf9f6; --ph-ink: #1d1d1f; --ph-sub: #77767a; --ph-bub: #edebe6; --ph-line: rgba(0, 0, 0, 0.09); --ph-chip: #ffffff; --ph-field: #ffffff;\n        --shadow: rgba(30, 36, 52, 0.28); --me-ink: #2a64d6; --them-ink: #c9474d; --cap-edge: rgba(0, 0, 0, 0);\n      }\n      :host([data-theme=\"dark\"]) {\n        --wall: radial-gradient(2400px 1700px at 3000px 2600px, #233462 0%, rgba(35, 52, 98, 0) 70%), radial-gradient(2400px 1700px at 5700px 4100px, #4d2345 0%, rgba(77, 35, 69, 0) 70%), radial-gradient(1800px 1300px at 4600px 2500px, #2a2142 0%, rgba(42, 33, 66, 0) 70%), #111319;\n        --bar-bg: rgba(22, 22, 26, 0.55); --bar-ink: #f2f2f4;\n        --n-bg: rgba(44, 44, 47, 0.97); --n-ink: #f5f5f7; --n-sub: #a1a1a6; --n-btn: #48484c; --n-line: rgba(255, 255, 255, 0.1);\n        --cw-bg: #1c1c1e; --cw-bar: #98989d; --tile: #2c2e33; --tile-ink: #f2f2f4; --ctl: #3a3a3d; --ctl-ink: #f2f2f4; --cw-line: rgba(255, 255, 255, 0.1);\n        --win: #141416; --side: #262628; --sel: #464646; --block: #1b1b1d; --search: #333334; --seg: #232326; --seg-on: #464649;\n        --tx: #f2f2f3; --tx2: #a1a1a6; --tx3: #8e8e93; --tdim: #656568; --lights: #49494b; --wline: rgba(255, 255, 255, 0.1); --tbtn: #232326;\n        --ph-scr: #1d1d1f; --ph-ink: #f2f2f3; --ph-sub: #98989d; --ph-bub: #353538; --ph-line: rgba(255, 255, 255, 0.1); --ph-chip: #2a2a2d; --ph-field: #2a2a2d;\n        --shadow: rgba(0, 0, 0, 0.55); --me-ink: #7fb0ff; --them-ink: #f49a9d; --cap-edge: rgba(255, 255, 255, 0.16);\n      }\n      * { margin: 0; padding: 0; box-sizing: border-box; }\n      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: var(--ui); }\n      #shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; }\n      #cam { position: absolute; left: 0; top: 0; width: 3840px; height: 2160px; transform-origin: 0 0; }\n      #cam::before { content: \"\"; position: absolute; left: -2400px; top: -2400px; right: -2400px; bottom: -2400px; background: var(--wall); z-index: -1; }\n      .abs { position: absolute; }\n\n      /* menu bar */\n      #mbar { position: absolute; left: 0; top: 0; width: 3840px; height: 48px; background: var(--bar-bg); display: flex; align-items: center; justify-content: flex-end; gap: 30px; padding-right: 36px; color: var(--bar-ink); font: 500 26px var(--ui); }\n      #mbar img { width: 34px; height: 34px; border-radius: 8px; }\n      #mbar svg { width: 34px; height: 34px; }\n\n      /* capsule (sizes from ru-panel.png / real-capsule-idle-en.png, 2x px) */\n      #cap { position: absolute; left: 1612px; top: 64px; width: 616px; height: 88px; color: #ececec; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.32)); }\n      /* #pill is the capsule itself: a rounded box centred on the #cap box (left 50% + xPercent -50, set in the script)\n         whose width animates symmetrically about that centre; constant radius, contents clipped inside it and laid out\n         from its left edge, the drop shadow on #cap follows its outline every frame */\n      #pill { position: absolute; left: 50%; top: 0; width: 616px; height: 88px; border-radius: 36px; overflow: hidden; }\n      #cap-bg { position: absolute; inset: 1.5px; background: var(--cap); border-radius: 34.5px; }\n      #cap-edge { position: absolute; inset: 0; background: var(--cap-edge); border-radius: 36px; }\n      .cl { position: absolute; left: 0; top: 0; width: 616px; height: 88px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; }\n      .cl .in { display: inline-flex; align-items: center; height: 88px; font: 600 30px var(--ui); letter-spacing: -0.005em; }\n      #cap-idle .in { padding: 0 35px 0 33px; gap: 24px; }\n      /* SF Symbol record.circle, palette: outer ring = label colour, inner dot = red; 16 pt icon at 2x */\n      .ring { box-sizing: border-box; width: 32px; height: 32px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, 0.9); display: grid; place-items: center; }\n      .ring i { width: 14.4px; height: 14.4px; border-radius: 50%; background: #ff4a4e; display: block; }\n      #cap-done .in, #cap-tr .in { padding: 0 36px 0 30px; gap: 16px; }\n      .okc { width: 32px; height: 32px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; }\n      .okc svg { width: 20px; height: 20px; }\n      .dim { color: rgba(236, 236, 236, 0.6); font-weight: 500; }\n      #spin { width: 28px; height: 28px; border-radius: 50%; border: 3.5px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; }\n      #cap-rec { display: block; }\n      #rdot { position: absolute; left: 32px; top: 36px; width: 16px; height: 16px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px rgba(235, 88, 85, 0.75); }\n      #rtime { position: absolute; left: 74px; top: 0; height: 88px; font: 600 30px/88px var(--ui); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }\n      .wv { position: absolute; top: 0; height: 88px; width: 121px; }\n      .wv i { position: absolute; top: 44px; width: 6px; height: 6px; margin-top: -3px; border-radius: 3px; background: currentColor; display: block; }\n      #wme { left: 183px; color: var(--me); }\n      #wth { left: 320px; color: var(--them); }\n      #wsep { position: absolute; left: 309px; top: 33px; width: 2px; height: 22px; background: #5c5c5e; }\n      #rstar { position: absolute; left: 473px; top: 28px; width: 32px; height: 32px; }\n      #rstop { position: absolute; left: 544px; top: 16px; width: 56px; height: 56px; border-radius: 50%; background: #3b3b3b; display: grid; place-items: center; }\n      #rstop i { width: 17px; height: 17px; border-radius: 3px; background: #ececec; display: block; }\n\n      /* notification (generic call app) */\n      #notif { position: absolute; left: 1530px; top: 190px; width: 780px; height: 150px; border-radius: 36px; background: var(--n-bg); box-shadow: 0 0 0 1px var(--n-line), 0 24px 60px var(--shadow); color: var(--n-ink); }\n      #notif .ic { position: absolute; left: 28px; top: 33px; width: 84px; height: 84px; border-radius: 20px; background: linear-gradient(180deg, #5fd37a, #2bb153); display: grid; place-items: center; }\n      #notif .ic svg { width: 46px; height: 46px; }\n      #n-t1 { position: absolute; left: 134px; top: 36px; font: 650 32px var(--ui); white-space: nowrap; }\n      #n-t2 { position: absolute; left: 134px; top: 80px; font: 400 28px var(--ui); color: var(--n-sub); white-space: nowrap; }\n      .nb { position: absolute; top: 43px; height: 64px; border-radius: 18px; display: grid; place-items: center; font: 600 28px var(--ui); background: var(--n-btn); color: var(--n-ink); }\n      #n-dec { left: 390px; width: 182px; }\n      #n-acc { left: 584px; width: 168px; background: #2ea44f; color: #fff; }\n\n      /* call window (generic call app) */\n      #callw { position: absolute; left: 1120px; top: 196px; width: 1600px; height: 846px; border-radius: 30px; background: var(--cw-bg); box-shadow: 0 0 0 1px var(--cw-line), 0 40px 90px var(--shadow); color: var(--tile-ink); }\n      #callw .lt { position: absolute; left: 30px; top: 27px; display: flex; gap: 18px; }\n      .lt i { width: 26px; height: 26px; border-radius: 50%; background: var(--lights); display: block; }\n      #cw-title { position: absolute; left: 0; right: 0; top: 0; height: 80px; text-align: center; font: 600 30px/80px var(--ui); color: var(--cw-bar); }\n      #cw-time { position: absolute; right: 36px; top: 0; height: 80px; font: 600 30px/80px var(--ui); font-variant-numeric: tabular-nums; color: var(--cw-bar); display: flex; align-items: center; gap: 12px; }\n      #cw-time b { width: 14px; height: 14px; border-radius: 50%; background: #2ea44f; display: block; }\n      .tile { position: absolute; top: 92px; width: 496px; height: 520px; border-radius: 26px; background: var(--tile); }\n      #tile0 { left: 32px; } #tile1 { left: 552px; } #tile2 { left: 1072px; }\n      .tile .bd { position: absolute; inset: 0; border-radius: 26px; border: 6px solid var(--me); opacity: 0; }\n      .tile .av { position: absolute; left: 148px; top: 120px; width: 200px; height: 200px; border-radius: 50%; display: grid; place-items: center; font: 650 76px var(--ui); color: #fff; }\n      .tile .rg { position: absolute; left: 132px; top: 104px; width: 232px; height: 232px; border-radius: 50%; border: 7px solid var(--me); opacity: 0; }\n      .tile .nm { position: absolute; left: 0; right: 0; top: 380px; text-align: center; font: 600 36px var(--ui); }\n      .tile .mic { position: absolute; left: 24px; bottom: 22px; width: 48px; height: 48px; border-radius: 50%; background: rgba(0, 0, 0, 0.28); display: grid; place-items: center; }\n      .tile .mic svg { width: 26px; height: 26px; }\n      #cw-cap { position: absolute; left: 32px; right: 32px; top: 632px; height: 56px; text-align: center; font: 500 30px/56px var(--ui); white-space: nowrap; color: var(--tile-ink); }\n      #cw-cap b { font-weight: 650; margin-right: 12px; }\n      #cw-ctl { position: absolute; left: 0; right: 0; top: 718px; display: flex; justify-content: center; gap: 30px; }\n      .cb { width: 92px; height: 92px; border-radius: 50%; background: var(--ctl); display: grid; place-items: center; }\n      .cb svg { width: 42px; height: 42px; }\n      .cb.end { background: #e5484d; width: 128px; border-radius: 46px; }\n\n      /* Calls window (rebuilt from ru-calls.png / en-calls.png at their 2x pixels) */\n      #calls { position: absolute; left: 1040px; top: 240px; width: 1760px; height: 960px; border-radius: 44px; background: var(--win); box-shadow: 0 0 0 1px var(--wline), 0 40px 100px var(--shadow); color: var(--tx); overflow: hidden; }\n      #side { position: absolute; left: 16px; top: 16px; width: 600px; height: 928px; border-radius: 36px; background: var(--side); }\n      #side .lt { position: absolute; left: 25px; top: 22px; display: flex; gap: 18px; }\n      #side .lt i { width: 28px; height: 28px; }\n      .tbi { position: absolute; top: 18px; width: 40px; height: 40px; }\n      #search { position: absolute; left: 24px; top: 106px; width: 556px; height: 56px; border-radius: 28px; background: var(--search); display: flex; align-items: center; gap: 12px; padding-left: 22px; font: 400 28px var(--ui); color: var(--tx2); }\n      #search svg { width: 28px; height: 28px; }\n      .grp { position: absolute; left: 24px; font: 600 23px var(--ui); color: var(--tx3); }\n      .row { position: absolute; left: 16px; width: 568px; height: 100px; border-radius: 22px; }\n      .row.sel { background: var(--sel); }\n      .row .t { position: absolute; left: 26px; top: 16px; font: 650 27px var(--ui); white-space: nowrap; }\n      .row .m { position: absolute; left: 26px; top: 55px; font: 400 24px var(--ui); color: var(--tx2); white-space: nowrap; display: flex; align-items: center; }\n      .row .h { position: absolute; right: 22px; top: 18px; font: 400 24px var(--ui); color: var(--tx2); }\n      .pd { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 10px; }\n      .acme { background: #e8913a; } .nw { background: #e0566c; } .luch { background: #b08a5e; }\n      #c-ttl { position: absolute; left: 657px; top: 0; height: 104px; font: 700 30px/104px var(--ui); color: var(--tdim); }\n      #seg { position: absolute; left: 962px; top: 17px; width: 452px; height: 70px; border-radius: 35px; background: var(--seg); }\n      #seg span { position: absolute; top: 8px; height: 54px; text-align: center; font: 500 28px/54px var(--ui); color: var(--tx2); border-radius: 27px; }\n      #seg .on { left: 8px; width: 212px; background: var(--seg-on); color: var(--tx); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }\n      #seg .off { left: 228px; width: 216px; }\n      .tb { position: absolute; top: 17px; width: 92px; height: 70px; border-radius: 35px; background: var(--tbtn); display: grid; place-items: center; }\n      .tb svg { width: 36px; height: 36px; }\n      #main { position: absolute; left: 690px; top: 120px; width: 1010px; }\n      #c-h { font: 700 48px/1.2 var(--ui); letter-spacing: -0.015em; }\n      #c-meta { margin-top: 12px; font: 400 26px var(--ui); color: var(--tx2); display: flex; align-items: center; }\n      #c-meta .pd { width: 14px; height: 14px; margin-right: 12px; }\n      #c-ppl { margin-top: 14px; font: 400 26px var(--ui); color: var(--tx); display: flex; align-items: center; gap: 10px; }\n      #c-ppl svg { width: 32px; height: 32px; margin-right: 6px; }\n      .chk { width: 24px; height: 24px; border-radius: 50%; background: var(--ok); display: inline-grid; place-items: center; margin-right: 22px; }\n      .chk svg { width: 14px !important; height: 14px !important; margin: 0 !important; }\n      .sec h3 { font: 650 30px var(--ui); margin: 34px 0 16px 7px; }\n      .blk { background: var(--block); border-radius: 22px; padding: 22px 25px; font: 400 28px/38px var(--ui); color: var(--tx); }\n      .blk ul { list-style: none; }\n      .blk li { position: relative; padding-left: 37px; margin: 4px 0; }\n      .blk li::before { content: \"\"; position: absolute; left: 12px; top: 17px; width: 7px; height: 7px; border-radius: 50%; background: var(--tx3); }\n      .blk.tasks li { padding-left: 46px; }\n      .blk.tasks li::before { left: 4px; top: 8px; width: 24px; height: 24px; border-radius: 7px; background: none; border: 2.5px solid var(--tx3); box-sizing: border-box; }\n\n      /* phone (generic) */\n      #phone { position: absolute; left: 2840px; top: 20px; width: 700px; height: 1360px; border-radius: 104px; background: #0c0c0d; box-shadow: 0 0 0 3px #3a3a3e, 0 50px 110px var(--shadow); }\n      #pscr { position: absolute; left: 18px; top: 18px; right: 18px; bottom: 18px; border-radius: 88px; background: var(--ph-scr); overflow: hidden; color: var(--ph-ink); }\n      #pcam { position: absolute; left: 50%; top: 26px; width: 30px; height: 30px; margin-left: -15px; border-radius: 50%; background: #0c0c0d; }\n      #pstat { position: absolute; left: 70px; right: 64px; top: 22px; height: 40px; display: flex; justify-content: space-between; align-items: center; font: 600 28px var(--ui); }\n      #pstat svg { height: 24px; }\n      #phead { position: absolute; left: 0; right: 0; top: 78px; height: 96px; border-bottom: 1px solid var(--ph-line); }\n      #phead .bk { position: absolute; left: 40px; top: 26px; width: 44px; height: 44px; }\n      #ph-name { position: absolute; left: 0; right: 0; top: 0; height: 96px; text-align: center; font: 650 34px/96px var(--ui); }\n      #pmsgs { position: absolute; left: 40px; right: 40px; top: 214px; }\n      #qrow { display: flex; justify-content: flex-end; }\n      #qbub { max-width: 500px; background: var(--ph-bub); border-radius: 36px 36px 10px 36px; padding: 22px 30px; font: 400 42px/1.32 var(--ui); }\n      #thinking { margin-top: 44px; height: 30px; display: flex; gap: 12px; align-items: center; }\n      #thinking i { width: 16px; height: 16px; border-radius: 50%; background: var(--ph-sub); display: block; }\n      #ans { margin-top: -30px; font: 400 42px/1.38 var(--ui); letter-spacing: -0.005em; }\n      #ans span { opacity: 0; white-space: nowrap; }\n      #chip { margin-top: 30px; display: inline-flex; align-items: center; gap: 14px; height: 64px; padding: 0 26px 0 18px; border-radius: 32px; background: var(--ph-chip); box-shadow: 0 0 0 2px var(--ph-line); font: 500 30px var(--ui); color: var(--ph-ink); white-space: nowrap; }\n      #fly { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 14px; height: 64px; padding: 0 26px 0 18px; border-radius: 32px; background: var(--ph-chip); box-shadow: 0 0 0 2px var(--ph-line), 0 16px 40px var(--shadow); font: 500 30px var(--ui); color: var(--ph-ink); white-space: nowrap; transform-origin: 50% 50%; }\n      .cic { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; }\n      .cic svg { width: 24px; height: 24px; }\n      #pfield { position: absolute; left: 32px; right: 32px; bottom: 44px; height: 100px; border-radius: 50px; background: var(--ph-field); box-shadow: 0 0 0 2px var(--ph-line); }\n      #pf-txt { position: absolute; left: 36px; top: 0; right: 110px; height: 100px; font: 400 36px/100px var(--ui); white-space: nowrap; overflow: hidden; }\n      #pf-ph { position: absolute; left: 36px; top: 0; height: 100px; font: 400 36px/100px var(--ui); color: var(--ph-sub); white-space: nowrap; }\n      #pf-send { position: absolute; right: 14px; top: 14px; width: 72px; height: 72px; border-radius: 50%; background: var(--ph-ink); display: grid; place-items: center; opacity: 0.25; }\n      #pf-send svg { width: 34px; height: 34px; }\n\n      #cursor { position: absolute; left: 0; top: 0; width: 44px; height: 64px; }\n      /* ---------- live app look (kit/live/*.png, retina 2x) ----------\n         The capsule follows the system theme: light glass in light, dark glass in dark.\n         The Calls window matches calls-*-{light,dark}-1.png. */\n      :host([data-theme=\"light\"]) {\n        --cap: rgba(246, 247, 250, 0.95); --cap-edge: rgba(40, 50, 75, 0.2); --cap-hi: rgba(255, 255, 255, 0.9); --cap-shadow: rgba(40, 50, 80, 0.2);\n        --cap-ink: #333436; --cap-ring: #3a3a3c; --cap-dot: #eb4c46; --cap-star: #595a5d; --cap-stop: #d3d5da; --cap-stop-on: #c1c3c9; --cap-sq: #1a1a1a;\n        --cap-sep: #acaeb2; --wme: #3678f6; --wth: #d75f61; --spin-track: rgba(0, 0, 0, 0.12); --spin-head: #3a3a3c;\n        --win: #f3f3f5; --side: #f7f7f9; --side-edge: rgba(0, 0, 0, 0.07); --sel: #2a62d9; --block: #ececee; --search: #e6e6e8;\n        --seg: #fcfcfe; --seg-on: #e3e3e5; --seg-edge: rgba(0, 0, 0, 0.06); --tbtn: #fcfcfe; --c-ttl: #3c3c3e;\n      }\n      :host([data-theme=\"dark\"]) {\n        --cap: rgba(44, 46, 55, 0.96); --cap-edge: rgba(255, 255, 255, 0.16); --cap-hi: rgba(255, 255, 255, 0.08); --cap-shadow: rgba(0, 0, 0, 0.45);\n        --cap-ink: #ececec; --cap-ring: rgba(255, 255, 255, 0.88); --cap-dot: #ff4a4e; --cap-star: #afafb2; --cap-stop: #404148; --cap-stop-on: #52535b; --cap-sq: #ececed;\n        --cap-sep: #67676f; --wme: #5899f8; --wth: #ee8184; --spin-track: rgba(255, 255, 255, 0.22); --spin-head: #ffffff;\n        --win: #141416; --side: #18181a; --side-edge: rgba(255, 255, 255, 0.13); --sel: #2558c9; --block: #1b1b1d; --search: #2f2f31;\n        --seg: #212124; --seg-on: #444447; --seg-edge: rgba(255, 255, 255, 0.13); --tbtn: #212124; --c-ttl: #e6e6e8;\n      }\n      #cap { color: var(--cap-ink); filter: drop-shadow(0 8px 20px var(--cap-shadow)); }\n      #cap-bg { box-shadow: inset 0 3.5px 0 var(--cap-hi); }\n      .ring { border-color: var(--cap-ring); }\n      .ring i { background: var(--cap-dot); }\n      .dim { color: inherit; font-weight: 600; }\n      #spin { border-color: var(--spin-track); border-top-color: var(--spin-head); }\n      #rdot { background: var(--cap-dot); box-shadow: none; }\n      #wme { color: var(--wme); }\n      #wth { color: var(--wth); }\n      #wsep { background: var(--cap-sep); }\n      #rstar path { fill: var(--cap-star); }\n      #rstop { background: var(--cap-stop); }\n      #rstop i { background: var(--cap-sq); }\n      /* Calls window */\n      .lt.live i:nth-child(1) { background: #ec6765; } .lt.live i:nth-child(2) { background: #f2ca44; } .lt.live i:nth-child(3) { background: #65c466; }\n      #side { box-shadow: 0 0 0 1.5px var(--side-edge), 0 2px 10px rgba(0, 0, 0, 0.05); }\n      .row.sel .t, .row.sel .h { color: #fff; }\n      .row.sel .m { color: rgba(255, 255, 255, 0.86); }\n      #c-ttl { color: var(--c-ttl); }\n      #seg { box-shadow: 0 0 0 1.5px var(--seg-edge), 0 2px 8px rgba(0, 0, 0, 0.06); }\n      #seg span { color: var(--tx); }\n      #seg .on { box-shadow: none; }\n      .tb { box-shadow: 0 0 0 1.5px var(--seg-edge), 0 2px 8px rgba(0, 0, 0, 0.06); }\n      #c-h { font-size: 60px; }\n      .sec h3 { margin-top: 26px; }\n    \n#root { width: 1920px; height: 1080px; font-size: 16px; line-height: normal; color: #000; }\n", "v": ":host { all: initial; display: block; position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-origin: 0 0; }\n\n      /* Vertical (9:16) recomposition of v13-hero. World units = frame pixels at camera scale 1.\n         The world is a tall \"desktop\" column (x 0..1080) with the phone parked to its right (x ~1260..2100).\n         Safe band for content: y 154..1728 in frame. */\n      :host {\n        --ui: \"Inter\", -apple-system, \"Helvetica Neue\", sans-serif;\n        --cap: #262626;\n        --red: #eb5855;\n        --me: #5899f8;\n        --them: #ee8184;\n        --ok: #34c759;\n        --accent: #d21f57;\n      }\n      :host([data-theme=\"light\"]) {\n        --wall: radial-gradient(1500px 1500px at 2550px 2700px, #cbd9f6 0%, rgba(203, 217, 246, 0) 70%), radial-gradient(1600px 1500px at 4200px 4200px, #f2d2df 0%, rgba(242, 210, 223, 0) 70%), radial-gradient(1300px 1200px at 3500px 3400px, #e6def4 0%, rgba(230, 222, 244, 0) 70%), #eceef4;\n        --n-bg: rgba(246, 246, 248, 0.97); --n-ink: #1d1d1f; --n-sub: #6e6e73; --n-btn: #e2e2e6; --n-line: rgba(0, 0, 0, 0.1);\n        --cw-bg: #f4f4f6; --cw-bar: #8a8a8f; --tile: #e1e4ea; --tile-ink: #1d1d1f; --ctl: #dcdfe5; --ctl-ink: #3a3a3c; --cw-line: rgba(0, 0, 0, 0.1);\n        --win: #ffffff; --block: #f4f4f6; --seg: #ebebed; --seg-on: #ffffff;\n        --tx: #1d1d1f; --tx2: #6e6e73; --tx3: #7c7c82; --tdim: #86868b; --lights: #d4d4d7; --wline: rgba(0, 0, 0, 0.12);\n        --ph-scr: #faf9f6; --ph-ink: #1d1d1f; --ph-sub: #77767a; --ph-bub: #edebe6; --ph-line: rgba(0, 0, 0, 0.09); --ph-chip: #ffffff; --ph-field: #ffffff;\n        --shadow: rgba(30, 36, 52, 0.28); --me-ink: #2a64d6; --them-ink: #c9474d; --cap-edge: rgba(0, 0, 0, 0);\n      }\n      :host([data-theme=\"dark\"]) {\n        --wall: radial-gradient(1500px 1500px at 2550px 2700px, #233462 0%, rgba(35, 52, 98, 0) 70%), radial-gradient(1600px 1500px at 4200px 4200px, #4d2345 0%, rgba(77, 35, 69, 0) 70%), radial-gradient(1300px 1200px at 3500px 3400px, #2a2142 0%, rgba(42, 33, 66, 0) 70%), #111319;\n        --n-bg: rgba(44, 44, 47, 0.97); --n-ink: #f5f5f7; --n-sub: #a1a1a6; --n-btn: #48484c; --n-line: rgba(255, 255, 255, 0.1);\n        --cw-bg: #1c1c1e; --cw-bar: #98989d; --tile: #2c2e33; --tile-ink: #f2f2f4; --ctl: #3a3a3d; --ctl-ink: #f2f2f4; --cw-line: rgba(255, 255, 255, 0.1);\n        --win: #141416; --block: #1b1b1d; --seg: #232326; --seg-on: #464649;\n        --tx: #f2f2f3; --tx2: #a1a1a6; --tx3: #8e8e93; --tdim: #656568; --lights: #49494b; --wline: rgba(255, 255, 255, 0.1);\n        --ph-scr: #1d1d1f; --ph-ink: #f2f2f3; --ph-sub: #98989d; --ph-bub: #353538; --ph-line: rgba(255, 255, 255, 0.1); --ph-chip: #2a2a2d; --ph-field: #2a2a2d;\n        --shadow: rgba(0, 0, 0, 0.55); --me-ink: #7fb0ff; --them-ink: #f49a9d; --cap-edge: rgba(255, 255, 255, 0.16);\n      }\n      * { margin: 0; padding: 0; box-sizing: border-box; }\n      #root { position: relative; width: 100%; height: 100%; overflow: hidden; font-family: var(--ui); }\n      #shot { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; }\n      #cam { position: absolute; left: 0; top: 0; width: 2200px; height: 1920px; transform-origin: 0 0; }\n      #cam::before { content: \"\"; position: absolute; left: -2400px; top: -2400px; right: -2400px; bottom: -2400px; background: var(--wall); z-index: -1; }\n\n      /* capsule: the 2x-pixel capsule from the horizontal film, shown 1.35x larger (static wrapper scale) */\n      #capw { position: absolute; left: 232px; top: 206px; width: 616px; height: 88px; transform: scale(1.35); transform-origin: 50% 50%; z-index: 5; }\n      #cap { position: absolute; left: 0; top: 0; width: 616px; height: 88px; color: #ececec; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.32)); }\n      /* #pill is the capsule itself: a rounded box centred on the #cap box (left 50% + xPercent -50, set in the script)\n         whose width animates symmetrically about that centre; constant radius, contents clipped inside it and laid out\n         from its left edge, the drop shadow on #cap follows its outline every frame */\n      #pill { position: absolute; left: 50%; top: 0; width: 616px; height: 88px; border-radius: 36px; overflow: hidden; }\n      #cap-bg { position: absolute; inset: 1.5px; background: var(--cap); border-radius: 34.5px; }\n      #cap-edge { position: absolute; inset: 0; background: var(--cap-edge); border-radius: 36px; }\n      .cl { position: absolute; left: 0; top: 0; width: 616px; height: 88px; display: flex; align-items: center; justify-content: flex-start; white-space: nowrap; }\n      .cl .in { display: inline-flex; align-items: center; height: 88px; font: 600 30px var(--ui); letter-spacing: -0.005em; }\n      #cap-idle .in { padding: 0 35px 0 33px; gap: 24px; }\n      /* SF Symbol record.circle, palette: outer ring = label colour, inner dot = red; 16 pt icon at 2x */\n      .ring { box-sizing: border-box; width: 32px; height: 32px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, 0.9); display: grid; place-items: center; }\n      .ring i { width: 14.4px; height: 14.4px; border-radius: 50%; background: #ff4a4e; display: block; }\n      #cap-done .in, #cap-tr .in { padding: 0 36px 0 30px; gap: 16px; }\n      .okc { width: 32px; height: 32px; border-radius: 50%; background: var(--ok); display: grid; place-items: center; }\n      .okc svg { width: 20px; height: 20px; }\n      .dim { color: rgba(236, 236, 236, 0.6); font-weight: 500; }\n      #spin { width: 28px; height: 28px; border-radius: 50%; border: 3.5px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; }\n      #cap-rec { display: block; }\n      #rdot { position: absolute; left: 32px; top: 36px; width: 16px; height: 16px; border-radius: 50%; background: var(--red); box-shadow: 0 0 10px rgba(235, 88, 85, 0.75); }\n      #rtime { position: absolute; left: 74px; top: 0; height: 88px; font: 600 30px/88px var(--ui); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }\n      .wv { position: absolute; top: 0; height: 88px; width: 121px; }\n      .wv i { position: absolute; top: 44px; width: 6px; height: 6px; margin-top: -3px; border-radius: 3px; background: currentColor; display: block; }\n      #wme { left: 183px; color: var(--me); }\n      #wth { left: 320px; color: var(--them); }\n      #wsep { position: absolute; left: 309px; top: 33px; width: 2px; height: 22px; background: #5c5c5e; }\n      #rstar { position: absolute; left: 473px; top: 28px; width: 32px; height: 32px; }\n      #rstop { position: absolute; left: 544px; top: 16px; width: 56px; height: 56px; border-radius: 50%; background: #3b3b3b; display: grid; place-items: center; }\n      #rstop i { width: 17px; height: 17px; border-radius: 3px; background: #ececec; display: block; }\n\n      /* notification (generic call app), phone-width: text row on top, two big buttons below */\n      #notif { position: absolute; left: 60px; top: 380px; width: 960px; height: 304px; border-radius: 44px; background: var(--n-bg); box-shadow: 0 0 0 1px var(--n-line), 0 24px 60px var(--shadow); color: var(--n-ink); z-index: 4; }\n      #notif .ic { position: absolute; left: 36px; top: 34px; width: 112px; height: 112px; border-radius: 26px; background: linear-gradient(180deg, #5fd37a, #2bb153); display: grid; place-items: center; }\n      #notif .ic svg { width: 60px; height: 60px; }\n      #n-t1 { position: absolute; left: 176px; top: 38px; font: 650 48px var(--ui); white-space: nowrap; }\n      #n-t2 { position: absolute; left: 176px; top: 98px; font: 400 40px var(--ui); color: var(--n-sub); white-space: nowrap; }\n      .nb { position: absolute; top: 180px; height: 88px; border-radius: 24px; display: grid; place-items: center; font: 600 40px var(--ui); background: var(--n-btn); color: var(--n-ink); }\n      #n-dec { left: 36px; width: 434px; }\n      #n-acc { left: 490px; width: 434px; background: #2ea44f; color: #fff; }\n\n      /* call window (generic call app), tiles stacked for portrait */\n      #callw { position: absolute; left: 40px; top: 350px; width: 1000px; height: 1332px; border-radius: 40px; background: var(--cw-bg); box-shadow: 0 0 0 1px var(--cw-line), 0 40px 90px var(--shadow); color: var(--tile-ink); }\n      #callw .lt { position: absolute; left: 34px; top: 35px; display: flex; gap: 16px; }\n      .lt i { width: 26px; height: 26px; border-radius: 50%; background: var(--lights); display: block; }\n      #cw-title { position: absolute; left: 0; right: 0; top: 0; height: 96px; text-align: center; font: 600 36px/96px var(--ui); color: var(--cw-bar); white-space: nowrap; }\n      #cw-time { position: absolute; right: 34px; top: 0; height: 96px; font: 600 36px/96px var(--ui); font-variant-numeric: tabular-nums; color: var(--cw-bar); display: flex; align-items: center; gap: 12px; }\n      #cw-time b { width: 16px; height: 16px; border-radius: 50%; background: #2ea44f; display: block; }\n      .tile { position: absolute; left: 28px; width: 944px; height: 300px; border-radius: 30px; background: var(--tile); }\n      #tile0 { top: 100px; } #tile1 { top: 416px; } #tile2 { top: 732px; }\n      .tile .bd { position: absolute; inset: 0; border-radius: 30px; border: 7px solid var(--me); opacity: 0; }\n      .tile .av { position: absolute; left: 50%; top: 36px; width: 160px; height: 160px; margin-left: -80px; border-radius: 50%; display: grid; place-items: center; font: 650 64px var(--ui); color: #fff; }\n      .tile .rg { position: absolute; left: 50%; top: 22px; width: 188px; height: 188px; margin-left: -94px; border-radius: 50%; border: 7px solid var(--me); opacity: 0; }\n      .tile .nm { position: absolute; left: 0; right: 0; top: 218px; text-align: center; font: 600 44px var(--ui); white-space: nowrap; }\n      .tile .mic { position: absolute; left: 26px; bottom: 24px; width: 60px; height: 60px; border-radius: 50%; background: rgba(0, 0, 0, 0.28); display: grid; place-items: center; }\n      .tile .mic svg { width: 32px; height: 32px; }\n      #cw-cap { position: absolute; left: 40px; right: 40px; top: 1050px; height: 118px; display: flex; align-items: center; justify-content: center; text-align: center; font: 500 42px/56px var(--ui); color: var(--tile-ink); }\n      #cw-cap b { font-weight: 650; margin-right: 12px; }\n      #cw-ctl { position: absolute; left: 0; right: 0; top: 1190px; display: flex; justify-content: center; gap: 36px; }\n      .cb { width: 112px; height: 112px; border-radius: 50%; background: var(--ctl); display: grid; place-items: center; }\n      .cb svg { width: 50px; height: 50px; }\n      .cb.end { background: #e5484d; width: 160px; border-radius: 56px; }\n\n      /* Calls window: summary only (sidebar left out), large type */\n      #calls { position: absolute; left: 40px; top: 350px; width: 1000px; border-radius: 44px; background: var(--win); box-shadow: 0 0 0 1px var(--wline), 0 40px 100px var(--shadow); color: var(--tx); overflow: hidden; padding: 0 48px 50px; }\n      #c-bar { position: relative; height: 112px; }\n      #c-bar .lt { position: absolute; left: -14px; top: 43px; display: flex; gap: 16px; }\n      #c-ttl { position: absolute; left: 112px; top: 0; height: 112px; font: 700 36px/112px var(--ui); color: var(--tdim); }\n      #seg { position: absolute; right: -20px; top: 22px; height: 70px; border-radius: 35px; background: var(--seg); display: flex; padding: 8px; gap: 4px; }\n      #seg span { height: 54px; padding: 0 26px; font: 500 32px/54px var(--ui); color: var(--tx2); border-radius: 27px; white-space: nowrap; }\n      #seg .on { background: var(--seg-on); color: var(--tx); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }\n      #main { position: relative; padding-top: 18px; }\n      #c-h { font: 700 64px/1.15 var(--ui); letter-spacing: -0.015em; }\n      #c-meta { margin-top: 14px; font: 400 38px var(--ui); color: var(--tx2); display: flex; align-items: center; white-space: nowrap; }\n      .pd { width: 16px; height: 16px; border-radius: 50%; display: inline-block; margin-right: 14px; flex: none; }\n      .acme { background: #e8913a; }\n      #c-ppl { margin-top: 16px; font: 400 38px var(--ui); color: var(--tx); display: flex; align-items: center; gap: 12px; white-space: nowrap; }\n      #c-ppl svg { width: 42px; height: 42px; margin-right: 6px; }\n      .chk { width: 30px; height: 30px; border-radius: 50%; background: var(--ok); display: inline-grid; place-items: center; margin-right: 18px; }\n      .chk svg { width: 18px !important; height: 18px !important; margin: 0 !important; }\n      .sec h3 { font: 650 44px var(--ui); margin: 40px 0 16px 6px; }\n      .blk { background: var(--block); border-radius: 26px; padding: 24px 30px; font: 400 40px/54px var(--ui); color: var(--tx); }\n      .blk ul { list-style: none; }\n      .blk li { position: relative; padding-left: 40px; margin: 4px 0; }\n      .blk li::before { content: \"\"; position: absolute; left: 10px; top: 24px; width: 9px; height: 9px; border-radius: 50%; background: var(--tx3); }\n      .blk.tasks li { padding-left: 56px; }\n      .blk.tasks li::before { left: 2px; top: 11px; width: 32px; height: 32px; border-radius: 9px; background: none; border: 3px solid var(--tx3); box-sizing: border-box; }\n\n      /* phone (generic), parked right of the desktop column */\n      #phone { position: absolute; left: 1260px; top: 200px; width: 840px; height: 1520px; border-radius: 118px; background: #0c0c0d; box-shadow: 0 0 0 3px #3a3a3e, 0 50px 110px var(--shadow); }\n      #pscr { position: absolute; left: 20px; top: 20px; right: 20px; bottom: 20px; border-radius: 100px; background: var(--ph-scr); overflow: hidden; color: var(--ph-ink); }\n      #pcam { position: absolute; left: 50%; top: 30px; width: 36px; height: 36px; margin-left: -18px; border-radius: 50%; background: #0c0c0d; }\n      #pstat { position: absolute; left: 84px; right: 76px; top: 28px; height: 44px; display: flex; justify-content: space-between; align-items: center; font: 600 32px var(--ui); }\n      #pstat svg { height: 28px; }\n      #phead { position: absolute; left: 0; right: 0; top: 92px; height: 112px; border-bottom: 1px solid var(--ph-line); }\n      #phead .bk { position: absolute; left: 44px; top: 30px; width: 52px; height: 52px; }\n      #ph-name { position: absolute; left: 0; right: 0; top: 0; height: 112px; text-align: center; font: 650 42px/112px var(--ui); }\n      #pmsgs { position: absolute; left: 48px; right: 48px; top: 250px; }\n      #qrow { display: flex; justify-content: flex-end; }\n      #qbub { max-width: 600px; background: var(--ph-bub); border-radius: 44px 44px 12px 44px; padding: 26px 36px; font: 400 48px/1.3 var(--ui); }\n      #thinking { margin-top: 52px; height: 36px; display: flex; gap: 14px; align-items: center; }\n      #thinking i { width: 18px; height: 18px; border-radius: 50%; background: var(--ph-sub); display: block; }\n      #ans { margin-top: -36px; font: 400 47px/1.38 var(--ui); letter-spacing: -0.005em; }\n      #ans span { opacity: 0; white-space: nowrap; }\n      #chip { margin-top: 36px; display: inline-flex; align-items: center; gap: 16px; height: 80px; padding: 0 32px 0 20px; border-radius: 40px; background: var(--ph-chip); box-shadow: 0 0 0 2px var(--ph-line); font: 500 38px var(--ui); color: var(--ph-ink); white-space: nowrap; }\n      #fly { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 16px; height: 80px; padding: 0 32px 0 20px; border-radius: 40px; background: var(--ph-chip); box-shadow: 0 0 0 2px var(--ph-line), 0 16px 40px var(--shadow); font: 500 38px var(--ui); color: var(--ph-ink); white-space: nowrap; transform-origin: 50% 50%; z-index: 6; }\n      .cic { width: 50px; height: 50px; border-radius: 50%; background: var(--accent); display: grid; place-items: center; }\n      .cic svg { width: 30px; height: 30px; }\n      #pfield { position: absolute; left: 36px; right: 36px; bottom: 52px; height: 116px; border-radius: 58px; background: var(--ph-field); box-shadow: 0 0 0 2px var(--ph-line); }\n      #pf-txt { position: absolute; left: 40px; top: 0; right: 120px; height: 116px; font: 400 40px/116px var(--ui); white-space: nowrap; overflow: hidden; display: flex; justify-content: flex-end; }\n      #pf-txt span { flex: none; }\n      #pf-ph { position: absolute; left: 40px; top: 0; height: 116px; font: 400 40px/116px var(--ui); color: var(--ph-sub); white-space: nowrap; }\n      #pf-send { position: absolute; right: 16px; top: 16px; width: 84px; height: 84px; border-radius: 50%; background: var(--ph-ink); display: grid; place-items: center; opacity: 0.25; }\n      #pf-send svg { width: 40px; height: 40px; }\n\n      #cursor { position: absolute; left: 0; top: 0; width: 56px; height: 82px; z-index: 7; }\n      /* ---------- live app look (kit/live/*.png, retina 2x) ----------\n         The capsule follows the system theme: light glass in light, dark glass in dark.\n         The Calls window matches calls-*-{light,dark}-1.png. */\n      :host([data-theme=\"light\"]) {\n        --cap: rgba(246, 247, 250, 0.95); --cap-edge: rgba(40, 50, 75, 0.2); --cap-hi: rgba(255, 255, 255, 0.9); --cap-shadow: rgba(40, 50, 80, 0.2);\n        --cap-ink: #333436; --cap-ring: #3a3a3c; --cap-dot: #eb4c46; --cap-star: #595a5d; --cap-stop: #d3d5da; --cap-stop-on: #c1c3c9; --cap-sq: #1a1a1a;\n        --cap-sep: #acaeb2; --wme: #3678f6; --wth: #d75f61; --spin-track: rgba(0, 0, 0, 0.12); --spin-head: #3a3a3c;\n        --win: #f3f3f5; --side: #f7f7f9; --side-edge: rgba(0, 0, 0, 0.07); --sel: #2a62d9; --block: #ececee; --search: #e6e6e8;\n        --seg: #fcfcfe; --seg-on: #e3e3e5; --seg-edge: rgba(0, 0, 0, 0.06); --tbtn: #fcfcfe; --c-ttl: #3c3c3e;\n      }\n      :host([data-theme=\"dark\"]) {\n        --cap: rgba(44, 46, 55, 0.96); --cap-edge: rgba(255, 255, 255, 0.16); --cap-hi: rgba(255, 255, 255, 0.08); --cap-shadow: rgba(0, 0, 0, 0.45);\n        --cap-ink: #ececec; --cap-ring: rgba(255, 255, 255, 0.88); --cap-dot: #ff4a4e; --cap-star: #afafb2; --cap-stop: #404148; --cap-stop-on: #52535b; --cap-sq: #ececed;\n        --cap-sep: #67676f; --wme: #5899f8; --wth: #ee8184; --spin-track: rgba(255, 255, 255, 0.22); --spin-head: #ffffff;\n        --win: #141416; --side: #18181a; --side-edge: rgba(255, 255, 255, 0.13); --sel: #2558c9; --block: #1b1b1d; --search: #2f2f31;\n        --seg: #212124; --seg-on: #444447; --seg-edge: rgba(255, 255, 255, 0.13); --tbtn: #212124; --c-ttl: #e6e6e8;\n      }\n      #cap { color: var(--cap-ink); filter: drop-shadow(0 8px 20px var(--cap-shadow)); }\n      #cap-bg { box-shadow: inset 0 3.5px 0 var(--cap-hi); }\n      .ring { border-color: var(--cap-ring); }\n      .ring i { background: var(--cap-dot); }\n      .dim { color: inherit; font-weight: 600; }\n      #spin { border-color: var(--spin-track); border-top-color: var(--spin-head); }\n      #rdot { background: var(--cap-dot); box-shadow: none; }\n      #wme { color: var(--wme); }\n      #wth { color: var(--wth); }\n      #wsep { background: var(--cap-sep); }\n      #rstar path { fill: var(--cap-star); }\n      #rstop { background: var(--cap-stop); }\n      #rstop i { background: var(--cap-sq); }\n      /* Calls window */\n      .lt.live i:nth-child(1) { background: #ec6765; } .lt.live i:nth-child(2) { background: #f2ca44; } .lt.live i:nth-child(3) { background: #65c466; }\n      #side { box-shadow: 0 0 0 1.5px var(--side-edge), 0 2px 10px rgba(0, 0, 0, 0.05); }\n      .row.sel .t, .row.sel .h { color: #fff; }\n      .row.sel .m { color: rgba(255, 255, 255, 0.86); }\n      #c-ttl { color: var(--c-ttl); }\n      #seg { box-shadow: 0 0 0 1.5px var(--seg-edge), 0 2px 8px rgba(0, 0, 0, 0.06); }\n      #seg span { color: var(--tx); }\n      #seg .on { box-shadow: none; }\n      .tb { box-shadow: 0 0 0 1.5px var(--seg-edge), 0 2px 8px rgba(0, 0, 0, 0.06); }\n    \n#root { width: 1080px; height: 1920px; font-size: 16px; line-height: normal; color: #000; }\n"};
+  const HTML = {"h": "<div id=\"cam\">\n          <div id=\"callw\">\n            <div class=\"lt\"><i></i><i></i><i></i></div>\n            <div id=\"cw-title\">Иван Петров · звонок</div>\n            <div id=\"cw-time\"><b></b><span id=\"cw-clock\">00:00</span></div>\n            <div class=\"tile\" id=\"tile0\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#4170d8\" id=\"av0\">Я</div><div class=\"nm\" id=\"nm0\">Я</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div class=\"tile\" id=\"tile1\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#d0644f\" id=\"av1\">О</div><div class=\"nm\" id=\"nm1\">Олег</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div class=\"tile\" id=\"tile2\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#2f8f6a\" id=\"av2\">ИП</div><div class=\"nm\" id=\"nm2\">Иван Петров</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div id=\"cw-cap\"><b id=\"cc-who\"></b><span id=\"cc-txt\"></span></div>\n            <div id=\"cw-ctl\">\n              <div class=\"cb\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" style=\"color:var(--ctl-ink)\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div>\n              <div class=\"cb\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\" style=\"color:var(--ctl-ink)\"><rect x=\"3\" y=\"6.5\" width=\"12.5\" height=\"11\" rx=\"2.5\"/><path d=\"M15.5 10.5l5-3v9l-5-3z\"/></svg></div>\n              <div class=\"cb end\"><svg viewBox=\"0 0 24 24\" fill=\"#fff\"><path d=\"M12 9.5c-3.2 0-6.2.9-8.6 2.6-.6.4-.8 1.2-.5 1.8l1 2c.3.6 1 .9 1.7.6l2.6-1c.6-.2 1-.8.9-1.4l-.2-1.6c1-.3 2-.4 3.1-.4s2.1.1 3.1.4l-.2 1.6c-.1.6.3 1.2.9 1.4l2.6 1c.7.3 1.4 0 1.7-.6l1-2c.3-.6.1-1.4-.5-1.8-2.4-1.7-5.4-2.6-8.6-2.6z\"/></svg></div>\n            </div>\n          </div>\n          <div id=\"calls\">\n            <div id=\"side\">\n              <div class=\"lt live\"><i></i><i></i><i></i></div>\n              <svg class=\"tbi\" style=\"left:192px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx3)\" stroke-width=\"1.8\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"12\" r=\"8.5\"/><path d=\"M7 9.5h8M8.5 12.5h5M10 15.5h2\"/></svg>\n              <svg class=\"tbi\" style=\"left:250px;width:22px\" viewBox=\"0 0 12 24\" fill=\"none\" stroke=\"var(--tx3)\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 10l4 4 4-4\"/></svg>\n              <svg class=\"tbi\" style=\"left:302px\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx3)\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 8H6.5A2.5 2.5 0 0 0 4 10.5v8A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-8A2.5 2.5 0 0 0 17.5 8H16M12 3v11M8.5 10.5L12 14l3.5-3.5\"/></svg>\n              <div id=\"search\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx2)\" stroke-width=\"2.2\" stroke-linecap=\"round\"><circle cx=\"10.5\" cy=\"10.5\" r=\"6.5\"/><path d=\"M15.5 15.5L20 20\"/></svg><span id=\"s-search\">Поиск по звонкам</span></div>\n              <div class=\"grp\" style=\"top:184px\" id=\"s-g1\">Сегодня</div>\n              <div class=\"row sel\" style=\"top:220px\"><div class=\"t\" id=\"r0t\">планирование спринта</div><div class=\"h\">11:00</div><div class=\"m\"><i class=\"pd acme\"></i><span id=\"r0m\">Acme · 24 мин</span></div></div>\n              <div class=\"grp\" style=\"top:352px\" id=\"s-g2\">Вчера</div>\n              <div class=\"row\" style=\"top:388px\"><div class=\"t\">billing webhooks</div><div class=\"h\">15:30</div><div class=\"m\"><i class=\"pd nw\"></i><span id=\"r1m\">Northwind · 22 мин</span></div></div>\n              <div class=\"row\" style=\"top:490px\"><div class=\"t\" id=\"r2t\">съёмка для каталога</div><div class=\"h\">17:45</div><div class=\"m\"><i class=\"pd luch\"></i><span id=\"r2m\">Студия «Луч» · 31 мин</span></div></div>\n              <div class=\"row\" style=\"top:592px\"><div class=\"t\" id=\"r3t\">договор с подрядчиком</div><div class=\"h\">14:05</div><div class=\"m\"><i class=\"pd acme\"></i><span id=\"r3m\">Acme · 1 ч 05 мин</span></div></div>\n              <div class=\"row\" style=\"top:694px\"><div class=\"t\" id=\"r4t\">онбординг Sarah</div><div class=\"h\">10:30</div><div class=\"m\"><i class=\"pd nw\"></i><span id=\"r4m\">Northwind · 14 мин</span></div></div>\n              <div class=\"row\" style=\"top:796px\"><div class=\"t\" id=\"r5t\">ретро по релизу</div><div class=\"h\">16:00</div><div class=\"m\"><i class=\"pd acme\"></i><span id=\"r5m\">Acme · 52 мин</span></div></div>\n            </div>\n            <div id=\"c-ttl\">Звонки</div>\n            <div id=\"seg\"><span class=\"on\" id=\"s-seg1\">Саммари</span><span class=\"off\" id=\"s-seg2\">Расшифровка</span></div>\n            <div class=\"tb\" style=\"left:1544px\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx2)\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16M12 15V3M8.5 6.5L12 3l3.5 3.5\"/></svg></div>\n            <div class=\"tb\" style=\"left:1648px\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx2)\" stroke-width=\"1.8\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"8\" cy=\"12\" r=\"1\" fill=\"var(--tx2)\"/><circle cx=\"12\" cy=\"12\" r=\"1\" fill=\"var(--tx2)\"/><circle cx=\"16\" cy=\"12\" r=\"1\" fill=\"var(--tx2)\"/></svg></div>\n            <div id=\"main\">\n              <div id=\"c-top\">\n                <div id=\"c-h\">планирование спринта</div>\n                <div id=\"c-meta\"><i class=\"pd acme\"></i><span id=\"c-meta-t\">Acme · 7 ноября в 11:00 · 24 мин</span></div>\n                <div id=\"c-ppl\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx2)\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"9\" cy=\"9\" r=\"3.2\"/><path d=\"M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6\"/><circle cx=\"16.5\" cy=\"9.5\" r=\"2.6\"/><path d=\"M16 14.5c2.4 0 4 1.4 4.6 4\"/></svg><span id=\"p0\">Я</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i><span id=\"p1\">Олег</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i><span id=\"p2\">Иван Петров</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i></div>\n              </div>\n              <div class=\"sec\" id=\"sec1\"><h3 id=\"h-s1\">Коротко</h3><div class=\"blk\" id=\"b-s1\">Спланировали спринт: API заказов, экран профиля и починка push-⁠уведомлений.</div></div>\n              <div class=\"sec\" id=\"sec2\"><h3 id=\"h-s2\">Решения</h3><div class=\"blk\"><ul><li id=\"d1\">Спринт две недели, демо в пятницу.</li><li id=\"d2\">Push-⁠уведомления чиним до новых фич.</li></ul></div></div>\n              <div class=\"sec\" id=\"sec3\"><h3 id=\"h-s3\">Задачи</h3><div class=\"blk tasks\"><ul><li id=\"k1\">Олег: API заказов, среда.</li><li id=\"k2\">Иван Петров: экран профиля, пятница.</li></ul></div></div>\n            </div>\n          </div>\n          <div id=\"phone\">\n            <div id=\"pscr\">\n              <div id=\"pcam\"></div>\n              <div id=\"pstat\"><span>10:15</span><svg viewBox=\"0 0 60 24\" fill=\"currentColor\"><rect x=\"0\" y=\"15\" width=\"5\" height=\"7\" rx=\"1.5\"/><rect x=\"8\" y=\"11\" width=\"5\" height=\"11\" rx=\"1.5\"/><rect x=\"16\" y=\"7\" width=\"5\" height=\"15\" rx=\"1.5\"/><rect x=\"24\" y=\"3\" width=\"5\" height=\"19\" rx=\"1.5\"/><rect x=\"34\" y=\"5\" width=\"22\" height=\"14\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><rect x=\"37\" y=\"8\" width=\"14\" height=\"8\" rx=\"2\"/></svg></div>\n              <div id=\"phead\"><svg class=\"bk\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 5l-7 7 7 7\"/></svg><div id=\"ph-name\">Claude</div></div>\n              <div id=\"pmsgs\">\n                <div id=\"qrow\"><div id=\"qbub\"><span id=\"q-txt\">Что обсуждали вчера с Acme?</span></div></div>\n                <div id=\"thinking\"><i></i><i></i><i></i></div>\n                <div id=\"ans\"></div>\n                <div id=\"chip\"><div class=\"cic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4\"/></svg></div><span id=\"chip-t\">звонок Acme · вчера</span></div>\n              </div>\n              <div id=\"pfield\"><div id=\"pf-ph\">Ответить Claude…</div><div id=\"pf-txt\"></div><div id=\"pf-send\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--ph-scr)\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M6 11l6-6 6 6\"/></svg></div></div>\n            </div>\n          </div>\n\n          <div id=\"fly\"><div class=\"cic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4\"/></svg></div><span id=\"fly-t\">звонок Acme · вчера</span></div>\n          <div id=\"notif\">\n            <div class=\"ic\"><svg viewBox=\"0 0 24 24\"><path fill=\"#fff\" d=\"M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z\"/></svg></div>\n            <div id=\"n-t1\">Иван Петров</div>\n            <div id=\"n-t2\">Входящий звонок</div>\n            <div class=\"nb\" id=\"n-dec\">Отклонить</div>\n            <div class=\"nb\" id=\"n-acc\">Принять</div>\n          </div>\n\n          <div id=\"cap\">\n            <div id=\"pill\">\n            <div id=\"cap-edge\"></div><div id=\"cap-bg\"></div>\n            <div class=\"cl\" id=\"cap-idle\"><div class=\"in\" id=\"in-idle\"><div class=\"ring\" id=\"cap-ring\"><i></i></div><span id=\"s-rec\">Записать</span></div></div>\n            <div class=\"cl\" id=\"cap-rec\">\n              <div id=\"rdot\"></div><div id=\"rtime\">00:00</div>\n              <div class=\"wv\" id=\"wme\"></div><div id=\"wsep\"></div><div class=\"wv\" id=\"wth\"></div>\n              <svg id=\"rstar\" viewBox=\"0 0 24 24\"><path fill=\"#afafaf\" d=\"M12 2.2l2.95 6.2 6.8.8-5 4.7 1.3 6.75L12 17.3l-6.05 3.35 1.3-6.75-5-4.7 6.8-.8z\"/></svg>\n              <div id=\"rstop\"><i></i></div>\n            </div>\n            <div class=\"cl\" id=\"cap-done\"><div class=\"in\" id=\"in-done\"><div class=\"okc\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.6\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><span><span id=\"s-done\">Записано</span> <span class=\"dim\" id=\"s-done2\">· 24 мин</span></span></div></div>\n            <div class=\"cl\" id=\"cap-tr\"><div class=\"in\" id=\"in-tr\"><div id=\"spin\"></div><span id=\"s-tr\">Расшифровка…</span></div></div>\n            </div>\n          </div>\n\n          <svg id=\"cursor\" viewBox=\"0 0 22 32\" style=\"overflow:visible\"><path d=\"M1.5 1.5v24.2l6.1-5.8 4 9.4 4.1-1.8-4-9.2h8.4z\" fill=\"#111\" stroke=\"#fff\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/></svg>\n        </div>", "v": "<div id=\"cam\">\n          <div id=\"callw\">\n            <div class=\"lt\"><i></i><i></i><i></i></div>\n            <div id=\"cw-title\">Иван Петров · звонок</div>\n            <div id=\"cw-time\"><b></b><span id=\"cw-clock\">00:00</span></div>\n            <div class=\"tile\" id=\"tile0\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#4170d8\" id=\"av0\">Я</div><div class=\"nm\" id=\"nm0\">Я</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div class=\"tile\" id=\"tile1\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#d0644f\" id=\"av1\">О</div><div class=\"nm\" id=\"nm1\">Олег</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div class=\"tile\" id=\"tile2\"><div class=\"bd\"></div><div class=\"rg\"></div><div class=\"av\" style=\"background:#2f8f6a\" id=\"av2\">ИП</div><div class=\"nm\" id=\"nm2\">Иван Петров</div>\n              <div class=\"mic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.2\" stroke-linecap=\"round\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div></div>\n            <div id=\"cw-cap\"><div><b id=\"cc-who\"></b><span id=\"cc-txt\"></span></div></div>\n            <div id=\"cw-ctl\">\n              <div class=\"cb\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" style=\"color:var(--ctl-ink)\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21\"/></svg></div>\n              <div class=\"cb\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\" style=\"color:var(--ctl-ink)\"><rect x=\"3\" y=\"6.5\" width=\"12.5\" height=\"11\" rx=\"2.5\"/><path d=\"M15.5 10.5l5-3v9l-5-3z\"/></svg></div>\n              <div class=\"cb end\"><svg viewBox=\"0 0 24 24\" fill=\"#fff\"><path d=\"M12 9.5c-3.2 0-6.2.9-8.6 2.6-.6.4-.8 1.2-.5 1.8l1 2c.3.6 1 .9 1.7.6l2.6-1c.6-.2 1-.8.9-1.4l-.2-1.6c1-.3 2-.4 3.1-.4s2.1.1 3.1.4l-.2 1.6c-.1.6.3 1.2.9 1.4l2.6 1c.7.3 1.4 0 1.7-.6l1-2c.3-.6.1-1.4-.5-1.8-2.4-1.7-5.4-2.6-8.6-2.6z\"/></svg></div>\n            </div>\n          </div>\n          <div id=\"calls\">\n            <div id=\"c-bar\">\n              <div class=\"lt live\"><i></i><i></i><i></i></div>\n              <div id=\"c-ttl\">Звонки</div>\n              <div id=\"seg\"><span class=\"on\" id=\"s-seg1\">Саммари</span><span class=\"off\" id=\"s-seg2\">Расшифровка</span></div>\n            </div>\n            <div id=\"main\">\n              <div id=\"c-top\">\n                <div id=\"c-h\">планирование спринта</div>\n                <div id=\"c-meta\"><i class=\"pd acme\"></i><span id=\"c-meta-t\">Acme · 7 ноября в 11:00 · 24 мин</span></div>\n                <div id=\"c-ppl\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--tx2)\" stroke-width=\"1.6\" stroke-linecap=\"round\"><circle cx=\"9\" cy=\"9\" r=\"3.2\"/><path d=\"M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6\"/><circle cx=\"16.5\" cy=\"9.5\" r=\"2.6\"/><path d=\"M16 14.5c2.4 0 4 1.4 4.6 4\"/></svg><span id=\"p0\">Я</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i><span id=\"p1\">Олег</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i><span id=\"p2\">Иван Петров</span><i class=\"chk\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/></svg></i></div>\n              </div>\n              <div class=\"sec\" id=\"sec1\"><h3 id=\"h-s1\">Коротко</h3><div class=\"blk\" id=\"b-s1\">Спланировали спринт: API заказов, экран профиля и починка push-⁠уведомлений.</div></div>\n              <div class=\"sec\" id=\"sec2\"><h3 id=\"h-s2\">Решения</h3><div class=\"blk\"><ul><li id=\"d1\">Спринт две недели, демо в пятницу.</li><li id=\"d2\">Push-⁠уведомления чиним до новых фич.</li></ul></div></div>\n              <div class=\"sec\" id=\"sec3\"><h3 id=\"h-s3\">Задачи</h3><div class=\"blk tasks\"><ul><li id=\"k1\">Олег: API заказов, среда.</li><li id=\"k2\">Иван Петров: экран профиля, пятница.</li></ul></div></div>\n            </div>\n          </div>\n          <div id=\"phone\">\n            <div id=\"pscr\">\n              <div id=\"pcam\"></div>\n              <div id=\"pstat\"><span>10:15</span><svg viewBox=\"0 0 60 24\" fill=\"currentColor\"><rect x=\"0\" y=\"15\" width=\"5\" height=\"7\" rx=\"1.5\"/><rect x=\"8\" y=\"11\" width=\"5\" height=\"11\" rx=\"1.5\"/><rect x=\"16\" y=\"7\" width=\"5\" height=\"15\" rx=\"1.5\"/><rect x=\"24\" y=\"3\" width=\"5\" height=\"19\" rx=\"1.5\"/><rect x=\"34\" y=\"5\" width=\"22\" height=\"14\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><rect x=\"37\" y=\"8\" width=\"14\" height=\"8\" rx=\"2\"/></svg></div>\n              <div id=\"phead\"><svg class=\"bk\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M15 5l-7 7 7 7\"/></svg><div id=\"ph-name\">Claude</div></div>\n              <div id=\"pmsgs\">\n                <div id=\"qrow\"><div id=\"qbub\"><span id=\"q-txt\">Что обсуждали вчера с Acme?</span></div></div>\n                <div id=\"thinking\"><i></i><i></i><i></i></div>\n                <div id=\"ans\"></div>\n                <div id=\"chip\"><div class=\"cic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4\"/></svg></div><span id=\"chip-t\">звонок Acme · вчера</span></div>\n              </div>\n              <div id=\"pfield\"><div id=\"pf-ph\">Ответить Claude…</div><div id=\"pf-txt\"><span id=\"pf-in\"></span></div><div id=\"pf-send\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"var(--ph-scr)\" stroke-width=\"2.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 19V5M6 11l6-6 6 6\"/></svg></div></div>\n            </div>\n          </div>\n\n          <div id=\"fly\"><div class=\"cic\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.4\" stroke-linecap=\"round\"><path d=\"M4 10v4M8 7v10M12 4v16M16 8v8M20 10v4\"/></svg></div><span id=\"fly-t\">звонок Acme · вчера</span></div>\n          <div id=\"notif\">\n            <div class=\"ic\"><svg viewBox=\"0 0 24 24\"><path fill=\"#fff\" d=\"M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z\"/></svg></div>\n            <div id=\"n-t1\">Иван Петров</div>\n            <div id=\"n-t2\">Входящий звонок</div>\n            <div class=\"nb\" id=\"n-dec\">Отклонить</div>\n            <div class=\"nb\" id=\"n-acc\">Принять</div>\n          </div>\n\n          <div id=\"capw\">\n            <div id=\"cap\">\n              <div id=\"pill\">\n              <div id=\"cap-edge\"></div><div id=\"cap-bg\"></div>\n              <div class=\"cl\" id=\"cap-idle\"><div class=\"in\" id=\"in-idle\"><div class=\"ring\" id=\"cap-ring\"><i></i></div><span id=\"s-rec\">Записать</span></div></div>\n              <div class=\"cl\" id=\"cap-rec\">\n                <div id=\"rdot\"></div><div id=\"rtime\">00:00</div>\n                <div class=\"wv\" id=\"wme\"></div><div id=\"wsep\"></div><div class=\"wv\" id=\"wth\"></div>\n                <svg id=\"rstar\" viewBox=\"0 0 24 24\"><path fill=\"#afafaf\" d=\"M12 2.2l2.95 6.2 6.8.8-5 4.7 1.3 6.75L12 17.3l-6.05 3.35 1.3-6.75-5-4.7 6.8-.8z\"/></svg>\n                <div id=\"rstop\"><i></i></div>\n              </div>\n              <div class=\"cl\" id=\"cap-done\"><div class=\"in\" id=\"in-done\"><div class=\"okc\"><svg viewBox=\"0 0 10 10\"><path d=\"M2 5.2l2 2 4-4.4\" stroke=\"#fff\" stroke-width=\"1.6\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><span><span id=\"s-done\">Записано</span> <span class=\"dim\" id=\"s-done2\">· 24 мин</span></span></div></div>\n              <div class=\"cl\" id=\"cap-tr\"><div class=\"in\" id=\"in-tr\"><div id=\"spin\"></div><span id=\"s-tr\">Расшифровка…</span></div></div>\n              </div>\n            </div>\n          </div>\n\n          <svg id=\"cursor\" viewBox=\"0 0 22 32\" style=\"overflow:visible\"><path d=\"M1.5 1.5v24.2l6.1-5.8 4 9.4 4.1-1.8-4-9.2h8.4z\" fill=\"#111\" stroke=\"#fff\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/></svg>\n        </div>"};
+  const BUILD = {
+    h: function (R, host, lang) { const T = 20, SLOW = 1.25;
+const S = {
+          ru: {
+            "s-rec": "Записать", "s-done": "Записано", "s-done2": "· 24 мин", "s-tr": "Расшифровка…",
+            "n-t1": "Иван Петров", "n-t2": "Входящий звонок", "n-dec": "Отклонить", "n-acc": "Принять",
+            "cw-title": "Иван Петров · звонок", av0: "Я", av1: "О", av2: "ИП", nm0: "Я", nm1: "Олег", nm2: "Иван Петров",
+            "s-search": "Поиск по звонкам", "s-g1": "Сегодня", "s-g2": "Вчера", r0t: "планирование спринта", r0m: "Acme · 24 мин",
+            r1m: "Northwind · 22 мин", r2t: "съёмка для каталога", r2m: "Студия «Луч» · 31 мин", r3t: "договор с подрядчиком", r3m: "Acme · 1 ч 05 мин",
+            r4t: "онбординг Sarah", r4m: "Northwind · 14 мин", r5t: "ретро по релизу", r5m: "Acme · 52 мин",
+            "c-ttl": "Звонки", "s-seg1": "Саммари", "s-seg2": "Расшифровка", "c-h": "планирование спринта", "c-meta-t": "Acme · 7 ноября в 11:00 · 24 мин",
+            p0: "Я", p1: "Олег", p2: "Иван Петров", "h-s1": "Коротко", "h-s2": "Решения", "h-s3": "Задачи",
+            "b-s1": "Спланировали спринт: API заказов, экран профиля и починка push-⁠уведомлений.",
+            d1: "Спринт две недели, демо в пятницу.", d2: "Push-⁠уведомления чиним до новых фич.",
+            k1: "Олег: API заказов, среда.", k2: "Иван Петров: экран профиля, пятница.",
+            "q-txt": "Что обсуждали вчера с Acme?", "chip-t": "звонок Acme · вчера", "fly-t": "звонок Acme · вчера", "pf-ph": "Ответить Claude…",
+            answer: "Спланировали спринт на две недели, демо в пятницу. Олег делает API заказов к среде, Иван экран профиля к пятнице. Сначала чинят push-⁠уведомления.",
+            lines: [["Иван Петров:", "Привет! Все в сборе?"], ["Я:", "Начнём. Что берём в спринт?"], ["Олег:", "Предлагаю API заказов и экран профиля."], ["Иван Петров:", "Экран профиля мой, к пятнице успею."], ["Олег:", "И сначала чиним push-⁠уведомления."]],
+          },
+          en: {
+            "s-rec": "Record", "s-done": "Recorded", "s-done2": "· 24 min", "s-tr": "Transcribing…",
+            "n-t1": "Ivan Petrov", "n-t2": "Incoming call", "n-dec": "Decline", "n-acc": "Accept",
+            "cw-title": "Ivan Petrov · call", av0: "Me", av1: "O", av2: "IP", nm0: "Me", nm1: "Oleg", nm2: "Ivan Petrov",
+            "s-search": "Search calls", "s-g1": "Today", "s-g2": "Yesterday", r0t: "sprint planning", r0m: "Acme · 24 min",
+            r1m: "Northwind · 22 min", r2t: "catalog photo shoot", r2m: "Luch Studio · 31 min", r3t: "contractor agreement", r3m: "Acme · 1 h 05 min",
+            r4t: "Sarah onboarding", r4m: "Northwind · 14 min", r5t: "release retro", r5m: "Acme · 52 min",
+            "c-ttl": "Calls", "s-seg1": "Summary", "s-seg2": "Transcript", "c-h": "sprint planning", "c-meta-t": "Acme · November 7 at 11:00 · 24 min",
+            p0: "Me", p1: "Oleg", p2: "Ivan Petrov", "h-s1": "Summary", "h-s2": "Decisions", "h-s3": "Tasks",
+            "b-s1": "Planned the sprint: the orders API, the profile screen and fixing push notifications.",
+            d1: "Two-week sprint, demo on Friday.", d2: "Push notifications get fixed before new features.",
+            k1: "Oleg: orders API, Wednesday.", k2: "Ivan Petrov: profile screen, Friday.",
+            "q-txt": "What did we discuss with Acme yesterday?", "chip-t": "Acme call · yesterday", "fly-t": "Acme call · yesterday", "pf-ph": "Reply to Claude…",
+            answer: "You planned a two-week sprint with a demo on Friday. Oleg builds the orders API by Wednesday, Ivan the profile screen by Friday. Push notifications get fixed first.",
+            lines: [["Ivan Petrov:", "Hi! Is everyone here?"], ["Me:", "Let's start. What goes into the sprint?"], ["Oleg:", "I'd take the orders API and the profile screen."], ["Ivan Petrov:", "The profile screen is mine, done by Friday."], ["Oleg:", "And we fix push notifications first."]],
+          },
+        }[lang];
+        Object.keys(S).forEach((k) => { const el = R.getElementById(k); if (el && typeof S[k] === "string") el.textContent = S[k]; });
 
-  // Единственная анимация: реплики стенограммы появляются по очереди, как при расшифровке.
-  var lines = document.querySelectorAll(".reveal");
-  var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  lines.forEach(function (el, i) {
-    if (still) { el.classList.add("on"); return; }
-    setTimeout(function () { el.classList.add("on"); }, 350 + i * 520);
-  });
+        // answer words
+        const ansEl = R.getElementById("ans");
+        S.answer.split(" ").forEach((w, i, a) => { const s = document.createElement("span"); s.textContent = w; ansEl.appendChild(s); if (i < a.length - 1) ansEl.appendChild(document.createTextNode(" ")); });
+        const words = Array.from(ansEl.children);
+
+        // waves: 11 slots per channel, 11 px pitch (ru-panel.png)
+        ["wme", "wth"].forEach((id) => { const w = R.getElementById(id); for (let i = 0; i < 11; i++) { const b = document.createElement("i"); b.style.left = i * 11 + "px"; w.appendChild(b); } });
+        const wMe = Array.from(R.querySelectorAll("#wme i"));
+        const wTh = Array.from(R.querySelectorAll("#wth i"));
+
+        function build() {
+          // ---------- measurements (before any tween touches layout) ----------
+          const W = { idle: R.getElementById("in-idle").offsetWidth, rec: 616, done: R.getElementById("in-done").offsetWidth, tr: R.getElementById("in-tr").offsetWidth };
+          const chip = R.getElementById("chip");
+          let cx = 0, cy = 0, n = chip;
+          while (n && n.id !== "cam") { cx += n.offsetLeft; cy += n.offsetTop; n = n.offsetParent; }
+          const CHIP = { x: cx, y: cy, w: chip.offsetWidth, h: chip.offsetHeight };
+          // the capsule is anchored at its CENTRE: every state sits on x 1920 (the #cap box centre = the frame's centre line)
+          // and width changes grow / shrink symmetrically. A point p px from the pill's left edge is at world x 1920 - w / 2 + p.
+          const ICX = 1920; // world x of the capsule's centre, in every state
+          const RECL = ICX - W.rec / 2; // world x of the recording capsule's left edge
+          const fly = R.getElementById("fly");
+          gsap.set(fly, { x: CHIP.x, y: CHIP.y, opacity: 0 });
+
+
+          // ---------- the clock-driven painter: camera, timers, waves, speakers, typing ----------
+          const camEl = R.getElementById("cam");
+          const A = [1920, 250, 1.35], C = [1920, 590, 1.0], D = [1920, 160, 1.8], E = [1920, 720, 1.0], F = [2290, 700, 0.7];
+          const KEYS = [[0.4, A], [1.5, A], [2.4, C], [7.2, C], [8.0, D], [8.8, D], [9.8, E], [11.4, E], [12.4, F], [18.2, F], [T + 0.4, A]];
+          const inOut = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
+          function camAt(t) {
+            if (t < 0.4) t += T; // the closing glide continues across the loop seam
+            let k = 0;
+            while (k < KEYS.length - 1 && t > KEYS[k + 1][0]) k++;
+            const [t0, p0] = KEYS[k], [t1, p1] = KEYS[Math.min(k + 1, KEYS.length - 1)];
+            const lin = t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 0;
+            const u = inOut(lin);
+            const s = Math.exp(Math.log(p0[2]) + (Math.log(p1[2]) - Math.log(p0[2])) * u);
+            // closing glide: x reaches the capsule's centre line by story 19.56, before the chip lands (19.66),
+            // so the landing and the loop seam are centred; y and zoom keep the full glide
+            const ux = k === KEYS.length - 2 ? inOut(Math.min(1, lin / 0.62)) : u;
+            return [p0[0] + (p1[0] - p0[0]) * ux, p0[1] + (p1[1] - p0[1]) * u, s];
+          }
+
+          const noise = (x) => { const s = Math.sin(x * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
+          // who speaks (0 me, 1 Oleg, 2 Ivan), caption line index
+          const SPK = [[2.75, 3.5, 2, 0], [3.8, 4.55, 0, 1], [4.55, 5.35, 1, 2], [5.35, 6.15, 2, 3], [6.15, 6.88, 1, 4]];
+          const speakerAt = (t) => { for (const s of SPK) if (t >= s[0] && t < s[1]) return s; return null; };
+          // live audio keeps its real-time rate: the level steps 9 times per FILM second (not story second),
+          // so the bars and the speaking-ring pulse move as fast as in the 20 s cut; who speaks when follows the story
+          const LIVE = 9 * SLOW; // level steps per story second
+          const level = (ch, t) => {
+            const q = Math.floor(t * LIVE) / LIVE;
+            const s = speakerAt(q);
+            const on = s && (ch === 0 ? s[2] === 0 : s[2] !== 0);
+            return on ? 0.3 + 0.7 * noise(q * 7.1 + ch * 31) : 0.06 * noise(q * 3.3 + ch);
+          };
+          const REC0 = 3.75, REC1 = 6.95;
+          const fmt = (sec) => { sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0"); };
+          const recSec = (t) => { const p = Math.min(1, Math.max(0, (t - REC0) / (REC1 - REC0))); return 1440 * Math.pow(p, 2.2); };
+
+          const rtime = R.getElementById("rtime"), cwClock = R.getElementById("cw-clock");
+          const tiles = [0, 1, 2].map((i) => R.getElementById("tile" + i));
+          const rings = tiles.map((t) => t.querySelector(".rg")), bds = tiles.map((t) => t.querySelector(".bd"));
+          const cWho = R.getElementById("cc-who"), cTxt = R.getElementById("cc-txt"), cCap = R.getElementById("cw-cap");
+          const pfTxt = R.getElementById("pf-txt"), pfPh = R.getElementById("pf-ph"), pfSend = R.getElementById("pf-send");
+          const dots = Array.from(R.querySelectorAll("#thinking i"));
+          const Q0 = 12.45, Q1 = 13.05;
+          let last = -1;
+          function paint(t) {
+            const [x, y, s] = camAt(t);
+            camEl.style.transform = `translate(${(960 - s * x).toFixed(2)}px, ${(540 - s * y).toFixed(2)}px) scale(${s.toFixed(5)})`;
+            // recording timer + waves
+            const rt = Math.min(t, REC1);
+            rtime.textContent = fmt(recSec(rt));
+            for (let i = 0; i < 11; i++) {
+              const k = 10 - i; // newest on the right
+              [[wMe, 0], [wTh, 1]].forEach(([arr, ch]) => {
+                const lv = rt > REC0 ? level(ch, rt - (k * 0.11) / SLOW) : 0;
+                const h = lv < 0.2 ? 6 : 10 + 30 * lv;
+                arr[i].style.height = h.toFixed(1) + "px";
+                arr[i].style.marginTop = (-h / 2).toFixed(1) + "px";
+                arr[i].style.borderRadius = lv < 0.2 ? "50%" : "3px";
+              });
+            }
+            // call clock: real seconds until recording, then the same time-lapse
+            const callSec = t < 2.3 ? 0 : t < REC0 ? t - 2.3 : (REC0 - 2.3) + recSec(Math.min(t, REC1));
+            cwClock.textContent = fmt(callSec);
+            // speakers: ring + tile border + caption
+            const sp = speakerAt(t);
+            for (let i = 0; i < 3; i++) {
+              const on = sp && sp[2] === i;
+              const col = i === 0 ? "var(--me)" : "var(--them)";
+              let a = 0;
+              if (on) a = Math.min(1, (t - sp[0]) / 0.12, (sp[1] - t) / 0.12);
+              const lv = on ? level(i === 0 ? 0 : 1, t) : 0;
+              rings[i].style.opacity = a.toFixed(3);
+              rings[i].style.borderColor = col;
+              rings[i].style.transform = `scale(${(1 + 0.07 * lv * a).toFixed(4)})`;
+              bds[i].style.opacity = (a * 0.9).toFixed(3);
+              bds[i].style.borderColor = col;
+            }
+            if (sp) {
+              const L = S.lines[sp[3]];
+              cWho.textContent = L[0]; cTxt.textContent = L[1];
+              cWho.style.color = sp[2] === 0 ? "var(--me-ink)" : "var(--them-ink)";
+              cCap.style.opacity = Math.min(1, (t - sp[0]) / 0.1, (sp[1] - t) / 0.1).toFixed(3);
+            } else cCap.style.opacity = "0";
+            // phone typing
+            const q = S["q-txt"];
+            const nq = t < Q0 ? 0 : t >= Q1 + 0.05 ? 0 : Math.min(q.length, Math.round(((t - Q0) / (Q1 - Q0)) * q.length));
+            pfTxt.textContent = q.slice(0, nq);
+            pfPh.style.opacity = nq > 0 ? "0" : "1";
+            pfSend.style.opacity = nq > 0 ? "1" : "0.25";
+            // thinking dots
+            dots.forEach((d, i) => { d.style.opacity = (0.35 + 0.65 * Math.max(0, Math.sin((t * 7 - i * 0.9)))).toFixed(3); });
+            last = t;
+          }
+          const drv = { _t: 0, t(v) { if (v === undefined) return this._t; this._t = v; paint(v); } };
+
+          // the story timeline is authored in story seconds (0..T); the registered film plays it at 1 / SLOW speed
+          const tl = gsap.timeline();
+          tl.fromTo(drv, { t: 0 }, { t: T, duration: T, ease: "none" }, 0);
+
+          // ---------- initial states ----------
+          gsap.set("#pill", { width: W.idle, xPercent: -50 });
+          gsap.set(["#cap-rec", "#cap-done", "#cap-tr"], { opacity: 0 });
+          gsap.set("#cursor", { x: 2560, y: 900, opacity: 0 });
+          gsap.set("#callw", { opacity: 0 });
+          gsap.set("#calls", { opacity: 0 });
+          gsap.set("#phone", { x: 1100, opacity: 1 });
+          gsap.set("#notif", { opacity: 0 });
+          gsap.set(["#c-top", "#sec1", "#sec2", "#sec3"], { opacity: 0 });
+          gsap.set(["#qrow", "#thinking", "#chip"], { opacity: 0 });
+
+          // ---------- 1. incoming call ----------
+          tl.fromTo("#notif", { y: -36, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "expo.out" }, 0.45);
+          tl.fromTo("#cursor", { x: 2560, y: 900, opacity: 0 }, { x: 2212, y: 266, opacity: 1, duration: 0.6, ease: "power3.out" }, 0.8);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07, transformOrigin: "0 0" }, 1.45).to("#cursor", { scale: 1, duration: 0.12 }, 1.52);
+          tl.to("#n-acc", { scale: 0.93, backgroundColor: "#24863f", duration: 0.07 }, 1.45).to("#n-acc", { scale: 1, duration: 0.12 }, 1.52);
+          tl.to("#notif", { y: -30, opacity: 0, scale: 0.98, duration: 0.3, ease: "power3.in" }, 1.62);
+          tl.fromTo("#callw", { y: 40, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "expo.out" }, 2.25);
+
+          // ---------- 2. click the capsule, record ----------
+          tl.to("#cursor", { x: ICX + 8, y: 118, duration: 0.55, ease: "power3.inOut" }, 2.85);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07 }, 3.45).to("#cursor", { scale: 1, duration: 0.12 }, 3.52);
+          tl.to("#pill", { scale: 0.96, duration: 0.07 }, 3.45).to("#pill", { scale: 1, duration: 0.14 }, 3.52);
+          tl.to("#cap-idle", { opacity: 0, duration: 0.05, ease: "none" }, 3.5);
+          tl.to("#pill", { width: W.rec, duration: 0.45, ease: "power3.inOut" }, 3.52);
+          tl.fromTo("#cap-rec", { opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power1.out" }, 3.54);
+          tl.to("#cursor", { x: RECL + 718, y: 250, duration: 0.6, ease: "power2.out" }, 3.75);
+          tl.to("#cursor", { x: RECL + 578, y: 118, duration: 0.6, ease: "power3.inOut" }, 6.2);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07 }, 6.95).to("#cursor", { scale: 1, duration: 0.12 }, 7.02);
+          tl.to("#rstop", { scale: 0.86, backgroundColor: getComputedStyle(host).getPropertyValue("--cap-stop-on").trim(), duration: 0.07 }, 6.95).to("#rstop", { scale: 1, duration: 0.12 }, 7.02);
+
+          // ---------- 3. stop: recorded, transcribing ----------
+          tl.to("#cap-rec", { opacity: 0, duration: 0.05, ease: "none" }, 7.05);
+          tl.to("#pill", { width: W.done, duration: 0.42, ease: "power3.inOut" }, 7.07);
+          tl.fromTo("#cap-done", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power1.out" }, 7.09);
+          tl.to("#cursor", { x: 2600, y: 700, opacity: 0, duration: 0.5, ease: "power3.in" }, 7.1);
+          tl.to("#callw", { y: 50, opacity: 0, scale: 0.97, duration: 0.38, ease: "power3.in" }, 7.12);
+          tl.to("#cap-done", { opacity: 0, duration: 0.05, ease: "none" }, 8.05);
+          tl.to("#pill", { width: W.tr, duration: 0.32, ease: "power2.inOut" }, 8.05);
+          tl.fromTo("#cap-tr", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, 8.09);
+          tl.fromTo("#spin", { rotation: 0 }, { rotation: 900, duration: 1.2, ease: "none" }, 8.05);
+
+          // ---------- 4. the call lands in the Calls window ----------
+          tl.to("#cap-tr", { opacity: 0, duration: 0.05, ease: "none" }, 9.0);
+          tl.to("#pill", { width: W.idle, duration: 0.38, ease: "power2.inOut" }, 9.0);
+          tl.fromTo("#cap-idle", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power1.out", immediateRender: false }, 9.04);
+          tl.fromTo("#calls", { opacity: 0, scale: 0.2, transformOrigin: `${ICX - 1040}px -132px` }, { opacity: 1, scale: 1, duration: 0.75, ease: "expo.out" }, 8.95);
+          tl.fromTo("#c-top", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 9.45);
+          ["#sec1", "#sec2", "#sec3"].forEach((s, i) => tl.fromTo(s, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 9.7 + i * 0.22));
+
+          // ---------- 5. the phone ----------
+          tl.fromTo("#phone", { x: 1100 }, { x: 0, duration: 1.0, ease: "expo.out" }, 11.5);
+          tl.fromTo("#qrow", { opacity: 0, scale: 0.92, transformOrigin: "100% 100%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "expo.out" }, 13.1);
+          tl.fromTo("#thinking", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 13.25);
+          tl.to("#thinking", { opacity: 0, duration: 0.12 }, 13.6);
+          tl.fromTo(words, { opacity: 0, filter: "blur(5px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18, ease: "power2.out", stagger: Math.min(0.055, 1.25 / words.length) }, 13.62);
+          tl.fromTo("#chip", { opacity: 0, y: 14, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "expo.out" }, 14.95);
+
+          // ---------- 6. the loop: the source chip flies home into the capsule ----------
+          tl.set("#chip", { opacity: 0 }, 18.3);
+          tl.set(fly, { opacity: 1 }, 18.3);
+          tl.fromTo(fly, { scale: 1 }, { scale: 1.06, duration: 0.18, ease: "power2.out", immediateRender: false }, 18.3);
+          tl.to(fly, { x: ICX - CHIP.w / 2, duration: 1.35, ease: "power2.inOut" }, 18.4);
+          tl.to(fly, { y: 108 - CHIP.h / 2, duration: 1.35, ease: "power3.inOut" }, 18.4);
+          tl.to(fly, { scale: 0.22, duration: 1.3, ease: "power2.in" }, 18.5);
+          tl.to(fly, { opacity: 0, duration: 0.18, ease: "power2.in" }, 19.6);
+          tl.to("#phone", { y: 1500, duration: 0.8, ease: "power3.in" }, 18.45);
+          tl.to("#calls", { opacity: 0, scale: 0.97, transformOrigin: "50% 50%", duration: 0.5, ease: "power2.in" }, 18.5);
+          tl.to("#pill", { scale: 1.08, duration: 0.14, ease: "power2.out" }, 19.66).to("#pill", { scale: 1, duration: 0.24, ease: "power2.inOut" }, 19.8);
+          tl.fromTo("#cap-ring", { boxShadow: "0 0 0px rgba(235,88,85,0)" }, { boxShadow: "0 0 18px rgba(235,88,85,0.9)", duration: 0.14, immediateRender: false }, 19.66)
+            .to("#cap-ring", { boxShadow: "0 0 0px rgba(235,88,85,0)", duration: 0.26 }, 19.8);
+          // the phone itself returns to its start pose off-screen right while invisible
+          tl.set("#phone", { x: 1100, y: 0 }, 19.4);
+          tl.set(["#qrow", "#chip"], { opacity: 0 }, 19.4);
+          tl.set(words, { opacity: 0 }, 19.4);
+          tl.set(["#c-top", "#sec1", "#sec2", "#sec3"], { opacity: 0 }, 19.4);
+
+          const film = gsap.timeline({ paused: true });
+          film.add(tl.timeScale(1 / SLOW), 0);
+          return film;
+        }
+
+        return build();
+ },
+    v: function (R, host, lang) { const T = 20, SLOW = 1.25;
+const S = {
+          ru: {
+            "s-rec": "Записать", "s-done": "Записано", "s-done2": "· 24 мин", "s-tr": "Расшифровка…",
+            "n-t1": "Иван Петров", "n-t2": "Входящий звонок", "n-dec": "Отклонить", "n-acc": "Принять",
+            "cw-title": "Иван Петров · звонок", av0: "Я", av1: "О", av2: "ИП", nm0: "Я", nm1: "Олег", nm2: "Иван Петров",
+            "c-ttl": "Звонки", "s-seg1": "Саммари", "s-seg2": "Расшифровка", "c-h": "планирование спринта", "c-meta-t": "Acme · 7 ноября в 11:00 · 24 мин",
+            p0: "Я", p1: "Олег", p2: "Иван Петров", "h-s1": "Коротко", "h-s2": "Решения", "h-s3": "Задачи",
+            "b-s1": "Спланировали спринт: API заказов, экран профиля и починка push-⁠уведомлений.",
+            d1: "Спринт две недели, демо в пятницу.", d2: "Push-⁠уведомления чиним до новых фич.",
+            k1: "Олег: API заказов, среда.", k2: "Иван Петров: экран профиля, пятница.",
+            "q-txt": "Что обсуждали вчера с Acme?", "chip-t": "звонок Acme · вчера", "fly-t": "звонок Acme · вчера", "pf-ph": "Ответить Claude…",
+            answer: "Спланировали спринт на две недели, демо в пятницу. Олег делает API заказов к среде, Иван экран профиля к пятнице. Сначала чинят push-⁠уведомления.",
+            lines: [["Иван Петров:", "Привет! Все в сборе?"], ["Я:", "Начнём. Что берём в спринт?"], ["Олег:", "Предлагаю API заказов и экран профиля."], ["Иван Петров:", "Экран профиля мой, к пятнице успею."], ["Олег:", "И сначала чиним push-⁠уведомления."]],
+          },
+          en: {
+            "s-rec": "Record", "s-done": "Recorded", "s-done2": "· 24 min", "s-tr": "Transcribing…",
+            "n-t1": "Ivan Petrov", "n-t2": "Incoming call", "n-dec": "Decline", "n-acc": "Accept",
+            "cw-title": "Ivan Petrov · call", av0: "Me", av1: "O", av2: "IP", nm0: "Me", nm1: "Oleg", nm2: "Ivan Petrov",
+            "c-ttl": "Calls", "s-seg1": "Summary", "s-seg2": "Transcript", "c-h": "sprint planning", "c-meta-t": "Acme · November 7 at 11:00 · 24 min",
+            p0: "Me", p1: "Oleg", p2: "Ivan Petrov", "h-s1": "Summary", "h-s2": "Decisions", "h-s3": "Tasks",
+            "b-s1": "Planned the sprint: the orders API, the profile screen and fixing push notifications.",
+            d1: "Two-week sprint, demo on Friday.", d2: "Push notifications get fixed before new features.",
+            k1: "Oleg: orders API, Wednesday.", k2: "Ivan Petrov: profile screen, Friday.",
+            "q-txt": "What did we discuss with Acme yesterday?", "chip-t": "Acme call · yesterday", "fly-t": "Acme call · yesterday", "pf-ph": "Reply to Claude…",
+            answer: "You planned a two-week sprint with a demo on Friday. Oleg builds the orders API by Wednesday, Ivan the profile screen by Friday. Push notifications get fixed first.",
+            lines: [["Ivan Petrov:", "Hi! Is everyone here?"], ["Me:", "Let's start. What goes into the sprint?"], ["Oleg:", "I'd take the orders API and the profile screen."], ["Ivan Petrov:", "The profile screen is mine, done by Friday."], ["Oleg:", "And we fix push notifications first."]],
+          },
+        }[lang];
+        Object.keys(S).forEach((k) => { const el = R.getElementById(k); if (el && typeof S[k] === "string") el.textContent = S[k]; });
+
+        // answer words
+        const ansEl = R.getElementById("ans");
+        S.answer.split(" ").forEach((w, i, a) => { const s = document.createElement("span"); s.textContent = w; ansEl.appendChild(s); if (i < a.length - 1) ansEl.appendChild(document.createTextNode(" ")); });
+        const words = Array.from(ansEl.children);
+
+        // waves: 11 slots per channel, 11 px pitch (ru-panel.png)
+        ["wme", "wth"].forEach((id) => { const w = R.getElementById(id); for (let i = 0; i < 11; i++) { const b = document.createElement("i"); b.style.left = i * 11 + "px"; w.appendChild(b); } });
+        const wMe = Array.from(R.querySelectorAll("#wme i"));
+        const wTh = Array.from(R.querySelectorAll("#wth i"));
+
+        function build() {
+          // ---------- measurements (before any tween touches layout) ----------
+          const W = { idle: R.getElementById("in-idle").offsetWidth, rec: 616, done: R.getElementById("in-done").offsetWidth, tr: R.getElementById("in-tr").offsetWidth };
+          const chip = R.getElementById("chip");
+          let cx = 0, cy = 0, n = chip;
+          while (n && n.id !== "cam") { cx += n.offsetLeft; cy += n.offsetTop; n = n.offsetParent; }
+          const CHIP = { x: cx, y: cy, w: chip.offsetWidth, h: chip.offsetHeight };
+          const fly = R.getElementById("fly");
+          gsap.set(fly, { x: CHIP.x, y: CHIP.y, opacity: 0 });
+          // capsule centre in world px (wrapper is centred on it)
+          const CAPX = 540, CAPY = 250, CAPK = 1.35;
+          // the capsule is anchored at its CENTRE: every state sits on x 540 (the wrapper centre = the frame's centre line)
+          // and width changes grow / shrink symmetrically. A point p px from the left edge of a pill w px wide is at
+          // world x CAPX + (p - w / 2) * CAPK.
+          const ICX = CAPX; // world x of the capsule's centre, in every state
+          const DCX = CAPX; // the close-up on done / transcribing frames that same centre
+
+
+          // ---------- the clock-driven painter: camera, timers, waves, speakers, typing ----------
+          const camEl = R.getElementById("cam");
+          // [x, y, scale]: world point at the frame centre (540, 960)
+          const A = [540, 450, 1.05], C = [540, 960, 1.0], D = [DCX, 250, 1.5], E = [540, 960, 1.0], F = [1680, 960, 1.0];
+          const KEYS = [[0.4, A], [1.5, A], [2.4, C], [7.2, C], [8.0, D], [8.8, D], [9.8, E], [11.4, E], [12.4, F], [18.2, F], [T + 0.4, A]];
+          const inOut = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
+          function camAt(t) {
+            if (t < 0.4) t += T; // the closing glide continues across the loop seam
+            let k = 0;
+            while (k < KEYS.length - 1 && t > KEYS[k + 1][0]) k++;
+            const [t0, p0] = KEYS[k], [t1, p1] = KEYS[Math.min(k + 1, KEYS.length - 1)];
+            const lin = t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 0;
+            const u = inOut(lin);
+            let s = Math.exp(Math.log(p0[2]) + (Math.log(p1[2]) - Math.log(p0[2])) * u);
+            if (k === KEYS.length - 2) {
+              // closing glide: the camera reaches the capsule early (so the chip lands in a big, centred capsule)
+              // and pulls back a little on the way so chip, phone and capsule share the frame
+              const uf = inOut(Math.min(1, lin / 0.75));
+              s *= Math.exp(-0.4 * Math.sin(Math.PI * uf));
+              // x reaches the capsule's centre line by story 19.56, before the chip lands (19.66)
+              const ux = inOut(Math.min(1, lin / 0.62));
+              return [p0[0] + (p1[0] - p0[0]) * ux, p0[1] + (p1[1] - p0[1]) * uf, s];
+            }
+            return [p0[0] + (p1[0] - p0[0]) * u, p0[1] + (p1[1] - p0[1]) * u, s];
+          }
+
+          const noise = (x) => { const s = Math.sin(x * 12.9898 + 78.233) * 43758.5453; return s - Math.floor(s); };
+          // who speaks (0 me, 1 Oleg, 2 Ivan), caption line index
+          const SPK = [[2.75, 3.5, 2, 0], [3.8, 4.55, 0, 1], [4.55, 5.35, 1, 2], [5.35, 6.15, 2, 3], [6.15, 6.88, 1, 4]];
+          const speakerAt = (t) => { for (const s of SPK) if (t >= s[0] && t < s[1]) return s; return null; };
+          // live audio keeps its real-time rate: the level steps 9 times per FILM second (not story second),
+          // so the bars and the speaking-ring pulse move as fast as in the 20 s cut; who speaks when follows the story
+          const LIVE = 9 * SLOW; // level steps per story second
+          const level = (ch, t) => {
+            const q = Math.floor(t * LIVE) / LIVE;
+            const s = speakerAt(q);
+            const on = s && (ch === 0 ? s[2] === 0 : s[2] !== 0);
+            return on ? 0.3 + 0.7 * noise(q * 7.1 + ch * 31) : 0.06 * noise(q * 3.3 + ch);
+          };
+          const REC0 = 3.75, REC1 = 6.95;
+          const fmt = (sec) => { sec = Math.max(0, Math.floor(sec)); return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0"); };
+          const recSec = (t) => { const p = Math.min(1, Math.max(0, (t - REC0) / (REC1 - REC0))); return 1440 * Math.pow(p, 2.2); };
+
+          const rtime = R.getElementById("rtime"), cwClock = R.getElementById("cw-clock");
+          const tiles = [0, 1, 2].map((i) => R.getElementById("tile" + i));
+          const rings = tiles.map((t) => t.querySelector(".rg")), bds = tiles.map((t) => t.querySelector(".bd"));
+          const cWho = R.getElementById("cc-who"), cTxt = R.getElementById("cc-txt"), cCap = R.getElementById("cw-cap");
+          const pfIn = R.getElementById("pf-in"), pfPh = R.getElementById("pf-ph"), pfSend = R.getElementById("pf-send");
+          const dots = Array.from(R.querySelectorAll("#thinking i"));
+          const Q0 = 12.45, Q1 = 13.05;
+          function paint(t) {
+            const [x, y, s] = camAt(t);
+            camEl.style.transform = `translate(${(540 - s * x).toFixed(2)}px, ${(960 - s * y).toFixed(2)}px) scale(${s.toFixed(5)})`;
+            // recording timer + waves
+            const rt = Math.min(t, REC1);
+            rtime.textContent = fmt(recSec(rt));
+            for (let i = 0; i < 11; i++) {
+              const k = 10 - i; // newest on the right
+              [[wMe, 0], [wTh, 1]].forEach(([arr, ch]) => {
+                const lv = rt > REC0 ? level(ch, rt - (k * 0.11) / SLOW) : 0;
+                const h = lv < 0.2 ? 6 : 10 + 30 * lv;
+                arr[i].style.height = h.toFixed(1) + "px";
+                arr[i].style.marginTop = (-h / 2).toFixed(1) + "px";
+                arr[i].style.borderRadius = lv < 0.2 ? "50%" : "3px";
+              });
+            }
+            // call clock: real seconds until recording, then the same time-lapse
+            const callSec = t < 2.3 ? 0 : t < REC0 ? t - 2.3 : (REC0 - 2.3) + recSec(Math.min(t, REC1));
+            cwClock.textContent = fmt(callSec);
+            // speakers: ring + tile border + caption
+            const sp = speakerAt(t);
+            for (let i = 0; i < 3; i++) {
+              const on = sp && sp[2] === i;
+              const col = i === 0 ? "var(--me)" : "var(--them)";
+              let a = 0;
+              if (on) a = Math.min(1, (t - sp[0]) / 0.12, (sp[1] - t) / 0.12);
+              const lv = on ? level(i === 0 ? 0 : 1, t) : 0;
+              rings[i].style.opacity = a.toFixed(3);
+              rings[i].style.borderColor = col;
+              rings[i].style.transform = `scale(${(1 + 0.07 * lv * a).toFixed(4)})`;
+              bds[i].style.opacity = (a * 0.9).toFixed(3);
+              bds[i].style.borderColor = col;
+            }
+            if (sp) {
+              const L = S.lines[sp[3]];
+              cWho.textContent = L[0]; cTxt.textContent = L[1];
+              cWho.style.color = sp[2] === 0 ? "var(--me-ink)" : "var(--them-ink)";
+              cCap.style.opacity = Math.min(1, (t - sp[0]) / 0.1, (sp[1] - t) / 0.1).toFixed(3);
+            } else cCap.style.opacity = "0";
+            // phone typing (the field keeps the newest characters in view)
+            const q = S["q-txt"];
+            const nq = t < Q0 ? 0 : t >= Q1 + 0.05 ? 0 : Math.min(q.length, Math.round(((t - Q0) / (Q1 - Q0)) * q.length));
+            pfIn.textContent = q.slice(0, nq);
+            pfPh.style.opacity = nq > 0 ? "0" : "1";
+            pfSend.style.opacity = nq > 0 ? "1" : "0.25";
+            // thinking dots
+            dots.forEach((d, i) => { d.style.opacity = (0.35 + 0.65 * Math.max(0, Math.sin((t * 7 - i * 0.9)))).toFixed(3); });
+          }
+          const drv = { _t: 0, t(v) { if (v === undefined) return this._t; this._t = v; paint(v); } };
+
+          // the story timeline is authored in story seconds (0..T); the registered film plays it at 1 / SLOW speed
+          const tl = gsap.timeline();
+          tl.fromTo(drv, { t: 0 }, { t: T, duration: T, ease: "none" }, 0);
+
+          // ---------- initial states ----------
+          gsap.set("#pill", { width: W.idle, xPercent: -50 });
+          gsap.set(["#cap-rec", "#cap-done", "#cap-tr"], { opacity: 0 });
+          gsap.set("#cursor", { x: 980, y: 900, opacity: 0 });
+          gsap.set("#callw", { opacity: 0 });
+          gsap.set("#calls", { opacity: 0 });
+          gsap.set("#notif", { opacity: 0 });
+          gsap.set(["#c-top", "#sec1", "#sec2", "#sec3"], { opacity: 0 });
+          gsap.set(["#qrow", "#thinking", "#chip"], { opacity: 0 });
+
+          // world targets for the cursor tip
+          const ACC = [850, 628];                                  // Accept button
+          const REC = [ICX + 18, CAPY + 8];                        // idle capsule
+          const STOP = [CAPX + (572 - W.rec / 2) * CAPK - 6, CAPY + 6];   // stop button of the recording capsule
+
+          // ---------- 1. incoming call ----------
+          tl.fromTo("#notif", { y: -40, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "expo.out" }, 0.45);
+          tl.fromTo("#cursor", { x: 980, y: 900, opacity: 0 }, { x: ACC[0], y: ACC[1], opacity: 1, duration: 0.6, ease: "power3.out" }, 0.8);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07, transformOrigin: "0 0" }, 1.45).to("#cursor", { scale: 1, duration: 0.12 }, 1.52);
+          tl.to("#n-acc", { scale: 0.95, backgroundColor: "#24863f", duration: 0.07 }, 1.45).to("#n-acc", { scale: 1, duration: 0.12 }, 1.52);
+          tl.to("#notif", { y: -36, opacity: 0, scale: 0.98, duration: 0.3, ease: "power3.in" }, 1.62);
+          tl.fromTo("#callw", { y: 50, opacity: 0, scale: 0.97 }, { y: 0, opacity: 1, scale: 1, duration: 0.55, ease: "expo.out" }, 2.25);
+
+          // ---------- 2. click the capsule, record ----------
+          tl.to("#cursor", { x: REC[0], y: REC[1], duration: 0.55, ease: "power3.inOut" }, 2.85);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07 }, 3.45).to("#cursor", { scale: 1, duration: 0.12 }, 3.52);
+          tl.to("#pill", { scale: 0.96, duration: 0.07 }, 3.45).to("#pill", { scale: 1, duration: 0.14 }, 3.52);
+          tl.to("#cap-idle", { opacity: 0, duration: 0.05, ease: "none" }, 3.5);
+          tl.to("#pill", { width: W.rec, duration: 0.45, ease: "power3.inOut" }, 3.52);
+          tl.fromTo("#cap-rec", { opacity: 0 }, { opacity: 1, duration: 0.22, ease: "power1.out" }, 3.54);
+          tl.to("#cursor", { x: 860, y: 560, duration: 0.6, ease: "power2.out" }, 3.75);
+          tl.to("#cursor", { x: STOP[0], y: STOP[1], duration: 0.6, ease: "power3.inOut" }, 6.2);
+          tl.to("#cursor", { scale: 0.86, duration: 0.07 }, 6.95).to("#cursor", { scale: 1, duration: 0.12 }, 7.02);
+          tl.to("#rstop", { scale: 0.86, backgroundColor: getComputedStyle(host).getPropertyValue("--cap-stop-on").trim(), duration: 0.07 }, 6.95).to("#rstop", { scale: 1, duration: 0.12 }, 7.02);
+
+          // ---------- 3. stop: recorded, transcribing ----------
+          tl.to("#cap-rec", { opacity: 0, duration: 0.05, ease: "none" }, 7.05);
+          tl.to("#pill", { width: W.done, duration: 0.42, ease: "power3.inOut" }, 7.07);
+          tl.fromTo("#cap-done", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power1.out" }, 7.09);
+          tl.to("#cursor", { x: 1000, y: 700, opacity: 0, duration: 0.5, ease: "power3.in" }, 7.1);
+          tl.to("#callw", { y: 60, opacity: 0, scale: 0.97, duration: 0.38, ease: "power3.in" }, 7.12);
+          tl.to("#cap-done", { opacity: 0, duration: 0.05, ease: "none" }, 8.05);
+          tl.to("#pill", { width: W.tr, duration: 0.32, ease: "power2.inOut" }, 8.05);
+          tl.fromTo("#cap-tr", { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, 8.09);
+          tl.fromTo("#spin", { rotation: 0 }, { rotation: 900, duration: 1.2, ease: "none" }, 8.05);
+
+          // ---------- 4. the call lands in the Calls window ----------
+          tl.to("#cap-tr", { opacity: 0, duration: 0.05, ease: "none" }, 9.0);
+          tl.to("#pill", { width: W.idle, duration: 0.38, ease: "power2.inOut" }, 9.0);
+          tl.fromTo("#cap-idle", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power1.out", immediateRender: false }, 9.04);
+          tl.fromTo("#calls", { opacity: 0, scale: 0.2, transformOrigin: `${ICX - 40}px ${CAPY - 350}px` }, { opacity: 1, scale: 1, duration: 0.75, ease: "expo.out" }, 8.95);
+          tl.fromTo("#c-top", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.3, ease: "power2.out" }, 9.45);
+          ["#sec1", "#sec2", "#sec3"].forEach((s, i) => tl.fromTo(s, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.45, ease: "expo.out" }, 9.7 + i * 0.22));
+
+          // ---------- 5. the phone (camera glides right onto it) ----------
+          tl.fromTo("#phone", { x: 260 }, { x: 0, duration: 1.1, ease: "expo.out" }, 11.4);
+          tl.fromTo("#qrow", { opacity: 0, scale: 0.92, transformOrigin: "100% 100%" }, { opacity: 1, scale: 1, duration: 0.3, ease: "expo.out" }, 13.1);
+          tl.fromTo("#thinking", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 13.25);
+          tl.to("#thinking", { opacity: 0, duration: 0.12 }, 13.6);
+          tl.fromTo(words, { opacity: 0, filter: "blur(5px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18, ease: "power2.out", stagger: Math.min(0.055, 1.25 / words.length) }, 13.62);
+          tl.fromTo("#chip", { opacity: 0, y: 14, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "expo.out" }, 14.95);
+
+          // ---------- 6. the loop: the source chip flies home into the capsule ----------
+          tl.set("#chip", { opacity: 0 }, 18.3);
+          tl.set(fly, { opacity: 1 }, 18.3);
+          tl.fromTo(fly, { scale: 1 }, { scale: 1.06, duration: 0.18, ease: "power2.out", immediateRender: false }, 18.3);
+          tl.to(fly, { x: ICX - CHIP.w / 2, duration: 1.35, ease: "power2.inOut" }, 18.4);
+          tl.to(fly, { y: CAPY - CHIP.h / 2, duration: 1.35, ease: "power3.inOut" }, 18.4);
+          tl.to(fly, { scale: 0.3, duration: 1.3, ease: "power2.in" }, 18.5);
+          tl.to(fly, { opacity: 0, duration: 0.18, ease: "power2.in" }, 19.6);
+          tl.to("#phone", { y: 1700, duration: 0.8, ease: "power3.in" }, 18.45);
+          tl.to("#calls", { opacity: 0, scale: 0.97, transformOrigin: "50% 50%", duration: 0.5, ease: "power2.in" }, 18.5);
+          tl.to("#pill", { scale: 1.08, duration: 0.14, ease: "power2.out" }, 19.66).to("#pill", { scale: 1, duration: 0.24, ease: "power2.inOut" }, 19.8);
+          tl.fromTo("#cap-ring", { boxShadow: "0 0 0px rgba(235,88,85,0)" }, { boxShadow: "0 0 18px rgba(235,88,85,0.9)", duration: 0.14, immediateRender: false }, 19.66)
+            .to("#cap-ring", { boxShadow: "0 0 0px rgba(235,88,85,0)", duration: 0.26 }, 19.8);
+          // everything that left returns to its start state while out of frame
+          tl.set(["#qrow", "#chip"], { opacity: 0 }, 19.4);
+          tl.set(words, { opacity: 0 }, 19.4);
+          tl.set(["#c-top", "#sec1", "#sec2", "#sec3"], { opacity: 0 }, 19.4);
+
+          const film = gsap.timeline({ paused: true });
+          film.add(tl.timeScale(1 / SLOW), 0);
+          return film;
+        }
+
+        return build();
+ },
+  };
+  const SIZE = { h: [1920, 1080], v: [1080, 1920] };
+  const DUR = 25;        // film seconds (story 20 s at SLOW 1.25)
+  const STILL = 5.5 * 1.25; // reduced motion: the recording moment
+
+  /* ---------- page state ---------- */
+  const qs = new URLSearchParams(location.search);
+  const store = {
+    get(k) { try { return localStorage.getItem("sozvon-landing-" + k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem("sozvon-landing-" + k, v); } catch (e) {} },
+  };
+  const pick = (v, ok) => (ok.indexOf(v) >= 0 ? v : null);
+  const st = {
+    lang: pick(qs.get("lang"), ["ru", "en"]) || pick(store.get("lang"), ["ru", "en"]) || "ru",
+    theme: pick(qs.get("theme"), ["auto", "light", "dark"]) || pick(store.get("theme"), ["auto", "light", "dark"]) || "auto",
+    layout: pick(qs.get("layout"), ["h", "v"]),
+    debugT: qs.has("t") && isFinite(parseFloat(qs.get("t"))) ? parseFloat(qs.get("t")) : null,
+    userPaused: false, visible: true, tabVisible: !document.hidden,
+  };
+  const mqDark = matchMedia("(prefers-color-scheme: dark)");
+  const mqNarrow = matchMedia("(max-width: 640px)");
+  const mqReduce = matchMedia("(prefers-reduced-motion: reduce)");
+  const root = document.documentElement;
+  const stage = document.getElementById("stage");
+  const toggle = document.getElementById("stage-toggle");
+
+  const animTheme = () => (st.theme === "auto" ? (mqDark.matches ? "dark" : "light") : st.theme);
+  const kind = () => st.layout || (mqNarrow.matches ? "v" : "h");
+
+  /* ---------- language + theme on the page ---------- */
+  function applyLang() {
+    const L = st.lang;
+    root.lang = L;
+    document.querySelectorAll("[data-ru]").forEach((el) => { el.innerHTML = el.getAttribute("data-" + L); });
+    document.querySelectorAll("[data-href-ru]").forEach((el) => { el.href = el.getAttribute("data-href-" + L); });
+    document.querySelectorAll("[data-title-ru]").forEach((el) => { el.title = el.getAttribute("data-title-" + L); el.setAttribute("aria-label", el.title); });
+    stage.setAttribute("aria-label", stage.getAttribute("data-label-" + L));
+    document.querySelectorAll("[data-set-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setLang === L)));
+    syncToggle();
+  }
+  function applyTheme() {
+    if (st.theme === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", st.theme);
+    document.querySelectorAll("[data-set-theme]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setTheme === st.theme)));
+  }
+
+  /* ---------- the stage ---------- */
+  let cur = null;   // { host, ctx, film, kind, theme, lang }
+  let ft = 0;       // film time
+  let gen = 0;
+  let wantKey = "";
+  if (st.debugT !== null) ft = Math.max(0, Math.min(DUR, st.debugT));
+  else if (mqReduce.matches) ft = STILL;
+
+  const fontCache = {};
+  function fontsFor(lang) {
+    const sample = lang === "en" ? "Record Recorded Transcribing" : "Записать Записано Расшифровка";
+    return (fontCache[lang] = fontCache[lang] || Promise.all([
+      document.fonts.load('600 30px "Inter"', sample), document.fonts.load('400 28px "Inter"', sample),
+      document.fonts.load('650 30px "Inter"', sample), document.fonts.load('500 28px "Inter"', sample),
+      document.fonts.ready,
+    ]).catch(() => {}));
+  }
+
+  function fit() {
+    // keep headline + button + animation inside the first screen on desktop
+    const top = stage.getBoundingClientRect().top + window.scrollY;
+    stage.style.setProperty("--above", Math.round(top + 28) + "px");
+    if (!cur) return;
+    const k = stage.clientWidth / SIZE[cur.kind][0];
+    cur.host.style.transform = "scale(" + k + ")";
+  }
+
+  function render() {
+    const want = { kind: kind(), theme: animTheme(), lang: st.lang };
+    const key = want.kind + want.theme + want.lang;
+    if (key === wantKey) return;
+    wantKey = key;
+    const my = ++gen;
+    stage.dataset.kind = want.kind;
+    fit();
+    fontsFor(want.lang).then(() => {
+      if (my !== gen || typeof gsap === "undefined") return;
+      if (cur) { cur.ctx.revert(); cur.host.remove(); cur = null; }
+      const host = document.createElement("div");
+      host.className = "stage-host";
+      host.setAttribute("data-theme", want.theme);
+      host.setAttribute("aria-hidden", "true");
+      const R = host.attachShadow({ mode: "open" });
+      R.innerHTML = "<style>" + CSS[want.kind] + "</style><div id=\"root\"><div id=\"shot\">" + HTML[want.kind] + "</div></div>";
+      stage.insertBefore(host, toggle);
+      cur = Object.assign({ host: host }, want);
+      fit();
+      let film = null;
+      cur.ctx = gsap.context(() => { film = BUILD[want.kind](R, host, want.lang); }, R.getElementById("root"));
+      cur.film = film;
+      film.seek(ft % DUR, false);
+    });
+  }
+
+  const playing = () => !!(cur && cur.film) && st.debugT === null && !mqReduce.matches && !st.userPaused && st.visible && st.tabVisible;
+  function tick(time, deltaMs) {
+    if (!playing()) return;
+    ft = (ft + deltaMs / 1000) % DUR;
+    cur.film.seek(ft, false);
+  }
+
+  function syncToggle() {
+    const paused = st.userPaused;
+    toggle.setAttribute("aria-pressed", String(paused));
+    toggle.title = paused ? (st.lang === "en" ? "Play" : "Играть") : (st.lang === "en" ? "Pause" : "Пауза");
+    toggle.setAttribute("aria-label", toggle.title);
+    document.getElementById("tg-pause").style.display = paused ? "none" : "";
+    document.getElementById("tg-play").style.display = paused ? "" : "none";
+    toggle.hidden = mqReduce.matches || st.debugT !== null;
+  }
+
+  /* ---------- wiring ---------- */
+  document.querySelectorAll("[data-set-lang]").forEach((b) => b.addEventListener("click", () => { st.lang = b.dataset.setLang; store.set("lang", st.lang); applyLang(); render(); }));
+  document.querySelectorAll("[data-set-theme]").forEach((b) => b.addEventListener("click", () => { st.theme = b.dataset.setTheme; store.set("theme", st.theme); applyTheme(); render(); }));
+  toggle.addEventListener("click", () => { st.userPaused = !st.userPaused; syncToggle(); });
+  const onMq = (mq, fn) => (mq.addEventListener ? mq.addEventListener("change", fn) : mq.addListener(fn));
+  onMq(mqDark, () => { if (st.theme === "auto") render(); });
+  onMq(mqNarrow, () => render());
+  onMq(mqReduce, () => { if (mqReduce.matches && cur && cur.film) { ft = STILL; cur.film.seek(ft, false); } syncToggle(); });
+  document.addEventListener("visibilitychange", () => { st.tabVisible = !document.hidden; });
+  if ("IntersectionObserver" in window) new IntersectionObserver((es) => { st.visible = es[es.length - 1].isIntersecting; }).observe(stage);
+  if ("ResizeObserver" in window) new ResizeObserver(fit).observe(stage);
+  window.addEventListener("resize", () => { fit(); render(); });
+
+  applyTheme();
+  applyLang();
+  render();
+  if (typeof gsap !== "undefined") gsap.ticker.add(tick);
 })();
 </script>
 <!-- Cloudflare Web Analytics: counts site visits, no cookies. The app itself sends nothing. -->
