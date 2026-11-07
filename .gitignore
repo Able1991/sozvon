@@ -1,0 +1,13 @@
+build/
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+.env
+models/
+voices/
+profiles/
+*.p12
+*.pem
+.build/
+index.db*

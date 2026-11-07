@@ -1,0 +1,394 @@
+{
+ "calls": [
+  {
+   "id": "2026-10-01 10-00",
+   "folder": "2026-10-01 10-00 · acme · budget",
+   "call": {
+    "schema": 1,
+    "id": "2026-10-01 10-00",
+    "topic": "budget",
+    "profile": "acme",
+    "names": [
+     "Anna"
+    ]
+   },
+   "transcript": "[00:01] Борис: Привет, Анна, как дела с бюджетом?\n[00:05] Анна: Бюджеты на следующий квартал утвердили вчера.\n[00:20] Борис: А что с маркетинговым бюджетом?\n[01:02] Анна: Маркетинг получит на десять процентов больше.\n[01:30] Борис: Хорошо, тогда запускаем рекламную кампанию в понедельник.\n",
+   "summary": "# Итоги\nБюджет на квартал утверждён.\n\n## Решения\n- Маркетинг получает на 10% больше\n- Запуск кампании в понедельник\n"
+  },
+  {
+   "id": "2026-10-02 12-30",
+   "folder": "2026-10-02 12-30 · Server",
+   "call": {
+    "schema": 1,
+    "id": "2026-10-02 12-30",
+    "topic": "Server",
+    "names": [
+     "John",
+     "Mary"
+    ]
+   },
+   "transcript": "[00:00] John: We need to budget the Cloudflare workers for next year.\n[00:12] Mary: The budgets look fine, node-selector is 10.9.8.7.\n[00:40] John: Deploy the release after the review.\n[01:10] Mary: Reviewing the deployment checklist now.\n[02:00] John: Budget approval is pending from finance.\n",
+   "summary": null
+  },
+  {
+   "id": "2026-10-03 09-15",
+   "folder": "2026-10-03 09-15 · hiring",
+   "call": {
+    "schema": 1,
+    "id": "2026-10-03 09-15",
+    "topic": "hiring"
+   },
+   "transcript": "[00:03] Ольга: Мы ищем двух разработчиков на бэкенд.\n[00:30] Игорь: Разработчик должен знать Python и SQL.\n[01:00] Ольга: Бюджет на найм пока не согласован.\n[01:20] Игорь: Согласуем бюджет до пятницы.\n[01:45] Ольга: Деплой нового сервиса перенесли.\n",
+   "summary": "# Summary\nHiring two backend developers.\n\n## Action items\n- Igor: approve the hiring budget by Friday\n"
+  },
+  {
+   "id": "2026-10-03 09-15-2",
+   "folder": "2026-10-03 09-15-2",
+   "call": {
+    "schema": 1,
+    "id": "2026-10-03 09-15-2"
+   },
+   "transcript": "Без меток времени: обсуждали бюджет и деплой.\n[00:10] Голос 1: Бюджет бюджет бюджет.\n[00:15] Голос 2: Деплой релиза в пятницу, ревью кода в четверг.\n",
+   "summary": null
+  }
+ ],
+ "queries": [
+  {
+   "text": "бюджет",
+   "also": [],
+   "hits": [
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "00:10",
+     "speaker": "Голос 1",
+     "text": "Бюджет бюджет бюджет.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:20",
+     "speaker": "Игорь",
+     "text": "Согласуем бюджет до пятницы.",
+     "score": 0.991803279
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Итоги",
+     "text": "Бюджет на квартал утверждён.",
+     "score": 0.983870968
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:20",
+     "speaker": "Борис",
+     "text": "А что с маркетинговым бюджетом?",
+     "score": 0.976190476
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "",
+     "speaker": "",
+     "text": "Без меток времени: обсуждали бюджет и деплой.",
+     "score": 0.96875
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:00",
+     "speaker": "Ольга",
+     "text": "Бюджет на найм пока не согласован.",
+     "score": 0.961538462
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:01",
+     "speaker": "Борис",
+     "text": "Привет, Анна, как дела с бюджетом?",
+     "score": 0.954545455
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:05",
+     "speaker": "Анна",
+     "text": "Бюджеты на следующий квартал утвердили вчера.",
+     "score": 0.947761194
+    }
+   ]
+  },
+  {
+   "text": "бюджет маркетинг",
+   "also": [
+    "marketing budget"
+   ],
+   "hits": [
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Решения",
+     "text": "- Маркетинг получает на 10% больше",
+     "score": 0.75
+    },
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "02:00",
+     "speaker": "John",
+     "text": "Budget approval is pending from finance.",
+     "score": 0.75
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "01:02",
+     "speaker": "Анна",
+     "text": "Маркетинг получит на десять процентов больше.",
+     "score": 0.741803279
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Action items",
+     "text": "- Igor: approve the hiring budget by Friday",
+     "score": 0.741803279
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "00:10",
+     "speaker": "Голос 1",
+     "text": "Бюджет бюджет бюджет.",
+     "score": 0.733870968
+    },
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "00:00",
+     "speaker": "John",
+     "text": "We need to budget the Cloudflare workers for next year.",
+     "score": 0.733870968
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:20",
+     "speaker": "Игорь",
+     "text": "Согласуем бюджет до пятницы.",
+     "score": 0.726190476
+    },
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "00:12",
+     "speaker": "Mary",
+     "text": "The budgets look fine, node-selector is 10.9.8.7.",
+     "score": 0.726190476
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Итоги",
+     "text": "Бюджет на квартал утверждён.",
+     "score": 0.71875
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:20",
+     "speaker": "Борис",
+     "text": "А что с маркетинговым бюджетом?",
+     "score": 0.711538462
+    }
+   ]
+  },
+  {
+   "text": "deploy release",
+   "also": [
+    "деплой релиза",
+    "выкатка"
+   ],
+   "hits": [
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "00:40",
+     "speaker": "John",
+     "text": "Deploy the release after the review.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "00:15",
+     "speaker": "Голос 2",
+     "text": "Деплой релиза в пятницу, ревью кода в четверг.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "01:10",
+     "speaker": "Mary",
+     "text": "Reviewing the deployment checklist now.",
+     "score": 0.741803279
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:45",
+     "speaker": "Ольга",
+     "text": "Деплой нового сервиса перенесли.",
+     "score": 0.741803279
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "",
+     "speaker": "",
+     "text": "Без меток времени: обсуждали бюджет и деплой.",
+     "score": 0.733870968
+    }
+   ]
+  },
+  {
+   "text": "10.9.8.7",
+   "also": [],
+   "hits": [
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "00:12",
+     "speaker": "Mary",
+     "text": "The budgets look fine, node-selector is 10.9.8.7.",
+     "score": 1.0
+    }
+   ]
+  },
+  {
+   "text": "node-selector",
+   "also": [],
+   "hits": [
+    {
+     "call_id": "2026-10-02 12-30",
+     "kind": "transcript",
+     "ts": "00:12",
+     "speaker": "Mary",
+     "text": "The budgets look fine, node-selector is 10.9.8.7.",
+     "score": 1.0
+    }
+   ]
+  },
+  {
+   "text": "разработчики Python",
+   "also": [
+    "backend developers"
+   ],
+   "hits": [
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "00:30",
+     "speaker": "Игорь",
+     "text": "Разработчик должен знать Python и SQL.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Summary",
+     "text": "Hiring two backend developers.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "00:03",
+     "speaker": "Ольга",
+     "text": "Мы ищем двух разработчиков на бэкенд.",
+     "score": 0.741803279
+    }
+   ]
+  },
+  {
+   "text": "согласовать бюджет найма",
+   "also": [],
+   "hits": [
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:00",
+     "speaker": "Ольга",
+     "text": "Бюджет на найм пока не согласован.",
+     "score": 1.0
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "00:10",
+     "speaker": "Голос 1",
+     "text": "Бюджет бюджет бюджет.",
+     "score": 0.658469945
+    },
+    {
+     "call_id": "2026-10-03 09-15",
+     "kind": "transcript",
+     "ts": "01:20",
+     "speaker": "Игорь",
+     "text": "Согласуем бюджет до пятницы.",
+     "score": 0.650537634
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "summary",
+     "ts": "",
+     "speaker": "Итоги",
+     "text": "Бюджет на квартал утверждён.",
+     "score": 0.642857143
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:20",
+     "speaker": "Борис",
+     "text": "А что с маркетинговым бюджетом?",
+     "score": 0.635416667
+    },
+    {
+     "call_id": "2026-10-03 09-15-2",
+     "kind": "transcript",
+     "ts": "",
+     "speaker": "",
+     "text": "Без меток времени: обсуждали бюджет и деплой.",
+     "score": 0.628205128
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:01",
+     "speaker": "Борис",
+     "text": "Привет, Анна, как дела с бюджетом?",
+     "score": 0.621212121
+    },
+    {
+     "call_id": "2026-10-01 10-00",
+     "kind": "transcript",
+     "ts": "00:05",
+     "speaker": "Анна",
+     "text": "Бюджеты на следующий квартал утвердили вчера.",
+     "score": 0.614427861
+    }
+   ]
+  }
+ ]
+}

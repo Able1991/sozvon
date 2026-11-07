@@ -1,0 +1,40 @@
+{
+  "about": "Shared cases for the participants rule: the engine's names.participants / names.is_generic and the app's CallParticipants.derived / Voices.isGenericLabel run the same cases (engine/tests/test_names.py, Tests/SozvonCoreTests/CallsWindowTests.swift).",
+  "participants": [
+    {"note": "speaking order first, then typed names that never spoke; generic labels and the user stay out",
+     "me": "Boris", "typed": ["Олег"],
+     "speakers": ["Boris", "Влад", "Speaker", "Собеседник 2", "Влад", "Анна", "Speaker ?", "я"],
+     "participants": ["Влад", "Анна", "Олег"]},
+    {"note": "a typed name in another case is the same person, in the speaker's spelling",
+     "me": "boris", "typed": ["анна", "Олег"], "speakers": ["Boris", "Анна", "Влад"],
+     "participants": ["Анна", "Влад", "Олег"]},
+    {"note": "a typed first name folds into the one fuller speaking name",
+     "me": "Я", "typed": ["Анна"], "speakers": ["Я", "Анна Петрова", "Собеседник 3"],
+     "participants": ["Анна Петрова"]},
+    {"note": "two speaking names start with the typed first name: it is not folded",
+     "me": "Я", "typed": ["Александр", "Ира", "я"],
+     "speakers": ["Я", "Александр Бородин", "Собеседник 2", "Александр Иванов", "Александр Бородин"],
+     "participants": ["Александр Бородин", "Александр Иванов", "Александр", "Ира"]},
+    {"note": "a typed full name is never folded",
+     "me": "Я", "typed": ["Анна Ли"], "speakers": ["Анна Ли Петрова"],
+     "participants": ["Анна Ли Петрова", "Анна Ли"]},
+    {"note": "extra spaces are squeezed; the user's own typed name and generic typed labels are dropped",
+     "me": "Борис", "typed": ["ира ли", "Борис", "Speaker ?"], "speakers": ["Ира  Ли"],
+     "participants": ["Ира Ли"]},
+    {"note": "a person whose lines were all given to someone else is gone (only typed names stay)",
+     "me": "Я", "typed": [], "speakers": ["Я", "Иван", "Я"],
+     "participants": ["Иван"]},
+    {"note": "<me> + others is nobody",
+     "me": "Борис", "typed": [], "speakers": ["Борис + собеседники", "Me + others", "Собеседник"],
+     "participants": []},
+    {"note": "nothing at all", "me": "", "typed": [], "speakers": [], "participants": []},
+    {"note": "no transcript yet: the typed names", "me": "", "typed": [" Влад ", "Анна"], "speakers": [],
+     "participants": ["Влад", "Анна"]}
+  ],
+  "generic": {
+    "me": "Борис",
+    "yes": ["Собеседник", "Собеседник 2", "Speaker 3", "speaker_1", "Спикер ?", "Speaker N", "Я", "Me", "я", "ME",
+            "Борис + собеседники", "Me + others", "", "  ", "борис", " Борис "],
+    "no": ["Анна", "Собеседница Анна", "Speaker Ann", "Борис Петров", "Вова"]
+  }
+}

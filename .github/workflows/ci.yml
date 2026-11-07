@@ -1,0 +1,91 @@
+# App build and tests on a clean Mac (Apple silicon).
+name: CI
+
+on:
+  push:
+    branches: [main, "ci/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Select Xcode 26 (macOS 26 SDK for Liquid Glass)
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)" && xcodebuild -version
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      # Node.js 22+: build.sh bundles server/ into the app for "Connect Cloudflare".
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Engine tests (fast, no models)
+        working-directory: engine
+        run: |
+          uv sync --frozen
+          ln -sf "$(.venv/bin/python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg
+          uv run --frozen pytest -q -m "not slow"
+      - name: Localization check
+        run: python3 tools/l10n.py check
+      - name: App tests (SwiftPM)
+        run: swift test
+      - name: Build Sozvon.app and DMG
+        run: ./build.sh dmg
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Sozvon-dmg
+          path: build/Sozvon.dmg
+          retention-days: 14
+
+  # Every screen clicked with the real mouse on the runner's own screen (tools/uitest.sh): toggles toggle,
+  # popups open and change, fields take typing, "…" buttons open their sheet. Screenshots of failures are kept.
+  ui:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Select Xcode 26
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: UI click test
+        run: |
+          # The Dock would cover the bottom of the windows on the runner's small screen.
+          defaults write com.apple.dock autohide -bool true && killall Dock || true
+          system_profiler SPDisplaysDataType | grep -i resolution || true
+          UITEST_SHOTS="$RUNNER_TEMP/ui-shots" tools/uitest.sh
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-failures
+          path: ${{ runner.temp }}/ui-shots
+          retention-days: 14
+
+  # Optional self-hosted server (server/, Cloudflare Worker): unit and local D1 tests, no Cloudflare account.
+  server:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Server tests
+        working-directory: server
+        run: npm ci && npm test
