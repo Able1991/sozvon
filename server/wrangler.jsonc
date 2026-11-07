@@ -1,0 +1,14 @@
+// Sozvon server. Deploy: the "Deploy to Cloudflare" button in docs/SERVER.md, or `npx wrangler deploy`.
+// The D1 database and the KV namespace have no ids here: Wrangler creates them on the first deploy.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sozvon",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // nodejs_compat: AsyncLocalStorage for the MCP handler; global_fetch_strictly_public: OAuth Client ID Metadata Documents
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "d1_databases": [{ "binding": "DB", "database_name": "sozvon" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "workers_dev": true,
+  "observability": { "enabled": false }
+}

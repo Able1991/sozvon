@@ -1,0 +1,8 @@
+/* Permission prompts shown by macOS (English). */
+"NSMicrophoneUsageDescription" = "Sozvon records your voice during a call to transcribe it locally.";
+"NSScreenCaptureUsageDescription" = "Sozvon records the other participants' audio during a call. No video is recorded.";
+"NSRemindersFullAccessUsageDescription" = "Sozvon adds the tasks and notes you pick from a call to Reminders.";
+"NSRemindersUsageDescription" = "Sozvon adds the tasks and notes you pick from a call to Reminders.";
+"NSCalendarsFullAccessUsageDescription" = "Sozvon fills in the call title and participants from the meeting in your calendar.";
+"NSCalendarsUsageDescription" = "Sozvon fills in the call title and participants from the meeting in your calendar.";
+"NSAudioCaptureUsageDescription" = "Sozvon records the other participants' audio during a call (FaceTime included) to transcribe it locally.";

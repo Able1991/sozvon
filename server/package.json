@@ -1,0 +1,38 @@
+{
+  "name": "sozvon-server",
+  "version": "0.4.2",
+  "private": true,
+  "description": "Your own Sozvon server on Cloudflare: ask Claude or ChatGPT about your calls when the Mac is off",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "tsc --noEmit && vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "1.2.4",
+    "@modelcontextprotocol/server": "2.4.0",
+    "agents": "0.33.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261104.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.158.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "SOZVON_PASSWORD": {
+        "description": "Choose a long password. Sozvon on your Mac uses it to upload calls, and you type it once when you connect Claude or ChatGPT. Generate one with `openssl rand -base64 24`."
+      },
+      "DB": {
+        "description": "Your calls: transcripts, summaries, the search index, and (unless turned off in Sozvon) call audio and voice prints."
+      },
+      "OAUTH_KV": {
+        "description": "Sign-in sessions of Claude and ChatGPT."
+      }
+    }
+  }
+}
