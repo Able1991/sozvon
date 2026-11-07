@@ -322,7 +322,17 @@ def test_restore_uses_the_server_project_title(root):
     body = {**server_copy("2026-11-04 15-01"), "project_title": "Acme Corp"}
     d = remote.restore(root, body, taken=set())
     assert (d / "transcript.md").read_text().startswith("# Звонок 2026-11-04 15-01 · Acme Corp · запуск")
-    assert "project_title" not in read(d), "call.json stays as it was sent"
+    assert read(d)["project_title"] == "Acme Corp", "kept for the app: this Mac has no such project"
+    sent = remote.payload(d)
+    assert sent["hash"] == body["hash"] and "project_title" not in sent["call"] and "project_title" not in sent, \
+        "local only: the call is not resent and the title is not sent back"
+
+
+def test_restore_keeps_no_title_for_a_project_this_mac_has(root, data):
+    (data / "profiles").mkdir(exist_ok=True)
+    (data / "profiles" / "acme.json").write_text(json.dumps({"title": "Acme Inc"}))
+    d = remote.restore(root, {**server_copy("2026-11-04 15-01"), "project_title": "Acme Corp"}, taken=set())
+    assert "project_title" not in read(d), "this Mac's own title wins"
 
 
 def test_notes_do_not_change_the_hash(root):

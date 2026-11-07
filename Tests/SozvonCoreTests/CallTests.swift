@@ -121,6 +121,14 @@ final class CallModelTests: TempDirTestCase {
         XCTAssertEqual(Call.load(dir)?.bytes, 0, "без withSize папка не обходится")
     }
 
+    func testProjectFromAnotherMacShowsTheServerTitle() throws {
+        let dir = calls.appendingPathComponent("2026-11-04 15-01")
+        try write(#"{"schema": 1, "id": "2026-11-04 15-01", "profile": "kartlibike", "project_title": "Kartli Bike"}"#,
+                  dir.appendingPathComponent("call.json"))
+        XCTAssertEqual(Call.load(dir)?.project, "Kartli Bike")
+        XCTAssertEqual(Call.load(dir, projects: ["kartlibike": "Kartli"])?.project, "Kartli", "this Mac's own title wins")
+    }
+
     func testUnknownProjectShowsSlugAndTitleFallsBack() throws {
         let dir = calls.appendingPathComponent("2026-11-04 15-01")
         try write(#"{"schema": 1, "id": "2026-11-04 15-01", "profile": "gone"}"#, dir.appendingPathComponent("call.json"))

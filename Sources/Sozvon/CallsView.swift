@@ -24,6 +24,9 @@ final class CallsModel: ObservableObject {
     }
     /// Projects for the filter, as of the last reload.
     @Published private(set) var projects: [Project] = []
+    /// The project filter's choices: this Mac's projects, then projects of calls from another Mac (projects
+    /// are per Mac; such a call keeps the title the server sent).
+    @Published private(set) var filterProjects: [Project] = []
     /// Calls whose summary or transcript contains `textQuery` (searched in the background with a 250 ms debounce).
     @Published private(set) var textMatches: Set<Call.ID> = []
     private var textQuery = ""
@@ -64,8 +67,6 @@ final class CallsModel: ObservableObject {
         let selectedID = selected?.callID
         let all = Project.all()
         if all.map(\.slug) != projects.map(\.slug) || all.map(\.title) != projects.map(\.title) { projects = all }
-        // The filtered project is gone: show every call rather than an empty list.
-        if !projectFilter.isEmpty, !all.contains(where: { $0.slug == projectFilter }) { projectFilter = "" }
         let projects = Project.titles(all)
         let sizes = Dictionary(calls.map { ($0.id, $0.bytes) }, uniquingKeysWith: { a, _ in a })
         calls = Call.all(projects: projects, defaults: CallInfo(languages: Settings.shared.languages)).map {
@@ -73,6 +74,16 @@ final class CallsModel: ObservableObject {
             c.bytes = sizes[c.id] ?? 0  // keep the old size while the new one is computed, so the row doesn't flicker
             return c
         }
+        let local = Set(all.map(\.slug))
+        var remote: [String: String] = [:]
+        for c in calls where !c.info.profile.isEmpty && !local.contains(c.info.profile) { remote[c.info.profile] = c.project }
+        let choices = all + remote.map { Project(slug: $0.key, title: $0.value) }
+            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        if choices.map(\.slug) != filterProjects.map(\.slug) || choices.map(\.title) != filterProjects.map(\.title) {
+            filterProjects = choices
+        }
+        // The filtered project is gone: show every call rather than an empty list.
+        if !projectFilter.isEmpty, !choices.contains(where: { $0.slug == projectFilter }) { projectFilter = "" }
         if let sel, !calls.contains(where: { $0.id == sel }) {
             // The folder was renamed (after transcription, or in Finder): keep the same call by its permanent id.
             selection = (calls.first { $0.callID == selectedID } ?? firstListed ?? calls.first)?.id
@@ -1110,8 +1121,8 @@ struct CallsSidebar: View {
                 Menu {
                     Picker(L("Проект"), selection: $m.projectFilter) {
                         Text(L("Все проекты")).tag("")
-                        if !m.projects.isEmpty { Divider() }
-                        ForEach(m.projects) { p in Text(p.shortTitle).tag(p.slug) }
+                        if !m.filterProjects.isEmpty { Divider() }
+                        ForEach(m.filterProjects) { p in Text(p.shortTitle).tag(p.slug) }
                     }
                     .pickerStyle(.inline)
                 } label: {
@@ -1170,7 +1181,7 @@ struct CallsSidebar: View {
 
     /// Under the list while a project filter is on (as Mail's "Filtered by"): which one, and Clear.
     @ViewBuilder private var filterBar: some View {
-        if let p = m.projects.first(where: { $0.slug == m.projectFilter }) {
+        if let p = m.filterProjects.first(where: { $0.slug == m.projectFilter }) {
             HStack(spacing: 6) {
                 Image(systemName: "line.3.horizontal.decrease.circle.fill").foregroundStyle(.tint)
                 Text(L("Только «%@»", p.shortTitle)).lineLimit(1)

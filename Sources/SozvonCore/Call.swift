@@ -73,7 +73,9 @@ public struct Call: Identifiable, Sendable {
             call.duration = AudioTimes((c["audio"] as? [String: Any]) ?? [:]).duration
             call.languages = (c["languages"] as? String).map(SpeechLanguage.parse) ?? []
             call.topic = call.info.topic.isEmpty ? call.info.terms : call.info.topic
-            call.project = call.info.profile.isEmpty ? "" : (projects[call.info.profile] ?? call.info.profile)
+            // A project this Mac doesn't have (a call restored from the server): the title the server sent.
+            let remoteTitle = (c["project_title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            call.project = call.info.profile.isEmpty ? "" : (projects[call.info.profile] ?? remoteTitle ?? call.info.profile)
             call.participants = CallParticipants.stored(c)
             call.people = (call.participants ?? splitList(call.info.names)).joined(separator: ", ")
         } else {
