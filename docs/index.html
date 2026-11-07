@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sozvon: стенограмма любого созвона прямо на Mac</title>
-<meta name="description" content="Записывает созвоны в Zoom, Meet, FaceTime, Telegram и где угодно и расшифровывает их локально на Apple Silicon: кто что сказал, с таймкодами, и саммари. Claude Code, Codex и Cursor знают каждый звонок.">
+<title>Sozvon: a transcript of any call, right on your Mac</title>
+<meta name="description" content="Records calls in Zoom, Meet, FaceTime, Telegram and anywhere else and transcribes them locally on Apple Silicon: who said what, with timestamps, plus a summary. Claude Code, Codex and Cursor know every call.">
 <meta property="og:title" content="Sozvon">
-<meta property="og:description" content="Нажал и записал. Остальное Мак сделает сам. Локально, бесплатно, с открытым кодом.">
+<meta property="og:description" content="Press record. Your Mac does the rest. Local, free, open source.">
 <meta property="og:image" content="https://able1991.github.io/sozvon/images/og-hero.jpg">
 <link rel="icon" href="images/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,74 +128,74 @@
 <div class="wrap">
   <header class="nav">
     <a class="brand" href="#top"><img src="images/icon.png" alt="" width="28" height="28"><span>Sozvon</span></a>
-    <a class="link" data-href-ru="docs.html" data-href-en="docs.html#en" href="docs.html" data-ru="Документация" data-en="Docs">Документация</a>
+    <a class="link" data-href-ru="docs.html" data-href-en="docs.html#en" href="docs.html#en" data-ru="Документация" data-en="Docs">Docs</a>
     <a class="link gh" href="https://github.com/Able1991/sozvon" aria-label="GitHub"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
     <div class="tools">
       <div class="seg" role="group" aria-label="Language">
-        <button type="button" data-set-lang="ru" aria-pressed="true">RU</button>
-        <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+        <button type="button" data-set-lang="ru" aria-pressed="false">RU</button>
+        <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
       </div>
       <div class="seg" role="group" aria-label="Theme">
-        <button type="button" data-set-theme="auto" aria-pressed="true" data-title-ru="Как в системе" data-title-en="Match system" title="Как в системе"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg></button>
-        <button type="button" data-set-theme="light" aria-pressed="false" data-title-ru="Светлая" data-title-en="Light" title="Светлая"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg></button>
-        <button type="button" data-set-theme="dark" aria-pressed="false" data-title-ru="Тёмная" data-title-en="Dark" title="Тёмная"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.6 10.3A6 6 0 0 1 5.7 2.4a6 6 0 1 0 7.9 7.9z"/></svg></button>
+        <button type="button" data-set-theme="auto" aria-pressed="true" data-title-ru="Как в системе" data-title-en="Match system" title="Match system"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg></button>
+        <button type="button" data-set-theme="light" aria-pressed="false" data-title-ru="Светлая" data-title-en="Light" title="Light"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.8"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg></button>
+        <button type="button" data-set-theme="dark" aria-pressed="false" data-title-ru="Тёмная" data-title-en="Dark" title="Dark"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.6 10.3A6 6 0 0 1 5.7 2.4a6 6 0 1 0 7.9 7.9z"/></svg></button>
       </div>
     </div>
   </header>
 
   <main id="top">
     <section class="hero">
-      <h1 data-ru="Нажал и&nbsp;записал. Остальное Мак сделает сам" data-en="Press record. Your&nbsp;Mac does the&nbsp;rest.">Нажал и&nbsp;записал. Остальное Мак сделает сам</h1>
-      <p class="lead" data-ru="Zoom, Meet, Telegram, FaceTime. Расшифровка прямо на&nbsp;Mac, а&nbsp;твои агенты знают каждый звонок." data-en="Zoom, Meet, Telegram, FaceTime. Transcribed right on your&nbsp;Mac, and your agents know every call.">Zoom, Meet, Telegram, FaceTime. Расшифровка прямо на&nbsp;Mac, а&nbsp;твои агенты знают каждый звонок.</p>
+      <h1 data-ru="Нажал и&nbsp;записал. Остальное Мак сделает сам" data-en="Press record. Your&nbsp;Mac does the&nbsp;rest.">Press record. Your&nbsp;Mac does the&nbsp;rest.</h1>
+      <p class="lead" data-ru="Zoom, Meet, Telegram, FaceTime. Расшифровка прямо на&nbsp;Mac, а&nbsp;твои агенты знают каждый звонок." data-en="Zoom, Meet, Telegram, FaceTime. Transcribed right on your&nbsp;Mac, and your agents know every call.">Zoom, Meet, Telegram, FaceTime. Transcribed right on your&nbsp;Mac, and your agents know every call.</p>
       <div class="cta">
-        <a class="download" href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5L10 13l4.5-4.5M4 17h12"/></svg><span data-ru="Скачать для Mac" data-en="Download for Mac">Скачать для Mac</span></a>
-        <a class="more" data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#record"><b data-ru="Как это работает" data-en="How it works" style="font-weight:inherit">Как это работает</b> <span aria-hidden="true">→</span></a>
+        <a class="download" href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5L10 13l4.5-4.5M4 17h12"/></svg><span data-ru="Скачать для Mac" data-en="Download for Mac">Download for Mac</span></a>
+        <a class="more" data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#en-record"><b data-ru="Как это работает" data-en="How it works" style="font-weight:inherit">How it works</b> <span aria-hidden="true">→</span></a>
       </div>
-      <p class="fine" data-ru="Бесплатно · Apple Silicon · macOS 15+" data-en="Free · Apple Silicon · macOS 15+">Бесплатно · Apple Silicon · macOS 15+</p>
+      <p class="fine" data-ru="Бесплатно · Apple Silicon · macOS 15+" data-en="Free · Apple Silicon · macOS 15+">Free · Apple Silicon · macOS 15+</p>
       <div class="stage" id="stage" role="img" data-label-ru="Анимация: входящий звонок, запись одной кнопкой, расшифровка и саммари на Mac, потом Claude на телефоне отвечает по этому звонку" data-label-en="Animation: an incoming call, recording with one button, transcript and summary on the Mac, then Claude on the phone answers about that call" aria-label="">
-        <button class="stage-toggle" id="stage-toggle" type="button" aria-pressed="false" data-title-ru="Пауза" data-title-en="Pause" title="Пауза"><svg id="tg-pause" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1.5" width="2.8" height="9" rx="1"/><rect x="7.2" y="1.5" width="2.8" height="9" rx="1"/></svg><svg id="tg-play" viewBox="0 0 12 12" fill="currentColor" style="display:none"><path d="M3 1.6v8.8a.6.6 0 0 0 .9.5l7-4.4a.6.6 0 0 0 0-1L3.9 1.1a.6.6 0 0 0-.9.5z"/></svg></button>
+        <button class="stage-toggle" id="stage-toggle" type="button" aria-pressed="false" data-title-ru="Пауза" data-title-en="Pause" title="Pause"><svg id="tg-pause" viewBox="0 0 12 12" fill="currentColor"><rect x="2" y="1.5" width="2.8" height="9" rx="1"/><rect x="7.2" y="1.5" width="2.8" height="9" rx="1"/></svg><svg id="tg-play" viewBox="0 0 12 12" fill="currentColor" style="display:none"><path d="M3 1.6v8.8a.6.6 0 0 0 .9.5l7-4.4a.6.6 0 0 0 0-1L3.9 1.1a.6.6 0 0 0-.9.5z"/></svg></button>
       </div>
     </section>
 
     <section class="facts">
       <article class="fact">
         <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="3.5" width="15" height="10" rx="1.8"/><path d="M7 17h6M10 13.5V17"/><path d="M8.3 8.6l1.2 1.2 2.4-2.6"/></svg></div>
-        <h2 data-ru="Всё остаётся на&nbsp;Mac" data-en="It stays on your&nbsp;Mac">Всё остаётся на&nbsp;Mac</h2>
-        <p data-ru="Запись и&nbsp;расшифровка делаются на самом компьютере. Звук не уходит в&nbsp;облако, у&nbsp;Sozvon нет ни телеметрии, ни своих серверов." data-en="Recording and transcription run on the computer itself. Audio never goes to a&nbsp;cloud, and Sozvon has no telemetry and no servers of its own.">Запись и&nbsp;расшифровка делаются на самом компьютере. Звук не уходит в&nbsp;облако, у&nbsp;Sozvon нет ни телеметрии, ни своих серверов.</p>
-        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#privacy"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+        <h2 data-ru="Всё остаётся на&nbsp;Mac" data-en="It stays on your&nbsp;Mac">It stays on your&nbsp;Mac</h2>
+        <p data-ru="Запись и&nbsp;расшифровка делаются на самом компьютере. Звук не уходит в&nbsp;облако, у&nbsp;Sozvon нет ни телеметрии, ни своих серверов." data-en="Recording and transcription run on the computer itself. Audio never goes to a&nbsp;cloud, and Sozvon has no telemetry and no servers of its own.">Recording and transcription run on the computer itself. Audio never goes to a&nbsp;cloud, and Sozvon has no telemetry and no servers of its own.</p>
+        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#en-privacy"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Learn more</b> <span aria-hidden="true">→</span></a>
       </article>
       <article class="fact">
         <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3" fill="currentColor" stroke="none"/></svg></div>
-        <h2 data-ru="Любой звонок" data-en="Any call">Любой звонок</h2>
-        <p data-ru="Zoom, Meet, Telegram, FaceTime и&nbsp;звонки в&nbsp;браузере. Одна кнопка, а&nbsp;когда звонок начинается, Sozvon сам предложит записать." data-en="Zoom, Meet, Telegram, FaceTime and calls in the browser. One button, and when a&nbsp;call starts, Sozvon notices and offers to record it.">Zoom, Meet, Telegram, FaceTime и&nbsp;звонки в&nbsp;браузере. Одна кнопка, а&nbsp;когда звонок начинается, Sozvon сам предложит записать.</p>
-        <a data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#record"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+        <h2 data-ru="Любой звонок" data-en="Any call">Any call</h2>
+        <p data-ru="Zoom, Meet, Telegram, FaceTime и&nbsp;звонки в&nbsp;браузере. Одна кнопка, а&nbsp;когда звонок начинается, Sozvon сам предложит записать." data-en="Zoom, Meet, Telegram, FaceTime and calls in the browser. One button, and when a&nbsp;call starts, Sozvon notices and offers to record it.">Zoom, Meet, Telegram, FaceTime and calls in the browser. One button, and when a&nbsp;call starts, Sozvon notices and offers to record it.</p>
+        <a data-href-ru="docs.html#record" data-href-en="docs.html#en-record" href="docs.html#en-record"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Learn more</b> <span aria-hidden="true">→</span></a>
       </article>
       <article class="fact">
         <div class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 5.5A2 2 0 0 1 5.5 3.5h9a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3a2 2 0 0 1-2-2z"/><path d="M7 8.5h6"/></svg></div>
-        <h2 data-ru="Агенты в&nbsp;курсе" data-en="Your agents know">Агенты в&nbsp;курсе</h2>
-        <p data-ru="Claude Code, Codex и&nbsp;Cursor ищут по твоим звонкам. А&nbsp;с&nbsp;телефона через свой сервер, если захочешь." data-en="Claude Code, Codex and Cursor search your calls. From your phone too, through your own server, if you want it.">Claude Code, Codex и&nbsp;Cursor ищут по твоим звонкам. А&nbsp;с&nbsp;телефона через свой сервер, если захочешь.</p>
-        <a data-href-ru="docs.html#mcp" data-href-en="docs.html#en-mcp" href="docs.html#mcp"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Подробнее</b> <span aria-hidden="true">→</span></a>
+        <h2 data-ru="Агенты в&nbsp;курсе" data-en="Your agents know">Your agents know</h2>
+        <p data-ru="Claude Code, Codex и&nbsp;Cursor ищут по твоим звонкам. А&nbsp;с&nbsp;телефона через свой сервер, если захочешь." data-en="Claude Code, Codex and Cursor search your calls. From your phone too, through your own server, if you want it.">Claude Code, Codex and Cursor search your calls. From your phone too, through your own server, if you want it.</p>
+        <a data-href-ru="docs.html#mcp" data-href-en="docs.html#en-mcp" href="docs.html#en-mcp"><b style="font-weight:inherit" data-ru="Подробнее" data-en="Learn more">Learn more</b> <span aria-hidden="true">→</span></a>
       </article>
     </section>
   </main>
 
   <footer>
-    <h2 data-ru="Начать за 3&nbsp;шага" data-en="Start in 3&nbsp;steps">Начать за 3&nbsp;шага</h2>
+    <h2 data-ru="Начать за 3&nbsp;шага" data-en="Start in 3&nbsp;steps">Start in 3&nbsp;steps</h2>
     <ol class="steps">
-      <li><h3 data-ru="Скачай" data-en="Download">Скачай</h3><p data-ru="Открой Sozvon.dmg и&nbsp;перетащи Sozvon в&nbsp;Программы." data-en="Open Sozvon.dmg and drag Sozvon to Applications.">Открой Sozvon.dmg и&nbsp;перетащи Sozvon в&nbsp;Программы.</p></li>
-      <li><h3 data-ru="Мастер всё настроит" data-en="The setup does the rest">Мастер всё настроит</h3><p data-ru="Скачает модель распознавания и&nbsp;спросит разрешения на микрофон, запись экрана и&nbsp;системный звук." data-en="It downloads the speech model and asks for access to the microphone, screen recording and system audio.">Скачает модель распознавания и&nbsp;спросит разрешения на микрофон, запись экрана и&nbsp;системный звук.</p></li>
-      <li><h3 data-ru="Жми капсулу" data-en="Press the capsule">Жми капсулу</h3><p data-ru="Когда начнётся звонок, нажми «Записать» на плавающей панели. После звонка текст уже на&nbsp;Mac." data-en="When a&nbsp;call starts, press Record on the floating panel. After the call, the text is on your&nbsp;Mac.">Когда начнётся звонок, нажми «Записать» на плавающей панели. После звонка текст уже на&nbsp;Mac.</p></li>
+      <li><h3 data-ru="Скачай" data-en="Download">Download</h3><p data-ru="Открой Sozvon.dmg и&nbsp;перетащи Sozvon в&nbsp;Программы." data-en="Open Sozvon.dmg and drag Sozvon to Applications.">Open Sozvon.dmg and drag Sozvon to Applications.</p></li>
+      <li><h3 data-ru="Мастер всё настроит" data-en="The setup does the rest">The setup does the rest</h3><p data-ru="Скачает модель распознавания и&nbsp;спросит разрешения на микрофон, запись экрана и&nbsp;системный звук." data-en="It downloads the speech model and asks for access to the microphone, screen recording and system audio.">It downloads the speech model and asks for access to the microphone, screen recording and system audio.</p></li>
+      <li><h3 data-ru="Жми капсулу" data-en="Press the capsule">Press the capsule</h3><p data-ru="Когда начнётся звонок, нажми «Записать» на плавающей панели. После звонка текст уже на&nbsp;Mac." data-en="When a&nbsp;call starts, press Record on the floating panel. After the call, the text is on your&nbsp;Mac.">When a&nbsp;call starts, press Record on the floating panel. After the call, the text is on your&nbsp;Mac.</p></li>
     </ol>
     <div class="foot">
       <nav aria-label="Docs">
-        <a data-href-ru="docs.html#models" data-href-en="docs.html#en-models" href="docs.html#models" data-ru="Модели" data-en="Models">Модели</a>
-        <a data-href-ru="docs.html#server" data-href-en="docs.html#en-server" href="docs.html#server" data-ru="Свой сервер" data-en="Your own server">Свой сервер</a>
-        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#privacy" data-ru="Приватность" data-en="Privacy">Приватность</a>
-        <a data-href-ru="docs.html#uninstall" data-href-en="docs.html#en-uninstall" href="docs.html#uninstall" data-ru="Удаление" data-en="Uninstall">Удаление</a>
+        <a data-href-ru="docs.html#models" data-href-en="docs.html#en-models" href="docs.html#en-models" data-ru="Модели" data-en="Models">Models</a>
+        <a data-href-ru="docs.html#server" data-href-en="docs.html#en-server" href="docs.html#en-server" data-ru="Свой сервер" data-en="Your own server">Your own server</a>
+        <a data-href-ru="docs.html#privacy" data-href-en="docs.html#en-privacy" href="docs.html#en-privacy" data-ru="Приватность" data-en="Privacy">Privacy</a>
+        <a data-href-ru="docs.html#uninstall" data-href-en="docs.html#en-uninstall" href="docs.html#en-uninstall" data-ru="Удаление" data-en="Uninstall">Uninstall</a>
       </nav>
       <nav aria-label="Project">
-        <a href="https://github.com/Able1991/sozvon" data-ru="Открытый код на GitHub" data-en="Open source on GitHub">Открытый код на GitHub</a>
-        <a href="https://github.com/Able1991/sozvon/blob/main/LICENSE" data-ru="Лицензия MIT" data-en="MIT License">Лицензия MIT</a>
+        <a href="https://github.com/Able1991/sozvon" data-ru="Открытый код на GitHub" data-en="Open source on GitHub">Open source on GitHub</a>
+        <a href="https://github.com/Able1991/sozvon/blob/main/LICENSE" data-ru="Лицензия MIT" data-en="MIT License">MIT License</a>
       </nav>
     </div>
   </footer>
@@ -717,7 +717,7 @@ const S = {
   };
   const pick = (v, ok) => (ok.indexOf(v) >= 0 ? v : null);
   const st = {
-    lang: pick(qs.get("lang"), ["ru", "en"]) || pick(store.get("lang"), ["ru", "en"]) || "ru",
+    lang: pick(qs.get("lang"), ["ru", "en"]) || pick(store.get("lang"), ["ru", "en"]) || "en",
     theme: pick(qs.get("theme"), ["auto", "light", "dark"]) || pick(store.get("theme"), ["auto", "light", "dark"]) || "auto",
     layout: pick(qs.get("layout"), ["h", "v"]),
     debugT: qs.has("t") && isFinite(parseFloat(qs.get("t"))) ? parseFloat(qs.get("t")) : null,
