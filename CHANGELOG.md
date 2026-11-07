@@ -1,0 +1,49 @@
+# Changelog
+
+## 0.1.0
+
+The first public release. Sozvon records calls on your Mac, transcribes them locally on Apple silicon and keeps everything on your Mac: speakers, summaries, search, notes. Assistants reach your calls through MCP, and an optional server in your own Cloudflare account brings them to Claude and ChatGPT on the phone.
+
+### Recording
+
+- **Any call app, FaceTime too.** One button on a floating panel above every window (even full-screen Zoom) or in the menu bar. The other side is recorded through a Core Audio process tap and your microphone on its own track: Zoom, Google Meet, FaceTime, Telegram, TrueConf or anything else, no virtual audio drivers, no bots in the call. The tap follows a change of the output device (headphones, a new FaceTime call), and ScreenCaptureKit takes over if the tap can't run. Microphone arrays (the MacBook Pro mic) are recorded as clean mono.
+- **Both voices on the panel.** While recording, the panel shows your voice in blue and the other side in coral, running toward each other, so you see at a glance that both are heard. The panel can be dragged anywhere.
+- **Call prompt.** When Zoom, Telegram, a browser or another call app holds the microphone for 5 seconds, the panel (or a notification) asks "A call is on in Zoom. Record?". Sozvon never records by itself; Not Now keeps it quiet until the call ends. Only which app uses the mic is read, never the audio.
+- **Important moments.** A star on the panel, in the menu or ⌃⌥I anywhere marks the moment. The paragraph gets a star in the transcript and the summary gets a Key Moments section.
+- **Never a silent recording.** Sozvon warns at once when your mic gives nothing, when the system input volume is below 50% (browser calls often lower it) and when your voice has been barely audible for three minutes. When the other side is not heard, it quietly captures their audio again, and warns only if that did not help (later if they were heard before and are probably just listening). A missing System Audio Recording permission is explained when the recording starts. Warn About Silence turns the notifications off.
+- **Stays out of the call.** While a call app holds the microphone, the chimes stay silent and transcription of earlier calls waits until the recording stops.
+
+### Transcription
+
+- **Local and private.** Speech recognition and speaker separation run on the Mac. Models: Whisper Turbo (default), Whisper Large v3, Whisper Small, GigaAM v3 for Russian and Parakeet v3 for 25 European languages. Several languages per call, optionally switching mid-sentence, and a low priority mode that yields to other apps.
+- **Clean sound.** Without headphones the mic hears the other side from the speakers: Sozvon removes that echo from your track, with the other side's track as the reference, and raises a very quiet mic. The player plays the cleaned track; the original stays for transcribing again.
+- **Clean text.** Whisper's subtitle habits on pauses and noise ("[music]", "(laughter)", "Subtitles by…") never reach the transcript.
+- **Speakers and names.** Your voice and the other side are kept apart by track, remote speakers are separated by voice (pyannote) and the assistant names people from the conversation.
+- **Voice prints.** Record a 20-second sample of your voice in Settings (simple texts in each call language). Name a speaker once, or confirm a transcript with Remember Voices, and later calls of the project name those voices by themselves, so two people with the same first name are told apart. Participants with a saved voice get a green check; names whose voice is not confirmed yet stand out in coral. Settings lists every voice print with a delete button for each.
+- **Summaries** in the language of the call: overview, decisions, action items with owners, open questions. Through Claude Code or Codex on your own subscription, or Local Only with nothing sent anywhere.
+
+### Calls
+
+- **Calls window.** Calls by day with a project filter, a live Recording Now row and a Needs Description badge; search across dates, topics, projects, people, summaries and transcripts; the summary and notes in sections; transcribe again, with a clear state and the processing log when a transcription fails; move to Trash with undo.
+- **Participants found for you.** Everyone the transcript names (a recognized voice, a name from the conversation, a rename) joins the call's participants, in the order they first speak, next to the names you typed. The list follows the transcript (someone left without lines after an edit leaves it), and found names are never taken as typed when the call is transcribed again.
+- **Player.** Both tracks mixed in sync under the transcript: click a line to play from there, the current line follows the sound, back and forward 15 s, 1x, 1.5x and 2x.
+- **Fix the transcript.** Rename a speaker with suggestions from the call and the project, for the whole transcript or one line; Swap two mixed-up people or Merge two. Fix a misheard word and remember it as an auto-replacement for the project. Update Summary rewrites only the summary after an edit.
+- **From Calendar.** After a recording, the topic, the participants and the project come from the meeting in Calendar at that time. Only empty fields are filled, and Later puts the description off with a gentle reminder.
+- **Notes.** Add a note to a call, or let an assistant add one with `add_note`. Notes show who added them and when, and search finds them. Delete one with the ⋯ button (⌘Z brings it back), or ask an assistant (`delete_note`).
+- **Import recordings.** Drop an audio or video file onto the Calls list: m4a, mp3, wav, aac, flac, mp4 and mov.
+- **To Reminders.** Action items from the summary (yours checked) and notes go to Apple Reminders, with due dates only for clearly named days.
+- **Projects.** People, terms and fixes for mishearings per client, used as hints for recognition. Find Projects suggests projects from your Claude Code or Codex sessions.
+- **Delete audio automatically** after a week, 15, 30 or 60 days. Only the sound of finished calls goes, on your own server too; the transcript, summary and notes stay.
+
+### Assistants and your own server
+
+- **MCP for Claude Code and Codex.** One local MCP server with a token: `list_calls`, `get_call`, ranked `search_calls` (any word form, alternative phrasings), `add_note`, `delete_note`, `transcribe` and project tools. Connect with one click in Settings.
+- **Your own cloud server (optional).** Connect Cloudflare sets up a server in your own free Cloudflare account, so Claude and ChatGPT connectors can read, search and add notes to your calls from your phone or the web while the Mac is off. Text always goes up; call audio and voice prints too, unless you turn them off (both on by default). Connectors only ever get text. We host nothing and never see your data.
+- **Sync across Macs.** A new Mac connected to the same server downloads your calls with their audio, notes and voice prints. Only calls you delete in Sozvon are deleted on the server.
+
+### Everywhere
+
+- **Privacy.** No telemetry and no servers of our own. Everything that can go online is listed in the README.
+- **Quality.** Signed and notarized by Apple. Every commit runs the engine, app and server tests, clicks through every screen of the app on a clean Mac, and is checked by Gitleaks, Semgrep and CodeQL.
+- **Native on macOS 26.** System sidebar, Liquid Glass toolbar and player, Settings with toolbar tabs and grouped forms like System Settings, data entry sheets laid out like Mail, an Apple style setup assistant, SF Symbols throughout.
+- Russian and English interface, light and dark mode.
