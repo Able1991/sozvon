@@ -239,6 +239,11 @@ otherwise from `.engine-version`). Fields set by command-line arguments are also
 to `call.json`: those are the values the call was transcribed with. The engine does not overwrite a corrupted `call.json` (exit code 2).
 On error the app sets `failed`.
 
+**Project title of a restored call.** Projects are per Mac. A call restored from the own server whose project this
+Mac doesn't have gets `project_title` (optional, schema stays 1): the title the server sent. The app shows it
+instead of the slug and offers it in the Calls window's project filter. Local only: it is not among the fields
+sync sends.
+
 **Participants.** `names` holds only what the user typed (the people on the call besides the user): the app writes
 it from the "What Was the Call About?" window (and a speaker rename or swap changes a typed name), nothing derives
 it, and the engine reads it as certain (the voices' names, "definitely on the call" for the assistant).

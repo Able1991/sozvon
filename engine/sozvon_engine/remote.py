@@ -560,6 +560,11 @@ def restore(root: Path, body: dict, taken: set | None = None) -> Path | None:
     target = root / safe_folder(body.get("folder"), cid)
     if target.resolve().parent != root.resolve() or target.exists():
         return None
+    title = (body.get("project_title") if isinstance(body.get("project_title"), str) else "").strip()[:200]
+    # A project this Mac doesn't have (projects are per Mac): keep its title for the Calls window's list and
+    # project filter. Local only, never sent back (not in CALL_FIELDS).
+    if title and call.get("profile") and not project_title(call):
+        call["project_title"] = title
     tmp = root / f".restore-{uuid.uuid4().hex}"
     tmp.mkdir()
     try:
@@ -567,8 +572,7 @@ def restore(root: Path, body: dict, taken: set | None = None) -> Path | None:
         (tmp / "transcript.txt").write_text(transcript, encoding="utf-8")
         if summary is not None:
             (tmp / "summary.md").write_text(summary, encoding="utf-8")
-        title = body.get("project_title") if isinstance(body.get("project_title"), str) else ""
-        (tmp / "transcript.md").write_text(_transcript_md(cid, call, transcript, summary, title[:200]),
+        (tmp / "transcript.md").write_text(_transcript_md(cid, call, transcript, summary, title),
                                            encoding="utf-8")
         if target.exists():  # appeared meanwhile: never replace a folder
             raise FileExistsError(target)
