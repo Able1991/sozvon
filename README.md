@@ -52,6 +52,8 @@
 2. Launch it. The setup assistant asks for your name, the language of your calls, a recognition model and an assistant for summaries, then installs the engine: 5-10 minutes, 1-4 GB depending on the model. No tokens or sign-ups.
 3. Allow the Microphone, Screen Recording and System Audio Recording (System Settings shows the last two under Screen & System Audio Recording; setup and Settings > General > Permissions have buttons for each). Video is not recorded, only audio. System audio comes through a Core Audio process tap, so FaceTime calls are heard too. Setup ends with a three second test recording that proves recording works before the first call; until setup is finished, the rest of the menu is unavailable. Access to Reminders is asked only when you first use To Reminders. The call prompt needs no permission.
 
+**Updates** install themselves: once a day Sozvon downloads a new version in the background and installs it when there is no recording, call or open window. Versions before 0.1.2 need one manual update.
+
 **Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional.
 
 <p align="center">
@@ -107,7 +109,7 @@ To ask Claude or ChatGPT about your calls from your phone or the web while the M
 | Transcript text for the summary and speaker names | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
 | Whatever the assistant reads through MCP | Anthropic, OpenAI or Cursor | only when you ask it |
 | Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`, or past chats in `~/.cursor/projects`), replies of open sessions. Claude is limited to reading inside `~/.claude`. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads. Cursor runs in read-only ask mode, and its limit to those folders is also only an instruction | Anthropic, OpenAI or Cursor | only when you click Find Projects |
-| Update check | api.github.com | once a day, can be turned off |
+| Updates | github.com: the latest release's appcast.xml, and the new DMG when there is one | once a day; automatic install can be turned off in Settings > About |
 | Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone | your own server in your own Cloudflare account, never us ([how it works](docs/SERVER.md)) | only if you set one up |
 | Call audio, so a new Mac can play your calls (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send call audio on (the default) |
 | Voice prints, so your other Macs recognize the same voices (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send voice prints on (the default) |

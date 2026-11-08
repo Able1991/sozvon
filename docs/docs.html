@@ -103,6 +103,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ol>
       <figure class="shot"><img src="images/ru-setup-model.png" width="440" alt="Мастер, шаг с моделью" loading="lazy"><figcaption>Мастер: выбор модели распознавания</figcaption></figure>
       <p class="note">Если разрешение случайно отклонено, включи его в «Системных настройках», раздел «Конфиденциальность и безопасность», и перезапусти Sozvon.</p>
+      <p id="updates"><b>Обновления приходят сами.</b> Раз в день Sozvon проверяет новую версию, скачивает её в фоне и ставит, когда ничего не происходит: нет записи, расшифровки, звонка и открытых окон. Перезапуск занимает пару секунд, потом приходит уведомление со ссылкой на список изменений. Каждое обновление проверяется по подписи разработчика и ключу Sozvon, звонки и настройки остаются на месте. В Настройках → О программе можно выключить «Обновлять автоматически»: тогда в меню появится «Доступна версия…», и ставить будешь сам. Версии до 0.1.2 обновлять не умели: их один раз обнови вручную, скачав DMG.</p>
 
       <h2 id="record">Запись звонка</h2>
       <p>Начать запись можно двумя способами:</p>
@@ -301,10 +302,11 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
 
       <h2 id="settings">Настройки</h2>
       <table>
-        <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Предлагать запись при звонке» (<a href="#record">вопрос «Записать?»</a>, включено по умолчанию), «Предупреждать о тишине», звук при старте и остановке. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>. «Обновления»: проверка и версия.</td></tr>
+        <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Предлагать запись при звонке» (<a href="#record">вопрос «Записать?»</a>, включено по умолчанию), «Предупреждать о тишине», звук при старте и остановке. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>.</td></tr>
         <tr><td>Распознавание</td><td>«Модель»: модель распознавания, языки звонков, смена языка посреди речи. «Производительность»: расшифровка с низким приоритетом, чтобы Zoom, браузер и сборки не тормозили. «Движок»: состояние Python, модели и MCP-сервера с кнопкой «Проверить», последняя ошибка с журналом. «Файлы»: папка записей, папка данных, «Переустановить…».</td></tr>
         <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code, Codex и Cursor по MCP, команда для терминала, если подключаешь вручную.</td></tr>
         <tr><td>Облако</td><td>«Подключить Cloudflare» для <a href="#server">своего сервера</a>, «Обновить сервер», адрес коннектора и пароль, кнопки «Открыть Claude» и «Открыть ChatGPT», «Отправлять аудио звонков» и «Отправлять отпечатки голосов», состояние <a href="#sync">синхронизации</a>, раздел «Свой адрес» для сервера, поднятого вручную.</td></tr>
+        <tr><td>О программе</td><td>Версия, «Обновлять автоматически» и «Проверить» (<a href="#updates">как приходят обновления</a>), список изменений, ссылки на сайт, документацию и исходный код.</td></tr>
       </table>
 
       <h2 id="privacy">Приватность: что уходит в сеть</h2>
@@ -316,7 +318,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Текст расшифровки для саммари и имён</td><td>Anthropic, OpenAI или Cursor, только если выбран помощник</td></tr>
         <tr><td>То, что читает ассистент через MCP</td><td>Anthropic, OpenAI или Cursor, только когда ты его спрашиваешь</td></tr>
         <tr><td>Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение</td><td>Anthropic, OpenAI или Cursor, только по кнопке</td></tr>
-        <tr><td>Проверка новой версии</td><td>api.github.com раз в сутки, отключается</td></tr>
+        <tr><td>Обновления</td><td>github.com: раз в сутки appcast.xml последнего релиза, при новой версии её DMG. Автоустановка отключается в «О программе»</td></tr>
         <tr><td>Расшифровки, саммари, заметки и данные звонков, чтобы Claude или ChatGPT отвечали с телефона. Звук и отпечатки голосов, чтобы другие Mac их получили (ассистенты их не видят), если не выключено на вкладке «Облако»</td><td>Твой собственный сервер в твоём аккаунте Cloudflare, не к нам. Только если ты его поднял</td></tr>
         <tr><td>Вход в Cloudflare и настройка своего сервера</td><td>dash.cloudflare.com и api.cloudflare.com, только по кнопке «Подключить Cloudflare» или «Обновить сервер»</td></tr>
       </table>
@@ -427,6 +429,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ol>
       <figure class="shot"><img src="images/en-setup-model.png" width="440" alt="Setup, model step" loading="lazy"><figcaption>Setup: choosing the recognition model</figcaption></figure>
       <p class="note">If you denied a permission by accident, turn it on in System Settings, Privacy &amp; Security, and restart Sozvon.</p>
+      <p id="en-updates"><b>Updates install themselves.</b> Once a day Sozvon checks for a new version, downloads it in the background and installs it when nothing is going on: no recording, no transcription, no call and no open window. The restart takes a couple of seconds, then a notification links to what's new. Every update is checked against the developer's signature and the Sozvon key; your calls and settings stay in place. Turn off Update Automatically in Settings &gt; About to have the menu show Version … Is Available and install it yourself. Versions before 0.1.2 could not update themselves: update them once by hand with the DMG.</p>
 
       <h2 id="en-record">Recording a call</h2>
       <ul>
@@ -626,6 +629,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Recognition</td><td>Model: the recognition model, call languages, mid-sentence switching. Performance: transcribe at low priority so Zoom, your browser and builds stay smooth. Engine: Python, model and MCP server status with Check, the last error with its log. Files: the recordings folder, the data folder, Reinstall….</td></tr>
         <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code, Codex and Cursor over MCP, and the Terminal command for a manual setup.</td></tr>
         <tr><td>Cloud</td><td>Connect Cloudflare for <a href="#en-server">your own server</a>, Update server, the connector address and password, Open Claude and Open ChatGPT, Send call audio and Send voice prints, <a href="#en-sync">sync</a> status, and Own address for a server you deployed by hand.</td></tr>
+        <tr><td>About</td><td>The version, Update Automatically and Check (<a href="#en-updates">how updates arrive</a>), release notes, links to the website, the docs and the source code.</td></tr>
       </table>
 
       <h2 id="en-privacy">Privacy: what goes online</h2>
@@ -637,7 +641,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Transcript text for summaries and names</td><td>Anthropic, OpenAI or Cursor, only if you pick an assistant</td></tr>
         <tr><td>What the assistant reads through MCP</td><td>Anthropic, OpenAI or Cursor, only when you ask it</td></tr>
         <tr><td>Project discovery: folder names, notes, session replies. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads</td><td>Anthropic, OpenAI or Cursor, only when you click the button</td></tr>
-        <tr><td>Update check</td><td>api.github.com once a day, can be turned off</td></tr>
+        <tr><td>Updates</td><td>github.com: the latest release's appcast.xml once a day, and the new version's DMG when there is one. Automatic install can be turned off in About</td></tr>
         <tr><td>Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone. Audio and voice prints, so your other Macs get them (assistants never see them), unless turned off on the Cloud tab</td><td>Your own server in your own Cloudflare account, never us. Only if you set one up</td></tr>
         <tr><td>Cloudflare sign-in and setting up your own server</td><td>dash.cloudflare.com and api.cloudflare.com, only when you press Connect Cloudflare or Update server</td></tr>
       </table>

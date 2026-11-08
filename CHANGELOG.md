@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2
+
+- **Updates install themselves.** Once a day Sozvon checks for a new version, downloads it in the background and installs it when nothing is going on: no recording, no transcription, no call and no open window. The restart takes a couple of seconds, then a notification links to what's new. Every update is checked against the developer's signature and the Sozvon key (Sparkle). Turn off Update Automatically to only get a menu item and install it yourself. This is the last version you install by hand.
+- **About tab in Settings** with the version, the update switch, Check for Updates, release notes and links to the website, the docs and the source code. Updates moved there from General.
+
+## 0.1.1
+
+- **Cursor as a third assistant.** Summaries and Find Projects work through `cursor-agent`, and Settings > Assistants connects Cursor to the local MCP server (`~/.cursor/mcp.json`, your other servers and comments are kept).
+- **Calls from another Mac** show their project's title instead of its internal name and can be filtered by it in Calls, even when this Mac has no such project.
+
 ## 0.1.0
 
 The first public release. Sozvon records calls on your Mac, transcribes them locally on Apple silicon and keeps everything on your Mac: speakers, summaries, search, notes. Assistants reach your calls through MCP, and an optional server in your own Cloudflare account brings them to Claude and ChatGPT on the phone.
