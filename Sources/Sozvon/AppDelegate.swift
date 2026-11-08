@@ -23,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let pendingInfo = PendingInfoController()
     /// Cached in stateChanged: the call prompt asks often while a call holds the mic.
     private var engineUsable = false
-    private var update: Updates.Release?
     private var updateTimer: Timer?
     private var tickTimer: Timer?
     /// ⌃⌥I "important", system-wide while recording.
@@ -77,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MCPServer.shared.start()
         pendingInfo.start()
         processing.updateEngineIfNeeded()
-        checkUpdates()
+        startUpdates()
         AudioCleanup.isBusy = { [weak self] dir in
             guard let self else { return true }
             return self.processing.contains(dir) || self.calls.recordingDir?.standardizedFileURL == dir.standardizedFileURL
@@ -85,11 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AudioCleanup.onChange = { [weak self] in self?.calls.reload() }
         // Not in the first seconds after launch: the app is busy enough then.
         DispatchQueue.main.asyncAfter(deadline: .now() + 60) { MainActor.assumeIsolated { _ = AudioCleanup.run() } }
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.checkUpdates()
-                AudioCleanup.run()
-            }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
+            MainActor.assumeIsolated { _ = AudioCleanup.run() }
         }
         stateChanged()
 
@@ -180,7 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 FloatingPanel.enabled.toggle()
                 self?.stateChanged()
             },
-            openUpdate: { [weak self] in if let u = self?.update { NSWorkspace.shared.open(u.url) } },
+            openUpdate: { AppUpdater.shared.checkNow() },
             describePending: { [weak self] in
                 if let dir = self?.pendingInfo.pending.first?.dir { self?.processing.describe(dir) }
             },
@@ -237,7 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuSnapshot: MenuSnapshot {
         let lastDir = processing.lastDir
         return MenuSnapshot(recording: recording.state, processing: processing.isProcessing,
-                            engineUpdating: processing.isEngineUpdating, engine: engineState, update: update,
+                            engineUpdating: processing.isEngineUpdating, engine: engineState, update: AppUpdater.shared.available,
                             hasLastTranscript: processing.lastTranscript != nil,
                             canRedoLast: lastDir.map { !recording.state.isCapturing && !processing.contains($0) } ?? false,
                             panelEnabled: FloatingPanel.enabled, pendingInfo: pendingInfo.pending.count,
@@ -246,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Recording or transcription state changed: update the icon, panel and timer.
     func stateChanged() {
+        AppUpdater.shared.installIfQuiet()
         let s = recording.state
         let p = panel.model
         engineUsable = engineState.isUsable
@@ -389,17 +386,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: Updates
 
-    private func checkUpdates(force: Bool = false) {
-        Task {
-            let r = await Updates.check(force: force)
-            update = r
-            stateChanged()
-            // Notify once per new version.
-            if let r, UserDefaults.standard.string(forKey: Updates.notifiedKey) != r.version {
-                UserDefaults.standard.set(r.version, forKey: Updates.notifiedKey)
-                notify(L("Доступна версия %@", r.version), L("Новая версия Sozvon на GitHub"), url: r.url)
-            }
+    private func startUpdates() {
+        AppUpdater.announceIfUpdated()
+        AppUpdater.shared.activity = { [weak self] in
+            guard let self else { return .init() }
+            let windowOpen = NSApp.windows.contains { $0.isVisible && !($0 is NSPanel) && $0.styleMask.contains(.titled) }
+            return Updates.Activity(recording: !self.isIdle, processing: self.processing.isProcessing,
+                                    inCall: CallApps.inCall(), windowOpen: windowOpen, settingUp: !Self.setupDone)
         }
+        AppUpdater.shared.onChange = { [weak self] in self?.stateChanged() }
+        AppUpdater.shared.start()
+    }
+
+    private var isIdle: Bool {
+        if case .idle = recording.state { return true }
+        return false
     }
 
     // MARK: Quit

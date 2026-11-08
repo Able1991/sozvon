@@ -191,13 +191,14 @@ private struct NoTopScrollEdge: ViewModifier {
 /// One pane. Everything applies immediately, with no "Save" button (except the own server address).
 struct SettingsView: View {
     enum Tab: CaseIterable {
-        case general, recognition, assistants, server
+        case general, recognition, assistants, server, about
         var title: String {
             switch self {
             case .general: return L("Основные")
             case .recognition: return L("Распознавание")
             case .assistants: return L("Ассистенты")
             case .server: return L("Облако")
+            case .about: return L("О программе")
             }
         }
         /// The toolbar tab's SF Symbol.
@@ -207,6 +208,7 @@ struct SettingsView: View {
             case .recognition: return "waveform"
             case .assistants: return "sparkles"
             case .server: return "cloud"
+            case .about: return "info.circle"
             }
         }
     }
@@ -221,6 +223,7 @@ struct SettingsView: View {
         case .recognition: RecognitionPane(reinstall: reinstall)
         case .assistants: AssistantsPane()
         case .server: ServerView()
+        case .about: AboutPane()
         }
     }
 }
@@ -236,10 +239,8 @@ private struct GeneralPane: View {
     @State private var sounds = Sounds.enabled
     @State private var callPrompt = CallPromptController.enabled
     @State private var silenceAlerts = SilenceAlerts.enabled
-    @State private var checkUpdates = Updates.enabled
     @State private var keepAudio = AudioCleanup.days
     @State private var calendar = CalendarPrefill.enabled
-    @State private var updateStatus = ""
     @State private var uiLanguage = GeneralPane.chosenLanguage()
     @State private var calendarDenied = CalendarPrefill.denied
     /// The interface language override Sozvon was started with ("" for the system's):
@@ -332,26 +333,6 @@ private struct GeneralPane: View {
             } footer: {
                 SettingsFooter(L("Стирается только звук старых звонков: расшифровка, итоги и заметки остаются. Час звонка освобождает 50-100 МБ."))
             }
-
-            Section(L("Обновления")) {
-                Toggle(L("Проверять автоматически"), isOn: $checkUpdates)
-                LabeledContent {
-                    Button(L("Проверить")) {
-                        updateStatus = L("Проверяю…")
-                        Task {
-                            if let r = await Updates.check(force: true) {
-                                updateStatus = L("Доступна %@", r.version)
-                                NSWorkspace.shared.open(r.url)
-                            } else {
-                                updateStatus = L("%@, последняя", Updates.current)
-                            }
-                        }
-                    }
-                } label: {
-                    Text(L("Версия"))
-                    Text(updateStatus.isEmpty ? Self.version : updateStatus)
-                }
-            }
         }
         .formStyle(.grouped)
         .onChange(of: s.name) { s.save() }
@@ -360,7 +341,6 @@ private struct GeneralPane: View {
         .onChange(of: callPrompt) { _, v in CallPromptController.enabled = v; onPanelChange() }
         .onChange(of: silenceAlerts) { _, v in SilenceAlerts.enabled = v }
         .onChange(of: sounds) { _, v in Sounds.enabled = v; if v { Sounds.play(.start) } }
-        .onChange(of: checkUpdates) { _, v in Updates.enabled = v }
         .onChange(of: calendar) { _, v in
             CalendarPrefill.enabled = v
             guard v else { return }
@@ -387,11 +367,96 @@ private struct GeneralPane: View {
             else { UserDefaults.standard.set([v], forKey: "AppleLanguages") }
         }
     }
+}
 
-    /// "1.4.2 (318)": the version and the build number.
-    private static var version: String {
+// MARK: About
+
+/// "About": the version, updates and links.
+private struct AboutPane: View {
+    @ObservedObject private var updates = AboutUpdates()
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 14) {
+                    Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 56, height: 56)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: "Sozvon").font(.title2.weight(.semibold))
+                        Text(L("Версия %@", Self.version)).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section {
+                Toggle(isOn: $updates.automatic) {
+                    Text(L("Обновлять автоматически"))
+                    Text(L("Скачивает новую версию сам и ставит, когда нет записи, звонка и открытых окон"))
+                }
+                .disabled(!AppUpdater.isSupported)
+                LabeledContent {
+                    Button(L("Проверить")) { AppUpdater.shared.checkNow() }
+                        .disabled(!AppUpdater.isSupported || !updates.canCheck)
+                } label: {
+                    Text(L("Проверить обновления"))
+                    Text(updates.status)
+                }
+                LabeledContent(L("Что нового")) {
+                    Link(L("Список изменений"), destination: Updates.releasesURL)
+                }
+            } header: {
+                Text(L("Обновления"))
+            } footer: {
+                SettingsFooter(L("Обновление проверяется по подписи разработчика и ключу Sozvon, звонки и настройки остаются на месте."))
+            }
+
+            Section(L("Ссылки")) {
+                LabeledContent(L("Сайт")) { Link(String("able1991.github.io/sozvon"), destination: URL(string: "https://able1991.github.io/sozvon/")!) }
+                LabeledContent(L("Документация")) { Link(L("Открыть"), destination: Self.docsURL) }
+                LabeledContent(L("Исходный код")) { Link(String("GitHub"), destination: URL(string: "https://github.com/\(Updates.repo)")!) }
+                LabeledContent(L("Лицензия")) { Text(verbatim: "MIT").foregroundStyle(.secondary) }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { updates.refresh() }
+    }
+
+    /// The docs in the interface language (the English half starts at #en).
+    static var docsURL: URL {
+        let en = Bundle.main.preferredLocalizations.first == "en"
+        return URL(string: "https://able1991.github.io/sozvon/docs.html" + (en ? "#en" : ""))!
+    }
+
+    /// "1.4.2 (318)": the version and the build number (only when they differ).
+    static var version: String {
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
         return build.isEmpty || build == Updates.current ? Updates.current : "\(Updates.current) (\(build))"
+    }
+}
+
+/// The updater's state for the About pane.
+@MainActor
+private final class AboutUpdates: ObservableObject {
+    @Published var automatic = AppUpdater.shared.automatic {
+        didSet { if AppUpdater.shared.automatic != automatic { AppUpdater.shared.automatic = automatic } }
+    }
+    @Published var canCheck = AppUpdater.shared.canCheck
+    @Published var status = ""
+
+    func refresh() {
+        automatic = AppUpdater.shared.automatic
+        canCheck = AppUpdater.shared.canCheck
+        if !AppUpdater.isSupported {
+            status = L("В этой сборке обновления выключены")
+        } else if let v = AppUpdater.shared.available {
+            status = L("Доступна версия %@", v)
+        } else if let d = AppUpdater.shared.updater?.lastUpdateCheckDate {
+            status = L("Проверено %@", d.formatted(.relative(presentation: .named)))
+        } else {
+            status = L("Раз в день")
+        }
     }
 }
 

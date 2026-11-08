@@ -47,7 +47,8 @@ struct MenuSnapshot {
     var processing: Bool
     var engineUpdating: Bool
     var engine: EngineState
-    var update: Updates.Release?
+    /// A new version found and not installed yet.
+    var update: String?
     var hasLastTranscript: Bool
     var canRedoLast: Bool
     var panelEnabled: Bool
@@ -131,7 +132,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(h)
         header = h
         if let update = s.update {
-            add(L("Доступна версия %@…", update.version), "arrow.down.circle.fill", tint: .systemBlue, actions.openUpdate)
+            add(L("Доступна версия %@…", update), "arrow.down.circle.fill", tint: .systemBlue, actions.openUpdate)
             menu.addItem(.separator())
         }
         if !s.setupDone && !s.recording.isCapturing {

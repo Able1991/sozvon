@@ -65,14 +65,30 @@ final class UpdatesTests: XCTestCase {
         XCTAssertTrue(Updates.isNewer("1.0.0", than: "e119a6f"), "хеш сборки разработчика считается 0")
     }
 
-    func testParseRelease() {
-        let json = #"{"tag_name": "v0.3.0", "html_url": "https://github.com/x/y/releases/tag/v0.3.0", "draft": false}"#
-        XCTAssertEqual(Updates.parseRelease(Data(json.utf8), current: "0.2.1"),
-                       .init(version: "0.3.0", url: URL(string: "https://github.com/x/y/releases/tag/v0.3.0")!))
-        XCTAssertNil(Updates.parseRelease(Data(json.utf8), current: "0.3.0"), "не новее")
-        let draft = #"{"tag_name": "v9.0.0", "html_url": "https://x", "draft": true}"#
-        XCTAssertNil(Updates.parseRelease(Data(draft.utf8), current: "0.1.0"), "черновик")
-        XCTAssertNil(Updates.parseRelease(Data("{}".utf8), current: "0.1.0"))
+    func testUpdatedFrom() {
+        let d = UserDefaults(suiteName: "sozvon-tests-updates")!
+        d.removePersistentDomain(forName: "sozvon-tests-updates")
+        XCTAssertNil(Updates.updatedFrom(current: "0.1.1", defaults: d), "первый запуск")
+        XCTAssertNil(Updates.updatedFrom(current: "0.1.1", defaults: d), "та же версия")
+        XCTAssertEqual(Updates.updatedFrom(current: "0.1.2", defaults: d), "0.1.1")
+        XCTAssertNil(Updates.updatedFrom(current: "0.1.2", defaults: d), "сказали один раз")
+        XCTAssertNil(Updates.updatedFrom(current: "0.1.0", defaults: d), "откат на старую сборку")
+        d.removePersistentDomain(forName: "sozvon-tests-updates")
+    }
+
+    func testQuietMoment() {
+        XCTAssertTrue(Updates.canInstallQuietly(.init()))
+        for a: Updates.Activity in [.init(recording: true), .init(processing: true), .init(inCall: true),
+                                    .init(windowOpen: true), .init(settingUp: true)] {
+            XCTAssertFalse(Updates.canInstallQuietly(a), "\(a)")
+        }
+        XCTAssertTrue(Updates.canCheckNow(.init(inCall: true, windowOpen: true)), "окно настроек открыто, это нормально")
+        XCTAssertFalse(Updates.canCheckNow(.init(recording: true)))
+        XCTAssertFalse(Updates.canCheckNow(.init(processing: true)))
+    }
+
+    func testReleaseLinks() {
+        XCTAssertEqual(Updates.notesURL("0.1.2").absoluteString, "https://github.com/Able1991/sozvon/releases/tag/v0.1.2")
     }
 
     func testManualSetupCarriesThePassword() {

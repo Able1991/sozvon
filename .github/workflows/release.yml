@@ -7,6 +7,7 @@
 #   NOTARY_KEY_P8             App Store Connect API key (.p8), base64
 #   NOTARY_KEY_ID             Key ID
 #   NOTARY_ISSUER_ID          Issuer ID
+#   SPARKLE_ED_KEY            EdDSA private key for updates (base64, 32 bytes; public half is SUPublicEDKey in build.sh)
 # Without the secrets the release still builds, but unsigned (marked as pre-release).
 name: Release
 
@@ -71,14 +72,47 @@ jobs:
       - name: Build, sign and notarize DMG
         env:
           VERSION: ${{ github.ref_name }}
-          BUILD_NUMBER: ${{ github.run_number }}
           NOTARY_PROFILE: ${{ steps.cert.outputs.signed == 'true' && 'sozvon' || '' }}
         run: |
           export VERSION="${VERSION#v}"
+          # Sparkle compares CFBundleVersion: the version itself keeps it growing across releases.
+          export BUILD_NUMBER="$VERSION"
           ./build.sh dmg
           # Sozvon.dmg without a version: stable link releases/latest/download/Sozvon.dmg for the site and README
           cp build/Sozvon.dmg "build/Sozvon-$VERSION.dmg"
           shasum -a 256 "build/Sozvon-$VERSION.dmg" > "build/Sozvon-$VERSION.dmg.sha256"
+
+      # appcast.xml for Sparkle (SUFeedURL = releases/latest/download/appcast.xml): this version only, the DMG
+      # signed with the EdDSA key, release notes = this version's section of CHANGELOG.md rendered by GitHub.
+      - name: Update feed
+        if: steps.cert.outputs.signed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          [ -n "$ED_KEY" ] || { echo "ERROR: SPARKLE_ED_KEY secret is missing" >&2; exit 1; }
+          printf '%s' "$ED_KEY" > "$RUNNER_TEMP/ed.key"
+          SIG=$(.build/artifacts/sparkle/Sparkle/bin/sign_update --ed-key-file "$RUNNER_TEMP/ed.key" -p "build/Sozvon-$V.dmg")
+          rm "$RUNNER_TEMP/ed.key"
+          LEN=$(stat -f %z "build/Sozvon-$V.dmg")
+          awk -v v="## $V" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md > "$RUNNER_TEMP/notes-only.md"
+          NOTES=$(gh api markdown -f text="$(cat "$RUNNER_TEMP/notes-only.md")" -f mode=gfm)
+          {
+            echo '<?xml version="1.0" encoding="utf-8"?>'
+            echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
+            echo '<channel><title>Sozvon</title>'
+            echo "<item><title>Sozvon $V</title>"
+            echo "<pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>"
+            echo "<sparkle:version>$V</sparkle:version><sparkle:shortVersionString>$V</sparkle:shortVersionString>"
+            echo "<sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>"
+            echo "<sparkle:fullReleaseNotesLink>https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME</sparkle:fullReleaseNotesLink>"
+            echo "<description><![CDATA[$NOTES]]></description>"
+            echo "<enclosure url=\"https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Sozvon-$V.dmg\" length=\"$LEN\" type=\"application/octet-stream\" sparkle:edSignature=\"$SIG\"/>"
+            echo '</item></channel></rss>'
+          } > build/appcast.xml
+          xmllint --noout build/appcast.xml
+          cat build/appcast.xml | head -c 2000
 
       - name: GitHub Release
         env:
@@ -96,5 +130,7 @@ jobs:
             echo
             awk -v v="## $V" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md
           } > "$RUNNER_TEMP/notes.md"
-          gh release create "$GITHUB_REF_NAME" build/Sozvon.dmg build/Sozvon-$V.dmg build/Sozvon-$V.dmg.sha256 \
+          FEED=""
+          [ -f build/appcast.xml ] && FEED=build/appcast.xml
+          gh release create "$GITHUB_REF_NAME" build/Sozvon.dmg build/Sozvon-$V.dmg build/Sozvon-$V.dmg.sha256 $FEED \
             --title "Sozvon $V" --notes-file "$RUNNER_TEMP/notes.md" $FLAGS

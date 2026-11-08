@@ -28,8 +28,11 @@ swift build "${SWIFT_FLAGS[@]}"
 BIN="$(swift build "${SWIFT_FLAGS[@]}" --show-bin-path)"
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$RES/engine"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$RES/engine"
 cp "$BIN/Sozvon" "$APP/Contents/MacOS/Sozvon"
+# Sparkle (updates). Sozvon is not sandboxed, so Sparkle's XPC services are not needed (Sparkle's docs).
+ditto "$BIN/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$APP/Contents/Frameworks/Sparkle.framework/XPCServices"
 
 echo "==> Bundling engine"
 # The whole engine tree, except tests and the developer's local environment.
@@ -120,6 +123,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>LSUIElement</key><true/>
   <key>LSMultipleInstancesProhibited</key><true/>
+  <key>SUFeedURL</key><string>https://github.com/Able1991/sozvon/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>t9fptGwCukFGie88sD0ehLhpPu77G1gmS6AthWQLn84=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUAutomaticallyUpdate</key><true/>
+  <key>SUScheduledCheckInterval</key><integer>86400</integer>
   <key>NSHumanReadableCopyright</key><string>MIT License</string>
   <key>NSMicrophoneUsageDescription</key><string>Sozvon records your voice during a call to transcribe it locally.</string>
   <key>NSAudioCaptureUsageDescription</key><string>Sozvon records the other participants' audio during a call (FaceTime included) to transcribe it locally.</string>
@@ -141,11 +149,14 @@ if [ -z "${SIGN_ID:-}" ]; then
 fi
 echo "==> Signing: $SIGN_ID"
 ENTITLEMENTS="$SRC/Sozvon.entitlements"
-if [[ "$SIGN_ID" == Developer\ ID* ]]; then
-  codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
-else
-  codesign --force --options runtime --timestamp=none --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
-fi
+if [[ "$SIGN_ID" == Developer\ ID* ]]; then TS=(--timestamp); else TS=(--timestamp=none); fi
+# Inside out, no --deep: Sparkle's helpers, the framework, then the app (Sparkle's signing docs).
+SPK="$APP/Contents/Frameworks/Sparkle.framework"
+for f in "$SPK/Versions/B/Autoupdate" "$SPK/Versions/B/Updater.app" "$SPK"; do
+  codesign --force --options runtime "${TS[@]}" --sign "$SIGN_ID" "$f"
+done
+codesign --force --options runtime "${TS[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
+codesign --verify --strict --deep "$APP"
 echo "Built: $APP ($VERSION, build $BUILD)"
 
 case "$MODE" in

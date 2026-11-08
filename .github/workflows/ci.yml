@@ -39,6 +39,10 @@ jobs:
         run: swift test
       - name: Build Sozvon.app and DMG
         run: ./build.sh dmg
+      # Sparkle end to end: a 9.0.0 copy finds 9.0.1 in a local appcast, downloads, verifies and installs it.
+      - name: Update end to end
+        timeout-minutes: 10
+        run: tools/update_e2e.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Sozvon-dmg

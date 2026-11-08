@@ -201,12 +201,8 @@
 /* Updates */
 "Доступна версия %@…" = "Version %@ Available…";
 "Доступна версия %@" = "Version %@ available";
-"Новая версия Sozvon на GitHub" = "A new version of Sozvon is on GitHub";
-"Версия" = "Version";
 "Проверить" = "Check";
 "Проверяю…" = "Checking…";
-"Доступна %@" = "%@ available";
-"%@, последняя" = "%@, up to date";
 "Тебя не слышно %@" = "Can't hear you %@";
 "Записано" = "Saved";
 "Расшифровка уступает твоим программам: Zoom, браузер и сборки не тормозят." = "Transcription yields to your other apps: Zoom, your browser and builds stay smooth.";
@@ -533,7 +529,6 @@
 "Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе." = "Recording starts only when you click Record. Getting the other participants' consent is up to you.";
 "Подставлять тему из Календаря" = "Fill In the Topic from Calendar";
 "Название встречи и участники" = "Meeting title and participants";
-"Проверять автоматически" = "Check Automatically";
 "Переключение языка посреди речи" = "Language Switching Mid-Speech";
 "Язык определяется для каждой фразы, медленнее на 20-30%" = "The language is detected for every phrase, 20-30% slower";
 "Производительность" = "Performance";
@@ -677,3 +672,23 @@
 "Получилось" = "Works";
 "Три секунды во временную папку, с коротким звуком. Потом она удаляется" = "Three seconds into a temporary folder, with a short sound. Deleted right after";
 "Микрофон записывается. Собеседников слышно через запись экрана, FaceTime так не слышно" = "Your microphone is recorded. The other side is heard through screen recording, a FaceTime call is not";
+
+/* About */
+"О программе" = "About";
+"Версия %@" = "Version %@";
+"Обновлять автоматически" = "Update automatically";
+"Скачивает новую версию сам и ставит, когда нет записи, звонка и открытых окон" = "Downloads a new version by itself and installs it when there is no recording, no call and no open window";
+"Проверить обновления" = "Check for updates";
+"Что нового" = "What's new";
+"Список изменений" = "Release notes";
+"Обновление проверяется по подписи разработчика и ключу Sozvon, звонки и настройки остаются на месте." = "Every update is checked against the developer's signature and the Sozvon key. Calls and settings stay in place.";
+"Ссылки" = "Links";
+"Сайт" = "Website";
+"Документация" = "Documentation";
+"Открыть" = "Open";
+"Исходный код" = "Source code";
+"Лицензия" = "License";
+"В этой сборке обновления выключены" = "Updates are off in this build";
+"Проверено %@" = "Checked %@";
+"Раз в день" = "Once a day";
+"Sozvon обновлён до %@" = "Sozvon is updated to %@";
