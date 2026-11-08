@@ -395,10 +395,10 @@ private struct AboutPane: View {
                     Text(L("Обновлять автоматически"))
                     Text(L("Скачивает новую версию сам и ставит, когда нет записи, звонка и открытых окон"))
                 }
-                .disabled(!AppUpdater.isSupported)
+                .disabled(!AboutUpdates.shown)
                 LabeledContent {
                     Button(L("Проверить")) { AppUpdater.shared.checkNow() }
-                        .disabled(!AppUpdater.isSupported || !updates.canCheck)
+                        .disabled(!AboutUpdates.shown || !updates.canCheck)
                 } label: {
                     Text(L("Проверить обновления"))
                     Text(updates.status)
@@ -445,14 +445,32 @@ private final class AboutUpdates: ObservableObject {
     @Published var canCheck = AppUpdater.shared.canCheck
     @Published var status = ""
 
+    /// Screenshots (preview build) show the pane as in a release; the updater itself stays off there.
+    static var shown: Bool {
+        #if SOZVON_PREVIEW
+        return true
+        #else
+        return AppUpdater.isSupported
+        #endif
+    }
+
+    /// Preview build: "checked an hour ago", as a release would show.
+    private static var previewLastCheck: Date? {
+        #if SOZVON_PREVIEW
+        return Date().addingTimeInterval(-3600)
+        #else
+        return nil
+        #endif
+    }
+
     func refresh() {
         automatic = AppUpdater.shared.automatic
-        canCheck = AppUpdater.shared.canCheck
-        if !AppUpdater.isSupported {
+        canCheck = AppUpdater.shared.canCheck || !AppUpdater.isSupported && Self.shown
+        if !Self.shown {
             status = L("В этой сборке обновления выключены")
         } else if let v = AppUpdater.shared.available {
             status = L("Доступна версия %@", v)
-        } else if let d = AppUpdater.shared.updater?.lastUpdateCheckDate {
+        } else if let d = AppUpdater.shared.updater?.lastUpdateCheckDate ?? Self.previewLastCheck {
             status = L("Проверено %@", d.formatted(.relative(presentation: .named)))
         } else {
             status = L("Раз в день")
