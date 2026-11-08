@@ -43,6 +43,10 @@ jobs:
       - name: Update end to end
         timeout-minutes: 10
         run: tools/update_e2e.sh
+      # The published release: the latest appcast.xml and its signed, notarized DMG install over an old version.
+      - name: Update from the latest release
+        timeout-minutes: 10
+        run: tools/update_e2e.sh release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: Sozvon-dmg
