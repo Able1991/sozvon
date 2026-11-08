@@ -38,6 +38,8 @@ final class TrackWriter: @unchecked Sendable {
     /// This writer created the track file (so `AudioSink.discard()` may remove it).
     private var created = false
     private let meterLock = OSAllocatedUnfairLock(initialState: Meter())
+    /// The other side's track also goes to the live voice match in pieces (LiveVoices.swift).
+    var live: LivePieces?
 
     /// `discard`: keep the meter, write nothing (the permission check's short tap).
     init(url: URL, discard: Bool = false) {
@@ -156,6 +158,7 @@ final class TrackWriter: @unchecked Sendable {
         do {
             try file.write(from: buf)
             framesWritten += AVAudioFramePosition(buf.frameLength)
+            live?.add(buf)
         } catch {
             RecorderLog.write("\(url.lastPathComponent): write error \(error)")
         }
@@ -238,10 +241,13 @@ final class TrackWriter: @unchecked Sendable {
     func close() {
         file?.close()
         file = nil
+        live?.finish()
+        live = nil
     }
 
     /// Close and remove the file this writer created, and write nothing more (a start that failed).
     func remove() {
+        live = nil
         close()
         refused = true
         if created { try? FileManager.default.removeItem(at: url) }
@@ -251,7 +257,7 @@ final class TrackWriter: @unchecked Sendable {
 
 /// A single input buffer for AVAudioConverter, handed out once. The converter calls the block
 /// synchronously inside convert, on the same queue, so no lock is needed.
-private final class OneShotInput: @unchecked Sendable {
+final class OneShotInput: @unchecked Sendable {
     private var buffer: AVAudioPCMBuffer?
     init(_ b: AVAudioPCMBuffer) { buffer = b }
     func take() -> AVAudioPCMBuffer? {
@@ -269,10 +275,12 @@ final class AudioSink: NSObject, SCStreamOutput, @unchecked Sendable {
     let system: TrackWriter
     let mic: TrackWriter
 
-    /// `discard`: levels only, no files (the system audio permission check).
-    init(dir: URL, discard: Bool = false) {
+    /// `discard`: levels only, no files (the system audio permission check). `live`: the other side's track
+    /// also goes to the live voice match.
+    init(dir: URL, discard: Bool = false, live: Bool = false) {
         system = TrackWriter(url: dir.appendingPathComponent("system.m4a"), discard: discard)
         mic = TrackWriter(url: dir.appendingPathComponent("mic.m4a"), discard: discard)
+        if live && !discard { system.live = LivePieces(dir: dir.appendingPathComponent(LivePieces.folder)) }
     }
 
     /// A sink that writes nothing anywhere.
@@ -580,13 +588,13 @@ final class Recorder: NSObject, SCStreamDelegate {
 
     /// Returns how system audio is captured: ScreenCaptureKit when the tap couldn't start (FaceTime unheard).
     @discardableResult
-    func start(into dir: URL) async throws -> SystemCapture {
+    func start(into dir: URL, live: Bool = false) async throws -> SystemCapture {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let display = content.displays.first else {
             throw NSError(domain: "Sozvon", code: 1, userInfo: [NSLocalizedDescriptionKey: L("Нет дисплея для захвата")])
         }
         let filter = SCContentFilter(display: display, excludingWindows: [])
-        let sink = AudioSink(dir: dir)
+        let sink = AudioSink(dir: dir, live: live)
         // The microphone first, then the process tap: creating the tap (an aggregate device) right before
         // ScreenCaptureKit opens the microphone made the first start after launch fail every time ("Stream
         // failed to start microphone"), and replayd then kept the microphone open.

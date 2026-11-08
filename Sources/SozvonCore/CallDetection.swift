@@ -1,5 +1,6 @@
 // "A call is on. Record?": notice that a call app started using the microphone while Sozvon is idle.
-// Sozvon never records by itself: this only offers the Record button, the user presses it (consent).
+// By default this only offers the Record button and the user presses it; "Record automatically" in Settings
+// (CallAutomation) turns the offer into a countdown that can be cancelled.
 //
 //   MicActivitySource  which processes capture audio input right now (Core Audio, or a fake in tests)
 //   CallDetector       pure rules: known call apps only, never Sozvon itself, a 5 second debounce,
@@ -100,6 +101,8 @@ public struct CallDetector: Sendable {
     private(set) var suppressed: Set<CallApp> = []
     /// The app to offer recording for, or nil.
     public private(set) var prompt: CallApp?
+    /// Call apps holding the microphone right now (whether or not they passed the debounce).
+    public private(set) var onMic: Set<CallApp> = []
 
     public init(ownPID: Int32, ownBundleID: String) {
         self.ownPID = ownPID
@@ -113,6 +116,7 @@ public struct CallDetector: Sendable {
     public mutating func update(_ clients: [MicClient], now: Date, busy: Bool, safariRunning: Bool = false) -> CallApp? {
         let apps = Set(clients.filter { $0.pid != ownPID && ($0.bundleID.isEmpty || $0.bundleID != ownBundleID) }
             .compactMap { CallApps.app(for: $0, safariRunning: safariRunning) })
+        onMic = apps
         // Released the mic: forget it, including "Not now".
         for a in Array(since.keys) where !apps.contains(a) { since[a] = nil }
         suppressed.formIntersection(apps)
@@ -159,6 +163,10 @@ public final class CallWatcher {
     /// The prompt changed (nil: hide it).
     public var onPrompt: (CallApp?) -> Void = { _ in }
     public var prompt: CallApp? { detector.prompt }
+    /// A call app holds the microphone right now (as of the last refresh).
+    public var inCall: Bool { !detector.onMic.isEmpty }
+    /// After every refresh (the microphone's users may have changed).
+    public var onRefresh: () -> Void = {}
 
     public init(source: MicActivitySource,
                 ownPID: Int32 = ProcessInfo.processInfo.processIdentifier,
@@ -203,6 +211,7 @@ public final class CallWatcher {
         let safari = clients.contains { $0.bundleID.hasPrefix(CallApps.webKitGPU) } && isSafariRunning()
         detector.update(clients, now: t, busy: isBusy(), safariRunning: safari)
         if detector.prompt != before { onPrompt(detector.prompt) }
+        onRefresh()
         generation += 1
         if let next = detector.nextCheck() {
             let g = generation

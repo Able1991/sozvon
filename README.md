@@ -17,7 +17,7 @@
 ## Features
 
 - **One button.** A floating panel above all windows (including full-screen Zoom) or a menu bar icon: Record, take the call, Stop. Works with Zoom, Google Meet, FaceTime, Telegram, TrueConf, anything: it captures system audio and the microphone, no virtual audio drivers.
-- **Offers to record, never records by itself.** When Zoom, Telegram, a browser or another call app turns on the microphone, the panel asks "A call is on in Zoom. Record?". Not Now keeps it quiet until that call ends.
+- **Offers to record, or records by itself if you choose.** When Zoom, Telegram, a browser or another call app turns on the microphone, the panel asks "A call is on in Zoom. Record?". Not Now keeps it quiet until that call ends. In Settings it can instead start recording after a 10 second countdown, and stop 30 seconds after the call ends; both are off by default and can be cancelled on the panel.
 - **Title and people from Calendar.** After Stop, the form is already filled from the meeting in your calendar: topic, participants and project.
 - **Later.** No time to describe the call right after Stop? Press Later: the call waits under "Waiting for Description" in the menu, and Sozvon reminds you once you are free.
 - **Mark what matters.** Press the star on the panel or ⌃⌥I during the call: that moment is starred in the transcript and explained in the summary.
@@ -101,7 +101,8 @@ To ask Claude or ChatGPT about your calls from your phone or the web while the M
 |---|---|---|
 | Recording, transcription, echo removal, speaker separation, imported recordings | nowhere, only `~/Documents/Calls` | always |
 | Voice prints (your sample and the people you named) | nowhere, `~/Library/Application Support/Sozvon/voices` | once you record a sample or name a speaker |
-| Which app is using the microphone (for the call prompt; only the app, never the audio) | nowhere, read on the Mac | while "Offer to record when a call starts" is on |
+| Live voice match during a recording (only if voices of other people are saved; pieces of the other side's audio, deleted as soon as they are matched) | nowhere, stays on the Mac | while recording |
+| Which app is using the microphone (for the call prompt; only the app, never the audio) | nowhere, read on the Mac | unless When a Call Starts is Do Nothing and the automatic stop is off |
 | The meeting at the time of a recording (title, attendees) for the call form | nowhere, read from Calendar on the Mac | after each recording, unless turned off in Settings |
 | Tasks and notes you send to Reminders | nowhere, the Reminders app on this Mac (if Reminders syncs through iCloud, Apple syncs them further) | only when you press To Reminders |
 | Python environment, models | PyPI, huggingface.co | once, during setup |

@@ -36,6 +36,12 @@ enum CalendarPrefill {
         return CalendarMatch.fill(info, from: e, projects: Project.all())
     }
 
+    /// The meeting at the time of a recording, if the calendar may be read (asks for access the first time).
+    static func meeting(at date: Date) async -> CalendarEvent? {
+        guard enabled, await requestAccess() else { return nil }
+        return event(at: date)
+    }
+
     static func event(at date: Date) -> CalendarEvent? {
         let predicate = store.predicateForEvents(withStart: date.addingTimeInterval(-8 * 3600),
                                                  end: date.addingTimeInterval(3600), calendars: nil)

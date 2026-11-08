@@ -67,17 +67,20 @@ final class RecordingController {
             }
             do {
                 let capture: Recorder.SystemCapture
+                // Someone else's voice is saved: the other side's track also goes to the live match.
+                let live = LiveVoices.useful
                 do {
-                    capture = try await recorder.start(into: dir)
+                    capture = try await recorder.start(into: dir, live: live)
                 } catch where !Recorder.isTimeout(error) {
                     // Right after the permissions are granted the first start can fail ("Stream failed to
                     // start microphone") and the next one works: try once more before saying so. A start
                     // that ran out of time is not retried: that would be another 10 seconds into the call.
                     RecorderLog.write("start failed (\(error.localizedDescription)), trying once more")
                     try await Task.sleep(for: .seconds(1))
-                    capture = try await recorder.start(into: dir)
+                    capture = try await recorder.start(into: dir, live: live)
                 }
                 machine.started(RecordingSession(dir: dir, startedAt: Date(), info: initialInfo()))
+                if live { LiveVoices.shared.start(dir) }
                 marks = []
                 panel.marks = 0
                 startLevelTimer()
@@ -92,6 +95,13 @@ final class RecordingController {
                 showFailure(started: false, error.localizedDescription)
             }
         }
+    }
+
+    /// The other side's track has sound right now (above room noise, from a live stream).
+    var otherSideAudible: Bool {
+        let m = recorder.meters.system
+        guard let at = m.lastBufferAt, Date().timeIntervalSince(at) < 2, !m.zero else { return false }
+        return m.level > 0.15
     }
 
     /// "Stop": finalize the files, then the call prompt.

@@ -35,6 +35,10 @@ final class PanelModel: ObservableObject {
     @Published var justMarked = false
     /// "A call is on in Zoom. Record?" while Sozvon is idle; nil: no prompt.
     @Published var callPrompt: String?
+    /// The prompt counts down to an automatic start (Settings: record by itself): seconds left.
+    @Published var startIn: Int?
+    /// The call is over and the recording stops by itself in this many seconds (Settings: stop after the call).
+    @Published var stopIn: Int?
     /// The panel moved between mouse down and mouse up: that's a drag, not a click.
     var wasDragged: () -> Bool = { false }
 
@@ -49,6 +53,7 @@ final class PanelModel: ObservableObject {
     var onHide: () -> Void = {}
     var onPromptRecord: () -> Void = {}
     var onPromptDismiss: () -> Void = {}
+    var onKeepRecording: () -> Void = {}
 
     /// The call prompt replaces the idle "Record" capsule and the transcription status.
     var showsPrompt: Bool { callPrompt != nil && (state == .idle || state == .processing) }
@@ -181,6 +186,8 @@ struct CloseButton: View {
 /// "A call is on in Zoom. Record?" with "Record" and "Not now". Recording starts only on the press.
 struct CallPromptView: View {
     let text: String
+    /// Counting down to an automatic start: the buttons read "Record now" and "Don't record".
+    var countdown = false
     let record: () -> Void
     let dismiss: () -> Void
 
@@ -195,11 +202,13 @@ struct CallPromptView: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(SZ.label)
                 .lineLimit(1)
+                .monospacedDigit()
+                .contentTransition(.numericText(countsDown: true))
                 .padding(.trailing, 6)
             Button(action: record) {
                 HStack(spacing: 6) {
                     SZWRecordDot(glow: false)
-                    Text(L("Записать")).font(.system(size: 12, weight: .semibold)).foregroundStyle(SZ.label)
+                    Text(countdown ? L("Записать сейчас") : L("Записать")).font(.system(size: 12, weight: .semibold)).foregroundStyle(SZ.label)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -210,7 +219,7 @@ struct CallPromptView: View {
             .buttonStyle(.plain)
             .help(L("Начать запись звонка"))
             Button(action: dismiss) {
-                Text(L("Не сейчас")).font(.system(size: 12, weight: .medium)).foregroundStyle(SZ.label2)
+                Text(countdown ? L("Не записывать") : L("Не сейчас")).font(.system(size: 12, weight: .medium)).foregroundStyle(SZ.label2)
                     .padding(.trailing, 4)
                     .contentShape(Rectangle())
             }
@@ -245,7 +254,8 @@ struct PanelView: View {
     var body: some View {
         HStack(spacing: 12) {
             if m.showsPrompt, let text = m.callPrompt {
-                CallPromptView(text: text, record: { m.click(m.onPromptRecord) }, dismiss: { m.click(m.onPromptDismiss) })
+                CallPromptView(text: text, countdown: m.startIn != nil,
+                               record: { m.click(m.onPromptRecord) }, dismiss: { m.click(m.onPromptDismiss) })
                     .transition(.blurReplace)
             } else {
                 content
@@ -281,6 +291,7 @@ struct PanelView: View {
         .simultaneousGesture(WindowDragGesture())
         .animation(.easeInOut(duration: 0.25), value: m.state)
         .animation(.easeInOut(duration: 0.25), value: m.callPrompt)
+        .animation(.easeInOut(duration: 0.25), value: m.stopIn == nil)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: m.warning == nil)
         .fixedSize()
         // Pinned to the window's left edge: the text stays put while the window changes width.
@@ -296,7 +307,30 @@ struct PanelView: View {
                 .foregroundStyle(SZ.label)
                 .contentTransition(.numericText())
                 .accessibilityLabel(L("Идёт запись %@", m.elapsed))
-            if let w = m.warning {
+            if let n = m.stopIn {
+                // The call is over: the recording stops by itself unless kept.
+                HStack(spacing: 8) {
+                    Image(systemName: "phone.down.fill")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(SZ.label2)
+                        .accessibilityHidden(true)
+                    Text(L("Стоп через %@ с", n))
+                        .font(.system(size: 12, weight: .medium).monospacedDigit())
+                        .foregroundStyle(SZ.label)
+                        .contentTransition(.numericText(countsDown: true))
+                    Button { m.click(m.onKeepRecording) } label: {
+                        Text(L("Продолжить")).font(.system(size: 12, weight: .semibold)).foregroundStyle(SZ.label)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(Capsule().fill(SZW.capsuleFill))
+                            .overlay { SZTopHighlight(shape: Capsule(), color: SZW.capsuleEdge) }
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Звонок закончился, но запись нужна дальше"))
+                }
+                .transition(.blurReplace)
+            } else if let w = m.warning {
                 HStack(spacing: 5) {
                     Image(systemName: warningSymbol(w))
                         .font(.system(size: 12, weight: .medium))
@@ -537,7 +571,10 @@ final class FloatingPanel {
     /// Show or hide based on settings and the current state.
     func sync() {
         let active = model.state != .idle || model.callPrompt != nil
-        if FloatingPanel.enabled && (active || FloatingPanel.showWhenIdle) { show() } else { hide() }
+        // A countdown to an automatic start or stop is always on screen, even with the panel turned off:
+        // a notification can be denied or hidden by Focus, and this must not happen unseen.
+        let counting = model.startIn != nil || model.stopIn != nil
+        if counting || (FloatingPanel.enabled && (active || FloatingPanel.showWhenIdle)) { show() } else { hide() }
     }
 
     /// Fit the size to the content, keeping the horizontal center.

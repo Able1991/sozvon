@@ -237,10 +237,12 @@ private struct GeneralPane: View {
     @AppStorage(FloatingPanel.defaultsKey) private var panelOn = true
     @AppStorage(FloatingPanel.idleKey) private var panelIdle = true
     @State private var sounds = Sounds.enabled
-    @State private var callPrompt = CallPromptController.enabled
+    @State private var callStart = CallPromptController.mode
+    @State private var autoStop = CallPromptController.autoStop
     @State private var silenceAlerts = SilenceAlerts.enabled
     @State private var keepAudio = AudioCleanup.days
     @State private var calendar = CalendarPrefill.enabled
+    @State private var skipForm = CallGuess.skipForm()
     @State private var uiLanguage = GeneralPane.chosenLanguage()
     @State private var calendarDenied = CalendarPrefill.denied
     /// The interface language override Sozvon was started with ("" for the system's):
@@ -290,11 +292,21 @@ private struct GeneralPane: View {
                     Text(L("Капсула видна, даже когда запись не идёт"))
                 }
                 .disabled(!panelOn)
-                Toggle(isOn: $callPrompt) {
-                    Text(L("Предлагать запись при звонке"))
-                    Text(L("Zoom, Google Meet, FaceTime, Telegram"))
+                Picker(selection: $callStart) {
+                    Text(L("Спрашивать")).tag(CallStartMode.ask)
+                    Text(L("Записывать сам")).tag(CallStartMode.record)
+                    Text(L("Ничего не делать")).tag(CallStartMode.off)
+                } label: {
+                    Text(L("Когда начинается звонок"))
+                    Text(callStart == .record
+                         ? L("Через %@ секунд, на панели можно отменить или начать сразу", CallAutomation.startCountdown)
+                         : L("Zoom, Google Meet, FaceTime, Telegram"))
                 }
-                .help(L("Когда Zoom, Telegram, браузер или другое приложение для звонков включает микрофон, панель спросит, записать ли звонок. Сам Sozvon ничего не записывает."))
+                .help(L("Когда Zoom, Telegram, браузер или другое приложение для звонков включает микрофон, панель спрашивает, записать ли звонок, или сама начинает запись после отсчёта."))
+                Toggle(isOn: $autoStop) {
+                    Text(L("Останавливать после звонка"))
+                    Text(L("Через %@ секунд после конца звонка, на панели можно продолжить", CallAutomation.stopGrace))
+                }
                 Toggle(isOn: $silenceAlerts) {
                     Text(L("Предупреждать о тишине"))
                     Text(L("Если тебя или собеседников не слышно больше двух минут или тебя очень тихо слышно"))
@@ -303,7 +315,9 @@ private struct GeneralPane: View {
             } header: {
                 Text(L("Запись"))
             } footer: {
-                SettingsFooter(L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе."))
+                SettingsFooter(callStart == .record
+                               ? L("Запись начинается сама, когда приложение для звонков включает микрофон. Согласие собеседников на запись на тебе.")
+                               : L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе."))
             }
 
             PermissionsSection()
@@ -323,6 +337,10 @@ private struct GeneralPane: View {
                             .foregroundStyle(.orange)
                     }
                 }
+                Toggle(isOn: $skipForm) {
+                    Text(L("Сразу расшифровывать, если всё понятно"))
+                    Text(L("Если проект и участники определились сами, окно «О чём был звонок?» продолжит через %@ секунд", CallGuess.formCountdown))
+                }
                 Picker(L("Автоудаление аудио"), selection: $keepAudio) {
                     ForEach(AudioRetention.choices, id: \.self) { d in
                         Text(d == 0 ? L("Никогда") : d == 7 ? L("Через неделю") : L("Через %@ дней", d)).tag(d)
@@ -338,9 +356,11 @@ private struct GeneralPane: View {
         .onChange(of: s.name) { s.save() }
         .onChange(of: panelOn) { onPanelChange() }
         .onChange(of: panelIdle) { onPanelChange() }
-        .onChange(of: callPrompt) { _, v in CallPromptController.enabled = v; onPanelChange() }
+        .onChange(of: callStart) { _, v in CallPromptController.mode = v; onPanelChange() }
+        .onChange(of: autoStop) { _, v in CallPromptController.autoStop = v; onPanelChange() }
         .onChange(of: silenceAlerts) { _, v in SilenceAlerts.enabled = v }
         .onChange(of: sounds) { _, v in Sounds.enabled = v; if v { Sounds.play(.start) } }
+        .onChange(of: skipForm) { _, v in CallGuess.setSkipForm(v) }
         .onChange(of: calendar) { _, v in
             CalendarPrefill.enabled = v
             guard v else { return }

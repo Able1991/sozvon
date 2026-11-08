@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.3
+
+- **Record calls automatically, if you want.** Settings > General > When a Call Starts: Ask (as before), Record Automatically or Do Nothing. Record Automatically shows "Call in Zoom · recording in 10 s" on the panel with Record Now and Don't Record, then starts by itself.
+- **Stop when the call ends.** Optional: once no call app has held the microphone for 30 seconds, the recording stops by itself and goes to transcription. The panel counts down with Continue. Short gaps while a call app reconnects don't count, the other side still being heard keeps the recording going (some apps let go of the microphone on mute), and a recording without a call app never stops by itself.
+- **Countdowns are always on screen,** even with the floating panel turned off.
+- **Who was on the call, known by the end of it.** If you have saved voices of other people, Sozvon compares the other side's speech with them during the call, at low priority and on your Mac only. "What was the call about?" opens with the project and participants from Calendar and the voices.
+- **Goes ahead by itself when it's clear.** When the project and participants are known for sure, the form transcribes after 10 seconds; change anything or press Wait to stop it. Off switch in Settings > General > After the Call.
+
 ## 0.1.2
 
 - **Updates install themselves.** Once a day Sozvon checks for a new version, downloads it in the background and installs it when nothing is going on: no recording, no transcription, no call and no open window. The restart takes a couple of seconds, then a notification links to what's new. Every update is checked against the developer's signature and the Sozvon key (Sparkle). Turn off Update Automatically to only get a menu item and install it yourself. This is the last version you install by hand.

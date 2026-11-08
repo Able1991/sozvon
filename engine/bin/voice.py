@@ -4,6 +4,7 @@
   python bin/voice.py enroll --name NAME [--profile SLUG] --call DIR --speaker LABEL
   python bin/voice.py list [--profile SLUG]
   python bin/voice.py delete --id ID | --all
+  python bin/voice.py live --dir CALL/.live   (while recording: who of the saved voices is speaking)
 Last output line: "RESULT: ok ..." or "RESULT: error <code> <message>".
 """
 import sys

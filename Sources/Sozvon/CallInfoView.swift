@@ -20,6 +20,8 @@ struct CallInfoView: View {
     let okTitle: String
     /// Offer "Later" as the main secondary action ("Don't Transcribe" stays, quieter).
     var allowLater = false
+    /// Seconds until the form goes ahead by itself (the project and the people are known); editing stops it.
+    @State var countdown: Int? = nil
     let done: (CallInfoAnswer) -> Void
     @State private var projects = Project.all()
     /// Past calls, used to suggest participants. Read once when
@@ -34,7 +36,8 @@ struct CallInfoView: View {
     private static let newProjectTag = "\u{0}new"
 
     var body: some View {
-        SZWFormSheet(title, subtitle: L("Тема и имена помогут расшифровке и саммари."), width: 580, columns: true) {
+        SZWFormSheet(title, subtitle: countdown.map { L("Проект и участники определились сами. Расшифрую через %@ с, если ничего не менять.", $0) }
+                     ?? L("Тема и имена помогут расшифровке и саммари."), width: 580, columns: true) {
             projectPicker
             TextField(L("Тема") + ":", text: $info.topic, prompt: Text(L("О чём говорили, двумя словами")))
             participants
@@ -55,7 +58,11 @@ struct CallInfoView: View {
                     .keyboardShortcut(.cancelAction)
                     .help(L("Закрыть и вернуться к звонку потом: меню Sozvon → «Ждут описания»"))
             }
-            Button(okTitle) { done(.transcribe(info)) }
+            if countdown != nil {
+                Button(L("Подождать")) { countdown = nil }
+                    .help(L("Не расшифровывать сразу, сначала проверю"))
+            }
+            Button(countdown.map { "\(okTitle) (\($0))" } ?? okTitle) { done(.transcribe(info)) }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
         } leading: {
@@ -67,6 +74,18 @@ struct CallInfoView: View {
             if assistant == .none { info.summary = false }
         }
         .task { pastCalls = await Task.detached(priority: .userInitiated) { Call.all() }.value }
+        .task {
+            while let n = countdown {
+                if n <= 0 { done(.transcribe(info)); return }
+                try? await Task.sleep(for: .seconds(1))
+                if let c = countdown { countdown = c - 1 }
+            }
+        }
+        .onChange(of: info) { old, new in
+            var before = old
+            if assistant == .none { before.summary = new.summary }  // set by onAppear, not by the user
+            if before != new { countdown = nil }
+        }
         .sheet(item: $newProject) { p in
             ProjectEditor(project: p) { saved in
                 newProject = nil
@@ -151,7 +170,8 @@ enum CallInfoPrompt {
 
     /// With `allowLater`, closing the window (or another window replacing it) means "Later", not "Don't Transcribe":
     /// a recorded call is never silently left without a way back.
-    static func answer(_ initial: CallInfo, title: String, okTitle: String, allowLater: Bool) async -> CallInfoAnswer {
+    static func answer(_ initial: CallInfo, title: String, okTitle: String, allowLater: Bool,
+                       countdown: Int? = nil) async -> CallInfoAnswer {
         WindowsRegistry.shared.close(key)
         return await withCheckedContinuation { cont in
             var resumed = false
@@ -163,7 +183,7 @@ enum CallInfoPrompt {
             }
             // The question is the window's heading (CallInfo design); the title stays for the Window menu and VoiceOver.
             let spec = WindowSpec.hosting(key, title: title, width: 580, transparentTitle: true, level: .floating) {
-                CallInfoView(info: initial, title: title, okTitle: okTitle, allowLater: allowLater, done: finish)
+                CallInfoView(info: initial, title: title, okTitle: okTitle, allowLater: allowLater, countdown: countdown, done: finish)
             }
             let w = WindowsRegistry.shared.show(spec, onClose: { finish(allowLater ? .later(nil) : .cancel) })
             w.titleVisibility = .hidden

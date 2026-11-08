@@ -5,6 +5,8 @@ What is planned next, roughly in order. Sozvon stays a narrow tool: a feature ge
 ## Next
 
 - **Own server settings survive a reinstall.** The server address and password live in the engine's `.env` today, so a clean reinstall forgets them while the Cloudflare sign-in (in the Keychain) stays: Settings says "connected" but Sync is gone. Keep the address and password in the Keychain too, and offer Restore when Cloudflare is connected but the address is missing.
+- **Commitments and people in MCP.** Ask an assistant "what did Oleg promise me" across all calls: action items per person and a short profile of a person, tied to voice prints so the names are right.
+- **Small things that remove friction.** Install with Homebrew. Demo calls at first launch, to try an assistant before the first recording. A watched iCloud folder for voice memos from the phone. A short reminder to tell the other side the call is being recorded.
 
 ## Windows
 

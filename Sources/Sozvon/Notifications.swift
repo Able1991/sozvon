@@ -18,6 +18,9 @@ enum NotifyAction: String, CaseIterable {
     case callPrompt
     case record
     case notNow
+    /// The automatic stop is counting down (the panel is hidden): one button to keep recording.
+    case callEnded
+    case keepRecording
     /// A call waits for its description: open "What was the call about?" (`url` is the call folder).
     case describeCall
     /// A source went silent mid-recording: System Settings → Sound.
@@ -30,13 +33,14 @@ enum NotifyAction: String, CaseIterable {
     /// Notification button ("open" is covered by clicking the notification itself).
     var buttonTitle: String? {
         switch self {
-        case .open, .callPrompt, .openCall: return nil
+        case .open, .callPrompt, .openCall, .callEnded: return nil
         case .openLog: return L("Открыть журнал")
         case .permissions: return L("Проверить разрешения")
         case .reinstallEngine: return L("Переустановить движок")
         case .downloadModel: return L("Скачать модель")
         case .record: return L("Записать")
         case .notNow: return L("Не сейчас")
+        case .keepRecording: return L("Продолжить запись")
         case .describeCall: return L("Описать")
         case .openSoundSettings: return L("Настройки звука")
         case .systemAudioPermission: return L("Открыть настройки")
@@ -47,6 +51,7 @@ enum NotifyAction: String, CaseIterable {
     var buttons: [NotifyAction] {
         switch self {
         case .callPrompt: return [.record, .notNow]
+        case .callEnded: return [.keepRecording]
         default: return buttonTitle == nil ? [] : [self]
         }
     }
@@ -68,7 +73,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         c.delegate = self
         c.setNotificationCategories(Set(NotifyAction.allCases.map { a in
             let actions = a.buttons.compactMap { b in
-                b.buttonTitle.map { UNNotificationAction(identifier: b.rawValue, title: $0, options: b == .notNow ? [] : [.foreground]) }
+                b.buttonTitle.map { UNNotificationAction(identifier: b.rawValue, title: $0, options: b == .notNow || b == .keepRecording ? [] : [.foreground]) }
             }
             return UNNotificationCategory(identifier: a.category, actions: actions, intentIdentifiers: [])
         }))

@@ -413,3 +413,31 @@ transcript is exactly what it would be without voice prints.
 **When the app enrolls:** the user's own sample in Settings (`--file --me`), and a speaker the user names precisely
 in a call (rename or swap in the Calls window, `--call --speaker`).
 
+
+### Live voices
+
+While a call is recorded, and only when a voice print of someone other than the user exists, the app also cuts
+the other side's track into one minute pieces, `<call>/.live/system-0001.wav`, `system-0002.wav`, ... (16 kHz mono
+32-bit float WAV, written under a temporary name and renamed when complete), and starts
+`bin/voice.py live --dir <call>/.live` at utility priority. The engine matches every speech window of every piece
+(6 s, at least 1.5 s of speech) against all voice prints except the user's own, with a cosine of at least 0.6 and the
+usual margin, deletes the piece, and after every piece writes `<call>/.live/voices.json`:
+
+```json
+{"voices": [{"name": "Анна Петрова", "profile": "acme", "seconds": 312.0, "score": 0.81, "unsure": false}], "pieces": 14, "speech": 640.5, "done": false}
+```
+
+Only names with at least 6 s of matched speech are listed, longest first. `unsure`: two names have nearly the same
+print (cosine of at least 0.75, one voice saved under two names), so the one with more enrolled speech stands in; such
+an entry may give the project but neither joins the participants nor makes the guess sure. When the recording stops the app writes
+the last piece and an empty `<call>/.live/stop`; the engine finishes the pieces left, writes `"done": true` and exits
+(it also exits when the app or the folder is gone). The app waits up to 15 s, reads the list, deletes `<call>/.live/`
+and uses the names together with the meeting in the calendar for "What was the call about?" (`CallGuess`): the heard
+names join the participants, and the project most of their speech belongs to becomes the call's project when the user
+typed nothing and the calendar gave none. The last used project the form starts with counts as nothing typed.
+When a project and participants are known and backed by the user, by a meeting going on when the recording started or
+by a voice heard for at least 30 s, and the calendar and the voices do not disagree, the form goes ahead by itself
+after 10 s; editing it or pressing Wait stops the countdown.
+
+Nothing from `.live` is kept or sent anywhere: a folder left by a crash or a quit is removed at the next launch, and
+on quit at once. The transcription names the voices on its own as before.

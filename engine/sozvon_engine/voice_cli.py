@@ -11,8 +11,9 @@ import json
 import sys
 import time
 import traceback
+from pathlib import Path
 
-from . import profiles, voices
+from . import live_voices, profiles, voices
 from .audio import FfmpegError, FfmpegMissing
 from .i18n import t
 
@@ -35,6 +36,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     en.add_argument("--speaker", help="the speaker label in transcript.txt (with --call)")
     ls = sub.add_parser("list")
     ls.add_argument("--profile", default=None)
+    lv = sub.add_parser("live", help="while recording: match the other side's speech in <dir> against saved voices")
+    lv.add_argument("--dir", required=True, help="<call>/.live: system-*.wav pieces in, voices.json out, stop file ends it")
     de = sub.add_parser("delete")
     which = de.add_mutually_exclusive_group(required=True)
     which.add_argument("--id")
@@ -53,6 +56,9 @@ def finish(code: int, message: str = "") -> int:
 
 
 def run(args) -> int:
+    if args.cmd == "live":
+        live_voices.run(Path(args.dir), log)
+        return finish(0)
     if args.cmd == "list":
         n = 0
         for rec in voices.load_all():

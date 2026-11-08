@@ -43,6 +43,13 @@ enum PreviewDriver {
                 _ = await CallInfoPrompt.answer(CallInfo(), title: L("О чём был звонок?"), okTitle: L("Расшифровать"),
                                                 allowLater: true)
             }
+        case "callinfo-sure":
+            // The project and the people are known: the form goes ahead by itself after a countdown.
+            Task {
+                _ = await CallInfoPrompt.answer(CallInfo(names: "Анна Петрова, Олег", topic: "Планирование релиза"),  // l10n-ignore
+                                                title: L("О чём был звонок?"), okTitle: L("Расшифровать"),
+                                                allowLater: true, countdown: 9)
+            }
         case "callinfo-proj":
             Task {
                 _ = await CallInfoPrompt.ask(CallInfo(profile: "acme", names: "Анна"),  // l10n-ignore
@@ -113,6 +120,20 @@ enum PreviewDriver {
             FloatingPanel.showWhenIdle = true
             app.panel.model.callPrompt = L("Идёт звонок в %@. Записать?", "Zoom")
             app.panel.sync()
+        case "panel-countdown":
+            // "Record automatically": the call prompt counting down to the start.
+            panelAlways = true
+            app.stateChanged()
+            app.panel.model.startIn = 7
+            app.panel.model.callPrompt = L("Звонок в %@ · запись через %@ с", "Zoom", 7)
+            app.panel.sync()
+        case "panel-ending":
+            // "Stop when the call ends": the call app let go of the microphone.
+            record()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                app.panel.model.stopIn = 24
+                app.panel.sync()
+            }
         case "panel-saved":
             // "Recorded · 22 min" between the stop and the "what was the call about" answer.
             app.panel.model.state = .recording

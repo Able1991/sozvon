@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch action {
             case .record: self.callPrompt.record()
             case .notNow: self.callPrompt.notNow()
+            case .keepRecording: self.callPrompt.keepRecording()
+            case .callEnded: break
             case .callPrompt: break  // a click on the notification is not consent to record
             case .openCall:
                 self.showCalls(select: url)
@@ -217,6 +219,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return true
         }
         callPrompt.onRecord = { [weak self] in self?.recording.start() }
+        callPrompt.isRecording = { [weak self] in self?.recording.state.isCapturing ?? false }
+        callPrompt.onStop = { [weak self] in self?.recording.stop() }
+        callPrompt.otherSideAudible = { [weak self] in self?.recording.otherSideAudible ?? false }
+        panel.model.onKeepRecording = { [weak self] in self?.callPrompt.keepRecording() }
         callPrompt.onChange = { [weak self] in self?.stateChanged() }
         panel.model.onPromptRecord = { [weak self] in self?.callPrompt.record() }
         panel.model.onPromptDismiss = { [weak self] in self?.callPrompt.notNow() }
@@ -249,7 +255,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Recording started or stopped: re-check the call prompt (may call back into stateChanged once).
         callPrompt.sync()
         pendingInfo.activity()
-        p.callPrompt = callPrompt.prompt.map(CallPromptController.text)
+        p.callPrompt = callPrompt.prompt.map(callPrompt.text)
+        p.startIn = callPrompt.startIn
+        p.stopIn = callPrompt.stopIn
         // Folder of the recording in progress in "Calls": shown as recording, can't be deleted or transcribed.
         let recDir: URL? = s.isCapturing || s.isStarting ? s.dir : nil
         if calls.recordingDir != recDir { calls.recordingDir = recDir }
@@ -388,6 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startUpdates() {
         AppUpdater.announceIfUpdated()
+        LiveVoices.sweep()
         AppUpdater.shared.activity = { [weak self] in
             guard let self else { return .init() }
             let windowOpen = NSApp.windows.contains { $0.isVisible && !($0 is NSPanel) && $0.styleMask.contains(.titled) }
@@ -406,6 +415,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Quit
 
     func applicationWillTerminate(_ n: Notification) {
+        LiveVoices.shared.abandon()
         MCPServer.shared.stop()
         // The search runs in its own process group: it would outlive the app.
         ProjectDiscovery.shared.stop()

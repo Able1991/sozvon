@@ -38,11 +38,20 @@ final class ProcessingController {
         lastDir = session.dir
         onChange()
         Task {
-            // The meeting from the calendar fills what the user left empty; saved right away so "Later" keeps it.
-            let info = await CalendarPrefill.fill(session.info, startedAt: session.startedAt)
+            // The meeting from the calendar and the voices heard during the call fill what the user left empty;
+            // saved right away so "Later" keeps it. Sure of the project and the people: the form goes ahead by
+            // itself after a countdown, and touching it stops the countdown.
+            let heard = await LiveVoices.shared.finish(session.dir)
+            let event = await CalendarPrefill.meeting(at: session.startedAt)
+            let guess = CallGuess.fill(session.info, defaultProfile: UserDefaults.standard.string(forKey: "lastProfile") ?? "",
+                                       startedAt: session.startedAt, event: event,
+                                       heard: heard.map { HeardVoice(name: $0.name, profile: $0.profile, seconds: $0.seconds, unsure: $0.unsure) },
+                                       projects: Project.all())
+            let info = guess.info
             if info != session.info { CallFile.writeInfo(session.dir, info) }
             let answer = await CallInfoPrompt.answer(info, title: L("О чём был звонок?"), okTitle: L("Расшифровать"),
-                                                     allowLater: true)
+                                                     allowLater: true,
+                                                     countdown: guess.sure && CallGuess.skipForm() ? CallGuess.formCountdown : nil)
             onAnswered(session.dir)
             apply(answer, to: session.dir)
         }
@@ -307,7 +316,7 @@ final class ProcessingController {
             showSetup(.install)
         case .describeCall:
             if let url { describe(url) }
-        case .callPrompt, .record, .notNow, .openSoundSettings, .openCall:
+        case .callPrompt, .record, .notNow, .openSoundSettings, .openCall, .callEnded, .keepRecording:
             break  // AppDelegate handles these
         }
     }
