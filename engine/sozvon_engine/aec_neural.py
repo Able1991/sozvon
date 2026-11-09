@@ -68,7 +68,8 @@ class _Model:
         import torch
 
         from .localvqe.model import LocalVQE
-        ck = torch.load(path, map_location="cpu", weights_only=True)
+        # weights_only: no pickled code runs, and the file was checked against its SHA-256 before this.
+        ck = torch.load(path, map_location="cpu", weights_only=True)  # nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch
         cfg = ck["model_config"]
         # The checkpoint stores only its channel widths; these four come from the upstream manifest for v1.2.
         net = LocalVQE(arch_version=3, dmax=64, align_hidden=32, power_law_c=0.3,
