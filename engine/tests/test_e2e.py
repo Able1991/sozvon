@@ -1,6 +1,6 @@
 """End-to-end test: a synthesized call through real Whisper.
 
-The "Milena" voice (say) plays both me on the microphone and the other side on the
+The "Milena" voice (say; on Windows the SAPI voice Irina) plays both me on the microphone and the other side on the
 system track; an echo of the other side is mixed into the microphone. Checks the text,
 labels, echo removal and files; renaming is not needed (the app does it).
 """
@@ -17,15 +17,29 @@ from conftest import installed_engine, slow_model
 ENGINE = installed_engine()
 pytestmark = [pytest.mark.slow,
               pytest.mark.skipif(ENGINE is None, reason="no installed engine with models"),
-              pytest.mark.skipif(shutil.which("say") is None, reason="no `say` command")]
+              pytest.mark.skipif(os.name != "nt" and shutil.which("say") is None, reason="no `say` command")]
 
 BIN = Path(__file__).resolve().parent.parent / "bin"
 
 
-def tts(text: str, out: Path):
+SAPI_VOICES = {"Milena": "Microsoft Irina Desktop", "Samantha": "Microsoft Zira Desktop"}
+SAPI = ("Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+        "$s.SelectVoice($env:TTS_VOICE); $s.SetOutputToWaveFile($env:TTS_OUT); $s.Speak($env:TTS_TEXT); $s.Dispose()")
+
+
+def tts_voice(text: str, out: Path, voice: str):
+    if os.name == "nt":
+        wav = out.with_suffix(".wav")
+        subprocess.run(["powershell.exe", "-NoProfile", "-Command", SAPI], check=True,
+                       env={**os.environ, "TTS_VOICE": SAPI_VOICES[voice], "TTS_OUT": str(wav), "TTS_TEXT": text})
+        return wav
     aiff = out.with_suffix(".aiff")
-    subprocess.run(["say", "-v", "Milena", "-o", str(aiff), text], check=True)
+    subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True)
     return aiff
+
+
+def tts(text: str, out: Path):
+    return tts_voice(text, out, "Milena")
 
 
 def ff(*args):
@@ -68,7 +82,7 @@ def run(call, *extra):
            "SOZVON_MODEL": slow_model(),
            "SOZVON_UI_LANG": "ru", "SOZVON_SERVER_URL": "http://127.0.0.1:9"}
     env.pop("HF_TOKEN", None)
-    py = ENGINE / ".venv/bin/python3"
+    py = ENGINE / (".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python3")
     r = subprocess.run([str(py), str(BIN / "process_call.py"), str(call),
                         "--me", "Тест", "--names", "Анна", "--topic", "запуск", *extra],
                        env=env, capture_output=True, text=True, timeout=600)
@@ -119,12 +133,6 @@ def test_diarization_without_token(tmp_path):
     assert "запуск" in " ".join(mine).lower(), txt
     assert "понедельник" in " ".join(theirs).lower(), txt
     assert_no_echo(mine)
-
-
-def tts_voice(text: str, out: Path, voice: str):
-    aiff = out.with_suffix(".aiff")
-    subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True)
-    return aiff
 
 
 def test_two_languages_per_track(tmp_path):
