@@ -30,7 +30,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from . import calls, jsonfile, paths
+from . import calls, jsonfile, paths, platform_support
 from .i18n import t
 
 CHUNK = 1_900_000
@@ -234,7 +234,7 @@ def download_track(srv, cid: str, d: Path, track: str, info: dict) -> bool:
             raise _remote().RemoteError(1, t("remote_bad_reply", path="/api/calls/{id}/audio"))
         if target.exists():
             return False
-        os.rename(tmp, target)
+        platform_support.rename_file(tmp, target)
         return True
     finally:
         tmp.unlink(missing_ok=True)

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import accel, models, paths
+from . import accel, models, paths, platform_support
 
 SR = 16000
 CHUNK = 30 * SR            # model input length; memory stays bounded for any call length
@@ -194,7 +194,7 @@ def apply(mic_path: Path, ref_path: Path, classic: Path, track, thr: float) -> s
         for f in (m, r, c):
             f.close()
         m = r = c = None
-        os.replace(tmp, classic)
+        platform_support.replace_file(tmp, classic)
         return "ok"
     except Exception as ex:  # noqa: BLE001  the classic output stays
         return f"error: {ex!r}"[:300]

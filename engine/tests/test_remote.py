@@ -900,6 +900,7 @@ def test_lock_never_recreates_a_call_folder(root, data):
     assert not (empty / "call.json").exists()
 
 
+@pytest.mark.skipif(platform_support.SYSTEM == "win32", reason="an open lock file stops the move on Windows (next test)")
 def test_note_racing_a_move_to_the_trash(root, tmp_path):
     """add_note found the folder, then the app moved it to the Trash while add waited for the lock."""
     import threading
@@ -922,6 +923,22 @@ def test_note_racing_a_move_to_the_trash(root, tmp_path):
     assert errors and isinstance(errors[0], notes.CallGone)
     assert not d.exists(), "the folder is not recreated"
     assert "notes" not in read(tmp_path / "Trash-copy"), "nothing written into the trashed copy either"
+
+
+@pytest.mark.skipif(platform_support.SYSTEM != "win32", reason="Windows: an open file inside a folder stops its move")
+def test_a_call_being_edited_cannot_move_and_the_note_is_kept(root, tmp_path):
+    """The Windows side of the race above: the move is refused while the lock is held, so the note lands and the app retries."""
+    import threading
+    from sozvon_engine import calls, jsonfile, notes
+    d = make_call(root, CID, CID)
+    with jsonfile.locked(calls.call_file(d)):
+        th = threading.Thread(target=notes.add, args=(d, "заметка", "claude"))
+        th.start()
+        with pytest.raises(PermissionError):
+            d.rename(tmp_path / "Trash-copy")
+    th.join(5)
+    assert read(d)["notes"][0]["text"] == "заметка"
+    d.rename(tmp_path / "Trash-copy")
 
 
 def test_add_note_tool_reports_a_gone_call(root, monkeypatch):

@@ -26,7 +26,8 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | One engine per call, the lock goes away with the process | done |
 | The engine and its workers end with the app | done (Job Object, parent watchdog) |
 | `call.json` is atomic and locked, a corrupted one is not overwritten | tests, retries in block 8 |
-| Renaming a call folder after transcription with files open, a note racing a move to the Recycle Bin | block 8 |
+| A note racing a move to the Recycle Bin: on Windows the move is refused while the lock is held, and the note is kept | done, the app must retry the move (stage 2) |
+| Renaming a call folder after transcription with files open | the app renames it, stage 2 |
 
 ## Voices
 
@@ -49,7 +50,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Speaker separation, voice prints and the echo model on the GPU, each stage falling back to the CPU | done, on CUDA |
 | The GPU build is chosen from a table by the card's generation; only NVIDIA compute capability 6.1 (GTX 1070) ran on a real card | done, the rest of the range is not verified |
 | AMD Radeon (ROCm) and RTX 50xx | not verified, no such card here; ROCm is not packaged yet and needs `-Experimental` |
-| A failed GPU step leaves the working CPU install | block 7 |
+| A failed GPU step leaves the working CPU install | done for a failed download or check; a killed process, a lost network and a full disk not reproduced yet |
 | Windows on ARM | refused with a message |
 | A failure on the GPU in the middle of a track: the track starts over on the CPU, the GPU is not tried again | done |
 | The contents of `cuda-libs` are checked against sha256 | block 7 |
@@ -71,8 +72,8 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Case | Status |
 |---|---|
 | Cyrillic and spaces in paths and user names: one full run | block 9 |
-| `?*"<>\|`, reserved and very long names in call folders | block 8 |
-| A file held open by an antivirus or a player | block 8 |
+| `?*"<>\|`, reserved and very long names in call folders | done for names from the server; the app must apply the same rule when it names a folder (stage 2) |
+| A file held open by an antivirus or a player | done, replacing waits up to 3 s |
 | Console code page | done |
 | Text mode writes a prompt's line ends as CRLF on stdin (every character intact, harmless for summaries) | known, left as is |
 | Sleep and wake, the profile being unloaded | block 9 where possible, otherwise stage 2 |

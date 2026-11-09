@@ -500,6 +500,9 @@ def safe_folder(name, cid: str) -> str:
     name = name.strip(" \t").lstrip(".")
     if len(name.encode("utf-8")) > 255 or not (name == cid or name.startswith(cid + " ")):
         return cid
+    if platform_support.SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.call_folder_name(name, cid, paths.calls_dir())
     return name
 
 
@@ -560,7 +563,7 @@ def restore(root: Path, body: dict, taken: set | None = None) -> Path | None:
                                            encoding="utf-8")
         if target.exists():  # appeared meanwhile: never replace a folder
             raise FileExistsError(target)
-        os.rename(tmp, target)
+        platform_support.rename_file(tmp, target)
     except FileExistsError:
         shutil.rmtree(tmp, ignore_errors=True)
         return None

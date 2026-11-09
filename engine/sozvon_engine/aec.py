@@ -34,6 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import platform_support
+
 SR = 16000
 B = 256                    # block (hop) in samples, 16 ms
 NFFT = 2 * B
@@ -443,7 +445,7 @@ def cancel(mic: Path, ref: Path, delay: float | None = None, warmup: float = 60.
                     _report_delivered(report, tmp, stats, thr)
                 except Exception:  # noqa: BLE001  only the numbers are lost, the cleaned file is kept
                     pass
-            os.replace(tmp, mic)
+            platform_support.replace_file(tmp, mic)
     finally:
         tmp.unlink(missing_ok=True)  # not applied, or an error part way: never left in the call folder
     report.seconds = time.monotonic() - t0

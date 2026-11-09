@@ -331,6 +331,46 @@ def kill_own_process_group() -> None:
     os._exit(1)
 
 
+# --- files that another process may be holding ---
+
+_BUSY_WAIT = 3.0  # seconds: longer than an antivirus scan of a small file, short enough not to look like a hang
+_BUSY_POLL = 0.1
+
+
+def retry_while_busy(operation, *args) -> None:
+    """Repeat a file operation while Windows refuses it because someone holds the file."""
+    deadline = time.monotonic() + _BUSY_WAIT
+    while True:
+        try:
+            operation(*args)
+            return
+        except PermissionError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(_BUSY_POLL)
+
+
+# --- names of call folders ---
+
+_RESERVED_NAME = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$)(\.|$)", re.IGNORECASE)
+_MAX_PATH = 260
+# The longest path inside a call folder, with room to spare: .work\.mic.clean.wav.XXXXXXXX.tmp and the like.
+_LONGEST_INSIDE = 48
+
+
+def call_folder_name(name: str, cid: str, calls_dir: Path) -> str:
+    """A folder name from elsewhere made valid here, still starting with the call id. Otherwise the id itself."""
+    for ch in '<>"|?*':
+        name = name.replace(ch, "-")
+    name = name.rstrip(" .")
+    if _RESERVED_NAME.match(name):
+        return cid
+    room = _MAX_PATH - 1 - len(str(calls_dir)) - 2 - _LONGEST_INSIDE  # two separators: calls\name\inside
+    if len(name) > room:
+        name = name[:max(room, 0)].rstrip(" .")
+    return name if name == cid or name.startswith(cid + " ") else cid
+
+
 # --- external programs: absolute paths only ---
 #
 # CreateProcess looks in the current folder before PATH, and a call folder or a phone folder can hold anything, so no

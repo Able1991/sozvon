@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import textwrap
+import threading
 import time
 from pathlib import Path
 
@@ -569,6 +570,87 @@ def test_warning_when_the_default_calls_folder_is_inside_onedrive(monkeypatch, w
 def test_known_folders_are_real_folders(win32):
     for folder_id in (win32._FOLDERID_LOCAL_APP_DATA, win32._FOLDERID_PROFILE):
         assert win32._known_folder(folder_id).is_dir()
+
+
+# ---- files someone else is holding ----
+
+def _held(path, seconds):
+    f = open(path, "rb")  # Python opens files without FILE_SHARE_DELETE, so a replace is refused meanwhile
+    timer = threading.Timer(seconds, f.close)
+    timer.start()
+    return timer
+
+
+def test_replace_waits_for_a_file_someone_holds(tmp_path):
+    src, dst = tmp_path / "a", tmp_path / "b"
+    src.write_text("новое", encoding="utf-8")
+    dst.write_text("старое", encoding="utf-8")
+    timer = _held(dst, 0.5)
+    ps.replace_file(src, dst)
+    timer.join()
+    assert dst.read_text(encoding="utf-8") == "новое"
+
+
+def test_replace_gives_up_on_a_file_held_for_long(monkeypatch, tmp_path, win32):
+    monkeypatch.setattr(win32, "_BUSY_WAIT", 0.3)
+    src, dst = tmp_path / "a", tmp_path / "b"
+    src.write_text("x")
+    dst.write_text("y")
+    with open(dst, "rb"):
+        with pytest.raises(PermissionError):
+            ps.replace_file(src, dst)
+
+
+def test_other_errors_are_not_waited_for(monkeypatch, tmp_path, win32):
+    monkeypatch.setattr(win32, "_BUSY_WAIT", 30)
+    start = time.time()
+    with pytest.raises(FileNotFoundError):
+        ps.replace_file(tmp_path / "missing", tmp_path / "b")
+    assert time.time() - start < 2
+
+
+# ---- names of call folders ----
+
+CID = "2026-11-04 15-01"
+
+
+def folder(name, monkeypatch, tmp_path):
+    from sozvon_engine import remote
+    monkeypatch.setenv("SOZVON_CALLS_DIR", str(tmp_path))
+    return remote.safe_folder(name, CID)
+
+
+@pytest.mark.parametrize("name,want", [
+    (f'{CID} · a<b>c"d|e?f*g', f"{CID} · a-b-c-d-e-f-g"),
+    (f"{CID} · тема.", f"{CID} · тема"),
+    (f"{CID} · тема. . ", f"{CID} · тема"),
+    (f"{CID} · Анна", f"{CID} · Анна"),
+    (CID, CID),
+])
+def test_call_folder_names_valid_on_windows(monkeypatch, tmp_path, name, want):
+    assert folder(name, monkeypatch, tmp_path) == want
+
+
+@pytest.mark.parametrize("name", ["con", "CON", "Nul.txt", "aux", "prn.x", "COM1", "lpt9.log", "COM¹", "lpt³", "conin$", "CONOUT$"])
+def test_reserved_names_become_the_id(tmp_path, win32, name):
+    assert win32.call_folder_name(name, CID, tmp_path) == CID
+
+
+def test_names_that_only_begin_like_reserved_ones_stay(tmp_path, win32):
+    assert win32.call_folder_name(f"{CID} · CON", CID, tmp_path) == f"{CID} · CON"
+    assert win32.call_folder_name("CONSOLE", "CONSOLE", tmp_path) == "CONSOLE"
+
+
+def test_a_long_name_leaves_room_for_the_files_inside(monkeypatch, tmp_path, win32):
+    calls = tmp_path / ("д" * 60)
+    name = f"{CID} · " + "тема " * 80
+    got = win32.call_folder_name(name, CID, calls)
+    assert got.startswith(CID + " ") and not got.endswith((" ", "."))
+    assert len(str(calls)) + 1 + len(got) + 1 + win32._LONGEST_INSIDE <= 259
+
+
+def test_no_room_at_all_gives_the_id(tmp_path, win32):
+    assert win32.call_folder_name(f"{CID} · тема", CID, tmp_path / ("д" * 300)) == CID
 
 
 # ---- external programs: absolute paths only ----

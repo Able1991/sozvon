@@ -245,7 +245,7 @@ def _write(d: Path, files: dict, offsets: dict, tracks: dict, gains: dict) -> bo
         encoder.stdin.close()
         if encoder.wait() != 0 or not total:
             raise RuntimeError(f"ffmpeg exit {encoder.returncode}" if total else "no audio")
-        os.replace(tmp, out)
+        platform_support.replace_file(tmp, out)
         return True
     finally:
         _stop(encoder)

@@ -52,6 +52,26 @@ def tool_bin_dirs() -> list[Path]:
     return [Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
 
 
+# --- files that another process may be holding ---
+
+def replace_file(src, dst) -> None:
+    """os.replace. On Windows a file held open by an antivirus or a player cannot be replaced for a moment: wait for it."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        platform_win32.retry_while_busy(os.replace, src, dst)
+        return
+    os.replace(src, dst)
+
+
+def rename_file(src, dst) -> None:
+    """os.rename, with the same wait on Windows."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        platform_win32.retry_while_busy(os.rename, src, dst)
+        return
+    os.rename(src, dst)
+
+
 # --- programs the engine starts ---
 
 def tool_path(name: str) -> str:

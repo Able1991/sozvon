@@ -84,7 +84,7 @@ def to_m4a(src: Path, dst: Path) -> Path:
     tmp = dst.with_name(f".{dst.stem}.tmp.m4a")
     try:
         _run(["-y", "-i", str(src), "-c:a", "aac", "-b:a", "48k", str(tmp)], src)
-        os.replace(tmp, dst)
+        platform_support.replace_file(tmp, dst)
     finally:
         Path(tmp).unlink(missing_ok=True)
     return dst
