@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import config, models, platform_support
+from . import accel, config, models, platform_support
 from .i18n import t
 from .paths import EngineDir
 
@@ -59,9 +59,15 @@ def ensure_entry(entry: dict, d: Path, downloader: Downloader) -> None:
         (d / models.COMPLETE).write_text("legacy\n")
         return
     d.mkdir(parents=True, exist_ok=True)
-    for f in entry["files"]:
-        downloader(entry["repo"], f, entry["revision"], d)
-    verify_files(entry, d)
+    for attempt in range(2):
+        for f in entry["files"]:
+            downloader(entry["repo"], f, entry["revision"], d)
+        try:
+            verify_files(entry, d)
+            break
+        except ValueError:  # a broken download: one more try, then the error reaches the installer
+            if attempt:
+                raise
     (d / models.COMPLETE).write_text(entry["revision"] + "\n")
 
 
@@ -167,12 +173,52 @@ def install_pyannote(engine: EngineDir, sources: list, sha: str = PYANNOTE_SHA,
     return False
 
 
+def environment_hash(engine: EngineDir) -> str:
+    """On Windows the GPU step replaces torch on top of the lock: both decide what the environment holds."""
+    lock = sha256(engine.root / "uv.lock")
+    if platform_support.SYSTEM != "win32":
+        return lock[:16]
+    overlay = windows_overlay(engine)
+    return hashlib.sha256((lock + (sha256(overlay) if overlay else "")).encode()).hexdigest()[:16] if overlay else lock[:16]
+
+
+def windows_overlay(engine: EngineDir) -> Path | None:
+    """The requirements file of the installed GPU build, if the GPU step succeeded."""
+    if not accel.gpu_configured():
+        return None
+    from . import gpu_probe
+    state = accel._probe()
+    for backend in gpu_probe.load_table():
+        if backend["id"] == state.get("backend") and backend.get("requirements"):
+            f = engine.root / "gpu" / backend["requirements"]
+            return f if f.is_file() else None
+    return None
+
+
 def write_markers(engine: EngineDir) -> None:
     """Which uv.lock the environment was built from and when: the app uses this to decide on reinstall."""
     lock = engine.root / "uv.lock"
     if lock.exists():
-        engine.venv_lock.write_text(sha256(lock)[:16] + "\n")
+        engine.venv_lock.write_text(environment_hash(engine) + "\n")
     engine.installed.write_text(f"{int(time.time())}\n")
+
+
+def windows_default_model(engine: EngineDir, settings) -> str:
+    """The model for this machine, unless the user chose one. A downloaded one is kept: nothing is removed or fetched on top
+    of it. With a working GPU Whisper Turbo; on the CPU GigaAM for Russian, Parakeet for the rest, which beat real time
+    even at low priority. Written to .env, so the engine uses the same one."""
+    explicit = os.environ.get("SOZVON_MODEL") or config.read_env_file(engine.env_file).get("SOZVON_MODEL")
+    if explicit and explicit in models.MODELS:
+        return explicit
+    chosen = next((name for name in models.MODELS if models.is_downloaded(engine.root, name)), None)
+    if chosen is None and accel.gpu_configured():
+        chosen = "turbo"
+    if chosen is None:
+        languages = [x.strip() for x in settings.languages.split(",") if x.strip()]
+        chosen = "gigaam" if languages == ["ru"] else "parakeet"
+    with open(engine.env_file, "a", encoding="utf-8") as f:
+        f.write(f"SOZVON_MODEL={chosen}\n")
+    return chosen
 
 
 def main(argv=None, downloader: Downloader = hf_download, fetch: Fetcher = curl_fetch) -> int:
@@ -186,6 +232,8 @@ def main(argv=None, downloader: Downloader = hf_download, fetch: Fetcher = curl_
         os.environ["HF_TOKEN"] = settings.hf_token
 
     model = settings.model if settings.model in models.MODELS else models.DEFAULT_MODEL
+    if platform_support.SYSTEM == "win32":
+        model = windows_default_model(engine, settings)
     step(t("install_model", model=model))
     ensure_model(engine.root, model, downloader)
 

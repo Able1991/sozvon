@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "_comment": "Which torch build goes with which GPU. Read by sozvon_engine/gpu_probe.py. compute_cap is the NVIDIA compute capability, as nvidia-smi reports it. tested lists only what ran on a real card; the rest of a range is expected to work but has not been checked. A backend without a requirements file is not packaged yet.",
+  "backends": [
+    {
+      "id": "cu126",
+      "vendor": "nvidia",
+      "compute_cap": {"min": 5.0, "max": 9.0},
+      "tested": ["6.1"],
+      "index": "https://download.pytorch.org/whl/cu126",
+      "requirements": "cu126.txt"
+    },
+    {
+      "id": "cu130",
+      "vendor": "nvidia",
+      "compute_cap": {"min": 12.0, "max": 13.99},
+      "tested": [],
+      "index": "https://download.pytorch.org/whl/cu130",
+      "requirements": "cu130.txt"
+    },
+    {
+      "id": "rocm721",
+      "vendor": "amd",
+      "names": "Radeon.*RX\\s*(7\\d{3}|9\\d{3})",
+      "tested": [],
+      "experimental": true,
+      "requirements": null
+    }
+  ]
+}

@@ -41,6 +41,65 @@ def test_a_file_with_the_wrong_hash_is_not_marked_complete(tmp_path):
     assert not (tmp_path / models.COMPLETE).exists() and not (tmp_path / "a.bin").exists()
 
 
+def test_a_broken_download_is_fetched_once_more(tmp_path):
+    good = hashlib.sha256(b"weights").hexdigest()
+    calls = []
+
+    def hub(repo, filename, revision, local_dir):
+        calls.append(filename)
+        Path(local_dir, filename).write_text("broken" if len(calls) == 1 else "weights")
+
+    install.ensure_entry({**ENTRY, "sha256": {"a.bin": good}}, tmp_path, hub)
+    assert len(calls) == 2 and (tmp_path / models.COMPLETE).exists()
+
+
+class TestWindowsDefaultModel:
+    @pytest.fixture
+    def engine(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("SOZVON_MODEL", raising=False)
+        return EngineDir(tmp_path)
+
+    def settings(self, languages="ru"):
+        from sozvon_engine import config
+        return config.Settings(languages=languages)
+
+    def test_a_working_gpu_gets_turbo(self, engine, monkeypatch):
+        monkeypatch.setattr(install.accel, "gpu_configured", lambda: True)
+        assert install.windows_default_model(engine, self.settings()) == "turbo"
+
+    @pytest.mark.parametrize("languages,expected", [("ru", "gigaam"), ("en", "parakeet"), ("ru,en", "parakeet")])
+    def test_the_cpu_gets_a_light_model(self, engine, monkeypatch, languages, expected):
+        monkeypatch.setattr(install.accel, "gpu_configured", lambda: False)
+        assert install.windows_default_model(engine, self.settings(languages)) == expected
+        assert f"SOZVON_MODEL={expected}" in engine.env_file.read_text(encoding="utf-8"), "the engine uses the same one"
+
+    def test_the_users_choice_wins(self, engine, monkeypatch):
+        monkeypatch.setenv("SOZVON_MODEL", "small")
+        monkeypatch.setattr(install.accel, "gpu_configured", lambda: True)
+        assert install.windows_default_model(engine, self.settings()) == "small"
+        assert not engine.env_file.exists()
+
+    def test_a_model_already_there_stays(self, engine, monkeypatch):
+        from conftest import fake_model
+        monkeypatch.setattr(install.accel, "gpu_configured", lambda: True)
+        fake_model(engine.root, "small")
+        assert install.windows_default_model(engine, self.settings()) == "small"
+
+
+def test_the_environment_hash_counts_the_gpu_overlay(tmp_path, monkeypatch, data):
+    import json
+    from sozvon_engine import platform_support
+    monkeypatch.setattr(platform_support, "SYSTEM", "win32")
+    engine = EngineDir(tmp_path)
+    (tmp_path / "uv.lock").write_text("lock")
+    plain = install.environment_hash(engine)
+    assert plain == hashlib.sha256(b"lock").hexdigest()[:16]
+    (tmp_path / "gpu").mkdir()
+    (tmp_path / "gpu" / "cu126.txt").write_text("torch")
+    (data / ".gpu.json").write_text(json.dumps({"ok": True, "device": "cuda", "backend": "cu126"}))
+    assert install.environment_hash(engine) != plain
+
+
 def test_fresh_download_passes_pinned_revision(tmp_path):
     hub = FakeHub()
     d = install.ensure_model(tmp_path, "turbo", hub)

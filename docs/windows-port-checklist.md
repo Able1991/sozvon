@@ -47,7 +47,10 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | No administrator rights: everything is in the user's folders | block 7 |
 | GPU is optional, a missing library falls back to int8 on the CPU with a log line | done |
 | Speaker separation, voice prints and the echo model on the GPU, each stage falling back to the CPU | done, on CUDA |
-| AMD Radeon (ROCm), RTX 50xx | not verified, no such card here |
+| The GPU build is chosen from a table by the card's generation; only NVIDIA compute capability 6.1 (GTX 1070) ran on a real card | done, the rest of the range is not verified |
+| AMD Radeon (ROCm) and RTX 50xx | not verified, no such card here; ROCm is not packaged yet and needs `-Experimental` |
+| A failed GPU step leaves the working CPU install | block 7 |
+| Windows on ARM | refused with a message |
 | A failure on the GPU in the middle of a track: the track starts over on the CPU, the GPU is not tried again | done |
 | The contents of `cuda-libs` are checked against sha256 | block 7 |
 | No assistant, `SOZVON_LLM=none`, a failed summary and its warning | block 4 |

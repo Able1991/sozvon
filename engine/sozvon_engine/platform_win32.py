@@ -337,7 +337,7 @@ def kill_own_process_group() -> None:
 # program is ever started by its short name. A batch file would go through cmd.exe, where the characters of a call's
 # text are commands, so none is ever started at all: npm's .cmd wrapper is read and node runs its script directly.
 
-_SYSTEM_TOOLS = ("curl",)
+_SYSTEM_TOOLS = ("curl", "nvidia-smi")
 _NPM_TARGET = re.compile(r'"%~?dp0%?\\([^"]+)"\s+%\*')
 _BELOW_NORMAL_PRIORITY_CLASS = 0x4000
 _PROCESS_MEMORY_PRIORITY = 0
@@ -353,7 +353,10 @@ def _system_dir() -> Path:
 
 def tool_path(name: str) -> str:
     """Absolute path of a program the engine runs: next to python in the .venv, or in System32. FileNotFoundError if absent."""
-    folder = _system_dir() if name in _SYSTEM_TOOLS else Path(sys.executable).parent
+    if name == "powershell":
+        folder = _system_dir() / "WindowsPowerShell" / "v1.0"
+    else:
+        folder = _system_dir() if name in _SYSTEM_TOOLS else Path(sys.executable).parent
     path = folder / f"{name}.exe"
     if not path.is_file():
         raise FileNotFoundError(name)
