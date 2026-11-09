@@ -10,6 +10,8 @@ import os
 import threading
 import time
 
+from .. import platform_support
+
 HOST = "127.0.0.1"
 DEFAULT_PORT = 47816
 ALLOWED_HOSTS = ["127.0.0.1:*", "localhost:*", "[::1]:*"]
@@ -55,7 +57,7 @@ def create_app(server, token: str):
 
 def watch_parent(interval: float = 5.0) -> None:
     """Exit the process when the parent (Sozvon) is gone."""
-    parent = os.getppid()
+    parent = platform_support.parent_pid()
     if parent == 1:
         # The parent is already gone (or not launched from the app via launchd): do not hold the port as an orphan.
         os._exit(0)
@@ -63,7 +65,7 @@ def watch_parent(interval: float = 5.0) -> None:
     def loop():
         while True:
             time.sleep(interval)
-            if os.getppid() != parent:
+            if platform_support.parent_pid() != parent:
                 os._exit(0)
 
     threading.Thread(target=loop, daemon=True).start()

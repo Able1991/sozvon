@@ -31,4 +31,35 @@ public enum SummaryBlocks {
         }
         return out
     }
+
+    /// The lines of one block as the card shows them: consecutive bullets make one list, "- [ ]" lines are tasks.
+    public static func pieces(_ lines: [String]) -> [SummaryPiece] {
+        var out: [SummaryPiece] = []
+        for line in lines {
+            if line.hasPrefix("- [ ] ") || line.hasPrefix("- [x] ") || line.hasPrefix("- [X] ") {
+                // ActionItems reads the owner ("Sarah: send the keys") the same way Reminders does.
+                if let item = ActionItems.item(line) { out.append(.task(item)) }
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                let item = String(line.dropFirst(2))
+                if case .bullets(let list)? = out.last {
+                    out[out.count - 1] = .bullets(list + [item])
+                } else {
+                    out.append(.bullets([item]))
+                }
+            } else if line.hasPrefix("#") {
+                out.append(.heading(line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)))
+            } else {
+                out.append(.paragraph(line))
+            }
+        }
+        return out
+    }
+}
+
+/// One element of a summary card.
+public enum SummaryPiece: Equatable, Sendable {
+    case paragraph(String)
+    case heading(String)
+    case bullets([String])
+    case task(ActionItem)
 }

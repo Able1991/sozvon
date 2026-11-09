@@ -217,14 +217,76 @@ final class CallFolderTests: TempDirTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: empty.path))
     }
 
-    func testStaleProcessingMarkedFailed() throws {
-        let a = calls.appendingPathComponent("2026-11-04 15-01")
-        let b = calls.appendingPathComponent("2026-11-04 16-01")
-        try write(#"{"schema": 1, "id": "2026-11-04 15-01", "status": "processing"}"#, a.appendingPathComponent("call.json"))
-        try write(#"{"schema": 1, "id": "2026-11-04 16-01", "status": "done"}"#, b.appendingPathComponent("call.json"))
-        XCTAssertEqual(CallFile.failStaleProcessing(in: calls), 1)
-        XCTAssertEqual(CallFile.read(a)["status"] as? String, "failed")
-        XCTAssertEqual(CallFile.read(b)["status"] as? String, "done")
+    private func call(_ name: String, _ fields: [String: Any]) throws -> URL {
+        let dir = calls.appendingPathComponent(name)
+        var c = fields
+        c["schema"] = 1
+        c["id"] = name
+        let data = try JSONSerialization.data(withJSONObject: c)
+        try write(String(decoding: data, as: UTF8.self), dir.appendingPathComponent("call.json"))
+        return dir
+    }
+
+    func testInterruptedRunIsRequeuedOnce() throws {
+        let a = try call("2026-11-04 15-01", ["status": "processing"])
+        let done = try call("2026-11-04 16-01", ["status": "done"])
+        let jobs = CallFile.recoverQueue(in: calls)
+        XCTAssertEqual(jobs, [ProcessingQueue.Job(dir: a, kind: .transcribe)])
+        let c = CallFile.read(a)
+        XCTAssertEqual(c["retries"] as? Int, 1)
+        XCTAssertEqual(c["status"] as? String, "recorded", "not shown as still running while it waits")
+        XCTAssertNotNil(c["queued_at"])
+        XCTAssertEqual(CallFile.read(done)["status"] as? String, "done")
+        XCTAssertNil(CallFile.read(done)["queued_at"], "a finished call is left alone")
+    }
+
+    func testInterruptedAgainIsFailedSoACrashCannotLoop() throws {
+        let a = try call("2026-11-04 15-01", ["status": "processing", "retries": 1])
+        XCTAssertEqual(CallFile.recoverQueue(in: calls), [])
+        let c = CallFile.read(a)
+        XCTAssertEqual(c["status"] as? String, "failed")
+        XCTAssertNil(c["queued_at"])
+    }
+
+    func testWaitingCallsComeBackInTheirOrder() throws {
+        let late = try call("2026-11-04 15-01", ["status": "recorded", "queued_at": "2026-11-05T10:00:03Z"])
+        let first = try call("2026-11-04 16-01", ["status": "done", "queued_at": "2026-11-05T10:00:01.250Z"])
+        let second = try call("2026-11-04 17-01", ["status": "failed", "queued_at": "2026-11-05T10:00:01.750Z",
+                                                   "queued_summary_only": true])
+        XCTAssertEqual(CallFile.recoverQueue(in: calls), [
+            ProcessingQueue.Job(dir: first, kind: .transcribe),
+            ProcessingQueue.Job(dir: second, kind: .summaryOnly),
+            ProcessingQueue.Job(dir: late, kind: .transcribe),
+        ])
+        XCTAssertEqual(CallFile.read(first)["status"] as? String, "done", "a waiting call keeps its status")
+        XCTAssertNil(CallFile.read(first)["retries"], "waiting is not a retry")
+    }
+
+    func testInterruptedRunGoesBeforeTheWaitingOnes() throws {
+        let waiting = try call("2026-11-04 15-01", ["status": "recorded", "queued_at": "2026-11-05T10:00:00Z"])
+        let interrupted = try call("2026-11-04 16-01", ["status": "processing"])
+        XCTAssertEqual(CallFile.recoverQueue(in: calls), [ProcessingQueue.Job(dir: interrupted, kind: .transcribe),
+                                                          ProcessingQueue.Job(dir: waiting, kind: .transcribe)], "it was already running")
+    }
+
+    func testBrokenQueuedAtIsIgnored() throws {
+        _ = try call("2026-11-04 15-01", ["status": "recorded", "queued_at": "вчера"])
+        _ = try call("2026-11-04 16-01", ["status": "recorded", "queued_at": 5])
+        XCTAssertEqual(CallFile.recoverQueue(in: calls), [])
+    }
+
+    func testQueuedFieldsAreWrittenAndRemoved() throws {
+        let a = try call("2026-11-04 15-01", ["status": "done", "retries": 1])
+        let at = Date(timeIntervalSince1970: 1_800_000_000.5)
+        XCTAssertTrue(CallFile.setQueued(a, at: at, summaryOnly: true))
+        XCTAssertEqual(CallFile.queuedAt(CallFile.read(a)), at)
+        XCTAssertEqual(CallFile.read(a)["queued_summary_only"] as? Bool, true)
+        XCTAssertTrue(CallFile.setQueued(a, at: nil))
+        XCTAssertNil(CallFile.read(a)["queued_at"])
+        XCTAssertNil(CallFile.read(a)["queued_summary_only"])
+        XCTAssertTrue(CallFile.clearRetries(a))
+        XCTAssertNil(CallFile.read(a)["retries"])
+        XCTAssertEqual(CallFile.read(a)["status"] as? String, "done")
     }
 }
 
@@ -328,7 +390,23 @@ final class CallNotesTests: TempDirTestCase {
     func testEditNeverRecreatesAGoneFolder() {
         let gone = calls.appendingPathComponent("2026-11-04 16-00")
         XCTAssertFalse(CallFile.setStatus(gone, .failed))
+        XCTAssertFalse(CallFile.setFailedUnlessDone(gone))
         XCTAssertFalse(FileManager.default.fileExists(atPath: gone.path))
+    }
+
+    /// A run stopped once the engine wrote `done` (a quit during the listening file): the finished call stays finished.
+    func testAStoppedRunKeepsAFinishedCallDone() throws {
+        let d = try callDir()
+        XCTAssertTrue(CallFile.setStatus(d, .done))
+        XCTAssertTrue(CallFile.setFailedUnlessDone(d))
+        XCTAssertEqual(CallFile.read(d)["status"] as? String, "done")
+    }
+
+    func testAStoppedRunStillFailsAnUnfinishedCall() throws {
+        let d = try callDir()
+        XCTAssertTrue(CallFile.setStatus(d, .processing))
+        XCTAssertTrue(CallFile.setFailedUnlessDone(d))
+        XCTAssertEqual(CallFile.read(d)["status"] as? String, "failed")
     }
 
     func testDiscardIgnoresTheLockFile() throws {

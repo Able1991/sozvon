@@ -19,11 +19,7 @@ final class PendingInfoController {
 
     func start() {
         refresh()
-        let t = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh(remind: true) }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
+        timer = Timer.repeatingOnMain(every: 60) { [weak self] in self?.refresh(remind: true) }
     }
 
     /// Sozvon's state changed: the idle clock restarts after a recording.

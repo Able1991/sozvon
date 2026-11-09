@@ -120,10 +120,8 @@ private final class RecenterWhileSizing {
                                                          queue: .main) { [weak w] _ in
             MainActor.assumeIsolated { w?.center() }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            MainActor.assumeIsolated {
-                if let t = active.removeValue(forKey: id)?.token { NotificationCenter.default.removeObserver(t) }
-            }
+        mainAfter(1) {
+            if let t = active.removeValue(forKey: id)?.token { NotificationCenter.default.removeObserver(t) }
         }
     }
 }

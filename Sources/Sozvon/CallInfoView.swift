@@ -38,6 +38,12 @@ struct CallInfoView: View {
     var body: some View {
         SZWFormSheet(title, subtitle: countdown.map { L("Проект и участники определились сами. Расшифрую через %@ с, если ничего не менять.", $0) }
                      ?? L("Тема и имена помогут расшифровке и саммари."), width: 580, columns: true) {
+            Picker(L("Что это") + ":", selection: $info.reflection) {
+                Text(L("Звонок")).tag(false)
+                Text(L("Размышления")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .fixedSize()
             projectPicker
             TextField(L("Тема") + ":", text: $info.topic, prompt: Text(L("О чём говорили, двумя словами")))
             participants

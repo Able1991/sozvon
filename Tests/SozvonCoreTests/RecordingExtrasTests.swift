@@ -44,6 +44,47 @@ final class AudioRetentionTests: TempDirTestCase {
         XCTAssertNotNil(try json(old.appendingPathComponent("call.json"))[AudioRetention.removedKey])
         XCTAssertEqual(AudioRetention.expired(in: calls, days: 30, now: now, busy: [busy]), [], "already without audio")
     }
+
+    func testRemoveAudioRemovesTheCleanedAndListeningFilesToo() throws {
+        let d = try call("two", created: Date().addingTimeInterval(-40 * 86400))
+        try write(String(repeating: "c", count: 3000), d.appendingPathComponent(AudioRetention.cleanMic))
+        try write(String(repeating: "l", count: 4000), d.appendingPathComponent(AudioRetention.listen))
+        XCTAssertEqual(AudioRetention.removeAudio(d), 11 + 3000 + 4000)
+        for name in AudioRetention.removedFiles {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: d.appendingPathComponent(name).path), name)
+        }
+        XCTAssertTrue(AudioRetention.removedFiles.contains(AudioRetention.listen), "the confirmation sums the same list")
+    }
+}
+
+final class CallPlaybackTests: TempDirTestCase {
+    private let offsets = TrackOffsets(AudioTimes(["mic_start": 100.0, "system_start": 100.5]))
+
+    private func folder(_ files: [String: Int]) throws -> URL {
+        let d = calls.appendingPathComponent("c")
+        for (name, size) in files { try write(String(repeating: "x", count: size), d.appendingPathComponent(name)) }
+        return d
+    }
+
+    func testTheListeningFileIsPreferredAtOffsetZeroWithTheTracksAsFallback() throws {
+        let d = try folder(["listen.m4a": 2000, "mic.m4a": 2000, "system.m4a": 2000, "mic.clean.m4a": 2000])
+        let plans = CallPlayback.plans(in: d, offsets: offsets)
+        XCTAssertEqual(plans.map { $0.map(\.name) }, [["listen.m4a"], ["mic.clean.m4a", "system.m4a"]])
+        XCTAssertEqual(plans[0][0].offset, 0)
+        XCTAssertEqual(plans[1].map(\.offset), [0, 0.5], "the cleaned mic is aligned; system keeps its offset")
+    }
+
+    func testWithoutAListeningFileTodayBehaviourStays() throws {
+        let d = try folder(["mic.m4a": 2000, "system.m4a": 2000])
+        let plans = CallPlayback.plans(in: d, offsets: offsets)
+        XCTAssertEqual(plans.map { $0.map(\.name) }, [["mic.m4a", "system.m4a"]])
+        XCTAssertEqual(plans[0].map(\.offset), [0, 0.5])
+    }
+
+    func testAnEmptyOrTinyListeningFileIsNotOffered() throws {
+        let d = try folder(["listen.m4a": 10, "system.m4a": 2000])
+        XCTAssertEqual(CallPlayback.plans(in: d, offsets: offsets).map { $0.map(\.name) }, [["system.m4a"]])
+    }
 }
 
 final class SilenceWatchTests: XCTestCase {

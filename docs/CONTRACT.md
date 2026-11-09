@@ -29,7 +29,7 @@ Contract version: **1**. A breaking change bumps the version and requires a migr
 
 Engine state markers in `<data>`: `.engine-version` (version of the copied code),
 `.venv-lock` (hash of the `uv.lock` the environment was built for), `.installed` (install time),
-`.no-diarization` (the speaker separation models failed to install), `.mcp-token` (MCP token, mode 600).
+`.no-diarization` (the speaker separation models failed to install), `.no-echo-model` (the last echo model download failed; `install.py` writes it, the first call that runs without the model reports it in `warnings` and removes it), `.mcp-token` (MCP token, mode 600).
 
 ## 2. Environment variables
 
@@ -46,6 +46,7 @@ defaults; environment variables take precedence over `.env`.
 | `SOZVON_PYANNOTE_TAR` | path to the speaker separation model archive in the bundle | the app (for `setup.sh`) |
 | `SOZVON_PYANNOTE_URL`, `SOZVON_PYANNOTE_SHA` | alternative URL and SHA-256 of the speaker separation model archive (for development) | nobody by default |
 | `SOZVON_AEC` | `0`: skip the echo cancellation of the microphone (the system track is the reference for removing the other side's voices that the mic picked up from the speakers; the original `mic.m4a` is never changed). Manual, for debugging | nobody by default |
+| `SOZVON_NEURAL_AEC` | `0`: skip the neural echo suppressor that runs next to the classic canceller (`sozvon_engine/aec_neural.py`, LocalVQE v1.2, Apache-2.0, weights in `models.json` key `aec`; it hears the raised mic, not the classic output); the classic output is used. It is also skipped when the weights are missing or corrupt, or on any error, with one line in `process.log` and a `warnings` entry for failures. Manual, for debugging | nobody by default |
 
 `.env` keys (written by the app from its settings, `SOZVON_ENV_VERSION=1`; the app keeps keys it does not manage,
 the ones marked "manual" below):
@@ -200,7 +201,26 @@ start with `==> `.
   transcript.md / .txt    transcript
   summary.md              summary (if any)
   process.log             transcription log
+  mic.clean.m4a           the microphone raised and freed of echo (classic canceller; while the far end plays and for its echo tail, the neural suppressor's output instead), if that helped (kept)
+  listen.m4a              the levelled listening file, made by the engine at the end of a run (below); never read by transcription, diarization or voice prints, not synced
+  .work/                  the engine's working files while it runs (wavs, echo cancellation temp); never read or synced
 ```
+
+`.work` is removed by the engine when a run ends, fails or gets SIGTERM (the handler exits through the `finally`
+blocks, exit code 143); a run also clears a stale one before it starts. A hard kill (the engine's own watchdog when the
+app dies, `SIGKILL`) leaves it, so the app removes `.work` from every call folder at launch, except the calls in the
+restored queue and calls with `status: processing`. The Calls list, the folder size and the sync ignore it.
+
+**listen.m4a** (optional) is the call as the player hears it: one AAC mono track at 48 kHz, about 72 kbit/s (30 to 36 MB per hour),
+aligned to the call's start, as long as the call. Each track is levelled on its own (the gain from the 16 kHz working wav,
+applied to the full band of the original track at its offset, with the boost its working wav got; a mic whose echo was removed
+on this run exists only as the cleaned 16 kHz working wav, which is resampled up), the tracks are added, a limiter holds the sum
+at -1.5 dBFS before encoding (AAC can go slightly over it). A very quiet track is raised first, by up to 30 dB as in its working
+wav, so it can end up more than the 6 dB levelling limit above the recording. The engine writes the file last, after the transcript and
+summary and after `status: done`, which takes about 2 minutes per hour of call, atomically (a temp file in `.work` renamed into
+place), removing an old one first; Transcribe Again makes a new one. The call is complete without it: a failed render or a quit
+during it leaves `status: done`. A failure only leaves no file and a log line, with no warning: the player then plays `mic.clean.m4a` or `mic.m4a` and `system.m4a` as before, so older calls are
+unchanged. The player prefers it (one track at offset 0) and falls back to the tracks when it is missing, tiny or unreadable.
 
 The folder name is for humans only. The **call id** is the minute the recording started, `2026-11-04 15-01`;
 the second and later recordings started in the same minute get a suffix: `2026-11-04 15-01-2`,
@@ -226,6 +246,9 @@ does not change, so the id is stable (MCP tools look calls up by it).
   "profile": "acme", "names": ["Anna"], "participants": ["Anna Petrova", "Ivan"], "topic": "launch", "terms": "",
   "languages": "ru,en", "summary": true,
   "engine": {"version": "aad392548a91a7b4", "model": "turbo"},
+  "warnings": [{"step": "summary", "error": "claude: rate limit"}],
+  "demo": true,
+  "queued_at": "2026-11-05T09:12:44.250Z", "queued_summary_only": true, "retries": 1,
   "notes": [{"id": "0b7e0c4e-5f1a-4c3a-9d41-5d2f7f1a0a01", "at": "2026-11-05T09:12:44Z",
              "text": "Anna sends the contract on Friday", "source": "claude-code"}],
   "notes_deleted": ["6f3c9a10-2b7d-4e8f-a1c2-3d4e5f607182"]
@@ -238,6 +261,34 @@ The engine sets `processing`, then `done` and `engine` (version from `ENGINE_VER
 otherwise from `.engine-version`). Fields set by command-line arguments are also written by the engine
 to `call.json`: those are the values the call was transcribed with. The engine does not overwrite a corrupted `call.json` (exit code 2).
 On error the app sets `failed`.
+
+**Queue.** At most one engine run (transcription or `--summary-only`) goes on at a time; the rest wait first in, first
+out, and none starts while a recording is starting, running or being saved, while its live voice match finishes, while a
+call app holds the microphone, or during an engine update. Local only, all optional, schema stays 1, sync does not send
+them. `queued_at` (ISO 8601, milliseconds written, plain seconds accepted) is set while a call waits and removed when it
+starts or is taken out of the queue; `queued_summary_only: true` marks a waiting summary run. At launch the calls with
+`queued_at` go back in the queue in that order. A call found with `status: processing` was interrupted by a crash: it
+goes first, as `recorded` with `retries` raised by one, at most `retries: 1`; found again with `retries: 1`, it is set to
+`failed`. A run that ended by itself or a new request from the user removes `retries`. Quitting the app from the app
+sets the running call to `failed` as before and leaves the waiting ones queued. So that recovery can never put two engines
+on one folder, `process_call.py` holds an exclusive `flock` on the call folder for the whole run (a second run waits for it,
+and the lock goes away with the process however it ends), and exits with its workers within two seconds of its parent going away.
+
+**Warnings.** `warnings` (optional, schema stays 1) lists the steps that failed on the engine's last run although the
+call is `done`: `[{"step": "summary" | "names" | "echo", "error": "<one line, no transcript text>"}]`. `summary` is a failed
+summary (full run or `--summary-only`), `names` a failed speaker naming by the assistant (the names fall back to the
+order of appearance), `echo` the neural echo suppressor not delivering: a failure, a damaged model file, or (reported
+once) a model whose download failed; the classic output is used and the app shows nothing for this step. A summary turned off or no assistant set up is not a warning. The engine writes the field under
+the call lock at the end of a run that had failures, and removes it at the end of a run (full or `--summary-only`) that
+had none; a `--summary-only` run that fails writes its warning too. The app, on finishing a call with a `summary`
+warning, notifies "Готово, но саммари не получилось" with a button that runs the Update Summary path again, and the
+Calls row shows a mark. Local only: sync does not send the field.
+
+**Demo calls.** `demo: true` (optional, schema stays 1) marks the fictional calls Settings > Assistants > Demo Calls
+adds: text only, no audio, no project and no voice print. The app's "Remove" moves only calls with this exact value to
+the Trash; the Calls list shows a "Демо" mark. MCP lists and searches them like any call. Sync skips them entirely
+(no upload of the call, its notes or audio, no deletion, no overwrite from the server), so the field is not in
+`CALL_FIELDS` and no real call's hash changes.
 
 **Project title of a restored call.** Projects are per Mac. A call restored from the own server whose project this
 Mac doesn't have gets `project_title` (optional, schema stays 1): the title the server sent. The app shows it
@@ -278,8 +329,8 @@ ends each paragraph spoken at a mark (or, in a pause, the last one before it) wi
 (`transcript.txt` and the `[MM:SS] Name: text` format stay as they are), shows those lines with a leading ⭐ to the
 summary assistant and adds a "Key Moments" section to the summary. Sync does not send the field.
 
-**Audio removed** (`audio_removed_at`, optional): "Delete audio automatically" in Settings removed `mic.m4a` and
-`system.m4a` of this finished call (status `done` with `transcript.txt`, `created_at` older than the chosen 7, 15,
+**Audio removed** (`audio_removed_at`, optional): "Delete audio automatically" in Settings removed `mic.m4a`,
+`system.m4a` (and `mic.clean.m4a`, `listen.m4a`) of this finished call (status `done` with `transcript.txt`, `created_at` older than the chosen 7, 15,
 30 or 60 days; never a call being recorded, queued or transcribed). Transcript, summary and notes stay; the call
 has no player and no "Transcribe Again". The app checks a minute after launch and every 6 hours, and asks before
 removing anything right after the setting changes.
@@ -360,11 +411,21 @@ here at once, on the server and on the other Macs at their next sync.
 ```json
 {"schema": 1, "id": "<uuid4 hex, 32 lowercase hex characters>", "name": "Александр Бородин",
  "profile": "<project slug or empty>", "me": false, "embedding": [256 floats, L2-normalized],
- "seconds": 42.5, "updated_at": "2026-11-05T10:00:00Z"}
+ "seconds": 42.5, "updated_at": "2026-11-05T10:00:00Z", "model": "wespeaker-voxceleb-resnet34-LM/256"}
 ```
 
-`seconds` is the speech behind the voice print (at most 10,000). One record per (`name`, `profile`); at most one
-record has `"me": true`, the user's own voice, and its `profile` is `""`. An invalid file is ignored by readers.
+`model` (optional) names the embedding model and its size; new records get it, and a record without it is of
+`wespeaker-voxceleb-resnet34-LM/256`. Vectors of different models are not comparable, so matching (the call
+pipeline and live voices), enrollment and every merge (weighted averages, sync conflicts, folding a server
+record) use only records of the current model. Records of another model stay untouched on disk, are skipped, and
+the log says so once per run; they can still be listed and deleted, and the user's name in one of them still
+counts for recognizing the user's label. At a sync conflict between models the record here is kept. Records of
+another model are not sent to the own server (it stores no `model`), and `model` is not part of the sync
+content hash, so the hash of existing records is unchanged. Readers ignore fields they don't know.
+
+`seconds` is the speech behind the voice print (at most 10,000). Per model, one record per (`name`, `profile`) and at most one
+record with `"me": true`, the user's own voice, whose `profile` is `""`; records of different models do not
+count against each other, so a name (and a `"me"`) can appear once for each model. An invalid file is ignored by readers.
 The embedding is `pyannote/wespeaker-voxceleb-resnet34-LM` (in `<data>/hf-cache`, loaded offline on the CPU,
 once per process) over clean speech: energy-based speech detection, the longest pieces first, at most 60 s,
 in windows of at most 10 s averaged by length.
@@ -390,6 +451,9 @@ messages in the `SOZVON_UI_LANG` language):
   last one 5 s later), except those that overlap another speaker's paragraph; audio from `mic.m4a` when LABEL is
   the user (`SOZVON_ME`, or the default label `Я`/`Me` when it is empty, or `me`) and the call has a mic track,
   otherwise from `system.m4a`; times shifted by the track's offset from `call.json` `audio` (as `tracks.delays`).
+  A call with `speaker_tracks` (see below) decides by it for anyone but the user: `"mic"` reads `mic.clean.m4a` when it
+  exists (at offset 0) or else `mic.m4a`, `"system"` reads `system.m4a`, and a label that is `"both"` or is not listed
+  is refused with error 2 rather than risk a voice print of someone else's voice.
   Only those pieces are decoded. The longest clean pieces up to 60 s, at least 4 s of speech, otherwise error 2.
   The result is **merged** into the existing record of (NAME, SLUG): the average of both embeddings weighted by
   their seconds (each side capped at 300 s), re-normalized; `seconds` adds up.
@@ -409,6 +473,25 @@ same name. The log says `голос: Собеседник 2 → Александ
 names from `call.json` and the assistant only name the remaining voices, and never reuse a name given by voice.
 With no stored records nothing is loaded. If embeddings fail (no model, no pyannote) the log says so and the
 transcript is exactly what it would be without voice prints.
+
+**The microphone** is normally the user, every line of it. It is split only when speaker separation is available,
+the call is not a reflection, the current-model `"me"` record exists, system audio had no gaps (those calls keep their
+own microphone separation) and the microphone has at least 15 s of speech. Then the track is diarized once and each
+cluster is compared with the `"me"` record (cosine at least 0.5); a cluster that matches is the user. No `"me"` record,
+or no cluster matching it: every line stays the user's and the log says so. Another cluster is a separate person only
+with at least 15 s of speech, and only if its voice matches no voice of the system track (cosine at least 0.5): that
+one is the other side leaking from the speakers. A separate person gets a stored name by the matching rule above
+(project and no-project records), or else a generic label numbered after the system track's voices (`Собеседник 3`),
+which the assistant can name from the conversation like any other voice. Any failure here is logged and the
+microphone stays the user's.
+
+**`speaker_tracks`** (`call.json`, optional, schema stays 1): `{label: "mic" | "system" | "both"}`, one entry per
+transcript label, written with `done` only when the microphone holds someone besides the user (a transcription that
+finds nobody removes an old one; a call without it enrolls as before). The transcript does not say which track a
+paragraph came from, and enrollment needs that. Local only: not among the fields sync sends, not in the content hash.
+The app keeps it right on an edit (`TranscriptEdit`): a rename moves the entry, a swap swaps the two, a rename or a
+line given to someone who already speaks makes them `"both"` when the tracks differ, and a label with no known track
+stays without an entry.
 
 **When the app enrolls:** the user's own sample in Settings (`--file --me`), and a speaker the user names precisely
 in a call (rename or swap in the Calls window, `--call --speaker`).
@@ -441,3 +524,12 @@ after 10 s; editing it or pressing Wait stops the countdown.
 
 Nothing from `.live` is kept or sent anywhere: a folder left by a crash or a quit is removed at the next launch, and
 on quit at once. The transcription names the voices on its own as before.
+
+### Reflections
+
+`"kind": "reflection"` in `call.json` marks the user alone, thinking out loud: a recording marked so in "What was the
+call about?" (it starts chosen when no call app held the microphone, the other side's track stayed silent and no
+meeting was going on) and every recording from the phone folder. The engine does no speaker separation and names no
+voices, labels all speech as the user and writes a summary with the sections Main Point, Analysis, Action Items and
+Open Questions (in Russian: Главное, Анализ, Задачи, Открытые вопросы). A call has no `kind` at all, so its `call.json`
+and sync hash do not change. `kind` is not synced to the own server yet: on another Mac a reflection looks like a call.

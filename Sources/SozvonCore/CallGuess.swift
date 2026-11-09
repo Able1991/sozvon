@@ -75,7 +75,7 @@ public enum CallGuess {
         let meetingNow = event.map { startedAt >= $0.start.addingTimeInterval(-sureEarly) && startedAt <= $0.end } ?? false
         let voiceHeard = heard.contains { !$0.unsure && $0.seconds >= sureSeconds }
         let sure = !i.profile.isEmpty && projects.contains(where: { $0.slug == i.profile })
-            && !split(i.names).isEmpty && (meetingNow || voiceHeard || typedAnything) && !conflict
+            && !split(i.names).isEmpty && (meetingNow || voiceHeard || typedAnything) && !conflict && !info.reflection
         if i.profile.isEmpty { i.profile = defaultProfile }  // the form's usual default
         return (i, sure)
     }

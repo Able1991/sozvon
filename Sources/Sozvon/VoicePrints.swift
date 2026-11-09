@@ -21,9 +21,7 @@ final class VoiceStore: ObservableObject {
         noticeID += 1
         let id = noticeID
         notice = (ok, text)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
-            MainActor.assumeIsolated { if self?.noticeID == id { self?.notice = nil } }
-        }
+        mainAfter(6) { [weak self] in if self?.noticeID == id { self?.notice = nil } }
     }
 
     /// Names with a saved voice for this project (or without a project), for the transcript's speaker labels.
@@ -104,7 +102,7 @@ final class VoiceStore: ObservableObject {
     func enroll(_ names: [String], from call: Call) {
         guard call.hasAudio else { return }
         let log = call.url.appendingPathComponent("process.log")
-        for name in Voices.namesToEnroll(names, me: Settings.shared.name) {
+        for name in Voices.namesToEnroll(names, me: Settings.shared.name, own: records.filter(\.me).map(\.name)) {
             let args = Voices.enrollCall(name: name, profile: call.info.profile, dir: call.url, speaker: name)
             Task {
                 let outcome = await run(args, log: log, appendLog: true)

@@ -552,7 +552,7 @@ struct SetupView: View {
             }
             if !p.screen {
                 Button(L("Я включил, перезапустить Sozvon")) {
-                    UserDefaults.standard.set(SetupModel.Step.permissions.rawValue, forKey: "setupResumeStep")
+                    UserDefaults.standard.set(SetupModel.Step.permissions.rawValue, forKey: DefaultsKey.setupResumeStep)
                     Permissions.relaunch()
                 }
                 .buttonStyle(.link)

@@ -131,3 +131,14 @@ def test_cli(tmp_path, capsys):
     (live / "stop").touch()
     assert voice_cli.main(["live", "--dir", str(live)]) == 0
     assert capsys.readouterr().out.strip().splitlines()[-1] == "RESULT: ok"
+
+
+def test_records_skip_another_model(monkeypatch):
+    store("Анна", 300)
+    voices.save({**voices.load_all()[0], "id": "f" * 32, "name": "Олег", "model": "x/y/1"})
+    monkeypatch.setattr(voices, "_logged_foreign", False)
+    lines = []
+    assert [r["name"] for r in live_voices.records(log=lines.append)] == ["Анна"]
+    live_voices.records(log=lines.append)
+    assert len(lines) == 1
+    assert len(voices.load_all()) == 2, "the other model's record stays on disk"

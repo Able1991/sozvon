@@ -29,6 +29,12 @@ final class VoicesTests: TempDirTestCase {
         XCTAssertNil(Voices.voice(named: "Иван", profile: "acme", in: all))
     }
 
+    func testRecordWithModelFieldIsRead() throws {
+        try record("m1", #"{"schema":1,"id":"m1","name":"Олег","profile":"","me":false,"embedding":[0.1],"seconds":9,"updated_at":"2026-11-01T10:00:00Z","model":"wespeaker-voxceleb-resnet34-LM/256"}"#)
+        try record("m2", #"{"schema":1,"id":"m2","name":"Анна","model":"other/model/512","future":{"x":1}}"#)
+        XCTAssertEqual(Voices.all().map(\.id), ["m2", "m1"], "unknown fields, the model among them, don't hide a record")
+    }
+
     func testArgumentBuilders() {
         let wav = URL(fileURLWithPath: "/tmp/me.wav")
         XCTAssertEqual(Voices.enrollFile(name: "Я", me: true, file: wav),
@@ -56,6 +62,12 @@ final class VoicesTests: TempDirTestCase {
             XCTAssertFalse(Voices.isGenericLabel(n, me: "Аня"), n)
         }
         XCTAssertEqual(Voices.namesToEnroll(["Олег", "Собеседник 1", "олег", "Аня", " Иван "], me: "Аня"), ["Олег", "Иван"])
+        // The name in Settings can be empty or in another alphabet: my own voice print knows it too.
+        XCTAssertEqual(Voices.namesToEnroll(["Boris", "Борис", "Влад"], me: "", own: ["Boris"]), ["Влад"])
+        XCTAssertTrue(Voices.isGenericLabel("Борис", me: "Boris"))
+        XCTAssertTrue(Voices.sameName("Борис", " boris "))
+        XCTAssertFalse(Voices.sameName("", ""))
+        XCTAssertFalse(Voices.sameName("Борис", "Влад"))
     }
 
     func testResultLineCarriesValue() {

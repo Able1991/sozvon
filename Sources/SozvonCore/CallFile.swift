@@ -17,6 +17,8 @@ public struct CallInfo: Equatable, Sendable {
     public var terms: String
     public var summary: Bool
     public var languages: [SpeechLanguage]
+    /// The user alone, thinking out loud (call.json `kind`): one speaker and its own kind of summary.
+    public var reflection = false
 
     public init(profile: String = "", names: String = "", topic: String = "", terms: String = "",
                 summary: Bool = true, languages: [SpeechLanguage] = [.ru]) {
@@ -137,6 +139,15 @@ public enum CallFile {
         }
     }
 
+    /// Everything written right after a recording stops: status and audio times, the answers. False if any write
+    /// failed (full disk, folder gone): the caller must tell the user. The audio files are never touched.
+    @discardableResult
+    public static func saveStopped(_ dir: URL, startedAt: Date, audio: AudioTimes, info: CallInfo) -> Bool {
+        let stopped = recordStopped(dir, startedAt: startedAt, audio: audio)
+        let answers = writeInfo(dir, info)
+        return stopped && answers
+    }
+
     /// Answers from the "What was the call about" window: the engine reads them from call.json, not from arguments.
     @discardableResult
     public static func writeInfo(_ dir: URL, _ i: CallInfo) -> Bool {
@@ -154,24 +165,21 @@ public enum CallFile {
         c["terms"] = i.terms.trimmingCharacters(in: .whitespacesAndNewlines)
         c["languages"] = SpeechLanguage.serialize(i.languages)
         c["summary"] = i.summary
-    }
-
-    /// After a crash or an app quit mid-transcription the status stayed `processing` forever.
-    /// On launch (a second copy is ruled out by the lock) such calls are marked `failed`
-    /// so they can be transcribed again from the "Calls" window. Returns how many were fixed.
-    @discardableResult
-    public static func failStaleProcessing(in root: URL) -> Int {
-        let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])) ?? []
-        var n = 0
-        for d in dirs where d.hasDirectoryPath && exists(d) {
-            if read(d)["status"] as? String == CallStatus.processing.rawValue, setStatus(d, .failed) { n += 1 }
-        }
-        return n
+        c["kind"] = i.reflection ? "reflection" : nil
     }
 
     @discardableResult
     public static func setStatus(_ dir: URL, _ s: CallStatus) -> Bool {
         update(dir) { $0["status"] = s.rawValue }
+    }
+
+    /// A run stopped or died: `failed`, unless the engine had already finished the call (`done`), as it has during the
+    /// optional listening file at the end of a run.
+    @discardableResult
+    public static func setFailedUnlessDone(_ dir: URL) -> Bool {
+        update(dir) { c in
+            if c["status"] as? String != CallStatus.done.rawValue { c["status"] = CallStatus.failed.rawValue }
+        }
     }
 
     /// "Later" in the call prompt: the call waits for its description (`info_pending: true`, contract section 4).
@@ -193,6 +201,7 @@ public enum CallFile {
         if let t = c["terms"] as? String { i.terms = t }
         if let l = c["languages"] as? String { i.languages = SpeechLanguage.parse(l) }
         if let s = c["summary"] as? Bool { i.summary = s }
+        i.reflection = c["kind"] as? String == "reflection"
         return i
     }
 }

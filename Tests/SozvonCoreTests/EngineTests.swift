@@ -3,6 +3,13 @@ import XCTest
 @testable import SozvonCore
 
 final class EngineStateTests: TempDirTestCase {
+    func testWhatKeepsATranscriptionWaiting() {
+        XCTAssertEqual(EngineState.notInstalled.waitReason, .engine)
+        XCTAssertEqual(EngineState.modelMissing(.turbo).waitReason, .model)
+        XCTAssertNil(EngineState.ready.waitReason)
+        XCTAssertNil(EngineState.needsUpdate.waitReason, "the update runs by itself and has its own notice")
+    }
+
     private func makePython() throws {
         let py = data.appendingPathComponent(".venv/bin/python3")
         try write("#!/bin/sh\n", py)
@@ -44,6 +51,28 @@ final class EngineStateTests: TempDirTestCase {
         XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: true), .ready, "свой движок не обновляем")
         try write(EngineState.lockHash(Data("lock v2".utf8)) + "\n", data.appendingPathComponent(".venv-lock"))
         XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false), .ready)
+    }
+
+    func testEchoModelMissingUntilItsCompleteMarkerExists() throws {
+        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: false), "движок не поставлен: первая установка сама всё скачает")
+        try makePython()
+        XCTAssertTrue(EngineState.echoModelMissing(data: data, isDevEngine: false))
+        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: true), "свой движок не докачиваем")
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: nil, now: t0), "ещё не пробовали")
+        XCTAssertFalse(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 3600, now: t0), "час назад: каждый запуск не качаем")
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 86400, now: t0), "сутки спустя снова")
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 + 3600, now: t0), "часы перевели назад")
+        XCTAssertFalse(EngineState.shouldRetryEchoModel(data: data, isDevEngine: true, lastTry: nil, now: t0))
+        try write("", data.appendingPathComponent("models/\(EngineState.echoModelDir)/.complete"))
+        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: false))
+    }
+
+    func testEchoModelFolderMatchesTheManifest() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("engine/models.json"))) as? [String: Any]
+        let aec = json?["aec"] as? [String: Any]
+        XCTAssertEqual(aec?["dir"] as? String, EngineState.echoModelDir)
     }
 
     func testEnvironmentFollowsContract() {

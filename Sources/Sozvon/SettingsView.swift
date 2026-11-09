@@ -145,11 +145,9 @@ private func clearSettingsFocus(_ window: NSWindow?) {
     guard let window else { return }
     window.makeFirstResponder(nil)
     for delay in [0.0, 0.05, 0.2] {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak window] in
-            MainActor.assumeIsolated {
-                if window?.firstResponder is NSText || window?.firstResponder is NSTextField {
-                    window?.makeFirstResponder(nil)
-                }
+        mainAfter(delay) { [weak window] in
+            if window?.firstResponder is NSText || window?.firstResponder is NSTextField {
+                window?.makeFirstResponder(nil)
             }
         }
     }
@@ -243,11 +241,28 @@ private struct GeneralPane: View {
     @State private var keepAudio = AudioCleanup.days
     @State private var calendar = CalendarPrefill.enabled
     @State private var skipForm = CallGuess.skipForm()
+    @State private var remindConsent = CallAutomation.remindConsent()
+    @State private var phoneFolder = PhoneInbox.folder
     @State private var uiLanguage = GeneralPane.chosenLanguage()
     @State private var calendarDenied = CalendarPrefill.denied
     /// The interface language override Sozvon was started with ("" for the system's):
     /// only to tell whether a relaunch is needed, the picker shows `chosenLanguage()`.
     private static let launchLanguage = chosenLanguage()
+
+    private func choosePhoneFolder() {
+        let panel = NSOpenPanel()
+        panel.title = L("Папка для записей с телефона")
+        panel.prompt = L("Выбрать")
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        let cloud = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
+        if FileManager.default.fileExists(atPath: cloud.path) { panel.directoryURL = cloud }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        phoneFolder = url
+        PhoneInbox.folder = url
+    }
 
     /// The interface language override saved now ("" for the system's), possibly not applied yet.
     private static func chosenLanguage() -> String {
@@ -307,6 +322,10 @@ private struct GeneralPane: View {
                     Text(L("Останавливать после звонка"))
                     Text(L("Через %@ секунд после конца звонка, на панели можно продолжить", CallAutomation.stopGrace))
                 }
+                Toggle(isOn: $remindConsent) {
+                    Text(L("Напоминать сказать о записи"))
+                    Text(L("На несколько секунд в начале записи"))
+                }
                 Toggle(isOn: $silenceAlerts) {
                     Text(L("Предупреждать о тишине"))
                     Text(L("Если тебя или собеседников не слышно больше двух минут или тебя очень тихо слышно"))
@@ -318,6 +337,29 @@ private struct GeneralPane: View {
                 SettingsFooter(callStart == .record
                                ? L("Запись начинается сама, когда приложение для звонков включает микрофон. Согласие собеседников на запись на тебе.")
                                : L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе."))
+            }
+
+            Section {
+                LabeledContent {
+                    HStack(spacing: 8) {
+                        if phoneFolder != nil {
+                            Button(L("Убрать")) { phoneFolder = nil; PhoneInbox.folder = nil }
+                        }
+                        Button(L("Выбрать папку…")) { choosePhoneFolder() }
+                    }
+                } label: {
+                    Text(L("Папка для записей"))
+                    Text(phoneFolder?.lastPathComponent ?? L("Не выбрана"))
+                }
+            } header: {
+                Text(L("Записи с телефона"))
+            } footer: {
+                VStack(alignment: .leading, spacing: 4) {
+                    SettingsFooter(L("На iPhone: Диктофон, «Поделиться», «Сохранить в Файлы», эта папка в iCloud Drive. Новая запись расшифруется сама, а файл перейдёт в подпапку Imported."))
+                    Link(L("Запись одним нажатием на iPhone"), destination: PhoneInbox.shortcutDocsURL())
+                        .font(.footnote)
+                        .pointerStyle(.link)
+                }
             }
 
             PermissionsSection()
@@ -361,6 +403,7 @@ private struct GeneralPane: View {
         .onChange(of: silenceAlerts) { _, v in SilenceAlerts.enabled = v }
         .onChange(of: sounds) { _, v in Sounds.enabled = v; if v { Sounds.play(.start) } }
         .onChange(of: skipForm) { _, v in CallGuess.setSkipForm(v) }
+        .onChange(of: remindConsent) { _, v in CallAutomation.setRemindConsent(v) }
         .onChange(of: calendar) { _, v in
             CalendarPrefill.enabled = v
             guard v else { return }
@@ -394,6 +437,7 @@ private struct GeneralPane: View {
 /// "About": the version, updates and links.
 private struct AboutPane: View {
     @ObservedObject private var updates = AboutUpdates()
+    @State private var diagnostics = false
 
     var body: some View {
         Form {
@@ -432,6 +476,17 @@ private struct AboutPane: View {
                 SettingsFooter(L("Обновление проверяется по подписи разработчика и ключу Sozvon, звонки и настройки остаются на месте."))
             }
 
+            Section {
+                LabeledContent {
+                    Button(L("Диагностика…")) { diagnostics = true }
+                } label: {
+                    Text(L("Если что-то не работает"))
+                    Text(L("Проверка окружения и архив журналов для поддержки, без расшифровок и аудио"))
+                }
+            } header: {
+                Text(L("Поддержка"))
+            }
+
             Section(L("Ссылки")) {
                 LabeledContent(L("Сайт")) { Link(String("able1991.github.io/sozvon"), destination: URL(string: "https://able1991.github.io/sozvon/")!) }
                 LabeledContent(L("Документация")) { Link(L("Открыть"), destination: Self.docsURL) }
@@ -441,6 +496,7 @@ private struct AboutPane: View {
         }
         .formStyle(.grouped)
         .onAppear { updates.refresh() }
+        .sheet(isPresented: $diagnostics) { DiagnosticsSheet() }
     }
 
     /// The docs in the interface language (the English half starts at #en).
@@ -450,10 +506,7 @@ private struct AboutPane: View {
     }
 
     /// "1.4.2 (318)": the version and the build number (only when they differ).
-    static var version: String {
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
-        return build.isEmpty || build == Updates.current ? Updates.current : "\(Updates.current) (\(build))"
-    }
+    static var version: String { AboutVersion.text }
 }
 
 /// The updater's state for the About pane.
@@ -751,9 +804,48 @@ private struct AssistantsPane: View {
                 SettingsFooter(s.assistant.subtitle)
             }
             IntegrationsSection()
+            DemoCallsSection()
         }
         .formStyle(.grouped)
         .onChange(of: s.assistant) { s.save() }
+    }
+}
+
+/// A few fictional calls (text only) to try the assistant on before the first recording.
+/// "Remove" moves only the calls marked `demo` to the Trash.
+private struct DemoCallsSection: View {
+    @State private var added = !DemoCalls.existing().isEmpty
+    @State private var message = ""
+
+    var body: some View {
+        Section {
+            LabeledContent {
+                if added {
+                    Button(L("Убрать")) { remove() }
+                } else {
+                    Button(L("Добавить")) { add() }
+                }
+            } label: {
+                Text(L("Демо-звонки"))
+                Text(L("Вымышленные звонки с расшифровкой и саммари, без звука: можно сразу спросить ассистента. Никуда не отправляются."))
+            }
+        } footer: {
+            if !message.isEmpty { SettingsWarning(message) }
+        }
+        .onAppear { added = !DemoCalls.existing().isEmpty }
+    }
+
+    private func add() {
+        do { try DemoCalls.add() } catch { message = error.localizedDescription }
+        added = !DemoCalls.existing().isEmpty
+    }
+
+    private func remove() {
+        do {
+            try DemoCalls.remove { try FileManager.default.trashItem(at: $0, resultingItemURL: nil) }
+            message = ""
+        } catch { message = error.localizedDescription }
+        added = !DemoCalls.existing().isEmpty
     }
 }
 

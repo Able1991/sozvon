@@ -219,6 +219,7 @@ public struct TrackOffsets: Equatable, Sendable {
     }
 
     /// From call.json `audio`, otherwise meta.json (old calls), like the engine's calls.audio_meta.
+    /// Compatibility shim: the meta.json fallback can go in 0.3.0, together with the engine's, once old calls are migrated.
     public static func times(of dir: URL) -> AudioTimes {
         if let a = CallFile.read(dir)["audio"] as? [String: Any], !a.isEmpty { return AudioTimes(a) }
         if let d = try? Data(contentsOf: dir.appendingPathComponent("meta.json")),
@@ -242,6 +243,7 @@ public enum TranscriptEdit {
     public static func renameSpeaker(in dir: URL, from old: String, to newName: String) throws -> Bool {
         guard let new = Transcript.cleanSpeaker(newName) else { throw TranscriptEditError.badName }
         guard new != old else { return false }
+        let newSpeaks = speaks(new, in: dir)
         var changed = false
         for f in files {
             let url = dir.appendingPathComponent(f)
@@ -255,7 +257,8 @@ public enum TranscriptEdit {
         guard changed else { throw TranscriptEditError.notFound }
         if CallFile.exists(dir) {
             try CallFile.edit(dir) { c in
-                guard let names = c["names"] as? [String], names.contains(old) else { return false }
+                let tracksChanged = moveTrack(&c, from: old, to: new, newSpeaks: newSpeaks, keepOld: false)
+                guard let names = c["names"] as? [String], names.contains(old) else { return tracksChanged }
                 var seen = Set<String>()
                 c["names"] = names.map { $0 == old ? new : $0 }.filter { seen.insert($0).inserted }
                 return true
@@ -281,7 +284,13 @@ public enum TranscriptEdit {
         guard changed else { throw TranscriptEditError.notFound }
         if CallFile.exists(dir) {
             try CallFile.edit(dir) { c in
-                guard let names = c["names"] as? [String], names.contains(a) || names.contains(b) else { return false }
+                var tracksChanged = false
+                if var tracks = c[tracksKey] as? [String: String], tracks[a] != tracks[b] {
+                    (tracks[a], tracks[b]) = (tracks[b], tracks[a])
+                    c[tracksKey] = tracks
+                    tracksChanged = true
+                }
+                guard let names = c["names"] as? [String], names.contains(a) || names.contains(b) else { return tracksChanged }
                 c["names"] = names.map { $0 == a ? b : $0 == b ? a : $0 }
                 return true
             }
@@ -295,6 +304,7 @@ public enum TranscriptEdit {
     public static func reassignLine(in dir: URL, line: TranscriptLine, occurrence: Int = 0, to newName: String) throws -> Bool {
         guard let new = Transcript.cleanSpeaker(newName) else { throw TranscriptEditError.badName }
         guard new != line.speaker else { return false }
+        let newSpeaks = speaks(new, in: dir)
         var changed = false
         for f in files {
             let url = dir.appendingPathComponent(f)
@@ -304,6 +314,32 @@ public enum TranscriptEdit {
             changed = true
         }
         guard changed else { throw TranscriptEditError.notFound }
+        if CallFile.read(dir)[tracksKey] != nil {
+            try CallFile.edit(dir) { c in moveTrack(&c, from: line.speaker, to: new, newSpeaks: newSpeaks, keepOld: true) }
+        }
+        return true
+    }
+
+    /// call.json `speaker_tracks`: which recorded track each label's lines came from ("mic", "system" or "both"),
+    /// for enrolling a voice from the right audio. A label missing from it has no known track.
+    private static let tracksKey = "speaker_tracks"
+
+    private static func speaks(_ speaker: String, in dir: URL) -> Bool {
+        guard let text = try? String(contentsOf: dir.appendingPathComponent("transcript.txt"), encoding: .utf8) else { return false }
+        return Transcript.lines(text).contains { $0.speaker == speaker }
+    }
+
+    /// Lines of `old` now belong to `new` as well (`keepOld`) or instead. Lines from two different tracks under
+    /// one label make it "both"; an unknown track stays unknown. A call without the field is left alone.
+    private static func moveTrack(_ c: inout [String: Any], from old: String, to new: String, newSpeaks: Bool, keepOld: Bool) -> Bool {
+        guard var tracks = c[tracksKey] as? [String: String] else { return false }
+        let before = tracks
+        let source = tracks[old]
+        let target = newSpeaks ? tracks[new] : source
+        if !keepOld { tracks[old] = nil }
+        tracks[new] = source == target ? source : (source == nil || target == nil ? nil : "both")
+        guard tracks != before else { return false }
+        c[tracksKey] = tracks
         return true
     }
 

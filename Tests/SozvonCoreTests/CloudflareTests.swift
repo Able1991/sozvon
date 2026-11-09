@@ -58,10 +58,8 @@ final class FakeCloudflare: URLProtocol, @unchecked Sendable {
 /// TempDirTestCase: failed requests go to a temporary cloudflare.log, never to ~/Library/Logs/Sozvon.
 final class CloudflareTests: TempDirTestCase {
     func testTemporaryErrorsAreRetriedThenExplained() async throws {
-        CloudflareAPI.retryDelays = [0, 0]
-        defer { CloudflareAPI.retryDelays = [2, 6] }
         FakeCloudflare.reset(["GET accounts": FakeCloudflare.Reply(status: 503, json: "")])
-        let api = CloudflareAPI(token: "t", session: FakeCloudflare.session)
+        let api = CloudflareAPI(token: "t", session: FakeCloudflare.session, retryDelays: [0, 0])
         do {
             let _: [CloudflareAPI.Account]? = try await api.call("GET", "accounts")
             XCTFail("503 must fail in the end")
@@ -352,4 +350,11 @@ final class CloudflareTests: TempDirTestCase {
 private actor Counter {
     var n = 0
     func next() -> Int { n += 1; return n }
+}
+
+/// The retry pauses are a parameter of the client, not a global the tests have to reset.
+final class CloudflareRetryDelaysTests: XCTestCase {
+    func testDefaultPausesAreTwoAndSixSeconds() {
+        XCTAssertEqual(CloudflareAPI(token: "t").retryDelays, [2, 6])
+    }
 }

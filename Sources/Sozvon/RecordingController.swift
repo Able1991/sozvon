@@ -81,6 +81,7 @@ final class RecordingController {
                 }
                 machine.started(RecordingSession(dir: dir, startedAt: Date(), info: initialInfo()))
                 if live { LiveVoices.shared.start(dir) }
+                remindConsentIfChosen()
                 marks = []
                 panel.marks = 0
                 startLevelTimer()
@@ -94,6 +95,19 @@ final class RecordingController {
                 onChange()
                 showFailure(started: false, error.localizedDescription)
             }
+        }
+    }
+
+
+    /// Settings: "Remind me to say the call is recorded": a few seconds on the capsule, or a notification without it.
+    private func remindConsentIfChosen() {
+        guard CallAutomation.remindConsent() else { return }
+        let text = L("Скажи собеседникам, что идёт запись")
+        guard FloatingPanel.enabled else { Notifier.shared.post(text, "", sound: false); return }
+        panel.hint = text
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            self?.panel.hint = nil
         }
     }
 
@@ -167,8 +181,9 @@ final class RecordingController {
         let (audio, wall) = await recorder.stop()
         let dir = session.dir
         // call.json right at stop: the call has metadata and a permanent id even before transcription.
-        CallFile.recordStopped(dir, startedAt: session.startedAt, audio: audio)
-        CallFile.writeInfo(dir, session.info)
+        if !CallFile.saveStopped(dir, startedAt: session.startedAt, audio: audio, info: session.info) {
+            notifySaveFailure(dir)
+        }
         CallMarks.write(dir, CallMarks.offsets(marks, audio: wall))
         marks = []
         machine.finalized()
@@ -255,11 +270,7 @@ final class RecordingController {
                    L("Тебя будет тихо слышно в записи. Подними громкость входа в Системных настройках → Звук."),
                    action: .openSoundSettings)
         }
-        let t = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.sampleLevels() }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        levelTimer = t
+        levelTimer = Timer.repeatingOnMain(every: 0.1) { [weak self] in self?.sampleLevels() }
     }
 
     private func sampleLevels() {

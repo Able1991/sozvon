@@ -118,3 +118,25 @@ final class CallGuessTests: XCTestCase {
         XCTAssertFalse(CallGuess.same("Анна Петрова", "Анна Смирнова"))
     }
 }
+
+final class ReflectionTests: XCTestCase {
+    func testKindIsStoredOnlyForAReflection() {
+        var c: [String: Any] = [:]
+        var i = CallInfo()
+        i.reflection = true
+        CallFile.apply(i, to: &c)
+        XCTAssertEqual(c["kind"] as? String, "reflection")
+        XCTAssertTrue(CallFile.info(c).reflection)
+        i.reflection = false
+        CallFile.apply(i, to: &c)
+        XCTAssertNil(c["kind"], "a call keeps its call.json as before")
+        XCTAssertFalse(CallFile.info(c).reflection)
+    }
+
+    func testAReflectionIsNeverSureEnoughToGoAheadAlone() {
+        var i = CallInfo(profile: "acme", names: "Анна", topic: "мысли")
+        i.reflection = true
+        let r = CallGuess.fill(i, startedAt: Date(), event: nil, heard: [], projects: [Project(slug: "acme", title: "Acme")])
+        XCTAssertFalse(r.sure)
+    }
+}

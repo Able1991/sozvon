@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sozvon_engine import config, remote, remote_audio
+from sozvon_engine import config, platform_support, remote, remote_audio
 
 PASSWORD = "s3cret-pass"
 
@@ -236,12 +236,14 @@ def fake(monkeypatch):
 
 
 def make_call(root: Path, name: str, cid: str, status="done", transcript="[00:00] Я: Привет.\n", summary=None,
-              notes=None) -> Path:
+              notes=None, demo=False) -> Path:
     d = root / name
     d.mkdir(parents=True)
     call = {"schema": 1, "id": cid, "status": status, "topic": "запуск"}
     if notes is not None:
         call["notes"] = notes
+    if demo:
+        call["demo"] = True
     (d / "call.json").write_text(json.dumps(call, ensure_ascii=False))
     (d / "mic.m4a").write_bytes(b"audio")
     if transcript is not None:
@@ -641,7 +643,8 @@ def test_pipeline_push_failure_keeps_result(fake, root, tmp_path, capsys, monkey
 
     def process(spec, settings, data):
         (spec.dir / "transcript.txt").write_text("[00:00] Я: Привет.\n", encoding="utf-8")
-        return []  # the participants
+        run.complete(spec, [])  # the participants: none
+        return []
 
     monkeypatch.setattr(run, "process", process)
     d = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01", status="recorded", transcript=None)
@@ -661,7 +664,7 @@ def test_pipeline_bad_url_keeps_result(root, capsys, monkeypatch):
     from sozvon_engine.pipeline import run
     monkeypatch.setenv("SOZVON_SERVER_URL", "http://example.com")
     monkeypatch.setenv("SOZVON_SERVER_PASSWORD", PASSWORD)
-    monkeypatch.setattr(run, "process", lambda spec, settings, data: [])
+    monkeypatch.setattr(run, "process", lambda spec, settings, data: run.complete(spec, []) or [])
     d = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01", status="recorded")
     assert run.main([str(d)]) == 0
     assert capsys.readouterr().out.strip().splitlines()[-1] == "RESULT: ok"
@@ -700,7 +703,7 @@ def test_requests_send_a_sozvon_user_agent(monkeypatch):
 # --- calls deleted on another Mac: server call tombstones (server 0.3.0+) ---
 
 CID = "2026-11-04 15-01"
-REAL_MOVE_TO_TRASH = remote.move_to_trash  # conftest replaces it with one that fails the test
+REAL_MOVE_TO_TRASH = platform_support.move_to_trash  # conftest replaces remote.move_to_trash with one that fails the test
 
 
 class FakeTrash:
@@ -865,8 +868,8 @@ def test_push_of_a_deleted_call(fake, root, capsys, monkeypatch):
 def test_move_to_trash_falls_back_to_a_free_name_in_dot_trash(tmp_path, monkeypatch):
     home = tmp_path / "home"
     (home / ".Trash" / "2026-11-04 15-01").mkdir(parents=True)  # a folder with this name is there already
-    monkeypatch.setattr(remote.Path, "home", classmethod(lambda cls: home))
-    monkeypatch.setattr(remote.subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(OSError("no osascript")))
+    monkeypatch.setattr(platform_support.Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(platform_support.subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(OSError("no osascript")))
     d = make_call(tmp_path / "Calls", "2026-11-04 15-01", CID)
     REAL_MOVE_TO_TRASH(d)
     assert not d.exists()
@@ -1135,3 +1138,47 @@ def test_titles_sent_to_an_old_server_are_not_remembered(tmp_path, monkeypatch):
     root.mkdir()
     remote.sync(remote.Server("https://example.test", "pw"), root=root)
     assert saved["t"] == {}
+
+
+def test_queue_fields_are_not_synced():
+    call = {"schema": 1, "id": "c", "status": "done"}
+    queued = dict(call, queued_at="2026-11-05T10:00:00Z", queued_summary_only=True, retries=1)
+    assert remote.call_fields(queued) == remote.call_fields(call)
+    assert remote.content_hash(queued, "t", None) == remote.content_hash(call, "t", None)
+
+
+def test_warnings_are_not_synced():
+    call = {"schema": 1, "id": "c", "status": "done", "warnings": [{"step": "summary", "error": "x"}]}
+    assert "warnings" not in remote.call_fields(call)
+
+
+def test_demo_calls_never_go_to_the_server(fake, root):
+    real = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01")
+    demo = make_call(root, "2026-11-05 10-00", "2026-11-05 10-00", demo=True, notes=[note("n")])
+    assert remote.payload(demo) is None, "no payload, so no push and no restore"
+    assert remote.push(demo) is False and remote.push_notes(demo) is False
+    assert tuple(remote.sync(root=root)) == (1, 0, 0, 0, 0)
+    assert set(fake.calls) == {"2026-11-04 15-01"}
+    assert not fake.notes.get("2026-11-05 10-00")
+    assert "demo" not in remote.payload(real)["call"]
+
+
+def test_demo_calls_do_not_change_the_hash_of_real_calls(root):
+    real = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01", summary="s")
+    alone = remote.payload(real)["hash"]
+    make_call(root, "2026-11-05 10-00", "2026-11-05 10-00", demo=True)
+    assert remote.payload(real)["hash"] == alone, "a demo call in the folder changes nothing"
+    # The demo field never enters what is hashed or sent, whatever else a call.json holds.
+    raw = {"schema": 1, "id": "x", "status": "done", "topic": "t"}
+    assert remote.call_fields({**raw, "demo": True}) == remote.call_fields(raw)
+    assert remote.content_hash(remote.call_fields({**raw, "demo": True}), "t", None) == \
+        remote.content_hash(remote.call_fields(raw), "t", None)
+    assert "demo" not in remote.CALL_FIELDS
+
+
+def test_demo_calls_are_not_synced_when_the_server_knows_the_id(fake, root):
+    demo = make_call(root, "2026-11-05 10-00", "2026-11-05 10-00", demo=True)
+    fake.put(server_copy("2026-11-05 10-00"))
+    remote.sync(root=root)
+    assert not [r for r in fake.requests if r[0] in ("PUT", "DELETE")]
+    assert (demo / "transcript.txt").read_text() == "[00:00] Я: Привет.\n"

@@ -42,6 +42,12 @@ public enum AudioRetention {
     public static let tracks = ["mic.m4a", "system.m4a"]
     /// The engine's cleaned microphone for listening (echo removed, raised), next to the original.
     public static let cleanMic = "mic.clean.m4a"
+    /// The engine's levelled listening file: the whole call in one track, aligned to its start.
+    public static let listen = "listen.m4a"
+    /// Everything "Delete audio automatically" removes from a call folder.
+    public static let removedFiles = tracks + [cleanMic, listen]
+    /// A smaller file is a track that never recorded (the engine's tracks.track_files).
+    public static let minTrackBytes = 1024
     /// call.json: when the tracks were removed (the Calls window explains why there is no player).
     public static let removedKey = "audio_removed_at"
 
@@ -70,12 +76,30 @@ public enum AudioRetention {
     public static func removeAudio(_ dir: URL, now: Date = Date()) -> Int64 {
         let fm = FileManager.default
         var freed: Int64 = 0
-        for t in tracks + [cleanMic] {
+        for t in removedFiles {
             let f = dir.appendingPathComponent(t)
             let size = (try? fm.attributesOfItem(atPath: f.path)[.size] as? NSNumber)?.int64Value ?? 0
             if (try? fm.removeItem(at: f)) != nil { freed += size }
         }
         if freed > 0 { CallFile.update(dir) { $0[removedKey] = ISO8601DateFormatter().string(from: now) } }
         return freed
+    }
+}
+
+/// Which files the player plays, in order of preference, each with its start offset.
+public enum CallPlayback {
+    public typealias Source = (name: String, offset: Double)
+
+    /// The listening file first when the engine made one, then the tracks as before; a plan with a bad file falls to the next.
+    public static func plans(in dir: URL, offsets: TrackOffsets) -> [[Source]] {
+        func usable(_ name: String) -> Bool {
+            let size = (try? FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent(name).path)[.size]
+                        as? NSNumber)?.intValue ?? 0
+            return size >= AudioRetention.minTrackBytes
+        }
+        // The cleaned microphone is already aligned to the call's start; the original one keeps its offset.
+        let mic: Source = usable(AudioRetention.cleanMic) ? (AudioRetention.cleanMic, 0) : ("mic.m4a", offsets.mic)
+        let tracks = [mic, ("system.m4a", offsets.system)].filter { usable($0.name) }
+        return (usable(AudioRetention.listen) ? [[(AudioRetention.listen, 0.0)]] : []) + (tracks.isEmpty ? [] : [tracks])
     }
 }

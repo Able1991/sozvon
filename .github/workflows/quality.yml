@@ -1,0 +1,81 @@
+# Quality check on real speech: the slow end to end tests (engine/tests/test_e2e.py) run a synthesized call through
+# the real Whisper `small` model and pyannote diarization. Invariants only, no word error rate gate: the number of
+# speakers, key words present, no echo of the other side attributed to me.
+# Nightly and by hand, never on push or pull request. A red run only reports: nothing requires it, nothing is
+# deployed from it. No secrets: models come from public Hugging Face and GitHub release downloads.
+name: Quality
+
+on:
+  schedule:
+    - cron: "17 3 * * *"  # nightly
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      SOZVON_TEST_MODEL: small
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Test data folder
+        run: |
+          # Holds the models; its .venv is a link to engine/.venv (see "Models" below). Never a real app folder.
+          echo "SOZVON_TEST_ENGINE=$RUNNER_TEMP/sozvon-data" >> "$GITHUB_ENV"
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+      - name: Engine environment
+        working-directory: engine
+        run: |
+          uv sync --frozen
+          ln -sf "$(.venv/bin/python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" .venv/bin/ffmpeg
+      - name: Speech voices
+        run: |
+          # The test speaks Russian (Milena) and English (Samantha) with `say`.
+          say -v '?' | grep -E '^(Milena|Samantha) ' || { echo "::error::say voices Milena and Samantha are missing on this runner"; exit 1; }
+      - name: Models cache
+        id: models-cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ${{ env.SOZVON_TEST_ENGINE }}/models
+            ${{ env.SOZVON_TEST_ENGINE }}/hf-cache
+          # The key follows the pinned model revisions and the diarization archive (engine/models.json, install.py).
+          key: quality-models-${{ runner.os }}-${{ hashFiles('engine/models.json', 'engine/sozvon_engine/install.py') }}
+      - name: Models
+        working-directory: engine
+        run: |
+          # Whisper small and the pyannote archive, same code as the app installer. Cached files are not downloaded again.
+          mkdir -p "$SOZVON_TEST_ENGINE"
+          ln -sfn "$PWD/.venv" "$SOZVON_TEST_ENGINE/.venv"
+          SOZVON_MODEL=small PYTHONWARNINGS=ignore .venv/bin/python install.py "$SOZVON_TEST_ENGINE"
+          test ! -e "$SOZVON_TEST_ENGINE/.no-diarization" || { echo "::error::diarization models did not install"; exit 1; }
+      # Saved before the tests, so a failing test does not make the next night download everything again.
+      - name: Save models cache
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ${{ env.SOZVON_TEST_ENGINE }}/models
+            ${{ env.SOZVON_TEST_ENGINE }}/hf-cache
+          key: ${{ steps.models-cache.outputs.cache-primary-key }}
+      - name: Slow end to end tests
+        working-directory: engine
+        # test_language_switch_mid_speech is tuned for turbo: small does not detect the English phrase at all.
+        run: >-
+          uv run --frozen pytest -q -m slow tests/test_e2e.py
+          --deselect tests/test_e2e.py::test_language_switch_mid_speech
+          --basetemp="$RUNNER_TEMP/quality-out"
+      - if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: quality-transcripts
+          # Synthesized speech only, no real call data.
+          path: ${{ runner.temp }}/quality-out
+          retention-days: 7

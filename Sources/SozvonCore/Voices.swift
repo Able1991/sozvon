@@ -97,7 +97,8 @@ public enum Voices {
     /// Named speakers of a call whose voice is not saved yet (for "Remember voices" after a correct transcript):
     /// not generic labels, not the user, and without a record in the call's project or without a project.
     public static func unsaved(speakers: [String], profile: String, records: [VoiceRecord], me: String) -> [String] {
-        let names = namesToEnroll(speakers, me: me)
+        let own = records.filter(\.me).map(\.name)
+        let names = namesToEnroll(speakers, me: me, own: own)
         return names.filter { n in
             !records.contains { !$0.me && ($0.profile == profile || $0.profile.isEmpty)
                 && $0.name.caseInsensitiveCompare(n) == .orderedSame }
@@ -111,8 +112,7 @@ public enum Voices {
     public static func isGenericLabel(_ name: String, me: String = "") -> Bool {
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         if n.isEmpty { return true }
-        let own = me.trimmingCharacters(in: .whitespaces)
-        if !own.isEmpty, n.caseInsensitiveCompare(own) == .orderedSame { return true }
+        if sameName(n, me) { return true }
         let lower = n.lowercased()
         if lower == "я" || lower == "me" { return true }  // l10n-ignore
         if lower.hasSuffix("+ собеседники") || lower.hasSuffix("+ others") { return true }  // l10n-ignore
@@ -120,9 +120,29 @@ public enum Voices {
     }
 
     /// Names worth enrolling after a rename: not generic, not the user, each once.
-    public static func namesToEnroll(_ names: [String], me: String = "") -> [String] {
+    /// `own`: the names of the user's own voice prints: the name in Settings can be empty or spelled differently.
+    public static func namesToEnroll(_ names: [String], me: String = "", own: [String] = []) -> [String] {
         var seen = Set<String>()
         return names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !isGenericLabel($0, me: me) && seen.insert($0.lowercased()).inserted }
+            .filter { n in !isGenericLabel(n, me: me) && !own.contains { sameName(n, $0) } && seen.insert(n.lowercased()).inserted }
+    }
+
+    /// One name, whatever the case and the alphabet ("Борис", "boris"). Same rule as voices.same_name in the engine.
+    public static func sameName(_ a: String, _ b: String) -> Bool {
+        let (x, y) = (latin(a), latin(b))
+        return !x.isEmpty && x == y
+    }
+
+    // l10n-ignore-start
+    private static let latinLetters: [Character: String] = [
+        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh", "з": "z", "и": "i", "й": "y",
+        "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f",
+        "х": "h", "ц": "c", "ч": "ch", "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+    ]
+    // l10n-ignore-end
+
+    private static func latin(_ s: String) -> String {
+        s.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            .map { latinLetters[$0] ?? String($0) }.joined()
     }
 }

@@ -18,9 +18,6 @@ enum NotifyAction: String, CaseIterable {
     case callPrompt
     case record
     case notNow
-    /// The automatic stop is counting down (the panel is hidden): one button to keep recording.
-    case callEnded
-    case keepRecording
     /// A call waits for its description: open "What was the call about?" (`url` is the call folder).
     case describeCall
     /// A source went silent mid-recording: System Settings → Sound.
@@ -29,29 +26,34 @@ enum NotifyAction: String, CaseIterable {
     case openCall
     /// System audio goes through ScreenCaptureKit (the tap is off): Privacy → Screen & System Audio Recording.
     case systemAudioPermission
+    /// The transcript is ready but the summary failed: the button makes it again (`url` is the call folder).
+    case resummarize
 
     /// Notification button ("open" is covered by clicking the notification itself).
     var buttonTitle: String? {
         switch self {
-        case .open, .callPrompt, .openCall, .callEnded: return nil
+        case .open, .callPrompt, .openCall: return nil
         case .openLog: return L("Открыть журнал")
         case .permissions: return L("Проверить разрешения")
         case .reinstallEngine: return L("Переустановить движок")
         case .downloadModel: return L("Скачать модель")
         case .record: return L("Записать")
         case .notNow: return L("Не сейчас")
-        case .keepRecording: return L("Продолжить запись")
         case .describeCall: return L("Описать")
         case .openSoundSettings: return L("Настройки звука")
         case .systemAudioPermission: return L("Открыть настройки")
+        case .resummarize: return L("Обновить саммари")
         }
     }
+
+    /// What a click on the notification itself does (a button press runs its own action). Making the summary
+    /// again sends the text to the assistant, so it only happens from the button.
+    var clickAction: NotifyAction { self == .resummarize ? .openCall : self }
 
     /// Buttons of this notification kind.
     var buttons: [NotifyAction] {
         switch self {
         case .callPrompt: return [.record, .notNow]
-        case .callEnded: return [.keepRecording]
         default: return buttonTitle == nil ? [] : [self]
         }
     }
@@ -73,7 +75,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         c.delegate = self
         c.setNotificationCategories(Set(NotifyAction.allCases.map { a in
             let actions = a.buttons.compactMap { b in
-                b.buttonTitle.map { UNNotificationAction(identifier: b.rawValue, title: $0, options: b == .notNow || b == .keepRecording ? [] : [.foreground]) }
+                b.buttonTitle.map { UNNotificationAction(identifier: b.rawValue, title: $0, options: b == .notNow ? [] : [.foreground]) }
             }
             return UNNotificationCategory(identifier: a.category, actions: actions, intentIdentifiers: [])
         }))
@@ -112,7 +114,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let info = response.notification.request.content.userInfo
         // A button press names its own action; a click on the notification uses the one it was posted with.
         let action = NotifyAction(rawValue: response.actionIdentifier)
-            ?? (info["action"] as? String).flatMap(NotifyAction.init(rawValue:)) ?? .open
+            ?? (info["action"] as? String).flatMap(NotifyAction.init(rawValue:))?.clickAction ?? .open
         let url = (info["url"] as? String).flatMap(URL.init(string:))
         guard response.actionIdentifier != UNNotificationDismissActionIdentifier else { return }
         await MainActor.run { self.onAction(action, url) }
@@ -122,6 +124,14 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 @MainActor
 func notify(_ title: String, _ text: String, action: NotifyAction = .open, url: URL? = nil) {
     Notifier.shared.post(title, text, action: action, url: url)
+}
+
+/// call.json could not be written (full disk, folder gone). The recording's audio files are untouched.
+@MainActor
+func notifySaveFailure(_ dir: URL) {
+    notify(L("Не удалось сохранить данные звонка"),
+           L("Запись цела, но статус и ответы не записались в call.json. Проверь свободное место на диске. Папка: %@", dir.lastPathComponent),
+           action: .open, url: dir)
 }
 
 /// Short system sounds for recording. Sozvon itself isn't recorded (the tap and ScreenCaptureKit leave it out).

@@ -67,8 +67,18 @@ def fake_model(data: Path, name: str = "turbo") -> Path:
     return d
 
 
+def slow_model() -> str:
+    """The Whisper model the slow tests expect (SOZVON_TEST_MODEL, default turbo; the quality workflow uses small)."""
+    return os.environ.get("SOZVON_TEST_MODEL") or "turbo"
+
+
 def installed_engine():
+    """A data folder with a .venv and the test model downloaded, or None."""
+    from sozvon_engine import models
+    name = slow_model()
+    if name not in models.MODELS:
+        return None
     for c in (os.environ.get("SOZVON_TEST_ENGINE"), str(Path.home() / "Library/Application Support/Sozvon")):
-        if c and (Path(c) / "models/whisper-large-v3-turbo/weights.safetensors").exists():
+        if c and models.is_downloaded(c, name) and (Path(c) / ".venv/bin/python3").exists():
             return Path(c)
     return None

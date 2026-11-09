@@ -2,8 +2,10 @@
 """Fictional projects and calls matching the Claude Design boards (Main, CallsTranscript, CallsNoAudio and
 the rest), so the app's screens can be compared with the designs 1:1. No real clients.
 
-  tools/demo_data.py [<dir>] [--today YYYY-MM-DD] [--no-audio]
+  tools/demo_data.py [<dir>] [--today YYYY-MM-DD] [--no-audio] [--lang en]
       ->  <dir>/engine (profiles, .env, voices) and <dir>/Calls (calls); <dir> defaults to build/demo
+
+--lang en writes the same calls in English, for screenshots of the English interface.
 
 Dates are relative to today, so the sidebar groups read "Вчера", then two and three days ago, as in the
 designs (drawn on 2026-11-06: "Вчера" = 5 ноября, then 4 and 3 ноября 2026 г.). `--today 2026-11-06`
@@ -37,6 +39,9 @@ if "--today" in sys.argv:
     today = date.fromisoformat(sys.argv[sys.argv.index("--today") + 1])
     args = [a for a in args if a != sys.argv[sys.argv.index("--today") + 1]]
 with_audio = "--no-audio" not in sys.argv
+english = "--lang" in sys.argv and sys.argv[sys.argv.index("--lang") + 1] == "en"
+if "--lang" in sys.argv:
+    args = [a for a in args if a != sys.argv[sys.argv.index("--lang") + 1]]
 
 root = Path(args[0] if args else "build/demo").resolve()
 eng, calls = root / "engine", root / "Calls"
@@ -45,9 +50,75 @@ shutil.rmtree(eng / "voices", ignore_errors=True)
 (eng / "profiles").mkdir(parents=True, exist_ok=True)
 (eng / "voices").mkdir(parents=True, exist_ok=True)
 calls.mkdir(parents=True, exist_ok=True)
-(eng / ".env").write_text("CALL_ME_NAME=Аня\nSOZVON_LLM=claude\nSOZVON_LANGUAGE=ru,en\nSOZVON_MODEL=turbo\n")
+(eng / ".env").write_text(f"CALL_ME_NAME={'Anna' if english else 'Аня'}\nSOZVON_LLM=claude\nSOZVON_LANGUAGE={'en,ru' if english else 'ru,en'}\nSOZVON_MODEL=turbo\n")
 
 ME = "Аня"
+
+# English for --lang en: whole names and topics, and line by line for the summaries and transcripts.
+EN = {
+    "Аня": "Anna", "Олег": "Oleg", "Иван Петров": "Ivan Petrov", "Мария Соколова": "Maria Sokolova",
+    "Екатерина Лебедева": "Ekaterina Lebedeva", "Студия «Луч»": "Luch Studio",
+    "Мобильное приложение доставки: спринты, релизы, подрядчики.": "Delivery mobile app: sprints, releases, contractors.",
+    "Партнёрская интеграция и биллинг.": "Partner integration and billing.",
+    "Съёмка для каталога и новый сайт.": "Catalog shoot and the new website.",
+    "релиз-кандидат": "release candidate", "спринт": "sprint", "каталог": "catalog", "лукбук": "lookbook", "ретушь": "retouching",
+    "планирование спринта": "sprint planning", "съёмка для каталога": "catalog shoot",
+    "договор с подрядчиком": "contractor agreement", "онбординг Sarah": "Sarah's onboarding", "ретро по релизу": "release retro",
+    "созвон с бухгалтерией": "call with accounting", "идея для онбординга": "onboarding idea",
+    "## Коротко": "## Summary", "## Решения": "## Decisions", "## Задачи": "## Action Items",
+    "## Главная мысль": "## Main Point", "## Анализ": "## Analysis",
+    "Договорились о схеме вебхуков для счетов: Northwind отправляет события с подписью в заголовке, повтор при ошибке до трёх раз с паузой. Ключи для песочницы придут в пятницу, боевые после приёмки.":
+        "Agreed on the webhook scheme for invoices: Northwind sends signed events with the signature in a header, and retries up to three times with a pause on failure. Sandbox keys arrive on Friday, production keys after acceptance.",
+    "- Подпись запроса: HMAC в заголовке `X-Signature`, ключ выдаёт Northwind.": "- Request signature: HMAC in the `X-Signature` header, the key comes from Northwind.",
+    "- Повторы: 3 попытки, пауза 30 с, 5 мин, 30 мин.": "- Retries: 3 attempts, pauses of 30 s, 5 min, 30 min.",
+    "- Событие invoice.paid уходит один раз, дубли режем по id.": "- The invoice.paid event is sent once, duplicates are dropped by id.",
+    "- [ ] Sarah: Прислать ключи для песочницы, пятница": "- [ ] Sarah: Send the sandbox keys, Friday",
+    "- [ ] Tom: Описать формат событий в документации": "- [ ] Tom: Describe the event format in the documentation",
+    "- [ ] Аня: Проверить повторы на тестовом стенде": "- [ ] Anna: Check the retries on the test bench",
+    "Привет, Sarah. Давай пройдёмся по вебхукам для счетов, у нас было три открытых вопроса.": "Hi Sarah. Let's go over the invoice webhooks, we had three open questions.",
+    "По подписи предлагаю HMAC в заголовке, ключ выдаёте вы. Повторы: три попытки с растущей паузой.": "For the signature I suggest HMAC in a header, with a key from you. Retries: three attempts with a growing pause.",
+    "Договорились: ключи для песочницы в пятницу, боевые после приёмки.": "Agreed: sandbox keys on Friday, production keys after acceptance.",
+    "Да, id не меняем между повторами. Tom, опишешь формат событий в документации к среде?": "Yes, the id stays the same between retries. Tom, can you describe the event format in the docs by Wednesday?",
+    "Отлично. Тогда последнее: лимит на размер события.": "Great. One last thing: the event size limit.",
+    "Спросить у Sarah про лимит на размер события, в прошлом проекте упирались в 64 КБ.": "Ask Sarah about the event size limit, we hit 64 KB on the last project.",
+    "Боевые ключи только после приёмки, не раньше. Напомнить Tom.": "Production keys only after acceptance, not before. Remind Tom.",
+    "Спланировали спринт: API заказов, экран профиля и починка push-уведомлений. Олег берёт API, Иван экран профиля.": "Planned the sprint: the orders API, the profile screen and fixing push notifications. Oleg takes the API, Ivan the profile screen.",
+    "- Спринт две недели, демо в пятницу.": "- Two-week sprint, demo on Friday.",
+    "- Push-уведомления чиним до новых фич.": "- Push notifications get fixed before new features.",
+    "- [ ] Олег: API заказов, среда": "- [ ] Oleg: Orders API, Wednesday",
+    "- [ ] Иван Петров: Экран профиля, пятница": "- [ ] Ivan Petrov: Profile screen, Friday",
+    "Начнём. Что берём в спринт?": "Let's start. What goes into the sprint?",
+    "Предлагаю API заказов и экран профиля, и сначала починить push-уведомления.": "I suggest the orders API and the profile screen, and fixing push notifications first.",
+    "Экран профиля мой, к пятнице успею.": "The profile screen is mine, I'll have it by Friday.",
+    "Обсудили съёмку для каталога: 40 образов, два дня в студии, ретушь за неделю.": "Discussed the catalog shoot: 40 looks, two days in the studio, retouching within a week.",
+    "- [ ] Екатерина Лебедева: Список образов, вторник": "- [ ] Ekaterina Lebedeva: List of looks, Tuesday",
+    "Предлагаю снимать два дня: первый день одежда, второй аксессуары.": "I suggest two days of shooting: clothes on the first, accessories on the second.",
+    "Подходит. Ретушь успеете за неделю?": "Works for me. Can you do the retouching in a week?",
+    "Прошлись по договору с подрядчиком: сроки этапов, приёмка и штрафы за просрочку.": "Went through the contractor agreement: stage deadlines, acceptance and late penalties.",
+    "- Оплата по этапам, 30% аванс.": "- Payment by stage, 30% up front.",
+    "- [ ] Мария Соколова: Правки юриста в договор, понедельник": "- [ ] Maria Sokolova: The lawyer's edits to the agreement, Monday",
+    "Юрист просит добавить приёмку по каждому этапу.": "The lawyer asks to add acceptance for each stage.",
+    "Согласна, и аванс не больше тридцати процентов.": "Agreed, and no more than thirty percent up front.",
+    "Ретро по релизу 2.4: релиз прошёл без откатов, но тестирование заняло на два дня больше плана.": "Retro on release 2.4: no rollbacks, but testing took two days longer than planned.",
+    "- Релиз-кандидат собираем в понедельник, а не в среду.": "- The release candidate is built on Monday, not Wednesday.",
+    "- [ ] Иван Петров: Чек-лист регресса в TestFlight": "- [ ] Ivan Petrov: Regression checklist in TestFlight",
+    "Что прошло хорошо в релизе 2.4?": "What went well in release 2.4?",
+    "Без откатов, но регресс занял на два дня больше.": "No rollbacks, but regression testing took two days longer.",
+    "Давайте собирать релиз-кандидат в понедельник.": "Let's build the release candidate on Monday.",
+    "Как понятнее начать онбординг: экран с тремя шагами или сразу пробный проект. Склоняюсь к пробному проекту.": "How to start the onboarding more clearly: a screen with three steps or a trial project right away. Leaning toward the trial project.",
+    "- Пробный проект показывает ценность сразу.": "- A trial project shows the value right away.",
+    "- Не проверено на людях, которые продукт не знают.": "- Not checked with people who don't know the product.",
+    "- [ ] Аня: Набросать пробный проект, пятница": "- [ ] Anna: Sketch the trial project, Friday",
+    "Думаю, как начать онбординг. Экран с тремя шагами или сразу пробный проект, скорее второе.": "Thinking about how to start the onboarding. A screen with three steps or a trial project right away, probably the second.",
+}
+
+
+def t(s):
+    """Text in the language of the demo data: --lang en replaces known strings, line by line."""
+    if not english or not isinstance(s, str):
+        return s
+    return "\n".join(EN.get(x, x) for x in s.split("\n"))
+
 
 PROFILES = {
     "acme": {"title": "Acme", "context": "Мобильное приложение доставки: спринты, релизы, подрядчики.",
@@ -60,6 +131,8 @@ PROFILES = {
 for p in (eng / "profiles").glob("*.json"):
     p.unlink()
 for slug, p in PROFILES.items():
+    p = {**p, "title": t(p["title"]), "context": t(p["context"]), "people": [t(x) for x in p["people"]],
+         "terms": [t(x) for x in p["terms"]]}
     (eng / "profiles" / f"{slug}.json").write_text(
         json.dumps({"schema": 1, **p, "replacements": []}, ensure_ascii=False, indent=2))
 
@@ -180,10 +253,27 @@ RETRO_LINES = [
     (30, "Олег", "Давайте собирать релиз-кандидат в понедельник."),
 ]
 
+# A reflection: the user alone, thinking out loud (call.json "kind": "reflection").
+REFLECTION_SUMMARY = """## Главная мысль
+Как понятнее начать онбординг: экран с тремя шагами или сразу пробный проект. Склоняюсь к пробному проекту.
+
+## Анализ
+- Пробный проект показывает ценность сразу.
+- Не проверено на людях, которые продукт не знают.
+
+## Задачи
+- [ ] Аня: Набросать пробный проект, пятница"""
+REFLECTION_LINES = [
+    (2, ME, "Думаю, как начать онбординг. Экран с тремя шагами или сразу пробный проект, скорее второе."),
+]
+
 # (days ago, hh, mm, profile, topic, names, seconds, languages, status, summary, lines, extra call.json)
 CALLS = [
     (1, 15, 30, "northwind", "billing webhooks", ["Sarah Miller", "Tom Baker"], BILLING_SECONDS, "ru,en", "done",
      BILLING_SUMMARY, BILLING_LINES, {"marks": BILLING_MARKS, "notes": BILLING_NOTES}),
+    # A reflection in the list, below the call that the window opens on.
+    (1, 12, 45, "", "идея для онбординга", [ME], 4 * 60 + 36, "ru", "done",
+     REFLECTION_SUMMARY, REFLECTION_LINES, {"kind": "reflection"}),
     (1, 11, 0, "acme", "планирование спринта", ["Олег", "Иван Петров"], 48 * 60 + 12, "ru", "done",
      SPRINT_SUMMARY, SPRINT_LINES, {}),
     # "Ждёт описания": recorded, the user chose "Later" in "What was the call about?".
@@ -236,11 +326,16 @@ def speech_tracks(d: Path, lines, seconds):
 for ago, hh, mm, profile, topic, names, secs, lang, status, summary, lines, extra in CALLS:
     d0 = day(ago)
     cid = f"{d0.isoformat()} {hh:02d}-{mm:02d}"
-    title = PROFILES[profile]["title"] if profile else ""
+    title = t(PROFILES[profile]["title"]) if profile else ""
+    topic, names, summary = t(topic), [t(x) for x in names], t(summary)
+    say = [(sec, who, t(x)) for sec, who, x in lines] if lines else lines  # `who` stays ME: it picks the voice
+    written = [(sec, t(who), x) for sec, who, x in say] if lines else lines
+    if "notes" in extra:
+        extra = {**extra, "notes": [{**n, "text": t(n["text"])} for n in extra["notes"]]}
     name = " · ".join(x for x in [cid, title, topic, ", ".join(names)] if x)
     d = calls / name
     d.mkdir()
-    real = with_audio and lines is BILLING_LINES and speech_tracks(d, lines, secs)
+    real = with_audio and lines is BILLING_LINES and speech_tracks(d, say, secs)
     if not real:
         # Placeholder tracks of the right size, so the size is shown.
         (d / "mic.m4a").write_bytes(b"\0" * (secs * 8000))
@@ -256,21 +351,21 @@ for ago, hh, mm, profile, topic, names, secs, lang, status, summary, lines, extr
     if summary:
         (d / "summary.md").write_text(summary + "\n")
     if lines:
-        marked = {i for i, (s, _, _) in enumerate(lines) if s in {int(m) for m in extra.get("marks", [])}}
-        people = list(dict.fromkeys(w for _, w, _ in lines))
+        marked = {i for i, (s, _, _) in enumerate(written) if s in {int(m) for m in extra.get("marks", [])}}
+        people = list(dict.fromkeys(w for _, w, _ in written))
         head = f"# Звонок {cid}" + (f" · {title}" if title else "") + (f" · {topic}" if topic else "")
         md = [head, "", f"Длительность: {stamp(secs)} · Участники: {', '.join(people)}", ""]
         if summary:
             md += [summary, "", "---", "", "## Расшифровка", ""]
-        md += [f"**[{stamp(s)}] {w}:** {x}{' ⭐' if i in marked else ''}\n" for i, (s, w, x) in enumerate(lines)]
-        (d / "transcript.txt").write_text("\n".join(f"[{stamp(s)}] {w}: {x}" for s, w, x in lines) + "\n")
+        md += [f"**[{stamp(s)}] {w}:** {x}{' ⭐' if i in marked else ''}\n" for i, (s, w, x) in enumerate(written)]
+        (d / "transcript.txt").write_text("\n".join(f"[{stamp(s)}] {w}: {x}" for s, w, x in written) + "\n")
         # Written last: newer than summary.md, as after a transcript edit ("Саммари устарело").
         (d / "transcript.md").write_text("\n".join(md))
 
 # Voice prints: the user's own (Аня) and Sarah Miller saved; Tom Baker is not, so billing webhooks asks
 # "Подписи верные?". Schema: docs/CONTRACT.md section 6 (the embedding is a placeholder).
 VOICES = [
-    {"id": "a1b2c3d4e5f60718293a4b5c6d7e8f90", "name": ME, "profile": "", "me": True, "seconds": 48.0,
+    {"id": "a1b2c3d4e5f60718293a4b5c6d7e8f90", "name": t(ME), "profile": "", "me": True, "seconds": 48.0,
      "updated_at": utc(day(0), 9, 0)},
     {"id": "0f1e2d3c4b5a69788796a5b4c3d2e1f0", "name": "Sarah Miller", "profile": "", "me": False, "seconds": 36.5,
      "updated_at": utc(day(2), 10, 50)},

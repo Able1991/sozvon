@@ -7,7 +7,6 @@ Deleted ids go to <data>/voices-deleted.json until sync deletes them on the own 
 
 Voice prints are biometric data: they never leave the Mac unless the user set up an own server.
 """
-import fcntl
 import hashlib
 import json
 import math
@@ -20,11 +19,13 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, config, jsonfile, paths
+from . import audio, config, jsonfile, paths, platform_support
 from .i18n import t
 
 EMBEDDING = "pyannote/wespeaker-voxceleb-resnet34-LM"
 DIM = 256
+# What a record's "model" says about its embedding. A record without the field is of this model.
+MODEL = f"{EMBEDDING.split('/')[-1]}/{DIM}"
 SCHEMA = 1
 ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
@@ -38,6 +39,7 @@ MAX_NAME = 80
 THRESHOLD = 0.5          # cosine: wespeaker same person ~0.7-0.95, different people ~0.1-0.4
 MARGIN = 0.1             # above the second best candidate
 MIN_MATCH_SPEECH = 2.0   # seconds of clean speech a cluster needs to be matched at all
+MIN_MIC_PERSON = 15.0    # seconds of speech a microphone cluster needs to count as a separate person
 WINDOW = 10.0            # seconds per embedding window (memory stays flat on long pieces)
 MIN_PIECE = 0.5          # seconds
 
@@ -80,10 +82,10 @@ def locked():
     os.chmod(d, 0o700)
     fd = os.open(d / ".lock", os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        platform_support.lock_exclusive(fd)
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        platform_support.unlock(fd)
         os.close(fd)
 
 
@@ -112,9 +114,30 @@ def valid(rec) -> dict | None:
     if not isinstance(sec, (int, float)) or isinstance(sec, bool) or not 0 <= sec <= MAX_SECONDS:
         return None
     me = rec.get("me") is True
-    return {"schema": SCHEMA, "id": vid, "name": name.strip(), "profile": "" if me else profile, "me": me,
-            "embedding": [float(x) for x in emb], "seconds": float(sec),
-            "updated_at": str(rec.get("updated_at") or "")}
+    out = {"schema": SCHEMA, "id": vid, "name": name.strip(), "profile": "" if me else profile, "me": me,
+           "embedding": [float(x) for x in emb], "seconds": float(sec),
+           "updated_at": str(rec.get("updated_at") or "")}
+    if rec.get("model") not in (None, ""):  # kept as is; absent stays absent (the older files and the server's)
+        out["model"] = str(rec["model"])
+    return out
+
+
+def is_current(rec: dict) -> bool:
+    """True for a voice print of the model in use (a record without "model" is of it)."""
+    return rec.get("model", MODEL) == MODEL
+
+
+_logged_foreign = False
+
+
+def only_current(recs: list, log=None) -> list:
+    """The records of the current model. Others stay untouched on disk; logged once per run (process)."""
+    global _logged_foreign
+    keep = [r for r in recs if is_current(r)]
+    if len(keep) < len(recs) and log is not None and not _logged_foreign:
+        _logged_foreign = True
+        log(f"voices: {len(recs) - len(keep)} voice print(s) of another model skipped (they stay saved)")
+    return keep
 
 
 def load_all() -> list:
@@ -203,6 +226,8 @@ def summary(rec: dict) -> dict:
 def merge_embeddings(old: dict | None, emb, seconds: float) -> tuple[list, float]:
     """Weighted average by speech seconds (each side capped at WEIGHT_CAP), re-normalized."""
     new = unit(emb)
+    if old and not is_current(old):  # prints of two models are never mixed
+        raise ValueError("voice prints of different models can't be merged")
     if not old:
         return [float(x) for x in new], float(seconds)
     w_old, w_new = min(old["seconds"], WEIGHT_CAP), min(seconds, WEIGHT_CAP)
@@ -224,7 +249,7 @@ def store(name: str, profile: str, me: bool, emb, seconds: float, replace: bool 
         raise VoiceError(2, t("voice_bad_name", n=MAX_NAME))
     profile = "" if me else (profile or "")
     with locked():
-        recs = load_all()
+        recs = [r for r in load_all() if is_current(r)]  # other models' records are never merged or replaced
         if me and any(not r["me"] and r["name"] == name and r["profile"] == "" for r in recs):
             raise VoiceError(2, t("voice_me_name_taken", name=name))
         mine = next((r for r in recs if r["me"]), None) if me else None
@@ -233,7 +258,7 @@ def store(name: str, profile: str, me: bool, emb, seconds: float, replace: bool 
         emb_list, sec = merge_embeddings(None if replace else target, emb, seconds)
         rec = {"schema": SCHEMA, "id": target["id"] if target else uuid.uuid4().hex, "name": name,
                "profile": profile, "me": bool(me or (target and target["me"])), "embedding": emb_list,
-               "seconds": sec, "updated_at": now()}
+               "seconds": sec, "updated_at": now(), "model": MODEL}
         save(rec)
         tombs = tombstones()
         extra = [r["id"] for r in recs if r["id"] != rec["id"] and (
@@ -249,7 +274,8 @@ def store(name: str, profile: str, me: bool, emb, seconds: float, replace: bool 
 
 
 def content_hash(rec: dict) -> str:
-    """sha256 over the canonical JSON of what syncs (both sides normalize numbers the same way)."""
+    """sha256 over the canonical JSON of what syncs (both sides normalize numbers the same way).
+    "model" is not part of it: the own server doesn't store it, and the hash of older records stays the same."""
     r = valid(rec) or {}
     canon = json.dumps({k: r.get(k) for k in ("id", "name", "profile", "me", "embedding", "seconds", "updated_at")},
                        sort_keys=True, ensure_ascii=False, separators=(",", ":"))
@@ -437,14 +463,42 @@ def call_paragraphs(d: Path, label: str) -> tuple[list, list]:
     return clean, paras
 
 
+_LATIN = str.maketrans({"а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh", "з": "z",
+                        "и": "i", "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r",
+                        "с": "s", "т": "t", "у": "u", "ф": "f", "х": "h", "ц": "c", "ч": "ch", "ш": "sh", "щ": "sch",
+                        "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya"})
+
+
+def same_name(a: str, b: str) -> bool:
+    """One name, whatever the case and the alphabet ("Борис", "boris"). Same rule as Voices.sameName in the app."""
+    x, y = (" ".join(s.lower().split()).translate(_LATIN) for s in (a, b))
+    return bool(x) and x == y
+
+
 def is_me_label(label: str, settings: config.Settings | None = None) -> bool:
+    """The user's label in a transcript. The name in Settings may be empty or spelled differently from the
+    label of an older call, so the name of the user's own voice print counts too (of any model: a name is a name)."""
     settings = settings or config.load()
-    me = settings.me or t("me")
-    return label == me or label.lower() == "me"
+    known = [settings.me or t("me"), t("me"), "me"] + [r["name"] for r in load_all() if r["me"]]
+    return any(same_name(label, name) for name in known)
+
+
+def _recorded_track(call: dict, label: str) -> str:
+    """The track another person's lines came from: call.json "speaker_tracks", which only a call with someone at the
+    user's microphone has. Without it, the system track. A person on both tracks, or on none we know of, is refused:
+    a voice print read from the wrong track would hold somebody else's voice."""
+    known = call.get("speaker_tracks")
+    if known is None:
+        return "system"
+    track = known.get(label) if isinstance(known, dict) else None
+    if track not in ("mic", "system"):
+        raise VoiceError(2, t("voice_two_tracks", label=label))
+    return track
 
 
 def enroll_call(d: Path, label: str, name: str, profile: str = "", me: bool = False) -> dict:
-    """The paragraphs of one speaker in a call: mic.m4a for the user, system.m4a for remote speakers.
+    """The paragraphs of one speaker in a call: mic.m4a for the user, system.m4a for remote speakers, the
+    microphone for a person found on it (_recorded_track).
 
     Times in transcript.txt are on the shared timeline (tracks.delays): a track that started later is read
     that much earlier. Needs MIN_CALL_SPEECH seconds of clean speech; merges into the existing record.
@@ -458,16 +512,22 @@ def enroll_call(d: Path, label: str, name: str, profile: str = "", me: bool = Fa
         call = calls.read_call(d, strict=True)
     except jsonfile.JsonFileError as e:
         raise VoiceError(2, t("err_bad_call", err=e)) from e
+    if not me and is_me_label(label):  # the user's own voice comes from the sample in Settings
+        raise VoiceError(2, t("voice_no_speaker", label=label))
     spans, _ = call_paragraphs(d, label)
     if not spans:
         raise VoiceError(2, t("voice_no_speaker", label=label))
     files = tracks_stage.track_files(d)
-    key = "mic" if is_me_label(label) and "mic" in files else "system"
+    mine = is_me_label(label)
+    key = ("mic" if "mic" in files else "system") if mine else _recorded_track(call, label)
     if key not in files:
         raise VoiceError(2, t("err_no_audio"))
     delay = tracks_stage.delays(calls.audio_meta(d, call)).get(key, 0.0)
+    source = files[key]
+    if key == "mic" and not mine and (d / tracks_stage.CLEAN_MIC).is_file():
+        source, delay = d / tracks_stage.CLEAN_MIC, 0.0  # free of the other side's echo, aligned to the call's start
     shifted = [(max(0.0, s - delay), e - delay) for s, e in spans if e - delay > MIN_PIECE]
-    pieces = _limit(speech_of_spans(files[key], longest(shifted)))
+    pieces = _limit(speech_of_spans(source, longest(shifted)))
     sec = seconds_of(pieces)
     if sec < MIN_CALL_SPEECH:
         raise VoiceError(2, t("voice_too_short", sec=_shown(sec), need=MIN_CALL_SPEECH))
@@ -479,10 +539,11 @@ def enroll_call(d: Path, label: str, name: str, profile: str = "", me: bool = Fa
 
 # --- matching ---
 
-def candidates(profile: str, with_me: bool) -> list:
-    """Records a call of this project can match: its project's, the ones without a project, and (with_me) mine."""
+def candidates(profile: str, with_me: bool, log=None) -> list:
+    """Records a call of this project can match: its project's, the ones without a project, and (with_me) mine.
+    Only of the current model."""
     out = []
-    for r in load_all():
+    for r in only_current(load_all(), log):
         if r["me"]:
             if with_me:
                 out.append(r)
@@ -525,26 +586,100 @@ def match(clusters: dict, records: list, threshold: float = THRESHOLD, margin: f
     return out
 
 
-def identify(path, diar: list, profile: str, me: str | None, log) -> dict:
+def cluster_vectors(path, diar: list, known: dict | None = None) -> dict:
+    """{raw label: embedding, or None for a cluster with too little clean speech} of one track's clusters.
+
+    known: what this run has embedded so far, by (track, raw label). It is read and filled in, so one voice
+    is embedded once however many steps compare it.
+    """
+    known = {} if known is None else known
+    out = {}
+    for label in dict.fromkeys(lab for *_, lab in diar):
+        key = (str(path), label)
+        if key not in known:
+            pieces = _limit(speech_of_spans(path, longest(clean_spans(diar, label))))
+            known[key] = embed(pieces) if seconds_of(pieces) >= MIN_MATCH_SPEECH else None
+        out[label] = known[key]
+    return out
+
+
+def identify(path, diar: list, profile: str, me: str | None, log, known: dict | None = None) -> dict:
     """Pipeline step: raw diarization label -> stored name for the voices of this track.
 
     me: the user's label when the user's own voice can be in this track (a single-track recording), else None.
-    No stored voices: nothing is loaded at all. -> {raw label: name}.
+    No stored voices: nothing is loaded at all. known: see cluster_vectors. -> {raw label: name}.
     """
-    records = candidates(profile, me is not None)
+    records = candidates(profile, me is not None, log)
     if not records or not diar:
         return {}
-    clusters = {}
-    for label in dict.fromkeys(lab for *_, lab in diar):
-        pieces = _limit(speech_of_spans(path, longest(clean_spans(diar, label))))
-        if seconds_of(pieces) < MIN_MATCH_SPEECH:
-            continue
-        clusters[label] = pieces
-    if not clusters:
-        return {}
-    vecs = {label: embed(p) for label, p in clusters.items()}
-    found = match(vecs, records)
+    found = match(cluster_vectors(path, diar, known), records)
     return {label: (me if rec["me"] and me else rec["name"], score) for label, (rec, score) in found.items()}
+
+
+def _merge_similar(labels: list, vecs: dict, speech: dict) -> dict:
+    """{raw label: label of its group} for unknown voices that are alike, directly or through another one.
+
+    Voices far from the microphone blur together and diarization deals them out at random, so its clusters are
+    not people there: one label for them is the truth we have. The group is named after its longest cluster.
+    """
+    group = {k: k for k in labels}
+
+    def root(k):
+        while group[k] != k:
+            k = group[k]
+        return k
+    for i, a in enumerate(labels):
+        for b in labels[i + 1:]:
+            if float(unit(vecs[a]) @ unit(vecs[b])) >= THRESHOLD:
+                group[root(b)] = root(a)
+    longest_of: dict = {}
+    for k in labels:
+        r = root(k)
+        if r not in longest_of or speech[k] > speech[longest_of[r]]:
+            longest_of[r] = k
+    return {k: longest_of[root(k)] for k in labels}
+
+
+def mic_people(path, diarize_mic, system_path, system_diar: list, profile: str, log, known: dict | None = None) -> tuple:
+    """Pipeline step: who else speaks at the user's microphone. -> (microphone diarization, {raw label: name or None}).
+
+    Only clusters that are separate people are in the result (None: nobody's voice print matched); every other
+    cluster is the user. Unknown voices that are alike come back as one cluster. The result is empty when there is no print of the user or no cluster matches it.
+    diarize_mic() is called at most once, and only when the user's own print exists. Exceptions reach the caller,
+    which falls back to labeling everything as the user.
+    """
+    mine = next((r for r in only_current(load_all(), log) if r["me"]), None)
+    if mine is None:
+        log(t("log_mic_no_print"))
+        return [], {}
+    diar = diarize_mic()
+    speech: dict = {}
+    for s, e, label in diar:
+        speech[label] = speech.get(label, 0.0) + e - s
+    if len(speech) < 2 or max(speech.values()) < MIN_MIC_PERSON:  # nobody to tell apart: nothing to embed
+        return diar, {}
+    vecs = {k: v for k, v in cluster_vectors(path, diar, known).items() if v is not None}
+    found = match(vecs, candidates(profile, True, log))
+    own = unit(mine["embedding"])
+
+    def is_mine(label):
+        # match gives a name to one cluster only: the user split into two clusters is still the user.
+        return float(unit(vecs[label]) @ own) >= THRESHOLD and (label not in found or found[label][0]["me"])
+    if not any(is_mine(k) for k in vecs):
+        log(t("log_mic_no_match"))
+        return [], {}
+    people = [k for k in vecs if not is_mine(k) and speech[k] >= MIN_MIC_PERSON]
+    if not people:
+        return diar, {}
+    # Any remote voice is enough here, so a threshold without a margin: the margin only picks between names.
+    remote = [unit(v) for v in cluster_vectors(system_path, system_diar, known).values() if v is not None]
+    echo = {k for k in people if any(float(unit(vecs[k]) @ v) >= THRESHOLD for v in remote)}
+    if echo:
+        log(t("log_mic_echo", n=len(echo)))
+    kept = [k for k in people if k not in echo]
+    one_label = _merge_similar([k for k in kept if k not in found], vecs, speech)
+    return ([(s, e, one_label.get(label, label)) for s, e, label in diar],
+            {k: found[k][0]["name"] if k in found else None for k in kept if one_label.get(k, k) == k})
 
 
 # --- sync helpers (remote.py) ---
@@ -581,6 +716,8 @@ def merge_remote(stored: dict, mine: dict) -> dict | None:
         here = valid(jsonfile.read(_file(mine["id"]), default=None))
         if here is None or timestamp(here["updated_at"]) > timestamp(mine["updated_at"]):
             return None
+        if not (is_current(here) and is_current(stored)):  # another model: keep the record here as it is
+            return None
         emb, sec = merge_embeddings(stored, mine["embedding"], mine["seconds"])
         at = now()
         if timestamp(at) <= timestamp(stored["updated_at"]):
@@ -598,20 +735,22 @@ def accept_remote(rec: dict) -> bool:
     server's id gets a tombstone, so both Macs end up with one record.
     """
     rec = valid(rec)
-    if rec is None:
+    if rec is None or not is_current(rec):
         return False
     with locked():
         recs = load_all()
         same = next((r for r in recs if r["id"] == rec["id"]), None)
         if same is not None:
+            if not is_current(same):  # a conflict between models: the record here wins
+                return False
             if timestamp(same["updated_at"]) >= timestamp(rec["updated_at"]):
                 return False
             save(rec)
             return True
         if rec["id"] in tombstones():
             return False
-        clash = next((r for r in recs if (r["name"] == rec["name"] and r["profile"] == rec["profile"])
-                      or (r["me"] and rec["me"])), None)
+        clash = next((r for r in recs if is_current(r) and ((r["name"] == rec["name"] and r["profile"] == rec["profile"])
+                                                           or (r["me"] and rec["me"]))), None)
         if clash is None:
             save(rec)
             return True

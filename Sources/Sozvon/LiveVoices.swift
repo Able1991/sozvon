@@ -91,6 +91,14 @@ final class LiveVoices {
     private var process: RunningProcess?
     private var running: URL?
     private var generation = 0
+    private var finishing = false
+    /// `finish` waiting for the engine to exit, and which wait it is (a late timeout of an earlier wait must not end this one).
+    private var waiter: CheckedContinuation<Void, Never>?
+    private var waitID = 0
+
+    /// From the start of the recording until the last piece is matched: the transcription queue waits, a Whisper run
+    /// next to the last piece would push it past the 15 seconds `finish` gives it.
+    var isActive: Bool { running != nil || finishing }
 
     /// Worth running: the engine works and someone else's voice is saved.
     static var useful: Bool {
@@ -113,6 +121,7 @@ final class LiveVoices {
                                     log: dir.appendingPathComponent("live.log")) { [weak self] _ in
             guard let self, self.generation == run else { return }
             self.process = nil
+            self.endWait()
         }
     }
 
@@ -121,19 +130,36 @@ final class LiveVoices {
         let dir = Self.folder(call)
         defer { try? FileManager.default.removeItem(at: dir) }
         guard running == call else { return [] }
+        finishing = true
+        defer { finishing = false }
         running = nil
         FileManager.default.createFile(atPath: dir.appendingPathComponent("stop").path, contents: nil)
-        // The engine finishes the last piece and exits; at most 15 seconds, then it is stopped.
-        for _ in 0..<75 where process != nil { try? await Task.sleep(for: .milliseconds(200)) }
+        // The engine finishes the last piece and exits (the done callback of `start` wakes this up);
+        // at most 15 seconds, then it is stopped.
+        if process != nil {
+            waitID += 1
+            let id = waitID
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                waiter = c
+                mainAfter(15) { [weak self] in if self?.waitID == id { self?.endWait() } }
+            }
+        }
         process?.terminate()
         process = nil
         return Self.read(dir.appendingPathComponent("voices.json"))
+    }
+
+    private func endWait() {
+        let w = waiter
+        waiter = nil
+        w?.resume()
     }
 
     /// Sozvon is quitting: the pieces are of no use to anyone now.
     func abandon() {
         process?.terminate()
         process = nil
+        endWait()
         if let call = running { try? FileManager.default.removeItem(at: Self.folder(call)) }
         running = nil
     }

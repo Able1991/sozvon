@@ -5,19 +5,26 @@ delayed by the device and the air (tens to hundreds of milliseconds) and colored
 is exactly what the speakers played, so it is a perfect far-end reference.
 
 Steps, all streaming over 16 kHz mono 16-bit wav files (memory stays bounded for any call length):
-1. Bulk delay: GCC-PHAT between the mic and the reference over the frames with the strongest far-end
-   activity, per minute, so a slow clock drift between the two captures is followed linearly.
+1. Delay track: GCC-PHAT between the mic and the reference on 1 s frames (every 0.5 s while the far end
+   plays), grouped into pieces of constant delay. The echo delay of a real call is not one number: the
+   system and microphone captures slip against each other in steps of tens of milliseconds, by up to a few
+   hundred over a call, and the filter window has to follow it.
 2. A partitioned-block frequency-domain adaptive filter (MDF, as in Speex): 256-sample blocks, 512-point
    FFTs (50% overlap-save), 16 partitions (256 ms of echo path after the bulk delay). NLMS with a
    per-bin learning rate from the estimated echo leakage (Valin 2007): when the near end talks the
    error is large next to the echo estimate and adaptation almost stops. Two filters: the background one
    adapts, the foreground one produces the output and only takes the background weights when they are
    clearly better; a background filter ruined by double talk is reset from the foreground.
-3. A mild residual echo suppressor: a Wiener-like spectral gain from the leakage times the echo estimate,
-   never below -20 dB.
+3. A residual echo suppressor. On a laptop speaker a large part of the echo cannot be predicted from the
+   reference by any linear filter (measured on a real call: the best one, of any length, removes about
+   9 dB; AAC coding and simple speaker clipping do not explain the rest). The suppressor
+   learns per frequency how much residual there is for a given echo estimate while only the far end
+   plays, then applies a Wiener-like gain from it, never below -20 dB. Bins where the near end is louder
+   than that are left alone, so speech over the far end stays.
 4. Safety: if the output in far-end regions is louder than the input, or almost no echo was removed,
    the original microphone is kept.
 """
+import bisect
 import math
 import os
 import time
@@ -33,23 +40,32 @@ NFFT = 2 * B
 K = B + 1                  # rfft bins
 P = 16                     # partitions: 16 * 256 = 4096 taps = 256 ms after the bulk delay
 MARGIN = 160               # the filter starts 10 ms before the estimated delay (taps before the main peak)
-MAX_DELAY = 0.5            # delay search range, seconds: the echo comes after the reference...
-MIN_DELAY = -0.05          # ...but the tracks' start offsets are only accurate to a few tens of ms
+MAX_DELAY = 0.6            # delay search range, seconds: the echo comes after the reference, but the
+MIN_DELAY = -0.3           # captures of the two tracks slip against each other by up to a few hundred ms
 FLOOR = 0.1                # residual suppressor gain floor (-20 dB)
+RES_ALPHA = 2.0            # residual suppressor over-subtraction
+RES_RATE = 0.96            # per-frame smoothing of the residual/echo statistics while only the far end plays
+RES_MIN = 0.02             # smallest residual/echo ratio per bin
+RES_FAR_ONLY = 1.8         # mic energy up to this times the echo estimate: nothing but the far end is heard
 CHUNK = 30 * SR            # read and write in 30 s pieces
 
-GCC_FRAME = 2 * SR         # 2 s frames for the delay estimate
-GCC_WINDOW = 60.0          # one delay estimate per minute (the capture clocks drift by ~10 ppm)
-GCC_FRAMES = 20            # strongest far-end frames used per window
-GCC_SCORE = 9.0            # peak height over the robust noise level of the correlation
+GCC_FRAME = 2 * SR         # 2 s frames for the far-end activity (threshold, warm-up minute)
+TRACK_FRAME = SR           # delay track: 1 s frames...
+TRACK_HOP = SR // 2        # ...every 0.5 s while the far end plays
+TRACK_SCORE = 12.0         # peak height over the robust noise level of the correlation
+TRACK_TOL = 5.0            # ms: frames this close to a piece's median belong to it
+TRACK_MIN = 3              # frames needed to believe in a new piece of delay
 
 
 @dataclass
 class Report:
     applied: bool
     reason: str                       # ok, no_far, no_delay, no_echo, diverged
-    delay_ms: float | None = None     # bulk delay at the start of the call
-    drift_ms: float = 0.0             # delay change from the start to the end of the call
+    delay_ms: float | None = None     # median delay over the call
+    drift_ms: float = 0.0             # delay change from the first piece of the track to the last
+    jumps: int = 0                    # how many times the delay changed along the call
+    neural: bool = False              # the neural residual suppressor (aec_neural.py) was applied
+    neural_reason: str = ""           # ok; or why the classic output stayed: off, no_weights, bad_weights, error: ...
     erle_db: float | None = None      # echo reduction in far-end-only regions
     gain_db: float | None = None      # output/input energy over all far-end regions (negative: quieter)
     seconds: float = 0.0              # processing time
@@ -101,8 +117,8 @@ class _Writer:
 
     def flush(self):
         if self.parts:
-            y = np.clip(np.concatenate(self.parts), -1.0, 1.0)
-            self.w.writeframes((y * 32767).astype("<i2").tobytes())
+            y = np.rint(np.concatenate(self.parts) * 32768)        # the reader divides by 32768: exact round trip
+            self.w.writeframes(np.clip(y, -32768, 32767).astype("<i2").tobytes())
             self.parts, self.size = [], 0
 
     def close(self):
@@ -123,19 +139,22 @@ def _frame_rms(r: _Reader) -> np.ndarray:
     return out
 
 
-def _gcc(m: _Reader, r: _Reader, frames) -> tuple[int, float]:
-    """GCC-PHAT summed over frames. -> (lag in samples where the mic lags the reference, peak score)."""
-    nfft = 2 * GCC_FRAME
-    freqs = np.fft.rfftfreq(nfft, 1 / SR)
-    band = (freqs >= 200) & (freqs <= 4000)
-    acc = np.zeros(len(freqs), np.complex128)
-    for i in frames:
-        mf = np.fft.rfft(m.read(i * GCC_FRAME, GCC_FRAME), nfft)
-        rf = np.fft.rfft(r.read(i * GCC_FRAME, GCC_FRAME), nfft)
-        c = mf * np.conj(rf)
-        acc += np.where(band, c / (np.abs(c) + 1e-20), 0)
+@dataclass
+class DelayTrack:
+    """Echo delay along the call, piecewise constant, in samples (positive: the mic lags the reference)."""
+    starts: np.ndarray    # first sample of each piece, ascending
+    delays: np.ndarray
+
+    def at(self, n: int) -> int:
+        return int(self.delays[max(int(np.searchsorted(self.starts, n, "right")) - 1, 0)])
+
+
+def _gcc(mic: np.ndarray, ref: np.ndarray, win: np.ndarray, band: np.ndarray) -> tuple[int, float]:
+    """GCC-PHAT of one frame. -> (lag in samples where the mic lags the reference, peak score)."""
+    nfft = 2 * TRACK_FRAME
+    c = np.fft.rfft(mic * win, nfft) * np.conj(np.fft.rfft(ref * win, nfft))
+    full = np.fft.irfft(np.where(band, c / (np.abs(c) + 1e-20), 0), nfft)
     neg, maxlag = int(-MIN_DELAY * SR), int(MAX_DELAY * SR)
-    full = np.fft.irfft(acc, nfft)
     cc = np.concatenate([full[-neg:], full[:maxlag + 1]])   # lags -neg..maxlag
     k = int(np.argmax(cc))
     rest = np.concatenate([cc[:max(0, k - 32)], cc[k + 33:]])
@@ -144,43 +163,57 @@ def _gcc(m: _Reader, r: _Reader, frames) -> tuple[int, float]:
     return k - neg, (float(cc[k]) - med) / sigma
 
 
-def estimate_delay(m: _Reader, r: _Reader, rms: np.ndarray, thr: float):
-    """Delay track as (start delay, slope) in samples and samples per sample, or None without a reliable peak."""
-    per = max(1, int(GCC_WINDOW * SR) // GCC_FRAME)
-    nwin = max(1, math.ceil(len(rms) / per))
-    if nwin > 1 and len(rms) - (nwin - 1) * per < per // 2:
-        nwin -= 1   # a short tail joins the previous window
-    points = []
-    for w in range(nwin):
-        lo, hi = w * per, (len(rms) if w == nwin - 1 else (w + 1) * per)
-        idx = np.arange(lo, hi)
-        idx = idx[rms[lo:hi] > thr]
-        if len(idx) < 3:
+def _median(sorted_values: list) -> float:
+    n = len(sorted_values)
+    return float(sorted_values[n // 2]) if n % 2 else (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+
+
+def _pieces(points: list) -> list:
+    """Group (sample, lag) points into runs of nearly constant lag; a lone outlier does not end a run."""
+    tol = TRACK_TOL * SR / 1000
+    runs, cur, pending = [], [points[0]], []
+    lags = [points[0][1]]                # lags of cur, kept sorted: the median is one list access
+    for p in points[1:]:
+        if abs(p[1] - _median(lags)) <= tol:
+            cur.append(p)
+            bisect.insort(lags, p[1])
+            pending = []
             continue
-        idx = idx[np.argsort(rms[idx])[::-1][:GCC_FRAMES]]
-        lag, score = _gcc(m, r, idx)
-        if score >= GCC_SCORE:
-            points.append(((float(np.mean(idx)) + 0.5) * GCC_FRAME, lag))
-    if not points:
+        if pending and abs(p[1] - np.median([q[1] for q in pending])) <= tol:
+            pending.append(p)
+        else:
+            pending = [p]
+        if len(pending) >= TRACK_MIN:
+            runs.append(cur)
+            cur, pending = pending, []
+            lags = sorted(q[1] for q in cur)
+    runs.append(cur)
+    return [r for r in runs if len(r) >= TRACK_MIN]
+
+
+def estimate_delay(m: _Reader, r: _Reader, thr: float) -> DelayTrack | None:
+    """Delay track from the frames where the far end plays, or None without a reliable peak."""
+    nfft = 2 * TRACK_FRAME
+    freqs = np.fft.rfftfreq(nfft, 1 / SR)
+    band = (freqs >= 200) & (freqs <= 4000)
+    win = np.hanning(TRACK_FRAME)
+    points = []
+    for n in range(0, min(m.n, r.n) - TRACK_FRAME + 1, TRACK_HOP):
+        x = r.read(n, TRACK_FRAME)
+        if math.sqrt(float(x @ x) / TRACK_FRAME) < thr:
+            continue
+        lag, score = _gcc(m.read(n, TRACK_FRAME), x, win, band)
+        if score >= TRACK_SCORE:
+            points.append((n + TRACK_FRAME // 2, lag))
+    runs = _pieces(points) if points else []
+    if not runs:
         return None
-    t = np.array([p[0] for p in points])
-    d = np.array([p[1] for p in points], float)
-    med = float(np.median(d))
-    if len(points) >= 3:
-        # robust line: echo reflections sometimes win a window, drop points far from the fit and refit
-        keep = np.ones(len(d), bool)
-        for _ in range(3):
-            slope, icpt = np.polyfit(t[keep], d[keep], 1)
-            res = np.abs(d - (icpt + slope * t))
-            keep = res <= max(24.0, 3 * 1.4826 * float(np.median(res[keep])))
-            if keep.sum() < 3:
-                break
-        if keep.sum() >= 3:
-            slope, icpt = np.polyfit(t[keep], d[keep], 1)
-            if abs(slope * m.n) >= 16:   # drift of at least 1 ms over the call
-                return float(icpt), float(slope)
-            med = float(np.median(d[keep]))
-    return med, 0.0
+    starts, delays = [], []
+    for i, run in enumerate(runs):
+        delays.append(int(np.median([q[1] for q in run])))
+        # the step happened somewhere between the last frame of the previous piece and the first of this one
+        starts.append(0 if i == 0 else (runs[i - 1][-1][0] + run[0][0]) // 2)
+    return DelayTrack(np.array(starts), np.array(delays))
 
 
 # ---------------------------------------------------------------- filter
@@ -213,6 +246,10 @@ class _Mdf:
         self.tail = np.zeros(B)
         self.Ss = np.zeros(K)
         self.Rs = np.zeros(K)
+        self.res_e = np.full(K, 1e-9)    # residual and echo-estimate power while only the far end plays
+        self.res_y = np.full(K, 1e-9)
+        self.rho = np.full(K, 0.2)       # residual/echo ratio per bin
+        self.far_only = False
 
     def reset_history(self):
         self.X[:] = 0
@@ -260,6 +297,8 @@ class _Mdf:
             self.Wb[:] = 0
             self.Wf[:] = 0
             ef, yf = d.copy(), np.zeros(B)
+        Syy = float(yf @ yf)
+        self.far_only = Sxx > self.act and Syy > 1e-9 * B and float(d @ d) <= RES_FAR_ONLY * Syy
         return ef, yf
 
     def _adapt(self, eb, yb, See, Sxx, Xn):
@@ -312,12 +351,16 @@ class _Mdf:
         Ew = np.fft.rfft(self.win * np.concatenate([self.prev_e, e]))
         Yw = np.fft.rfft(self.win * np.concatenate([self.prev_y, y]))
         self.prev_e, self.prev_y = e, y
-        leak2 = 1.0 if self.leak > 0.5 else 2 * self.leak
         S = Ew.real ** 2 + Ew.imag ** 2
-        R = leak2 * (Yw.real ** 2 + Yw.imag ** 2)
+        Yp = Yw.real ** 2 + Yw.imag ** 2
+        if self.far_only:
+            self.res_e = RES_RATE * self.res_e + (1 - RES_RATE) * S
+            self.res_y = RES_RATE * self.res_y + (1 - RES_RATE) * Yp
+            self.rho = np.clip(self.res_e / (self.res_y + 1e-12), RES_MIN, 1.0)
         self.Ss = 0.5 * self.Ss + 0.5 * S
-        self.Rs = np.maximum(0.6 * self.Rs, R)      # the echo tail decays slower than the estimate
-        g = np.clip(1.0 - 1.5 * self.Rs / (self.Ss + 1e-12), FLOOR, 1.0)
+        self.Rs = np.maximum(0.6 * self.Rs, self.rho * Yp)   # the echo tail decays slower than the estimate
+        g = 1.0 - RES_ALPHA * self.Rs / (self.Ss + 1e-12)
+        g = np.clip(np.convolve(g, [0.25, 0.5, 0.25], "same"), FLOOR, 1.0)    # less musical noise
         out = self.win * np.fft.irfft(Ew * g)
         res = self.tail + out[:B]
         self.tail = out[B:].copy()
@@ -327,13 +370,17 @@ class _Mdf:
 # ---------------------------------------------------------------- driver
 
 
-def _pass(c: _Mdf, m: _Reader, r: _Reader, dtrack, k0: int, k1: int, sink=None, stats=None):
+def _pass(c: _Mdf, m: _Reader, r: _Reader, track: DelayTrack, k0: int, k1: int, sink=None, stats=None):
     """Run blocks k0..k1-1 through the canceller. sink gets the output samples; stats (k1-k0, 5) the block energies."""
-    a, b = dtrack
     first = True
+    prev = None
     for k in range(k0, k1):
         n = k * B
-        dl = int(round(a + b * n)) - MARGIN
+        dl = track.at(n) - MARGIN
+        if prev is not None and dl != prev:         # a step in the delay: the far-end history moves with it
+            for j in range(P):
+                c.X[j] = np.fft.rfft(r.read(n - (j + 2) * B - dl, NFFT))
+        prev = dl
         d = m.read(n, B)
         x = r.read(n - B - dl, NFFT)
         e, y = c.step(d, x)
@@ -387,8 +434,15 @@ def cancel(mic: Path, ref: Path, delay: float | None = None, warmup: float = 60.
     mic, ref = Path(mic), Path(ref)
     tmp = mic.with_name(mic.stem + ".aec.wav")
     try:
-        report = _cancel(mic, ref, tmp, delay, warmup, t0)
+        report, track, thr, stats = _cancel(mic, ref, tmp, delay, warmup, t0)
         if report.applied:
+            report.neural_reason = _run_neural(mic, ref, tmp, track, thr)
+            report.neural = report.neural_reason == "ok"
+            if report.neural:
+                try:
+                    _report_delivered(report, tmp, stats, thr)
+                except Exception:  # noqa: BLE001  only the numbers are lost, the cleaned file is kept
+                    pass
             os.replace(tmp, mic)
     finally:
         tmp.unlink(missing_ok=True)  # not applied, or an error part way: never left in the call folder
@@ -396,22 +450,54 @@ def cancel(mic: Path, ref: Path, delay: float | None = None, warmup: float = 60.
     return report
 
 
-def _cancel(mic: Path, ref: Path, tmp: Path, delay: float | None, warmup: float, t0: float) -> Report:
-    """cancel() without the file handling: writes the cancelled mic to tmp and says whether to keep it."""
+def _run_neural(mic: Path, ref: Path, tmp: Path, track: DelayTrack, thr: float) -> str:
+    """The neural stage on the classic output in tmp. -> its result; never raises."""
+    try:
+        from . import aec_neural   # torch is imported only when there is echo to remove
+        return aec_neural.apply(mic, ref, tmp, track, thr)
+    except Exception as ex:  # noqa: BLE001  the classic output stays
+        return f"error: {ex!r}"[:300]
+
+
+def _report_delivered(report: Report, final: Path, stats: np.ndarray, thr: float) -> None:
+    """Measure the delivered file against the same far-end regions the classic stage was judged on (the suppressor
+    output in stats lags by one block, the file does not)."""
+    energy = stats.copy()
+    with wave.open(str(final), "rb") as w:
+        blocks = min(len(energy) - 1, w.getnframes() // B)
+        if blocks <= 0:
+            return
+        per = max(1, CHUNK // B)
+        for i in range(0, blocks, per):
+            n = min(per, blocks - i)
+            data = np.frombuffer(w.readframes(n * B), "<i2").astype(np.float64) / 32768.0
+            frames = data.reshape(n, B)
+            energy[i + 1:i + n + 1, 4] = (frames * frames).sum(axis=1)
+    energy[blocks + 1:, 4] = 0
+    ev = _evaluate(energy.astype(np.float64), thr)
+    report.gain_db = ev.get("gain_db", report.gain_db)
+    report.erle_db = ev.get("erle_db", report.erle_db)
+    report.levels = {**report.levels, **ev}
+
+
+def _cancel(mic: Path, ref: Path, tmp: Path, delay: float | None, warmup: float, t0: float):
+    """cancel() without the file handling: writes the cancelled mic to tmp.
+    -> (report, delay track, far threshold, per-block energies)."""
     m, r = _Reader(mic), _Reader(ref)
     try:
         rms = _frame_rms(r)
         if not len(rms) or rms.max() < 1e-3:
-            return Report(False, "no_far", seconds=time.monotonic() - t0)
+            return Report(False, "no_far", seconds=time.monotonic() - t0), None, 0.0, None
         thr = max(1e-3, 0.03 * float(np.percentile(rms, 95)))
         if delay is None:
-            dtrack = estimate_delay(m, r, rms, thr)
-            if dtrack is None:
-                return Report(False, "no_delay", seconds=time.monotonic() - t0)
+            track = estimate_delay(m, r, thr)
+            if track is None:
+                return Report(False, "no_delay", seconds=time.monotonic() - t0), None, 0.0, None
         else:
-            dtrack = (delay * SR, 0.0)
-        a, b = dtrack
-        report = Report(False, "", delay_ms=a / SR * 1000, drift_ms=b * m.n / SR * 1000)
+            track = DelayTrack(np.array([0]), np.array([int(round(delay * SR))]))
+        report = Report(False, "", delay_ms=float(np.median(track.delays)) / SR * 1000,
+                        drift_ms=float(track.delays[-1] - track.delays[0]) / SR * 1000,
+                        jumps=len(track.delays) - 1)
 
         c = _Mdf(thr)
         nblocks = math.ceil(m.n / B)
@@ -419,7 +505,7 @@ def _cancel(mic: Path, ref: Path, tmp: Path, delay: float | None, warmup: float,
         per = max(1, int(warmup * SR) // GCC_FRAME)
         busy = np.convolve((rms > thr).astype(float), np.ones(per))[per - 1:] if len(rms) >= per else [0]
         w0 = int(np.argmax(busy)) * GCC_FRAME // B
-        _pass(c, m, r, dtrack, w0, min(nblocks, w0 + int(warmup * SR) // B))
+        _pass(c, m, r, track, w0, min(nblocks, w0 + int(warmup * SR) // B))
         c.reset_history()
 
         stats = np.zeros((nblocks, 5), np.float32)   # 20 bytes per 16 ms: 9 MB for a 2 hour call
@@ -432,7 +518,7 @@ def _cancel(mic: Path, ref: Path, tmp: Path, delay: float | None, warmup: float,
                 w.write(x[:take])
                 written[0] += take
         try:
-            _pass(c, m, r, dtrack, 0, nblocks, sink, stats)
+            _pass(c, m, r, track, 0, nblocks, sink, stats)
         finally:
             w.close()
         ev = _evaluate(stats.astype(np.float64), thr)
@@ -449,4 +535,4 @@ def _cancel(mic: Path, ref: Path, tmp: Path, delay: float | None, warmup: float,
     finally:
         m.close()
         r.close()
-    return report
+    return report, track, thr, stats

@@ -210,6 +210,10 @@
 "Не получилось обновить движок" = "Couldn’t update the engine";
 "Подробности в setup.log" = "Details in setup.log";
 "Расшифрую после обновления движка" = "Will transcribe after the engine update";
+"В очереди" = "Queued";
+"В очереди." = "Queued.";
+"Убрать из очереди" = "Remove from Queue";
+"Начнётся, когда освободится движок и закончится звонок." = "Starts when the engine is free and any call is over.";
 "Обновляю движок…" = "Updating engine…";
 
 /* Состояние движка и итоги расшифровки */
@@ -334,6 +338,8 @@
 "Импортировать запись" = "Import Recording";
 "Импортировать" = "Import";
 "Не получилось импортировать «%@»" = "Couldn't import “%@”";
+"Не получилось перенести «%@» в папку Imported" = "Couldn't move “%@” to the Imported folder";
+"Запись не импортирована: разреши запись в эту папку." = "The recording was not imported: allow writing to this folder.";
 "Импорт «%@»" = "Importing “%@”";
 "Импортировать запись…" = "Import Recording…";
 "Пауза" = "Pause";
@@ -484,7 +490,6 @@
 "Удалить все сохранённые голоса?" = "Delete all saved voices?";
 "Не получилось удалить голоса" = "Couldn’t delete the voices";
 "Sozvon перестанет узнавать собеседников и тебя по голосу. Голоса удалятся и с твоего сервера. Свой голос можно будет записать заново." = "Sozvon will stop recognizing you and other people by voice. The voices are deleted from your own server too. You can record your own voice again.";
-"Добавить образец на другом языке звонков или записать заново" = "Add a sample in another call language, or record again";
 "Запомнить голоса" = "Remember Voices";
 "Запомнить голос «%@»" = "Remember the Voice of “%@”";
 "Cloudflare сейчас не отвечает (код %@), это сбой на их стороне. Попробуй через несколько минут" = "Cloudflare isn’t responding right now (code %@), an outage on their side. Try again in a few minutes";
@@ -553,7 +558,6 @@
 "Записан %@, %@" = "Recorded %@, %@";
 "Твой голос" = "Your Voice";
 "Записать заново…" = "Record Again…";
-"Добавить образец на другом языке…" = "Add a Sample in Another Language…";
 "Пока нет: имена подставятся, когда ты подпишешь спикеров" = "None yet: they are saved when you name the speakers";
 "Голоса собеседников" = "Other Voices";
 "Управлять…" = "Manage…";
@@ -693,13 +697,10 @@
 
 /* Call start and end */
 "Звонок в %@ · запись через %@ с" = "Call in %@ · recording in %@ s";
-"Звонок закончился" = "The call has ended";
-"Запись остановится через %@ секунд" = "Recording stops in %@ seconds";
 "Записать сейчас" = "Record now";
 "Не записывать" = "Don't record";
 "Стоп через %@ с" = "Stopping in %@ s";
 "Звонок закончился, но запись нужна дальше" = "The call has ended, but keep recording";
-"Продолжить запись" = "Keep recording";
 "Спрашивать" = "Ask";
 "Записывать сам" = "Record automatically";
 "Ничего не делать" = "Do nothing";
@@ -714,3 +715,75 @@
 "Не расшифровывать сразу, сначала проверю" = "Don't transcribe yet, I'll check first";
 "Сразу расшифровывать, если всё понятно" = "Transcribe right away when it's clear";
 "Если проект и участники определились сами, окно «О чём был звонок?» продолжит через %@ секунд" = "When the project and participants are found automatically, “What was the call about?” continues after %@ seconds";
+
+"Напоминать сказать о записи" = "Remind me to say the call is recorded";
+"На несколько секунд в начале записи" = "For a few seconds when recording starts";
+"Скажи собеседникам, что идёт запись" = "Tell the others this call is recorded";
+"Убрать" = "Remove";
+"Выбрать папку…" = "Choose Folder…";
+"Папка для записей" = "Recordings folder";
+"Не выбрана" = "Not chosen";
+"Записи с телефона" = "Recordings from your phone";
+"Запись одним нажатием на iPhone" = "Record in one tap on iPhone";
+"На iPhone: Диктофон, «Поделиться», «Сохранить в Файлы», эта папка в iCloud Drive. Новая запись расшифруется сама, а файл перейдёт в подпапку Imported." = "On iPhone: Voice Memos, Share, Save to Files, this folder in iCloud Drive. A new recording is transcribed by itself and the file moves to the Imported subfolder.";
+"Папка для записей с телефона" = "Folder for recordings from your phone";
+"Выбрать" = "Choose";
+"Что это" = "What is this";
+"Звонок" = "Call";
+"Размышления" = "Reflections";
+"Готово, но саммари не получилось" = "Done, but the summary failed";
+"Без саммари" = "No summary";
+"Саммари не получилось. Подробности в process.log" = "The summary failed. Details are in process.log";
+
+/* Diagnostics */
+"Диагностика…" = "Diagnostics…";
+"Если что-то не работает" = "If something doesn’t work";
+"Проверка окружения и архив журналов для поддержки, без расшифровок и аудио" = "An environment check and an archive of logs for support, with no transcripts or audio";
+"Поддержка" = "Support";
+"Диагностика" = "Diagnostics";
+"Что работает, а что мешает записи и расшифровке." = "What works and what gets in the way of recording and transcription.";
+"В архив попадают проверки и журналы без текста разговоров: ни расшифровок, ни саммари, ни аудио, ни паролей, ни голосов. Пути к домашней папке и названия звонков заменены." = "The archive holds the checks and logs without any conversation text: no transcripts, summaries, audio, passwords or voices. Home folder paths and call names are replaced.";
+"Сохранить архив…" = "Save Archive…";
+"Хорошо" = "OK";
+"Внимание" = "Attention";
+"Проблема" = "Problem";
+"Сохранить архив диагностики" = "Save the diagnostics archive";
+"Не получилось сохранить архив: %@" = "Couldn’t save the archive: %@";
+"Архив сохранён: %@" = "Archive saved: %@";
+"Разреши в Системных настройках: «Конфиденциальность и безопасность» → «Микрофон»." = "Allow it in System Settings: Privacy & Security > Microphone.";
+"Разреши в Системных настройках: «Конфиденциальность и безопасность» → «Запись экрана и системного аудио»." = "Allow it in System Settings: Privacy & Security > Screen & System Audio Recording.";
+"Запись экрана и системного аудио" = "Screen & System Audio Recording";
+"Окружение Python" = "Python environment";
+"Не установлено. Запусти установку в Настройках, раздел «Распознавание»." = "Not installed. Run the installation in Settings > Recognition.";
+"Своя папка движка, uv.lock не проверяется" = "Custom engine folder, uv.lock is not checked";
+"Нет файла uv.lock в папке движка" = "No uv.lock in the engine folder";
+"uv.lock %@ (своя папка движка)" = "uv.lock %@ (custom engine folder)";
+"Готово, uv.lock %@" = "Ready, uv.lock %@";
+"Окружение собрано для другого uv.lock, нужно обновить (ожидается %@, стоит %@)" = "The environment was built for another uv.lock and needs an update (expected %@, installed %@)";
+"%@ скачана" = "%@ is downloaded";
+"%@ не скачана. Скачай её в Настройках, раздел «Распознавание»." = "%@ is not downloaded. Download it in Settings > Recognition.";
+"Найден" = "Found";
+"Не найден. Переустанови движок в Настройках, раздел «Распознавание»." = "Not found. Reinstall the engine in Settings > Recognition.";
+"Модели разбиения по голосам" = "Speaker models";
+"Есть в кэше" = "In the cache";
+"Нет в кэше: звонок расшифруется без разбиения по голосам. Переустанови движок." = "Not in the cache: a call will be transcribed without telling speakers apart. Reinstall the engine.";
+"Отвечает на порту %@" = "Answering on port %@";
+"Не отвечает. Подробности в mcp.log." = "Not answering. Details are in mcp.log.";
+"На порту другой сервер или другой пароль" = "Another server or another password is on the port";
+"Неожиданный ответ, код %@" = "Unexpected answer, code %@";
+"Свободное место" = "Free space";
+"Не удалось узнать" = "Couldn’t find out";
+"Почти нет места: %@" = "Almost no space: %@";
+"Мало места: %@" = "Low on space: %@";
+"Свободно %@" = "%@ free";
+"Версии" = "Versions";
+"Приложение %@, движок %@ (в приложении %@)" = "App %@, engine %@ (bundled %@)";
+
+"Не удалось сохранить данные звонка" = "Couldn't Save the Call Data";
+"Запись цела, но статус и ответы не записались в call.json. Проверь свободное место на диске. Папка: %@" = "The recording is intact, but the status and answers were not written to call.json. Check the free disk space. Folder: %@";
+"Расшифровка начнётся, когда движок заработает" = "Transcription starts once the engine works";
+"Расшифровка начнётся, когда модель скачается" = "Transcription starts once the model is downloaded";
+
+"Демо-звонки" = "Demo Calls";
+"Вымышленные звонки с расшифровкой и саммари, без звука: можно сразу спросить ассистента. Никуда не отправляются." = "Fictional calls with a transcript and summary, no audio, so you can ask your assistant right away. They are never sent anywhere.";
+"Демо" = "Demo";

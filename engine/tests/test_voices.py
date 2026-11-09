@@ -140,6 +140,35 @@ def test_enroll_from_call_needs_4_seconds(tmp_path, fake_embed, capsys):
     assert "слишком мало речи" in result(capsys)
 
 
+def test_my_name_from_my_voice_print_is_me(monkeypatch):
+    """The name in Settings can be empty or spelled differently: my own voice print knows it too."""
+    voices.store("Boris", "", True, np.array(one_hot(1)), 20.0)
+    assert voices.is_me_label("Boris")
+    assert voices.is_me_label("Борис"), "the same name in Cyrillic"
+    assert not voices.is_me_label("Влад")
+
+
+def test_same_name():
+    assert voices.same_name("Борис", "boris")
+    assert voices.same_name(" Maria ", "мариа")
+    assert not voices.same_name("Борис", "Влад")
+    assert not voices.same_name("", "")
+
+
+def test_my_label_is_never_saved_as_someone_elses_voice(tmp_path, fake_embed, capsys):
+    voices.store("Boris", "", True, np.array(one_hot(1)), 20.0)
+    d = tmp_path / "call"
+    d.mkdir()
+    (d / "call.json").write_text("{}")
+    write_track(d / "system.m4a", tone(300, 20))
+    (d / "transcript.txt").write_text("[00:00] Boris: привет\n[00:10] Влад: да\n", encoding="utf-8")
+    assert voice_cli.main(["enroll", "--name", "Boris", "--call", str(d), "--speaker", "Boris"]) == 2
+    assert "RESULT: error 2" in result(capsys)
+    assert len(voices.load_all()) == 1, "nothing saved"
+    # The user's own sample still works through --me.
+    assert voices.is_me_label("Boris")
+
+
 def test_paragraph_spans():
     """Same parser as the app: a paragraph ends where the next starts (the last one: +5 s)."""
     from sozvon_engine.pipeline import render
@@ -305,6 +334,366 @@ def test_pipeline_names_voices(monkeypatch, fake_track):
     # The "me" print is not used with a mic track; Анна (given) goes to the remaining voice.
     assert [w for *_, w in items] == ["Я", "Анна", "Александр Бородин", "Анна"]
     assert "голос: Собеседник 2 → Александр Бородин (1.00)" in logs
+
+
+# --- enrolling someone from the track their lines came from ---
+
+def mic_person_call(tmp_path, tracks_field) -> Path:
+    """Timeline: Анна on the system track 0-10 s (300 Hz), 20-35 s the system track is Олег (600 Hz) while the
+    person at the mic speaks (900 Hz). The mic started 1 s after the system track."""
+    d = make_call(tmp_path)
+    write_track(d / "system.m4a", np.concatenate([tone(300, 10), silence(10), tone(600, 15)]))
+    call = {"schema": 1, "id": "2026-11-04 15-01", "status": "done", "audio": {"mic_start": 101.0, "system_start": 100.0}}
+    if tracks_field is not None:
+        call["speaker_tracks"] = tracks_field
+    (d / "call.json").write_text(json.dumps(call))
+    (d / "transcript.txt").write_text("[00:00] Анна: привет\n[00:20] Вера: я рядом\n[00:30] Олег: пока\n", encoding="utf-8")
+    return d
+
+
+FIELD = {"Я": "mic", "Вера": "mic", "Анна": "system", "Олег": "system"}
+
+
+def test_enroll_reads_the_mic_for_a_person_found_on_it(tmp_path, fake_embed, capsys):
+    d = mic_person_call(tmp_path, FIELD)
+    assert voice_cli.main(["enroll", "--name", "Вера", "--call", str(d), "--speaker", "Вера"]) == 0
+    assert abs(fake_embed[-1]["freq"] - 900) < 10
+
+
+def test_enroll_still_reads_the_system_track_for_a_remote_speaker(tmp_path, fake_embed, capsys):
+    d = mic_person_call(tmp_path, FIELD)
+    assert voice_cli.main(["enroll", "--name", "Анна", "--call", str(d), "--speaker", "Анна"]) == 0
+    assert abs(fake_embed[-1]["freq"] - 300) < 10
+
+
+def test_enroll_prefers_the_echo_free_mic_for_a_person_found_on_it(tmp_path, fake_embed, capsys):
+    """mic.clean.m4a is aligned to the call's start, so it is read without the mic's offset."""
+    d = mic_person_call(tmp_path, FIELD)
+    write_track(d / "mic.clean.m4a", np.concatenate([tone(1500, 20), tone(1800, 10), silence(5)]))
+    assert voice_cli.main(["enroll", "--name", "Вера", "--call", str(d), "--speaker", "Вера"]) == 0
+    assert abs(fake_embed[-1]["freq"] - 1800) < 10
+
+
+@pytest.mark.parametrize("field", [{**FIELD, "Вера": "both"}, {k: v for k, v in FIELD.items() if k != "Вера"},
+                                   {**FIELD, "Вера": "elsewhere"}, ["Вера"]])
+def test_enroll_refuses_a_person_whose_track_is_not_certain(tmp_path, fake_embed, capsys, field):
+    d = mic_person_call(tmp_path, field)
+    assert voice_cli.main(["enroll", "--name", "Вера", "--call", str(d), "--speaker", "Вера"]) == 2
+    assert "Вера" in result(capsys)
+    assert voices.load_all() == []
+
+
+def test_enroll_refuses_a_mic_person_when_the_mic_is_gone(tmp_path, fake_embed, capsys):
+    d = mic_person_call(tmp_path, FIELD)
+    (d / "mic.m4a").unlink()
+    assert voice_cli.main(["enroll", "--name", "Вера", "--call", str(d), "--speaker", "Вера"]) == 2
+    assert voices.load_all() == []
+
+
+def test_enroll_without_the_field_reads_the_system_track_as_before(tmp_path, fake_embed, capsys):
+    d = mic_person_call(tmp_path, None)
+    assert voice_cli.main(["enroll", "--name", "Вера", "--call", str(d), "--speaker", "Вера"]) == 0
+    assert abs(fake_embed[-1]["freq"] - 600) < 10
+
+
+def test_speaker_tracks_are_not_synced():
+    assert "speaker_tracks" not in remote.call_fields({"schema": 1, "speaker_tracks": FIELD})
+
+
+# --- a second person at the microphone ---
+
+SYSTEM_SEGS = [(51, 54, "а"), (56, 59, "б")]
+SYSTEM_DIAR = [(50, 55, "SPEAKER_00"), (55, 60, "SPEAKER_01")]
+MIC_SEGS = [(1, 9, "я"), (21, 39, "гость")]
+MIC_DIAR = [(0, 10, "A"), (20, 40, "B")]  # fake_track: the print of a cluster is one_hot(its first second)
+
+
+def assign_mic(monkeypatch, mic=MIC_SEGS, mic_diar=MIC_DIAR, system=SYSTEM_SEGS, system_diar=SYSTEM_DIAR,
+               profile="acme", fail_mic=False, diarize_on=True, mic_dead=()):
+    monkeypatch.setattr(speakers.diarize, "available", lambda: True)
+    logs, runs, embedded = [], [], {}
+
+    def run_diarization(path, k=None):
+        runs.append(path)
+        if path == "m" and fail_mic:
+            raise RuntimeError("no mps")
+        return {"m": mic_diar, "s": system_diar}[path]
+
+    def name_voices(track, diar):
+        return voices.identify(track, diar, profile, None, logs.append, embedded)
+
+    def mic_people(diarize_mic, sys_diar):
+        return voices.mic_people("m", diarize_mic, "s", sys_diar, profile, logs.append, embedded)
+    items = speakers.assign_speakers(
+        mic=list(mic), mic_dead=list(mic_dead), system=list(system), tracks={"mic": "m", "system": "s"}, me="Я",
+        names=[], speakers=None, diarize_on=diarize_on, single_name=None, log=logs.append,
+        run_diarization=run_diarization, name_voices=name_voices, mic_people=mic_people)
+    return [w for *_, w in items], logs, runs
+
+
+def test_second_person_is_numbered_after_the_system_voices(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, logs, runs = assign_mic(monkeypatch)
+    assert who == ["Я", "Собеседник 3", "Собеседник 1", "Собеседник 2"]
+    assert any("Собеседник 3" in m for m in logs)
+    assert sorted(runs) == ["m", "s"]  # each track is diarized once
+
+
+def test_second_person_with_one_system_voice_never_collides(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, _ = assign_mic(monkeypatch, system=[(51, 54, "а")], system_diar=[(50, 55, "SPEAKER_00")])
+    assert who == ["Я", "Собеседник 2", "Собеседник"]
+
+
+def test_second_person_is_named_by_a_voice_print(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Анна Петрова", "acme", False, one_hot(20), 30)
+    who, _, _ = assign_mic(monkeypatch)
+    assert who[:2] == ["Я", "Анна Петрова"]
+
+
+def test_second_person_is_named_by_a_print_without_project(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Анна Петрова", "", False, one_hot(20), 30)
+    assert assign_mic(monkeypatch)[0][:2] == ["Я", "Анна Петрова"]
+
+
+def test_print_of_another_project_does_not_name_a_second_person(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Анна Петрова", "other", False, one_hot(20), 30)
+    assert assign_mic(monkeypatch)[0][:2] == ["Я", "Собеседник 3"]
+
+
+def test_the_user_split_into_two_clusters_stays_the_user(monkeypatch, fake_track):
+    voices.store("Борис", "", True, voices.unit(np.array(one_hot(0)) + np.array(one_hot(30))), 30)
+    who, _, _ = assign_mic(monkeypatch, mic=[(1, 19, "я"), (31, 49, "снова я")], mic_diar=[(0, 20, "A"), (30, 50, "B")])
+    assert who[:2] == ["Я", "Я"]
+
+
+def test_a_quiet_second_cluster_stays_the_user(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, _ = assign_mic(monkeypatch, mic=[(1, 19, "я"), (21, 34.9, "тихий")],
+                           mic_diar=[(0, 20, "A"), (20, 34.9, "B")])
+    assert who[:2] == ["Я", "Я"]
+
+
+def test_exactly_15_seconds_is_a_person(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, _ = assign_mic(monkeypatch, mic=[(1, 19, "я"), (21, 34, "гость")], mic_diar=[(0, 20, "A"), (20, 35, "B")])
+    assert who[:2] == ["Я", "Собеседник 3"]
+
+
+def test_no_own_print_leaves_the_mic_alone(monkeypatch, fake_track):
+    voices.store("Анна Петрова", "acme", False, one_hot(20), 30)
+    who, logs, runs = assign_mic(monkeypatch)
+    assert who[:2] == ["Я", "Я"]
+    assert "m" not in runs
+    assert any("нет образца твоего голоса" in m for m in logs)
+
+
+def test_own_print_of_another_model_does_not_count(monkeypatch, fake_track):
+    rec = voices.store("Борис", "", True, one_hot(0), 30)
+    voices.save({**rec, "model": "other/512"})
+    who, _, runs = assign_mic(monkeypatch)
+    assert who[:2] == ["Я", "Я"] and "m" not in runs
+
+
+def test_no_cluster_like_me_leaves_the_mic_alone(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(7), 30)
+    who, logs, runs = assign_mic(monkeypatch)
+    assert who[:2] == ["Я", "Я"]
+    assert runs.count("m") == 1
+    assert any("твой голос в микрофоне не найден" in m for m in logs)
+
+
+def test_the_other_side_leaking_into_the_mic_is_not_a_person(monkeypatch, fake_track):
+    """Echo guard: the mic cluster starts when SPEAKER_01 does, so its print is that system voice's."""
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, logs, _ = assign_mic(monkeypatch, mic=[(1, 9, "я"), (56, 74, "эхо")], mic_diar=[(0, 10, "A"), (55, 75, "B")])
+    assert who[:2] == ["Я", "Я"]
+    assert any("эхо" in m for m in logs)
+
+
+def far_voices(monkeypatch, vecs: dict):
+    """Each microphone cluster gets the print given here; the system track's voices are unlike any of them."""
+    def cluster_vectors(path, diar, known=None):
+        if path == "m":
+            return {label: np.array(vecs[label]) for label in dict.fromkeys(lab for *_, lab in diar)}
+        return {label: np.array(one_hot(100 + i)) for i, label in enumerate(dict.fromkeys(lab for *_, lab in diar))}
+    monkeypatch.setattr(voices, "cluster_vectors", cluster_vectors)
+
+
+FOUR_MIC = [(1, 19, "я"), (21, 39, "дальний 1"), (41, 59, "дальний 2"), (61, 79, "дальний 3"), (81, 99, "сосед")]
+FOUR_DIAR = [(0, 20, "A"), (20, 40, "B"), (40, 60, "C"), (60, 80, "D"), (80, 100, "E")]
+
+
+def test_similar_unknown_voices_at_the_mic_are_one_label(monkeypatch, fake_track):
+    """People far from the microphone blur together: clusters linked through a similar one are one label,
+    a clearly different person next to the user keeps their own."""
+    voices.store("Борис", "", True, one_hot(0), 30)
+    far_voices(monkeypatch, {"A": one_hot(0), "B": one_hot(10), "C": mix(10, 11, 0.7), "D": mix(11, 12, 0.75),
+                             "E": one_hot(30)})
+    who, logs, _ = assign_mic(monkeypatch, mic=FOUR_MIC, mic_diar=FOUR_DIAR)
+    assert who[:5] == ["Я", "Собеседник 3", "Собеседник 3", "Собеседник 3", "Собеседник 4"]
+    assert any("Собеседник 3, Собеседник 4" in m for m in logs)
+
+
+def test_unlike_unknown_voices_at_the_mic_stay_apart(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    far_voices(monkeypatch, {"A": one_hot(0), "B": one_hot(10), "C": mix(10, 11, 0.45), "D": one_hot(20),
+                             "E": one_hot(30)})
+    who, _, _ = assign_mic(monkeypatch, mic=FOUR_MIC, mic_diar=FOUR_DIAR)
+    assert who[:5] == ["Я", "Собеседник 3", "Собеседник 4", "Собеседник 5", "Собеседник 6"]
+
+
+def test_a_voice_recognized_by_its_print_is_never_merged(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Анна Петрова", "acme", False, one_hot(10), 30)
+    far_voices(monkeypatch, {"A": one_hot(0), "B": one_hot(10), "C": mix(10, 11, 0.7), "D": one_hot(20),
+                             "E": one_hot(30)})
+    who, _, _ = assign_mic(monkeypatch, mic=FOUR_MIC, mic_diar=FOUR_DIAR)
+    assert who[1] == "Анна Петрова"
+    assert who[2] == "Собеседник 3"  # like Anna, but not recognized as her
+
+
+def test_mic_diarization_failure_keeps_todays_labels(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, logs, _ = assign_mic(monkeypatch, fail_mic=True)
+    assert who == ["Я", "Я", "Собеседник 1", "Собеседник 2"]
+    assert any("второй человек у микрофона" in m and "no mps" in m for m in logs)
+
+
+def test_embedding_failure_keeps_todays_labels(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    monkeypatch.setattr(voices, "embed", lambda pieces, sr=SR: (_ for _ in ()).throw(voices.VoiceUnavailable("нет")))
+    who, logs, _ = assign_mic(monkeypatch)
+    assert who[:2] == ["Я", "Я"]
+    assert any("второй человек у микрофона" in m for m in logs)
+
+
+def test_too_little_mic_speech_is_not_diarized(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, runs = assign_mic(monkeypatch, mic=[(1, 9, "я"), (21, 27, "ещё")])
+    assert who[:2] == ["Я", "Я"] and "m" not in runs
+
+
+def test_one_mic_voice_is_not_embedded(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+
+    def boom(pieces, sr=SR):
+        raise AssertionError("nothing to compare")
+    monkeypatch.setattr(voices, "embed", boom)
+    who, _, _ = assign_mic(monkeypatch, mic=[(1, 39, "я")], mic_diar=[(0, 40, "A")], system=[], system_diar=[])
+    assert who == ["Я"]
+
+
+def test_mic_without_diarization_is_not_touched(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, runs = assign_mic(monkeypatch, diarize_on=False)
+    assert who[:2] == ["Я", "Я"] and runs == []
+
+
+def test_dead_system_audio_still_diarizes_the_mic_once(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    who, _, runs = assign_mic(monkeypatch, mic_dead=[(21, 39, "гость")], mic=[(1, 9, "я")], mic_diar=MIC_DIAR)
+    assert runs.count("m") == 1
+    assert who[0] == "Я"
+
+
+def test_system_voices_are_embedded_once(monkeypatch, fake_track):
+    """The echo guard compares against the embeddings that naming the system voices already made."""
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Олег", "acme", False, one_hot(99), 30)  # so that identify embeds the system voices
+    fake = voices.embed
+    count = []
+
+    def counting(pieces, sr=SR):
+        count.append(1)
+        return fake(pieces, sr)
+    monkeypatch.setattr(voices, "embed", counting)
+    assign_mic(monkeypatch)
+    assert len(count) == 4  # 2 system voices + 2 mic voices, nothing twice
+
+
+def test_system_failure_leaves_the_mic_alone(monkeypatch, fake_track):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    monkeypatch.setattr(speakers.diarize, "available", lambda: True)
+    runs = []
+
+    def run_diarization(path, k=None):
+        runs.append(path)
+        raise RuntimeError("no mps")
+    logs = []
+    items = speakers.assign_speakers(
+        mic=list(MIC_SEGS), mic_dead=[], system=list(SYSTEM_SEGS), tracks={"mic": "m", "system": "s"}, me="Я", names=[],
+        speakers=None, diarize_on=True, single_name=None, log=logs.append, run_diarization=run_diarization,
+        mic_people=lambda diarize_mic, sys_diar: voices.mic_people("m", diarize_mic, "s", sys_diar, "", logs.append, {}))
+    assert [w for *_, w in items][:2] == ["Я", "Я"]
+    assert runs == ["s"]
+
+
+def _two_track_call(tmp_path, monkeypatch, data, kind=None):
+    from sozvon_engine.pipeline import transcribe
+    d = _system_only_call(tmp_path, monkeypatch, data)
+    (d / "mic.m4a").write_bytes(b"\0" * 2048)
+    call = {"schema": 1, "id": "2026-11-04 15-01", "status": "recorded",
+            "audio": {"system_start": 0.0, "mic_start": 0.0}}
+    if kind:
+        call["kind"] = kind
+    (d / "call.json").write_text(json.dumps(call))
+    monkeypatch.setattr(transcribe, "transcribe_tracks", lambda tr, **kw: (
+        {"mic": list(MIC_SEGS), "system": list(SYSTEM_SEGS)}, {"mic": "ru", "system": "ru"}))
+    runs = []
+
+    def run_diar(path, num_speakers=None):
+        runs.append(Path(path).stem)
+        return MIC_DIAR if Path(path).stem.startswith("mic") else SYSTEM_DIAR
+    monkeypatch.setattr(diarize, "run", run_diar)
+    return d, runs
+
+
+def test_run_names_a_second_person_and_lists_them(tmp_path, capsys, monkeypatch, fake_track, data):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    voices.store("Анна Петрова", "", False, one_hot(20), 30)
+    d, runs = _two_track_call(tmp_path, monkeypatch, data)
+    assert run.main([str(d)]) == 0
+    assert "Анна Петрова: гость" in (d / "transcript.txt").read_text()
+    call = json.loads((d / "call.json").read_text())
+    assert "Анна Петрова" in call["participants"]
+    assert len([r for r in runs if r.startswith("mic")]) == 1
+    assert call["speaker_tracks"] == {"Я": "mic", "Анна Петрова": "mic", "Собеседник 1": "system", "Собеседник 2": "system"}
+
+
+def test_run_without_a_mic_person_leaves_no_speaker_tracks(tmp_path, capsys, monkeypatch, fake_track, data):
+    """Today's calls get no new field, and a transcription that finds nobody removes an old one."""
+    d, _ = _two_track_call(tmp_path, monkeypatch, data)
+    call = json.loads((d / "call.json").read_text())
+    (d / "call.json").write_text(json.dumps({**call, "speaker_tracks": {"Вера": "mic"}}))
+    assert run.main([str(d)]) == 0
+    assert "speaker_tracks" not in json.loads((d / "call.json").read_text())
+
+
+def test_speaker_tracks_follow_the_assistants_names():
+    items = [(0, 1, "я", "Я"), (2, 3, "гость", "Собеседник 3"), (4, 5, "а", "Собеседник 1"), (6, 7, "б", "Олег")]
+    assert speakers.track_labels(items, 2, {"Собеседник 3": "Вера"}, "Я") == {
+        "Я": "mic", "Вера": "mic", "Собеседник 1": "system", "Олег": "system"}
+
+
+def test_speaker_tracks_mark_a_person_on_both_tracks():
+    items = [(0, 1, "я", "Я"), (2, 3, "гость", "Анна"), (4, 5, "а", "Анна")]
+    assert speakers.track_labels(items, 2, {}, "Я") == {"Я": "mic", "Анна": "both"}
+
+
+def test_speaker_tracks_are_nothing_when_the_mic_is_only_the_user():
+    assert speakers.track_labels([(0, 1, "я", "Я"), (4, 5, "а", "Анна")], 1, {}, "Я") is None
+
+
+def test_run_never_splits_the_mic_of_a_reflection(tmp_path, capsys, monkeypatch, fake_track, data):
+    voices.store("Борис", "", True, one_hot(0), 30)
+    d, runs = _two_track_call(tmp_path, monkeypatch, data, kind="reflection")
+    assert run.main([str(d)]) == 0
+    assert runs == []
+    assert "гость" in (d / "transcript.txt").read_text() and "Собеседник" not in (d / "transcript.txt").read_text()
 
 
 def test_single_track_recognizes_me(tmp_path, capsys, monkeypatch, fake_track, data):
@@ -516,3 +905,106 @@ def test_sync_voices_key(tmp_path):
     env = tmp_path / ".env"
     env.write_text("SOZVON_SYNC_VOICES=1\n")
     assert config.load(env, environ={}).sync_voices is True
+
+
+# --- the model of a voice print ---
+
+OTHER = "someone/else-model/512"
+
+
+def put_foreign(name="Чужой", vec=None, **kw):
+    """A record of another embedding model, written straight to disk."""
+    r = rec(name, vec or one_hot(40), **kw)
+    r["model"] = OTHER
+    voices.save(r)
+    return r
+
+
+def test_new_records_carry_the_model():
+    assert voices.MODEL == "wespeaker-voxceleb-resnet34-LM/256"
+    r = voices.store("Анна", "", False, one_hot(0), 10)
+    assert r["model"] == voices.MODEL
+    assert json.loads(voices._file(r["id"]).read_text())["model"] == voices.MODEL
+
+
+def test_a_record_without_the_field_is_the_current_model_and_keeps_its_hash():
+    old = rec("Анна", one_hot(0))
+    voices.save(old)
+    got = voices.load_all()[0]
+    assert "model" not in got and voices.is_current(got)
+    tagged = {**old, "model": voices.MODEL}
+    other = {**old, "model": OTHER}
+    # The hash is the same with or without the field (the own server doesn't store it).
+    assert voices.content_hash(old) == voices.content_hash(tagged) == voices.content_hash(other)
+    import hashlib
+    canon = json.dumps({k: old[k] for k in ("id", "name", "profile", "me", "embedding", "seconds", "updated_at")},
+                       sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    assert voices.content_hash(old) == hashlib.sha256(canon.encode()).hexdigest()
+    assert not voices.is_current(other)
+
+
+def test_other_models_are_skipped_kept_and_logged_once(monkeypatch):
+    mine = voices.store("Анна", "", False, one_hot(0), 10)
+    foreign = put_foreign("Олег")
+    me_foreign = put_foreign("Борис", me=True)
+    monkeypatch.setattr(voices, "_logged_foreign", False)
+    lines = []
+    assert [r["id"] for r in voices.candidates("", True, log=lines.append)] == [mine["id"]]
+    voices.candidates("", True, log=lines.append)
+    assert len(lines) == 1 and "2" in lines[0], "logged once per run"
+    assert {r["id"] for r in voices.load_all()} == {mine["id"], foreign["id"], me_foreign["id"]}, "kept on disk"
+    assert json.loads(voices._file(foreign["id"]).read_text())["model"] == OTHER
+
+
+def test_store_never_merges_into_another_model():
+    foreign = put_foreign("Анна", profile="acme")
+    r = voices.store("Анна", "acme", False, one_hot(1), 10)
+    assert r["id"] != foreign["id"] and r["embedding"] == one_hot(1) and r["model"] == voices.MODEL
+    kept = json.loads(voices._file(foreign["id"]).read_text())
+    assert kept["embedding"] == one_hot(40) and kept["model"] == OTHER
+    # "me" is unique among the current model only; the foreign "me" stays.
+    f_me = put_foreign("Борис", me=True)
+    mine = voices.store("Борис", "", True, one_hot(2), 10)
+    assert mine["id"] != f_me["id"] and voices._file(f_me["id"]).exists()
+    assert voices.tombstones() == {}
+
+
+def test_merge_embeddings_refuses_another_model():
+    with pytest.raises(ValueError):
+        voices.merge_embeddings({"embedding": one_hot(0), "seconds": 5.0, "model": OTHER}, one_hot(1), 5.0)
+    emb, _ = voices.merge_embeddings({"embedding": one_hot(0), "seconds": 5.0, "model": voices.MODEL}, one_hot(1), 5.0)
+    assert emb[0] == pytest.approx(emb[1])
+
+
+def test_accept_and_merge_remote_keep_the_local_record_of_another_model():
+    foreign = put_foreign("Анна")
+    newer = {**foreign, "model": voices.MODEL, "embedding": one_hot(3), "updated_at": "2999-01-01T00:00:00Z"}
+    assert voices.accept_remote(newer) is False
+    assert json.loads(voices._file(foreign["id"]).read_text())["embedding"] == one_hot(40)
+    # A conflict at sync: the server's record is another model than the one here.
+    assert voices.merge_remote({**newer, "model": OTHER}, {**foreign, "model": voices.MODEL}) is None
+    assert voices.merge_remote({**newer}, {**foreign}) is None, "here is another model: kept"
+    assert json.loads(voices._file(foreign["id"]).read_text())["embedding"] == one_hot(40)
+    # A record of another model from the server is not stored, and does not fold into a current one.
+    mine = voices.store("Олег", "", False, one_hot(0), 10)
+    assert voices.accept_remote({**rec("Олег", one_hot(5)), "model": OTHER}) is False
+    assert [r["embedding"] for r in voices.load_all() if r["name"] == "Олег"] == [mine["embedding"]]
+
+
+def test_sync_does_not_send_records_of_another_model(fake, root):
+    fake.version = "0.4.0"
+    mine = voices.store("Анна", "", False, one_hot(0), 10)
+    foreign = put_foreign("Олег")
+    remote.sync(root=root)
+    assert mine["id"] in fake.voices and foreign["id"] not in fake.voices
+
+
+def test_my_name_from_a_record_of_another_model_still_counts_as_me(monkeypatch):
+    put_foreign("Борис Иванов", me=True)
+    assert voices.is_me_label("борис иванов")
+
+
+def test_a_label_on_both_tracks_is_refused_with_its_own_message():
+    with pytest.raises(voices.VoiceError) as e:
+        voices._recorded_track({"speaker_tracks": {"Вера": "both"}}, "Вера")
+    assert "дорожек" in str(e.value) and "Вера" in str(e.value)

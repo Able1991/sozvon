@@ -90,6 +90,7 @@ public struct SettingsValues: Equatable, Sendable {
     public enum Key {
         public static let version = "SOZVON_ENV_VERSION"
         public static let me = "SOZVON_ME"
+        /// Compatibility shim: the old name of `SOZVON_ME`. Can go in 0.3.0 (and with it the fallback in `init(env:)`).
         public static let legacyMe = "CALL_ME_NAME"
         public static let llm = "SOZVON_LLM"
         public static let language = "SOZVON_LANGUAGE"
@@ -221,6 +222,18 @@ public final class Settings: ObservableObject {
         let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         try PrivateFile.write(Data(values.render(over: old).utf8), to: url)
     }
+}
+
+/// UserDefaults keys that more than one place reads or writes. A key used in one place stays next to its owner.
+public enum DefaultsKey {
+    /// When a missing echo model was last fetched (EngineState.shouldRetryEchoModel).
+    public static let echoModelTry = "echoModelTry"
+    /// The profile chosen for the last call: the default of the next one.
+    public static let lastProfile = "lastProfile"
+    /// Where the setup wizard continues after the app restarted to apply a permission.
+    public static let setupResumeStep = "setupResumeStep"
+    /// The project filter of the Calls window.
+    public static let callsProject = "callsProject"
 }
 
 /// "Warn About Silence": the notifications when you or the other side can't be heard even after the

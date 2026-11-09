@@ -9,15 +9,18 @@ their phrase lands in the transcript twice. The echo is first cancelled in the m
 import difflib
 import os
 import re
+import shutil
 from pathlib import Path
 
 import numpy as np
 
-from .. import aec, audio
+from .. import aec, audio, paths
 from ..i18n import t
+from ..paths import EngineDir
 
 TRACKS = (("mic", "mic.m4a"), ("system", "system.m4a"))
 MIN_FILE_BYTES = 1024
+WORK = ".work"  # the call's working files (wavs, echo cancellation temp): hidden, the app clears it at launch
 
 
 def track_files(d: Path) -> dict:
@@ -127,14 +130,21 @@ def boost(wav: Path) -> float:
     return g
 
 
-def prepare(files: dict, offsets: dict, d: Path, log) -> dict:
-    """Tracks -> wav in the call folder (a very quiet one raised, the speaker echo removed from the mic);
-    tracks without speech are discarded. -> {key: wav}."""
+def prepare(files: dict, offsets: dict, d: Path, log, warn=None, gains: dict | None = None) -> dict:
+    """Tracks -> wav in <call>/.work (a very quiet one raised, the speaker echo removed from the mic);
+    tracks without speech are discarded. warn(step, error): a failure for call.json "warnings".
+    gains, when given: {key: the raise applied} and "mic_echo_free": whether echo was removed from the mic on this run,
+    for the listening file. -> {key: wav}."""
+    work = Path(d) / WORK
+    shutil.rmtree(work, ignore_errors=True)  # left by a run that was killed outright
+    work.mkdir(exist_ok=True)
     out = {}
     improved = False
     for key, src in files.items():
-        wav = audio.to_wav(src, Path(d) / f"{key}.wav", offsets.get(key, 0.0))
+        wav = audio.to_wav(src, work / f"{key}.wav", offsets.get(key, 0.0))
         g = boost(wav)
+        if gains is not None:
+            gains[key] = g
         if g > 1.01:
             log(t("log_track_boost", file=src.name, db=20 * np.log10(g)))
             improved = improved or key == "mic"
@@ -145,7 +155,10 @@ def prepare(files: dict, offsets: dict, d: Path, log) -> dict:
         else:
             wav.unlink(missing_ok=True)
     if "mic" in out and "system" in out and os.environ.get("SOZVON_AEC", "1") != "0":
-        improved = cancel_echo(out["mic"], out["system"], log) or improved
+        echo_free = cancel_echo(out["mic"], out["system"], log, warn)
+        improved = echo_free or improved
+        if gains is not None:
+            gains["mic_echo_free"] = echo_free
     save_clean_mic(Path(d), out.get("mic") if improved else None, log)
     return out
 
@@ -166,9 +179,9 @@ def save_clean_mic(d: Path, wav, log) -> None:
         log(t("log_clean_mic_failed", err=ex))
 
 
-def cancel_echo(mic: Path, system: Path, log) -> bool:
+def cancel_echo(mic: Path, system: Path, log, warn=None) -> bool:
     """Offline echo cancellation of mic.wav with system.wav as the reference (aec.py). Never fails the call.
-    -> whether the echo was removed."""
+    -> whether the echo was removed. warn(step, error): the neural stage failed, for call.json "warnings"."""
     try:
         r = aec.cancel(mic, system)
     except Exception as ex:  # noqa: BLE001  the mic stays as it was
@@ -176,13 +189,36 @@ def cancel_echo(mic: Path, system: Path, log) -> bool:
         return False
     if r.applied:
         log(t("log_aec_ok", db=r.erle_db, ms=r.delay_ms))
+        if r.neural:
+            log(t("log_aec_neural"))
+        elif r.neural_reason:
+            _report_neural_skip(r.neural_reason, log, warn)
     else:
         log(t("log_aec_skip", why=t(f"aec_{r.reason}")))
     return bool(r.applied)
 
 
+def _report_neural_skip(reason: str, log, warn) -> None:
+    """The classic output stays: one log line with the reason, and a call warning for what the user should know about.
+    Weights that simply are not there yet warn once, for the download that failed (the marker from install.py)."""
+    key, _, detail = reason.partition(": ")
+    log(t("log_aec_neural_skip", why=t(f"aec_neural_{key}", err=detail)))
+    if warn is None:
+        return
+    if key == "no_weights":
+        marker = EngineDir(paths.data_dir()).no_echo_model
+        if not marker.exists():
+            return
+        marker.unlink(missing_ok=True)
+    elif key == "off":
+        return
+    warn("echo", reason)
+
+
 def cleanup(d: Path) -> None:
-    """Remove the work files of a transcription: the track wavs and any echo cancellation leftover."""
+    """Remove the work files of a transcription: the .work folder, and the wavs that versions before it
+    left in the call folder itself."""
+    shutil.rmtree(Path(d) / WORK, ignore_errors=True)
     for key, _ in TRACKS:
         (Path(d) / f"{key}.wav").unlink(missing_ok=True)
     for f in Path(d).glob("*.aec.wav"):

@@ -8,10 +8,11 @@ import sys
 import threading
 from pathlib import Path
 
-from .. import audio, calls, diarize, models, notes, paths, profiles, whisper
+from .. import audio, calls, commitments, diarize, i18n, models, notes, paths, profiles, voices, whisper
 from .. import prompt as prompts
 from .. import vocab as vocabs
 from ..i18n import t
+from ..pipeline import names, render
 from ..pipeline.render import format_timestamp
 
 
@@ -400,8 +401,100 @@ def search_calls(text: str, limit: int = 20, also: list[str] | None = None) -> s
     return "\n".join(lines)
 
 
+def _call_title(c, project: str) -> str:
+    return " · ".join(b for b in (c.id, c.topic, project) if b)
+
+
+def _is_me(person: str) -> bool:
+    return bool(person) and voices.is_me_label(person)
+
+
+def _commitments(person: str, project: str = "", include_done: bool = False) -> list:
+    """[(call, project title, item)], newest call first, in the summary's order within a call."""
+    mine = _is_me(person)
+    out = []
+    for c in calls.list_calls():
+        if project and c.profile != project:
+            continue
+        f = c.path / "summary.md"
+        if not f.exists():
+            continue
+        title = _project_title(c.profile)
+        for item in commitments.parse(f.read_text(encoding="utf-8", errors="replace")):
+            if item.done and not include_done:
+                continue
+            if person and not commitments.is_owner_of(item.owner, person, mine):
+                continue
+            out.append((c, title, item))
+    return out
+
+
+def _commitment_line(c, title: str, item) -> str:
+    what = f"{item.owner}: {item.task}" if item.owner else item.task
+    return f"- {'[x] ' if item.done else ''}{_call_title(c, title)}: {what}"
+
+
+def get_commitments(person: str = "", project: str = "", include_done: bool = False, limit: int = 50) -> str:
+    """What people promised on calls: action items from the summaries, newest call first. "What did Oleg promise me?"
+
+    Args:
+        person: Whose commitments, as a name in the nominative case ("Oleg Ivanov"). Any alphabet; a first name
+            matches a full name. Empty: everyone's.
+        project: Only this project (its slug from list_profiles).
+        include_done: Also the items already ticked off.
+        limit: Maximum number of items.
+    """
+    rows = _commitments(person.strip(), project.strip(), include_done)[:limit]
+    return "\n".join(_commitment_line(*r) for r in rows) if rows else t("mcp_no_commitments")
+
+
+def _count_calls(n: int) -> str:
+    if i18n.lang() == "en":
+        return f"{n} call" + ("" if n == 1 else "s")
+    tail = n % 100
+    word = "звонков" if 11 <= tail <= 14 else {1: "звонок", 2: "звонка", 3: "звонка", 4: "звонка"}.get(n % 10, "звонков")
+    return f"{n} {word}"
+
+
+def _people(c) -> list:
+    """Who was on the call: its participants, or for a call that lists nobody the named speakers of its transcript."""
+    if c.people:
+        return c.people
+    f = c.path / "transcript.txt"
+    if not f.exists():
+        return []
+    labels = dict.fromkeys(who for *_, who in render.parse_txt(f.read_text(encoding="utf-8", errors="replace")))
+    return [w for w in labels if w and not names.is_generic(w) and not voices.is_me_label(w)]
+
+
+def get_person(name: str) -> str:
+    """Profile of a person from the calls: how many calls and the last one, projects, who else was there,
+    open commitments and recent calls.
+
+    Args:
+        name: The person, as a name in the nominative case ("Oleg Ivanov"). Any alphabet; a first name matches a full name.
+    """
+    who = name.strip()
+    met = [(c, _people(c)) for c in calls.list_calls()]
+    met = [(c, people) for c, people in met if who and any(commitments.same_person(p, who) for p in people)]
+    if not met:
+        return t("mcp_no_person")
+    projects = list(dict.fromkeys(_project_title(c.profile) for c, _ in met if c.profile))
+    others = list(dict.fromkeys(p for _, people in met for p in people if not commitments.same_person(p, who)))
+    out = [t("mcp_person_head", name=who, calls=_count_calls(len(met)), last=met[0][0].id)]
+    if projects:
+        out.append(t("mcp_person_projects", list=", ".join(projects)))
+    if others:
+        out.append(t("mcp_person_with", list=", ".join(others)))
+    rows = _commitments(who)
+    if rows:
+        out += ["", t("mcp_person_open")] + [_commitment_line(*r) for r in rows[:30]]
+    out += ["", t("mcp_person_calls")] + [f"- {_call_title(c, _project_title(c.profile))}" for c, _ in met[:10]]
+    return "\n".join(out)
+
+
 TOOLS = [transcribe, list_models, show_vocab, add_replacement, remove_replacement, add_terms,
-         list_profiles, preview_prompt, list_calls, get_call, search_calls]
+         list_profiles, preview_prompt, list_calls, get_call, search_calls, get_commitments, get_person]
 
 
 def build_server(**kwargs):

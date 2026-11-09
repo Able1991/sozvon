@@ -91,37 +91,117 @@ final class RecordingMachineTests: XCTestCase {
 final class ProcessingQueueTests: XCTestCase {
     let a = URL(fileURLWithPath: "/calls/a")
     let b = URL(fileURLWithPath: "/calls/b")
+    let c = URL(fileURLWithPath: "/calls/c")
 
-    func testAdmitAndFinish() {
+    private func job(_ dir: URL, _ kind: ProcessingQueue.Kind = .transcribe) -> ProcessingQueue.Job {
+        ProcessingQueue.Job(dir: dir, kind: kind)
+    }
+
+    func testOneAtATimeInOrder() {
         var q = ProcessingQueue()
-        XCTAssertEqual(q.admit(a), .start)
-        XCTAssertEqual(q.count, 1)
-        XCTAssertTrue(q.contains(a))
-        XCTAssertTrue(q.contains(URL(fileURLWithPath: "/calls/./a")), "один путь в разной записи")
-        XCTAssertEqual(q.admit(a), .duplicate, "вторая расшифровка той же папки")
-        XCTAssertEqual(q.admit(b), .start)
-        XCTAssertEqual(q.count, 2)
+        XCTAssertEqual(q.admit(a), .queued)
+        XCTAssertEqual(q.admit(b), .queued)
+        XCTAssertEqual(q.admit(c), .queued)
+        XCTAssertEqual(q.startNext(held: false), job(a))
+        XCTAssertEqual(q.running, job(a))
+        XCTAssertNil(q.startNext(held: false), "one is already running")
+        XCTAssertEqual(q.waiting, [job(b), job(c)])
         q.finish(a)
-        XCTAssertFalse(q.contains(a))
-        XCTAssertEqual(q.count, 1)
+        XCTAssertEqual(q.startNext(held: false), job(b), "first in, first out")
         q.finish(b)
+        XCTAssertEqual(q.startNext(held: false), job(c))
+        q.finish(c)
+        XCTAssertNil(q.startNext(held: false))
         XCTAssertTrue(q.isEmpty)
     }
 
-    func testPendingWhileEngineUpdating() {
+    func testDuplicatesAndPathSpelling() {
+        var q = ProcessingQueue()
+        XCTAssertEqual(q.admit(a), .queued)
+        XCTAssertTrue(q.contains(URL(fileURLWithPath: "/calls/./a")), "one path, spelled differently")
+        XCTAssertEqual(q.admit(a), .duplicate, "waiting already")
+        _ = q.startNext(held: false)
+        XCTAssertEqual(q.admit(a), .duplicate, "running already")
+        XCTAssertEqual(q.admit(a, kind: .summaryOnly), .duplicate, "a summary run of a folder being transcribed")
+        q.finish(a)
+        XCTAssertFalse(q.contains(a))
+    }
+
+    func testNeverStartsWhileHeld() {
+        var q = ProcessingQueue()
+        _ = q.admit(a)
+        _ = q.admit(b)
+        XCTAssertFalse(q.waiting.isEmpty)
+        XCTAssertNil(q.startNext(held: true), "recording or a call on the mic")
+        XCTAssertEqual(q.waiting, [job(a), job(b)], "nothing is lost while held")
+        XCTAssertTrue(q.contains(a))
+        XCTAssertEqual(q.startNext(held: false), job(a), "starts when the hold is over")
+        q.finish(a)
+        XCTAssertNil(q.startNext(held: true), "the next one waits too: a recording began during the previous run")
+        XCTAssertEqual(q.waiting, [job(b)])
+    }
+
+    func testCanStartNextTellsWhenThereIsNothingToAskAbout() {
+        var q = ProcessingQueue()
+        XCTAssertFalse(q.canStartNext, "nothing waits")
+        _ = q.admit(a)
+        XCTAssertTrue(q.canStartNext)
+        _ = q.startNext(held: false)
+        _ = q.admit(b)
+        XCTAssertFalse(q.canStartNext, "one is running")
+        q.finish(a)
+        XCTAssertTrue(q.canStartNext)
+        XCTAssertTrue(q.beginEngineUpdate())
+        XCTAssertFalse(q.canStartNext, "the engine is updating")
+    }
+
+    func testSummaryRunsFollowTheSameQueue() {
+        var q = ProcessingQueue()
+        _ = q.admit(a)
+        XCTAssertEqual(q.admit(b, kind: .summaryOnly), .queued)
+        _ = q.startNext(held: false)
+        XCTAssertNil(q.startNext(held: false), "a summary run waits for the transcription")
+        q.finish(a)
+        XCTAssertEqual(q.startNext(held: false), job(b, .summaryOnly))
+    }
+
+    func testRemoveTakesOnlyWaiting() {
+        var q = ProcessingQueue()
+        _ = q.admit(a)
+        _ = q.admit(b)
+        _ = q.admit(c)
+        _ = q.startNext(held: false)
+        XCTAssertFalse(q.remove(a), "a running job is not removed")
+        XCTAssertTrue(q.contains(a))
+        XCTAssertTrue(q.remove(b))
+        XCTAssertFalse(q.contains(b))
+        XCTAssertFalse(q.remove(b), "already gone")
+        XCTAssertEqual(q.waiting, [job(c)], "the rest keep their order")
+        XCTAssertTrue(q.isWaiting(c))
+        XCTAssertFalse(q.isWaiting(a), "running is not waiting")
+    }
+
+    func testFinishOfSomethingElseChangesNothing() {
+        var q = ProcessingQueue()
+        _ = q.admit(a)
+        _ = q.admit(b)
+        _ = q.startNext(held: false)
+        q.finish(b)
+        XCTAssertEqual(q.running, job(a))
+        XCTAssertEqual(q.waiting, [job(b)])
+    }
+
+    func testEngineUpdateHoldsTheQueue() {
         var q = ProcessingQueue()
         XCTAssertTrue(q.beginEngineUpdate())
-        XCTAssertFalse(q.beginEngineUpdate(), "обновление уже идёт")
+        XCTAssertFalse(q.beginEngineUpdate(), "an update is already running")
         XCTAssertEqual(q.admit(a), .queued)
         XCTAssertEqual(q.admit(a), .duplicate)
         XCTAssertEqual(q.admit(b), .queued)
-        XCTAssertEqual(q.count, 0, "ничего не расшифровывается")
-        XCTAssertTrue(q.contains(b))
-        let pending = q.endEngineUpdate()
-        XCTAssertEqual(pending, [a, b], "по порядку")
+        XCTAssertNil(q.startNext(held: false), "waits for the update")
+        q.endEngineUpdate()
         XCTAssertFalse(q.engineUpdating)
-        XCTAssertFalse(q.contains(a))
-        XCTAssertEqual(q.admit(a), .start)
+        XCTAssertEqual(q.startNext(held: false), job(a), "in order after the update")
     }
 }
 

@@ -137,12 +137,198 @@ def test_diverged_filter_falls_back(call, monkeypatch):
     real = aec._Mdf.suppress
 
     def louder(self, e, y):
-        return 30.0 * real(self, e, y)
+        return 300.0 * real(self, e, y)
     monkeypatch.setattr(aec._Mdf, "suppress", louder)
     before = call["mic_wav"].read_bytes()
     rep = aec.cancel(call["mic_wav"], call["sys_wav"])
     assert not rep.applied and rep.reason == "diverged"
     assert call["mic_wav"].read_bytes() == before
+
+
+def jumping_call(tmp_path, nonlinear=False):
+    """The far end plays; its echo reaches the mic with a delay that jumps in steps, as a real call does."""
+    secs = 60
+    far = speech(secs, 2, [(0.5, 59.5)])
+    pieces = [(0, 20, 0.030), (20, 40, 0.085), (40, 60, 0.015)]
+    echo = np.zeros_like(far)
+    for a, b, d in pieces:
+        n = int(d * SR)
+        h = np.zeros(n + 1200)
+        h[n] = 0.6
+        h[n + 1:] = 0.15 * np.random.default_rng(3).standard_normal(1199) * np.exp(-np.arange(1, 1200) / 300)
+        seg = np.convolve(far, h)[:len(far)]
+        echo[int(a * SR):int(b * SR)] = seg[int(a * SR):int(b * SR)]
+    if nonlinear:      # a small speaker driven hard
+        echo = np.tanh(6 * echo) / 6
+    noise = 3e-4 * np.random.default_rng(5).standard_normal(len(far))
+    mic = echo + noise
+    return far, mic, pieces, write(tmp_path / "m.wav", mic), write(tmp_path / "r.wav", far)
+
+
+def test_delay_track_follows_jumps(tmp_path):
+    far, mic, pieces, m, r = jumping_call(tmp_path)
+    rm, rr = aec._Reader(m), aec._Reader(r)
+    try:
+        track = aec.estimate_delay(rm, rr, 1e-3)
+    finally:
+        rm.close()
+        rr.close()
+    for a, b, d in pieces:
+        assert abs(track.at(int((a + b) / 2 * SR)) / SR - d) <= 0.003
+
+
+def test_the_far_end_history_moves_with_a_delay_step(tmp_path):
+    """Right after a step the filter must see the reference at the new delay, not 256 ms of the old alignment."""
+    far = speech(30, 2, [(0.2, 29.8)])
+    mic = 0.3 * far
+    m, r = write(tmp_path / "m.wav", mic), write(tmp_path / "r.wav", far)
+    rm, rr = aec._Reader(m), aec._Reader(r)
+    step = 1000 * aec.B                                  # 16 s, inside the far-end speech
+    track = aec.DelayTrack(np.array([0, step]), np.array([480, 1280]))
+    c = aec._Mdf(1e-3)
+    try:
+        k = step // aec.B
+        aec._pass(c, rm, rr, track, k - 40, k + 1)
+        dl = 1280 - aec.MARGIN
+        for j in range(1, aec.P):
+            expected = np.fft.rfft(rr.read(step - (j + 1) * aec.B - dl, aec.NFFT))
+            assert np.allclose(c.X[j], expected, atol=1e-6), f"partition {j} still has the old delay"
+    finally:
+        rm.close()
+        rr.close()
+
+
+def test_delay_pieces_match_the_plain_definition_on_random_tracks():
+    """Running-median version gives the same pieces as recomputing the median for every point."""
+    rng = np.random.default_rng(0)
+    for trial in range(20):
+        lags, pts, lag = [], [], 400
+        for i in range(600):
+            r = rng.random()
+            lag += 0 if r < 0.97 else int(rng.integers(-80, 80))
+            lags.append(lag + (int(rng.integers(-30, 30)) if rng.random() < 0.05 else 0))
+        pts = [(i * 8000, v) for i, v in enumerate(lags)]
+        got = aec._pieces(pts)
+        assert got == _pieces_by_definition(pts)
+
+
+def _pieces_by_definition(points):
+    """The original quadratic definition of aec._pieces."""
+    tol = aec.TRACK_TOL * SR / 1000
+    runs, cur, pending = [], [points[0]], []
+    for p in points[1:]:
+        if abs(p[1] - np.median([q[1] for q in cur])) <= tol:
+            cur.append(p)
+            pending = []
+            continue
+        if pending and abs(p[1] - np.median([q[1] for q in pending])) <= tol:
+            pending.append(p)
+        else:
+            pending = [p]
+        if len(pending) >= aec.TRACK_MIN:
+            runs.append(cur)
+            cur, pending = pending, []
+    runs.append(cur)
+    return [r for r in runs if len(r) >= aec.TRACK_MIN]
+
+
+def test_delay_pieces_stay_fast_on_a_long_call():
+    import time
+    pts = [(i * 8000, 500 + (i % 3 == 0)) for i in range(4 * 7200)]        # four hours of 0.5 s frames, one delay
+    t0 = time.monotonic()
+    aec._pieces(pts)
+    assert time.monotonic() - t0 < 1.0
+
+
+def test_the_report_gives_the_delivered_echo_reduction(tmp_path, monkeypatch):
+    """When the network output replaces the classic one, erle_db describes what is in the file."""
+    from sozvon_engine import aec_neural
+    far, mic, pieces, m, r = jumping_call(tmp_path)
+    classic = aec.cancel(write(tmp_path / "m2.wav", mic), r, warmup=60.0)
+    def quiet(mic_path, ref_path, c, track, thr):
+        c.write_bytes(_scale_wav(c.read_bytes(), 0.01))
+        return "ok"
+    monkeypatch.setattr(aec_neural, "apply", quiet)
+    rep = aec.cancel(m, r)
+    assert rep.neural
+    assert rep.erle_db > classic.erle_db + 30, (rep.erle_db, classic.erle_db)
+
+
+def test_measuring_the_delivered_file_reads_it_in_pieces(tmp_path, monkeypatch):
+    """A 4 h call must not be loaded whole just to report a number."""
+    import wave
+    from sozvon_engine import aec_neural
+    far, mic, pieces, m, r = jumping_call(tmp_path)
+    monkeypatch.setattr(aec_neural, "apply", lambda *a: "ok")
+    asked = []
+    real = aec._report_delivered
+    original = wave.Wave_read.readframes
+
+    def spy(self, n):
+        asked.append(n)
+        return original(self, n)
+
+    def measured(*a):
+        monkeypatch.setattr(wave.Wave_read, "readframes", spy)
+        try:
+            real(*a)
+        finally:
+            monkeypatch.setattr(wave.Wave_read, "readframes", original)
+
+    monkeypatch.setattr(aec, "_report_delivered", measured)
+    assert aec.cancel(m, r).neural
+    assert asked and max(asked) <= aec.CHUNK
+
+
+def test_a_failed_measurement_keeps_the_delivered_file(tmp_path, monkeypatch):
+    """The number is a report; the cleaned audio is the product."""
+    from sozvon_engine import aec_neural
+    far, mic, pieces, m, r = jumping_call(tmp_path)
+    before = m.read_bytes()
+
+    def quiet(mic_path, ref_path, c, track, thr):
+        c.write_bytes(_scale_wav(c.read_bytes(), 0.01))
+        return "ok"
+
+    def fails(*a):
+        raise MemoryError
+
+    monkeypatch.setattr(aec_neural, "apply", quiet)
+    monkeypatch.setattr(aec, "_report_delivered", fails)
+    rep = aec.cancel(m, r)
+    assert rep.neural
+    assert m.read_bytes() != before
+    assert np.abs(read(m)).max() < 0.05
+
+
+def _scale_wav(data, k):
+    import io
+    r = wave.open(io.BytesIO(data))
+    y = (np.frombuffer(r.readframes(r.getnframes()), "<i2") * k).astype("<i2")
+    out = io.BytesIO()
+    w = wave.open(out, "wb")
+    w.setnchannels(1), w.setsampwidth(2), w.setframerate(SR), w.writeframes(y.tobytes())
+    w.close()
+    return out.getvalue()
+
+
+def test_echo_is_removed_on_both_sides_of_a_delay_jump(tmp_path):
+    far, mic, pieces, m, r = jumping_call(tmp_path)
+    rep = aec.cancel(m, r)
+    assert rep.applied
+    out = read(m)
+    for a, b, _ in pieces:
+        span = [(a + 3, b - 2)]
+        assert db(energy(mic, span), energy(out, span)) >= 15
+
+
+def test_nonlinear_echo_is_suppressed_more_than_the_linear_filter_can(tmp_path):
+    far, mic, pieces, m, r = jumping_call(tmp_path, nonlinear=True)
+    rep = aec.cancel(m, r)
+    assert rep.applied
+    out = read(m)
+    span = [(a + 3, b - 2) for a, b, _ in pieces]
+    assert db(energy(mic, span), energy(out, span)) >= 20
 
 
 def test_delay_estimate_follows_the_echo(tmp_path):
@@ -155,12 +341,11 @@ def test_delay_estimate_follows_the_echo(tmp_path):
         m, r = write(tmp_path / "m.wav", mic), write(tmp_path / "r.wav", far)
         rm, rr = aec._Reader(m), aec._Reader(r)
         try:
-            rms = aec._frame_rms(rr)
-            a, b = aec.estimate_delay(rm, rr, rms, 1e-3)
+            track = aec.estimate_delay(rm, rr, 1e-3)
         finally:
             rm.close()
             rr.close()
-        assert abs(a / SR - delay) <= 0.002 and b == 0.0
+        assert abs(track.at(5 * SR) / SR - delay) <= 0.002 and len(track.delays) == 1
 
 
 # ---------------------------------------------------------------- prepare
@@ -181,6 +366,48 @@ def fake_prepare(monkeypatch, tmp_path, speech_sec: dict, env=None):
     lines = []
     out = pc.prepare(files, {}, tmp_path, lines.append)
     return calls, out, lines
+
+
+def neural_prepare(monkeypatch, tmp_path, why, marker=False):
+    calls, out, lines = fake_prepare(monkeypatch, tmp_path, {"mic": 30.0, "system": 40.0})
+    monkeypatch.setenv("SOZVON_DATA_DIR", str(tmp_path))
+    if marker:
+        (tmp_path / ".no-echo-model").touch()
+    monkeypatch.setattr(aec, "cancel", lambda mic, ref: aec.Report(True, "ok", delay_ms=42.0, erle_db=18.0, neural=False, neural_reason=why))
+    warnings, lines = [], []
+    pc.prepare({k: tmp_path / f"{k}.m4a" for k in ("mic", "system")}, {}, tmp_path, lines.append,
+               warn=lambda step, err: warnings.append((step, err)))
+    return lines, warnings
+
+
+@pytest.mark.parametrize("why,word", [("off", "выключ"), ("no_weights", "скача"), ("bad_weights", "поврежд"), ("error: boom", "boom")])
+def test_a_neural_stage_that_did_not_deliver_logs_one_line_with_the_reason(monkeypatch, tmp_path, why, word):
+    lines, _ = neural_prepare(monkeypatch, tmp_path, why)
+    assert sum(word in s for s in lines) == 1, lines
+
+
+def test_a_neural_stage_that_delivered_logs_no_failure(monkeypatch, tmp_path):
+    lines, warnings = neural_prepare(monkeypatch, tmp_path, "")
+    assert warnings == [] and not any("нейро" in s and "пропущ" in s.lower() for s in lines)
+
+
+@pytest.mark.parametrize("why", ["error: boom", "bad_weights"])
+def test_a_real_failure_goes_into_the_call_warnings(monkeypatch, tmp_path, why):
+    _, warnings = neural_prepare(monkeypatch, tmp_path, why)
+    assert warnings == [("echo", why)]
+
+
+def test_weights_turned_off_or_not_yet_downloaded_are_not_warned_about(monkeypatch, tmp_path):
+    assert neural_prepare(monkeypatch, tmp_path, "off")[1] == []
+    assert neural_prepare(monkeypatch, tmp_path, "no_weights")[1] == []
+
+
+def test_a_failed_download_warns_once_then_only_logs(monkeypatch, tmp_path):
+    _, first = neural_prepare(monkeypatch, tmp_path, "no_weights", marker=True)
+    assert first == [("echo", "no_weights")]
+    assert not (tmp_path / ".no-echo-model").exists(), "reported: the marker is gone"
+    lines, second = neural_prepare(monkeypatch, tmp_path, "no_weights")
+    assert second == [] and any("скача" in s for s in lines)
 
 
 def test_prepare_cancels_echo_when_both_tracks_speak(monkeypatch, tmp_path):
@@ -237,10 +464,30 @@ def test_error_mid_way_leaves_no_temp_file(call, monkeypatch):
     assert call["mic_wav"].read_bytes() == before
 
 
-def test_cleanup_removes_aec_leftovers(tmp_path):
+def test_cleanup_removes_work_folder(tmp_path):
+    d = tmp_path / "call"
+    (d / ".work").mkdir(parents=True)
+    for name in ("mic.wav", "system.wav", "mic.aec.wav"):
+        (d / ".work" / name).write_bytes(b"x")
+    (d / "mic.m4a").write_bytes(b"x")
+    pc.cleanup(d)
+    assert sorted(p.name for p in d.iterdir()) == ["mic.m4a"]
+
+
+def test_cleanup_removes_leftovers_of_older_versions(tmp_path):
+    """Before .work the wavs lay in the call folder itself: a crash of that version left them."""
     d = tmp_path / "call"
     d.mkdir()
     for name in ("mic.wav", "system.wav", "mic.aec.wav", "mic.m4a"):
         (d / name).write_bytes(b"x")
     pc.cleanup(d)
     assert sorted(p.name for p in d.iterdir()) == ["mic.m4a"]
+
+
+def test_prepare_keeps_working_files_in_work_folder(monkeypatch, tmp_path):
+    (tmp_path / ".work").mkdir()
+    (tmp_path / ".work" / "stale.wav").write_bytes(b"x")  # left by a killed run
+    calls, out, _ = fake_prepare(monkeypatch, tmp_path, {"mic": 30.0, "system": 40.0})
+    assert {p.parent for p in out.values()} == {tmp_path / ".work"}
+    assert sorted(p.name for p in (tmp_path / ".work").iterdir()) == ["mic.wav", "system.wav"]
+    assert not list(tmp_path.glob("*.wav"))

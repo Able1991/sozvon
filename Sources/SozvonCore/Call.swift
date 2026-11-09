@@ -29,6 +29,10 @@ public struct Call: Identifiable, Sendable {
     public var notes: [CallNote] = []
     /// Recorded and waiting for "What was the call about?" ("Later").
     public var infoPending = false
+    /// Why the summary failed on the last run although the call is done (call.json `warnings`); nil when it did not.
+    public var summaryWarning: String?
+    /// A fictional call added from Settings > Assistants (call.json `demo`): marked in the list, never synced.
+    public var isDemo = false
     /// Old call without call.json: project and topic are guessed from the folder name.
     public var isLegacy: Bool
 
@@ -70,6 +74,8 @@ public struct Call: Identifiable, Sendable {
             call.status = (c["status"] as? String).flatMap(CallStatus.init(rawValue:))
             call.notes = CallNotes.list(c)
             call.infoPending = PendingInfo.isPending(c)
+            call.summaryWarning = CallWarnings.summary(c)
+            call.isDemo = DemoCalls.isDemo(c)
             call.duration = AudioTimes((c["audio"] as? [String: Any]) ?? [:]).duration
             call.languages = (c["languages"] as? String).map(SpeechLanguage.parse) ?? []
             call.topic = call.info.topic.isEmpty ? call.info.terms : call.info.topic
@@ -100,7 +106,10 @@ public struct Call: Identifiable, Sendable {
     static func folderSize(_ url: URL) -> Int64 {
         var bytes: Int64 = 0
         if let e = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) {
-            for case let f as URL in e { bytes += Int64((try? f.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+            for case let f as URL in e {
+                if f.lastPathComponent == WorkFiles.folder { e.skipDescendants(); continue }
+                bytes += Int64((try? f.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            }
         }
         return bytes
     }

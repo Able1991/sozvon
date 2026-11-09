@@ -34,7 +34,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import time
 import unicodedata
 import urllib.error
@@ -44,7 +43,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import calls, config, jsonfile, notes, paths
+from . import calls, config, jsonfile, notes, paths, platform_support
 from .i18n import t
 
 SCHEMA = 1
@@ -224,6 +223,18 @@ CALL_FIELDS = ("schema", "id", "created_at", "status", "profile", "names", "part
 AUDIO_FIELDS = ("mic_seconds", "system_seconds")
 
 
+def is_demo(call: dict) -> bool:
+    """A demo call (call.json "demo": true, added from Settings > Assistants): fictional, never leaves this Mac."""
+    return call.get("demo") is True
+
+
+def local_calls(root: Path) -> tuple[dict, set]:
+    """-> (the calls here that sync looks at by id, ids of the demo calls it leaves out entirely)."""
+    found = {c.id: c for c in calls.list_calls(root)}
+    demo = {cid for cid, c in found.items() if is_demo(calls.read_call(c.path))}
+    return {cid: c for cid, c in found.items() if cid not in demo}, demo
+
+
 def call_fields(call: dict, audio: dict | None = None) -> dict:
     """The whitelisted part of a call.json; audio: the track durations (call.json or meta.json)."""
     out = {k: call[k] for k in CALL_FIELDS if k in call}
@@ -267,6 +278,8 @@ def payload(d: Path) -> dict | None:
     """
     d = Path(d)
     raw = calls.read_call(d)
+    if is_demo(raw):
+        return None
     call = call_fields(raw, calls.audio_meta(d, raw))
     transcript = d / "transcript.txt"
     # Calls transcribed before call.json had a status (contract 0) count as done when they have a transcript.
@@ -327,6 +340,8 @@ def push_notes(d: Path, srv: Server | None = None) -> bool:
     if srv is None:
         return False
     call = calls.read_call(d)
+    if is_demo(call):
+        return False
     return _post_notes(srv, call["id"], notes.newest(notes.notes_of(call)), notes.deleted_of(call))
 
 
@@ -434,38 +449,7 @@ def _save_titles(titles: dict, f: Path | None = None) -> None:
             jsonfile.write_atomic(f, jsonfile.with_schema({**data, "titles": dict(sorted(titles.items()))}))
 
 
-# --- the macOS Trash ---
-
-# No Ref() out-parameters: on current macOS a Ref for the NSError crashes osascript (signal 11).
-_JXA_TRASH = """
-ObjC.import("Foundation");
-function run(argv) {
-  const ok = $.NSFileManager.defaultManager.trashItemAtURLResultingItemURLError(
-    $.NSURL.fileURLWithPath(argv[0]), null, null);
-  return ok ? "ok" : "failed";
-}
-"""
-
-
-def move_to_trash(path: Path) -> None:
-    """Move a folder to the macOS Trash, like Finder (Put Back works): NSFileManager.trashItem through
-    osascript's ObjC bridge. If that fails, a plain move to ~/.Trash under a free name."""
-    path = Path(path)
-    try:
-        r = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", "-e", _JXA_TRASH, str(path)],
-                           check=False, capture_output=True, text=True, timeout=30)
-        if r.returncode == 0 and r.stdout.strip() == "ok" and not path.exists():
-            return
-    except (OSError, subprocess.SubprocessError):
-        pass
-    trash = Path.home() / ".Trash"
-    trash.mkdir(exist_ok=True)
-    target = trash / path.name
-    n = 1
-    while target.exists():
-        target = trash / (f"{path.name} {time.strftime('%H.%M.%S')}" + (f" {n}" if n > 1 else ""))
-        n += 1
-    shutil.move(str(path), str(target))
+move_to_trash = platform_support.move_to_trash  # re-exported: callers and tests use remote.move_to_trash
 
 
 BUSY = {"recorded", "processing"}
@@ -670,128 +654,19 @@ def sync(srv: Server | None = None, root: Path | None = None, status=lambda text
     theirs, tombs = remote_state(srv)
     result = SyncResult()
     attempt = _Attempts(result, status)
-    local = {c.id: c for c in calls.list_calls(root)}
+    local, demo = local_calls(root)  # demo calls are fictional: not sent, not trashed, not overwritten
     sent_titles = _sent_titles()
     try:
-        _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evicts, sent_titles)
+        _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evicts, sent_titles, demo)
     finally:
         _save_titles({k: v for k, v in sent_titles.items() if k in local} if keeps_titles else {})
-    if version >= VOICES_VERSION:
+    from . import remote_audio, remote_voices
+    if version >= remote_voices.VOICES_VERSION:
         settings = config.load()
-        from . import remote_audio
         dead = set(tombs or {})
         remote_audio.sync_audio(srv, root, status, attempt, dead, enabled=settings.sync_audio)
-        sync_voices(srv, status, enabled=settings.sync_voices)
+        remote_voices.sync_voices(srv, status, enabled=settings.sync_voices)
     return result
-
-
-# --- voice prints (server 0.4.0+) ---
-
-VOICES_VERSION = (0, 4, 0)
-
-
-def _voice_path(vid: str) -> str:
-    return "/api/voices/" + urllib.parse.quote(vid, safe="")
-
-
-def remote_voices(srv: Server) -> tuple[dict, dict]:
-    """GET /api/voices -> ({id: record}, {id: deleted at})."""
-    from . import voices
-    _, j = _request(srv, "GET", "/api/voices")
-    items = j.get("voices") if isinstance(j, dict) else None
-    if not isinstance(items, list):
-        raise RemoteError(1, t("remote_bad_reply", path="/api/voices"))
-    recs, tombs = {}, {}
-    for v in items:
-        if not isinstance(v, dict) or not isinstance(v.get("id"), str):
-            continue
-        if v.get("deleted") is True:
-            tombs[v["id"]] = str(v.get("updated_at") or "")
-        elif (rec := voices.valid({**v, "schema": 1})) is not None:
-            recs[rec["id"]] = rec
-    return recs, tombs
-
-
-def _voice_body(rec: dict) -> dict:
-    return {k: rec[k] for k in ("id", "name", "profile", "me", "embedding", "seconds", "updated_at")}
-
-
-def _put_voice(srv: Server, rec: dict) -> bool:
-    """PUT one voice print. -> True if the server took it.
-
-    409: another Mac changed the same record after this one (two enrollments at once); the server answers with
-    its record. The two prints are merged (voices.merge_embeddings), stored here and sent once more; a second
-    conflict waits for the next sync."""
-    from . import voices
-    for attempt in range(2):
-        code, j = _request(srv, "PUT", _voice_path(rec["id"]), _voice_body(rec), missing_ok=True, conflict_ok=True)
-        if code != 409:
-            return code not in (404, 405, 410)
-        stored = voices.valid({**j["voice"], "schema": 1}) if isinstance(j, dict) and isinstance(j.get("voice"), dict) else None
-        if attempt or stored is None or stored["id"] != rec["id"]:
-            return False
-        rec = voices.merge_remote(stored, rec)
-        if rec is None:
-            return False
-    return False
-
-
-def sync_voices(srv: Server, status, enabled: bool = True) -> tuple[int, int, int]:
-    """Make the voice prints here and on the server agree. -> (sent, downloaded, deleted).
-
-    Deletions made here (voices-deleted.json) always go to the server, even with SOZVON_SYNC_VOICES=0, so a
-    deleted voice is deleted everywhere. With sync on: server tombstones delete the record here unless it
-    changed here later, records the server lacks or holds older go up, records missing here or newer there
-    come down (never over a newer one here). A failure is a STATUS line; the calls' RESULT numbers stay as
-    they are. A wrong password still stops the sync.
-    """
-    from . import voices
-    sent = downloaded = deleted = 0
-    try:
-        theirs, their_tombs = remote_voices(srv)
-
-        def send_tombstones():
-            n, done = 0, []
-            for vid in voices.tombstones():
-                if vid in theirs or vid not in their_tombs:
-                    _request(srv, "DELETE", _voice_path(vid), missing_ok=True)
-                    theirs.pop(vid, None)
-                    their_tombs[vid] = voices.now()
-                    n += 1
-                done.append(vid)
-            voices.forget_tombstones(done)
-            return n
-        deleted += send_tombstones()
-        if enabled:
-            local = {r["id"]: r for r in voices.load_all()}
-            dead = {vid: at for vid, at in their_tombs.items()
-                    if vid in local and voices.timestamp(local[vid]["updated_at"]) <= voices.timestamp(at)}
-            deleted += voices.drop_local(dead)
-            for vid in dead:
-                local.pop(vid, None)
-            for vid, rec in sorted(theirs.items()):
-                mine = local.get(vid)
-                if mine is not None and (voices.content_hash(mine) == voices.content_hash(rec)
-                                         or voices.timestamp(mine["updated_at"]) >= voices.timestamp(rec["updated_at"])):
-                    continue
-                if voices.accept_remote(rec):
-                    downloaded += 1
-            deleted += send_tombstones()  # ids folded into a record here
-            for rec in voices.load_all():
-                r = theirs.get(rec["id"])
-                if r is not None and (voices.content_hash(r) == voices.content_hash(rec)
-                                      or voices.timestamp(r["updated_at"]) > voices.timestamp(rec["updated_at"])):
-                    continue
-                if _put_voice(srv, rec):
-                    sent += 1
-    except RemoteError as e:
-        if e.code == 2:
-            raise
-        status(t("remote_status_voices_failed", err=e.message))
-        return sent, downloaded, deleted
-    if sent or downloaded or deleted:
-        status(t("remote_status_voices", sent=sent, downloaded=downloaded, deleted=deleted))
-    return sent, downloaded, deleted
 
 
 def _sent(sent_titles: dict, body: dict) -> None:
@@ -800,7 +675,7 @@ def _sent(sent_titles: dict, body: dict) -> None:
         sent_titles[body["id"]] = body["project_title"]
 
 
-def _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evicts, sent_titles) -> None:
+def _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evicts, sent_titles, demo=frozenset()) -> None:
     # 1. deletions made in Sozvon
     done, pending = [], set()
     for cid in deleted_calls():
@@ -885,7 +760,7 @@ def _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evict
 
     # 4. downloads: a fresh install, or calls recorded on another Mac
     missing = sorted(cid for cid, r in theirs.items()
-                     if cid not in local and cid not in gone and r.notes is not None and FULL_ID_RE.match(cid))
+                     if cid not in local and cid not in demo and cid not in gone and r.notes is not None and FULL_ID_RE.match(cid))
     for i, cid in enumerate(missing, 1):
         status(t("remote_status_download", i=i, n=len(missing), id=cid))
         ok, body = attempt.run(cid, fetch, srv, cid)

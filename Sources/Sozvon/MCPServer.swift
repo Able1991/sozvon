@@ -55,20 +55,16 @@ final class MCPServer: ObservableObject {
         // (the other copy may exit on its own, and MCP is needed for as long as the app runs).
         restarts += 1
         let delay: Double = restarts <= Self.maxRestarts ? 5 : 60
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            MainActor.assumeIsolated { self?.launch() }
-        }
+        mainAfter(delay) { [weak self] in self?.launch() }
     }
 
     /// Restart after an engine update: picks up the new server.py.
     func restart() {
         stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            MainActor.assumeIsolated {
-                self?.restarts = 0
-                self?.lastFailure = nil
-                self?.start()
-            }
+        mainAfter(1) { [weak self] in
+            self?.restarts = 0
+            self?.lastFailure = nil
+            self?.start()
         }
     }
 

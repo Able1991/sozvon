@@ -47,7 +47,7 @@ public enum ActionItems {
     }
 
     /// "- [ ] Anna: send it" / "- [x] …" / "- …" / "* …" -> an item; other lines: nil.
-    static func item(_ line: String) -> ActionItem? {
+    public static func item(_ line: String) -> ActionItem? {
         var s = Substring(line)
         guard s.hasPrefix("- ") || s.hasPrefix("* ") else { return nil }
         s = s.dropFirst(2).drop { $0 == " " }

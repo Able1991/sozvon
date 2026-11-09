@@ -11,9 +11,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from . import config
+from . import config, platform_support
 
-BIN_DIRS = [Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
+BIN_DIRS = platform_support.tool_bin_dirs()
 
 
 def _find(name: str):

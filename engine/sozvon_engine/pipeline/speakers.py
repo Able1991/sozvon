@@ -3,10 +3,11 @@
 The microphone is "me", system audio is the other side. Voice splitting (pyannote) is only needed
 to separate SEVERAL remote participants within the system track. If system audio dropped out
 mid-call, the other side is heard only in the microphone: voices there are split on their own.
+Someone next to the user is told apart from the user by the user's voice print (split_mic).
 """
 from typing import Callable
 
-from .. import diarize
+from .. import diarize, voices
 from ..i18n import t
 
 Log = Callable[[str], None]
@@ -79,12 +80,13 @@ def label_mic(segs: list, diar: list, ref: list, me: str, names: list) -> tuple[
 
 def assign_speakers(*, mic: list, mic_dead: list, system: list, tracks: dict, me: str, names: list,
                     speakers, diarize_on: bool, single_name: str | None, log: Log,
-                    run_diarization=None, name_voices=None) -> list:
+                    run_diarization=None, name_voices=None, mic_people=None) -> list:
     """All utterances with labels. A splitting failure does not lose text: labels become generic.
 
     single_name: how to label the other side without splitting (the only known name or None).
     name_voices(track, diar) -> {raw label: (name, score)}: voices recognized by voice print. Any failure
     there is logged and the call goes on exactly as without voice prints.
+    mic_people(diarize_mic, system_diar) -> (diar, {raw label: name or None}): others at the user's microphone.
     """
     run_diarization = run_diarization or diarize.run
     can = diarize_on and diarize.available()
@@ -102,6 +104,8 @@ def assign_speakers(*, mic: list, mic_dead: list, system: list, tracks: dict, me
                 log(t("log_diar_mic_failed", err=ex))
         if not done:
             items += [(s, e, text, t("me_plus", me=me)) for s, e, text in mic_dead]
+    system_diar: list | None = None if system else []
+    system_voices = 0
     if system:
         done = False
         if can:
@@ -111,12 +115,61 @@ def assign_speakers(*, mic: list, mic_dead: list, system: list, tracks: dict, me
                 items += labeled
                 log(t("log_diar_count", n=n))
                 done = True
+                system_diar, system_voices = diar, n
             except Exception as ex:  # noqa: BLE001
                 log(t("log_diar_failed", err=ex))
         if not done:
             them = single_name or t("speaker")
             items += [(s, e, text, them) for s, e, text in system]
+    # With system audio gaps the mic was diarized above for another purpose, and label_mic has labeled it.
+    if can and mic_people and not mic_dead and system_diar is not None \
+            and sum(e - s for s, e, _ in mic) >= voices.MIN_MIC_PERSON:
+        items[:len(mic)] = split_mic(mic, me, mic_people, lambda: run_diarization(tracks["mic"], None), system_diar,
+                                     system_voices, log)
     return items
+
+
+def split_mic(mic: list, me: str, mic_people, diarize_mic, system_diar: list, system_voices: int, log: Log) -> list:
+    """Microphone utterances with labels: the user, or another person at the microphone.
+
+    An unknown person gets a generic label numbered after the system track's voices, so the numbers never collide
+    and the assistant can name them from the conversation. Any failure: everything is the user, as without this.
+    """
+    mine = [(s, e, text, me) for s, e, text in mic]
+    try:
+        diar, people = mic_people(diarize_mic, system_diar)
+    except Exception as ex:  # noqa: BLE001  no model, no pyannote, a broken track: the transcription is never lost
+        log(t("log_mic_failed", err=ex))
+        return mine
+    labels: dict = {}
+    unnamed = 0
+    out = []
+    for s, e, text in mic:
+        raw = _max_overlap(s, e, diar)
+        if raw not in people:
+            out.append((s, e, text, me))
+            continue
+        if raw not in labels:
+            if people[raw] is None:
+                unnamed += 1
+            labels[raw] = people[raw] or t("speaker_n", n=system_voices + unnamed)
+        out.append((s, e, text, labels[raw]))
+    if labels:
+        log(t("log_mic_people", names=", ".join(labels.values())))
+    return out
+
+
+def track_labels(items: list, mic_items: int, renamed: dict, me: str) -> dict | None:
+    """call.json "speaker_tracks": {final label: "mic", "system" or "both"}; None when the microphone holds only the user.
+
+    items: as assign_speakers returns them, the first mic_items of them from the microphone.
+    renamed: {label in items: final label} after the assistant named the voices.
+    """
+    on_mic = {renamed.get(w, w) for *_, w in items[:mic_items]}
+    on_system = {renamed.get(w, w) for *_, w in items[mic_items:]}
+    if on_mic <= {me}:
+        return None
+    return {w: "both" if w in on_mic and w in on_system else "mic" if w in on_mic else "system" for w in on_mic | on_system}
 
 
 def recognize(name_voices, track, diar: list, segs: list, log: Log) -> dict:

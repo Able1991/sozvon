@@ -55,6 +55,50 @@ No intro or outro, start with the sections.
 Transcript:
 {transcript}"""
 
+REFLECTION_RU = """Ниже расшифровка моих размышлений вслух (локальная транскрибация Whisper, возможны ослышки). Я говорю один, меня зовут {me}.{context}
+Разбери их на русском в Markdown, строго такими разделами:
+
+## Главное
+2-4 предложения: о чём я думал и к чему пришёл.
+{marks}
+## Анализ
+Маркированный список: что из сказанного сильное, что спорное, что я упустил. Отделяй свои замечания от моих слов: начинай их с «Замечание:».
+
+## Задачи
+Чек-лист «- [ ] {me}: что сделать, срок». Только то, что следует из сказанного. Срок только если прозвучал.
+
+## Открытые вопросы
+На что я сам себе не ответил. Нет: раздел не выводи.
+
+Правила: мои мысли пересказывай точно, не приписывай мне того, чего я не говорил. Цифры, суммы, даты, названия переноси точно.
+Не используй длинное тире (символы \u2014 и \u2013): вместо него запятая, двоеточие или точка.
+Не пиши вступлений и заключений, сразу разделы.
+
+Расшифровка:
+{transcript}"""
+
+REFLECTION_EN = """Below is a transcript of me thinking out loud (local Whisper transcription, may contain mishearings). I am alone, my name is {me}.{context}
+Analyze it in {language} in Markdown, with exactly these sections:
+
+## Main Point
+2-4 sentences: what I was thinking about and where I ended up.
+{marks}
+## Analysis
+Bulleted list: what is strong, what is debatable, what I missed. Keep your remarks apart from my words: start them with "Note:".
+
+## Action Items
+Checklist "- [ ] {me}: what, due date". Only what follows from what I said. Due date only if it was mentioned.
+
+## Open Questions
+What I did not answer for myself. If nothing: omit this section.
+
+Rules: retell my thoughts exactly, do not attribute to me what I did not say. Copy numbers, amounts, dates and names exactly.
+Do not use em or en dashes (\u2014, \u2013): use a comma, colon or period instead.
+No intro or outro, start with the sections.
+
+Transcript:
+{transcript}"""
+
 LANG_NAMES = {"ru": "Russian", "en": "English", "uk": "Ukrainian", "de": "German", "es": "Spanish",
               "fr": "French", "it": "Italian", "pt": "Portuguese", "pl": "Polish"}
 EM, EN = "\u2014", "\u2013"
@@ -74,7 +118,7 @@ For each, a line "- MM:SS: what was said or decided there", 1-2 sentences from t
 
 
 def build_prompt(transcript: str, me: str, context: str = "", lang: str | None = None, marks=(),
-                 people=()) -> str:
+                 people=(), reflection: bool = False) -> str:
     """people: the other participants by name (call.json "participants"), so tasks are assigned to real names."""
     lang = lang or i18n.lang()
     times = ", ".join(marks)
@@ -84,8 +128,8 @@ def build_prompt(transcript: str, me: str, context: str = "", lang: str | None =
     fields = {"me": me, "transcript": transcript, "context": f"\n{label}: {context}" if context else "",
               "people": f"\n{others}: {', '.join(people)}." if people else ""}
     if ru:
-        return PROMPT_RU.format(**fields, marks=MARKS_RU.format(times=times) if marks else "")
-    return PROMPT_EN.format(**fields, language=LANG_NAMES.get(lang, "the language of the conversation"),
+        return (REFLECTION_RU if reflection else PROMPT_RU).format(**fields, marks=MARKS_RU.format(times=times) if marks else "")
+    return (REFLECTION_EN if reflection else PROMPT_EN).format(**fields, language=LANG_NAMES.get(lang, "the language of the conversation"),
                             marks=MARKS_EN.format(times=times) if marks else "")
 
 
@@ -100,10 +144,13 @@ def context_for(prof: dict, topic: str, terms: str) -> str:
 
 
 def summarize(transcript: str, me: str, cwd: Path, context: str = "", lang: str | None = None, marks=(),
-              log: Callable[[str], None] = lambda _m: None, people=()) -> str | None:
-    out, name, err = llm.run(build_prompt(transcript, me, context, lang, marks, people), cwd)
+              log: Callable[[str], None] = lambda _m: None, people=(), reflection: bool = False,
+              warn: Callable[[str], None] = lambda _m: None) -> str | None:
+    """-> the summary, or None when the assistant gave nothing (logged, and `warn` gets the reason)."""
+    out, name, err = llm.run(build_prompt(transcript, me, context, lang, marks, people, reflection), cwd)
     if not out:
         log(t("log_summary_failed", who=name or t("no_cli"), err=err))
+        warn(f"{name or t('no_cli')}: {err}")
         return None
     log(t("log_summary_ok", name=name, vendor=llm.vendor(name)))
     return strip_dashes(out)

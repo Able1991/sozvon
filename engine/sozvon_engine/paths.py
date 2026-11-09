@@ -11,9 +11,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import platform_support
+
 CODE_DIR = Path(__file__).resolve().parent.parent  # where server.py, models.json, ENGINE_VERSION live
-DEFAULT_DATA_DIR = Path.home() / "Library" / "Application Support" / "Sozvon"
-DEFAULT_CALLS_DIR = Path.home() / "Documents" / "Calls"
+DEFAULT_DATA_DIR = platform_support.default_data_dir()
+DEFAULT_CALLS_DIR = platform_support.default_calls_dir()
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,10 @@ class EngineDir:
     @property
     def no_diarization(self) -> Path:
         return self.root / ".no-diarization"
+
+    @property
+    def no_echo_model(self) -> Path:
+        return self.root / ".no-echo-model"
 
     @property
     def index(self) -> Path:

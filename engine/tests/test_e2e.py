@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import installed_engine
+from conftest import installed_engine, slow_model
 
 ENGINE = installed_engine()
 pytestmark = [pytest.mark.slow,
@@ -47,10 +47,25 @@ def make_call(tmp_path):
     return call
 
 
+# Words only the other side says: none of them may appear in a line attributed to me (the echo was removed).
+OTHER_SIDE_WORDS = ("бюджет", "согласован", "понедельник")
+
+
+def assert_no_echo(my_lines):
+    mine = " ".join(my_lines).lower()
+    leaked = [w for w in OTHER_SIDE_WORDS if w in mine]
+    assert not leaked, f"echo of the other side in my lines: {leaked}: {my_lines}"
+
+
+def speaker_labels(txt: str) -> set:
+    return {l.split("] ", 1)[1].split(":", 1)[0] for l in txt.splitlines() if "] " in l and ":" in l}
+
+
 def run(call, *extra):
     # The installed engine's .env may set up the user's own server: a test call must never reach it. A non-empty
     # address wins over .env; nothing listens on this port, so the push after transcription fails at once.
     env = {**os.environ, "SOZVON_DATA_DIR": str(ENGINE), "SOZVON_LLM": "none", "HF_HUB_OFFLINE": "1",
+           "SOZVON_MODEL": slow_model(),
            "SOZVON_UI_LANG": "ru", "SOZVON_SERVER_URL": "http://127.0.0.1:9"}
     env.pop("HF_TOKEN", None)
     py = ENGINE / ".venv/bin/python3"
@@ -71,16 +86,17 @@ def test_full_call(tmp_path):
     mine = [l for l in lines if "] Тест:" in l]
     theirs = [l for l in lines if "] Анна:" in l]
     assert mine and theirs, txt
-    assert "кампани" in " ".join(mine).lower()
-    assert "понедельник" in " ".join(theirs).lower()
-    # the other side's echo must not remain in my lines
-    assert "понедельник" not in " ".join(mine).lower()
+    assert speaker_labels(txt) == {"Тест", "Анна"}, txt
+    # Key words, spelled loosely: the small model hears "компании" for "кампании".
+    assert "запуск" in " ".join(mine).lower() and "недел" in " ".join(mine).lower(), txt
+    assert "бюджет" in " ".join(theirs).lower() and "понедельник" in " ".join(theirs).lower(), txt
+    assert_no_echo(mine)
 
     md = (call / "transcript.md").read_text()
     assert md.startswith("# Звонок") and "запуск" in md.splitlines()[0]
     meta = json.loads((call / "call.json").read_text())
     assert meta["names"] == ["Анна"] and meta["topic"] == "запуск"
-    assert meta["status"] == "done" and meta["engine"]["model"] == "turbo"
+    assert meta["status"] == "done" and meta["engine"]["model"] == slow_model()
     assert not (call / "summary.md").exists()
     assert not list(call.glob("*.wav")), "временные wav должны удаляться"
 
@@ -95,6 +111,14 @@ def test_diarization_without_token(tmp_path):
     assert "диаризация: собеседников" in log, log[-2000:]
     txt = (call / "transcript.txt").read_text()
     assert "] Анна:" in txt and "] Тест:" in txt
+    # Exactly one remote voice (the log counts the remote ones), and each side's key words under its own name.
+    # Other labels may appear: a small Whisper invents text from silence, which diarization leaves unnamed.
+    assert "диаризация: собеседников 1" in log, log[-2000:]
+    mine = [l for l in txt.splitlines() if "] Тест:" in l]
+    theirs = [l for l in txt.splitlines() if "] Анна:" in l]
+    assert "запуск" in " ".join(mine).lower(), txt
+    assert "понедельник" in " ".join(theirs).lower(), txt
+    assert_no_echo(mine)
 
 
 def tts_voice(text: str, out: Path, voice: str):

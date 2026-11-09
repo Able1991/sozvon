@@ -15,11 +15,10 @@ Every piece is deleted as soon as it is matched. Ends when <call>/.live/stop exi
 when the app or the folder is gone.
 """
 import json
-import os
 import time
 from pathlib import Path
 
-from . import audio, jsonfile, voices
+from . import audio, jsonfile, platform_support, voices
 
 CHUNKS = "system-*.wav"
 RESULT = "voices.json"
@@ -31,9 +30,9 @@ MIN_SECONDS = 6.0        # matched speech for a name to count as a participant
 TWIN = 0.75              # two names with prints this close are one voice (different people are ~0.1-0.45)
 
 
-def records() -> list:
-    """Voices the call can be matched against: every saved voice except the user's own."""
-    return [r for r in voices.load_all() if not r["me"]]
+def records(log=None) -> list:
+    """Voices the call can be matched against: every saved voice of the current model except the user's own."""
+    return [r for r in voices.only_current(voices.load_all(), log) if not r["me"]]
 
 
 def twins(recs: list) -> dict:
@@ -121,8 +120,8 @@ def process(path: Path, recs: list, tally: Tally, embed=None, twin: dict | None 
 
 def run(d: Path, log, poll: float = 2.0, parent: int | None = None) -> int:
     d = Path(d)
-    parent = os.getppid() if parent is None else parent
-    recs = records()
+    parent = platform_support.parent_pid() if parent is None else parent
+    recs = records(log)
     twin = twins(recs)
     tally = Tally()
     out = d / RESULT
@@ -157,7 +156,7 @@ def run(d: Path, log, poll: float = 2.0, parent: int | None = None) -> int:
             jsonfile.write_atomic(out, tally.result())
         if stopping and not fresh:
             break
-        if os.getppid() != parent:  # the app is gone
+        if platform_support.parent_pid() != parent:  # the app is gone
             break
         time.sleep(min(poll, 0.2) if stopping else poll)
     result = tally.result(done=True)

@@ -119,8 +119,9 @@ def parse_mapping(out: str):
 
 
 def resolve_names(paras: list, candidates: list, given: list, me: str, cwd: Path,
-                  log: Callable[[str], None] = lambda _m: None, taken=()) -> list:
-    """Match unnamed voices to people. Any assistant failure: names in order.
+                  log: Callable[[str], None] = lambda _m: None, taken=(),
+                  warn: Callable[[str], None] = lambda _m: None) -> list:
+    """Match unnamed voices to people. Any assistant failure: names in order (`warn` gets the reason).
     taken: names already given by voice print, never given again."""
     labels = generic_labels(paras, me)
     if not labels:
@@ -128,11 +129,13 @@ def resolve_names(paras: list, candidates: list, given: list, me: str, cwd: Path
     out, name, err = llm.run(build_prompt(paras, labels, candidates, given, me), cwd, timeout=300)
     if not out:
         log(t("log_names_failed", who=name or t("no_cli"), err=err))
+        warn(f"{name or t('no_cli')}: {err}")
         return by_order(paras, me, given)
     try:
         mapping = parse_mapping(out)
     except ValueError:
         log(t("log_names_not_json"))
+        warn(t("log_names_not_json"))
         return by_order(paras, me, given)
     used, final = {n.casefold() for n in taken}, {}
     for label in labels:

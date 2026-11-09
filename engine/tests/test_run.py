@@ -1,5 +1,11 @@
 """bin/process_call.py: call.json as the source of truth, exit codes and the RESULT line (with fakes)."""
+import fcntl
 import json
+import os
+import subprocess
+import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -418,3 +424,268 @@ def test_a_name_taken_by_a_voice_print_is_not_given_again_ignoring_case():
     segs = [(0.1, 1.9, "а"), (2.1, 3.9, "б")]
     labeled, _ = speakers.label_system(segs, diar, ["влад", "Анна"], known={"B": "Влад"})
     assert [w for *_, w in labeled] == ["Анна", "Влад"]
+
+
+# --- Reflections: the user alone, thinking out loud ---
+
+def reflection(**kw):
+    return {"schema": 1, "id": "2026-11-04 15-01", "status": "recorded", "kind": "reflection", "profile": "", **kw}
+
+
+def test_reflection_is_one_speaker_without_diarization(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setenv("SOZVON_ME", "Boris")
+    called = []
+    monkeypatch.setattr(speakers.diarize, "run", lambda *a, **k: called.append(a) or [])
+    d = make_call(tmp_path, reflection(), tracks_=("system",))
+    assert run.main([str(d)]) == 0
+    text = (d / "transcript.txt").read_text(encoding="utf-8")
+    assert "Boris:" in text and "Собеседник" not in text
+    assert not called, "no diarization for one person"
+    assert json.loads((d / "call.json").read_text())["participants"] == []
+
+
+def test_reflection_with_a_mic_track_is_all_mine(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setenv("SOZVON_ME", "Boris")
+    d = make_call(tmp_path, reflection())
+    assert run.main([str(d)]) == 0
+    labels = {line.split("] ", 1)[1].split(":", 1)[0] for line in (d / "transcript.txt").read_text(encoding="utf-8").splitlines() if line}
+    assert labels == {"Boris"}
+
+
+def test_reflection_gets_its_own_summary(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "claude")
+    seen = []
+    monkeypatch.setattr(llm, "run", lambda prompt_text, cwd, *a, **k: (seen.append(prompt_text) or "## Главное\nмысль", "claude", ""))
+    monkeypatch.setattr(llm, "backend", lambda s=None: ("claude", "claude"))
+    d = make_call(tmp_path, reflection(), tracks_=("system",))
+    assert run.main([str(d)]) == 0
+    text = next(p for p in seen if "размышлени" in p.lower())
+    for section in ("## Главное", "## Анализ", "## Задачи", "## Открытые вопросы"):
+        assert section in text, section
+    assert "## Решения" not in text
+
+
+def test_a_call_is_not_a_reflection(tmp_path, capsys, fakes, monkeypatch):
+    d = make_call(tmp_path, {"schema": 1, "id": "2026-11-04 15-01", "status": "recorded"})
+    assert run.main([str(d)]) == 0
+    assert "Собеседник" in (d / "transcript.txt").read_text(encoding="utf-8")
+
+
+# ---- call.json "warnings": a step that failed on this run (docs/CONTRACT.md section 4) ----
+
+def _warnings(d):
+    return json.loads((d / "call.json").read_text()).get("warnings")
+
+
+def test_failed_summary_and_names_are_warnings(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+
+    def boom(*a, **kw):
+        raise TimeoutError("claude timed out")
+    monkeypatch.setattr(llm, "run", boom)
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "names": ["Анна"]})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    c = json.loads((d / "call.json").read_text())
+    assert c["status"] == "done"
+    assert [w["step"] for w in c["warnings"]] == ["names", "summary"]
+    assert all(w["error"] and "\n" not in w["error"] for w in c["warnings"])
+    assert "TimeoutError" in c["warnings"][1]["error"]
+
+
+def test_assistant_that_answers_nothing_is_a_summary_warning(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+    monkeypatch.setattr(llm, "run", lambda *a, **kw: (None, "claude", "rate limit\nsecond line"))
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01"})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    assert _warnings(d) == [{"step": "summary", "error": "claude: rate limit"}]
+
+
+def test_summary_off_or_no_assistant_is_not_a_warning(tmp_path, capsys, fakes, monkeypatch):
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01"})  # fakes: SOZVON_LLM=none, no assistant
+    assert run.main([str(d), "--no-diarize"]) == 0
+    assert _warnings(d) is None
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+    monkeypatch.setattr(llm, "run", lambda *a, **kw: (None, "claude", "down"))
+    assert run.main([str(d), "--no-diarize", "--no-summary"]) == 0
+    assert _warnings(d) is None
+
+
+def test_a_clean_run_removes_old_warnings(tmp_path, capsys, fakes):
+    old = [{"step": "summary", "error": "x"}]
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "warnings": old})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    assert _warnings(d) is None
+
+
+def test_summary_only_clears_and_sets_warnings(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+    d = make_call(tmp_path, {"schema": 1, "id": "2026-11-04 15-01", "status": "done",
+                             "warnings": [{"step": "summary", "error": "old"}]})
+    (d / "transcript.txt").write_text("[00:00] Я: Hi.\n[00:03] Ann: Hello.\n", encoding="utf-8")
+    monkeypatch.setattr(llm, "run", lambda *a, **kw: (None, "claude", "down"))
+    assert run.main([str(d), "--summary-only"]) != 0
+    assert _warnings(d) == [{"step": "summary", "error": "claude: down"}]
+    monkeypatch.setattr(llm, "run", lambda *a, **kw: ("## Summary\nOk.", "claude", ""))
+    assert run.main([str(d), "--summary-only"]) == 0
+    assert _warnings(d) is None
+
+
+def test_a_failed_summary_only_keeps_an_earlier_names_warning(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+    monkeypatch.setattr(llm, "run", lambda *a, **kw: (None, "claude", "down"))
+    d = make_call(tmp_path, {"schema": 1, "id": "2026-11-04 15-01", "status": "done",
+                             "warnings": [{"step": "names", "error": "n"}, {"step": "summary", "error": "old"}]})
+    (d / "transcript.txt").write_text("[00:00] Я: Hi.\n[00:03] Ann: Hello.\n", encoding="utf-8")
+    assert run.main([str(d), "--summary-only"]) != 0
+    assert _warnings(d) == [{"step": "names", "error": "n"}, {"step": "summary", "error": "claude: down"}]
+
+
+def test_summary_only_that_raises_leaves_a_warning(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(llm, "backend", lambda settings=None: ("claude", "/bin/claude"))
+
+    def boom(*a, **kw):
+        raise TimeoutError("claude timed out")
+    monkeypatch.setattr(llm, "run", boom)
+    d = make_call(tmp_path, {"schema": 1, "id": "2026-11-04 15-01", "status": "done"})
+    (d / "transcript.txt").write_text("[00:00] Я: Hi.\n[00:03] Ann: Hello.\n", encoding="utf-8")
+    assert run.main([str(d), "--summary-only"]) != 0
+    assert _warnings(d) == [{"step": "summary", "error": "TimeoutError: claude timed out"}]
+
+
+# ---- two engines on one call: the app crashed while the engine ran (pipeline/guard.py) ----
+
+_ORPHAN = """
+import subprocess, sys, time
+from sozvon_engine.pipeline import guard
+worker = subprocess.Popen(["sleep", "60"])
+print(worker.pid, flush=True)
+guard.watch_parent(interval=0.05)
+time.sleep(60)
+"""
+_APP = """
+import subprocess, sys, time
+engine = subprocess.Popen([sys.executable, "-c", sys.argv[1]], start_new_session=True)  # as ProcessRunner: own group
+print(engine.pid, flush=True)
+time.sleep(60)
+"""
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_engine_and_its_workers_die_with_the_app():
+    app = subprocess.Popen([sys.executable, "-c", _APP, _ORPHAN], stdout=subprocess.PIPE, text=True,
+                           cwd=Path(__file__).resolve().parent.parent)
+    try:
+        engine, worker = int(app.stdout.readline()), int(app.stdout.readline())
+        assert _alive(engine) and _alive(worker)
+        app.kill()
+        app.wait()
+        deadline = time.time() + 10
+        while (_alive(engine) or _alive(worker)) and time.time() < deadline:
+            time.sleep(0.05)
+        assert not _alive(engine), "the engine outlived the app"
+        assert not _alive(worker), "ffmpeg or an assistant outlived the app"
+    finally:
+        app.kill()
+
+
+def _hold(d):
+    fd = os.open(d, os.O_RDONLY)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    return fd
+
+
+def test_second_run_on_a_call_waits_for_the_first(tmp_path, capsys, fakes):
+    d = make_call(tmp_path, {"schema": 1, "id": "x"})
+    first = _hold(d)
+    codes = []
+    second = threading.Thread(target=lambda: codes.append(run.main([str(d), "--no-summary"])))
+    second.start()
+    second.join(0.5)
+    assert second.is_alive() and "tracks" not in fakes, "started next to the running engine"
+    os.close(first)  # the first run ended or was killed
+    second.join(30)
+    assert codes == [0]
+
+
+def test_run_releases_the_call_when_it_ends(tmp_path, capsys, fakes):
+    d = make_call(tmp_path, {"schema": 1, "id": "x"})
+    assert run.main([str(d), "--no-summary"]) == 0
+    fd = os.open(d, os.O_RDONLY)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if still held
+    os.close(fd)
+
+
+def test_only_a_real_launch_watches_the_parent(tmp_path, capsys, monkeypatch):
+    calls_ = []
+    monkeypatch.setattr(run.guard, "watch_parent", lambda: calls_.append(1))
+    run.main([str(tmp_path / "nope")])
+    assert calls_ == [], "tests and callers with arguments start no thread"
+    monkeypatch.setattr(run.guard, "exit_on_sigterm", lambda: None)  # not the real handler in the pytest process
+    monkeypatch.setattr(sys, "argv", ["process_call.py", str(tmp_path / "nope")])
+    run.main()
+    assert calls_ == [1]
+
+
+# ---- SIGTERM from the app: the working files go with the run ----
+
+_TERMINATED = """
+import sys, time
+from pathlib import Path
+from sozvon_engine.pipeline import guard, tracks
+d = Path(sys.argv[1])
+guard.exit_on_sigterm()
+try:
+    (d / ".work").mkdir()
+    (d / ".work" / "mic.wav").write_bytes(b"x" * 1000)
+    print("ready", flush=True)
+    time.sleep(60)
+finally:
+    tracks.cleanup(d)
+"""
+
+
+def test_sigterm_removes_working_files(tmp_path):
+    p = subprocess.Popen([sys.executable, "-c", _TERMINATED, str(tmp_path)], stdout=subprocess.PIPE, text=True,
+                         cwd=Path(__file__).resolve().parent.parent)
+    try:
+        assert p.stdout.readline().strip() == "ready"
+        p.terminate()
+        assert p.wait(10) == 143
+        assert not (tmp_path / ".work").exists()
+    finally:
+        p.kill()
+
+
+def test_only_a_real_launch_handles_sigterm(tmp_path, monkeypatch):
+    calls_ = []
+    monkeypatch.setattr(run.guard, "watch_parent", lambda: None)
+    monkeypatch.setattr(run.guard, "exit_on_sigterm", lambda: calls_.append(1))
+    run.main([str(tmp_path / "nope")])
+    assert calls_ == []
+    monkeypatch.setattr(sys, "argv", ["process_call.py", str(tmp_path / "nope")])
+    run.main()
+    assert calls_ == [1]
+
+
+def test_prepare_survives_a_stale_work_folder_that_cannot_be_removed(tmp_path, monkeypatch):
+    (tmp_path / ".work").mkdir()
+    monkeypatch.setattr(tracks.shutil, "rmtree", lambda *a, **kw: None)  # e.g. a file held open
+    assert tracks.prepare({}, {}, tmp_path, lambda m: None) == {}
+
+
+def test_people_at_the_microphone_do_not_raise_the_remote_voice_count(tmp_path):
+    """Transcribing again: only the other side's voices may tell diarization of the system track what to expect."""
+    (tmp_path / "transcript.txt").write_text(
+        "[00:01] Я: а\n[00:02] Влад: б\n[00:03] София: в\n[00:04] Собеседник 3: г\n[00:05] Собеседник 4: д\n[00:06] Олег: е\n",
+        encoding="utf-8")
+    tracks = {"Я": "mic", "Влад": "system", "София": "both", "Собеседник 3": "mic", "собеседник  4": "mic"}
+    assert run._voices_heard(tmp_path, "Я") == 5
+    assert run._voices_heard(tmp_path, "Я", tracks) == 3  # Влад, София ("both") and Олег, whom the map doesn't know
+    assert run._voices_heard(tmp_path, "Я", "broken") == 5

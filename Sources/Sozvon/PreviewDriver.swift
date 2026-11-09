@@ -46,7 +46,12 @@ enum PreviewDriver {
         case "callinfo-sure":
             // The project and the people are known: the form goes ahead by itself after a countdown.
             Task {
-                _ = await CallInfoPrompt.answer(CallInfo(names: "Анна Петрова, Олег", topic: "Планирование релиза"),  // l10n-ignore
+                // l10n-ignore-start: fictional call content in the language of the interface, for the screenshots
+                let en = Engine.uiLanguage == "en"
+                let info = CallInfo(profile: "acme", names: en ? "Anna Petrova, Oleg" : "Анна Петрова, Олег",
+                                    topic: en ? "Release planning" : "Планирование релиза", languages: en ? [.en] : [.ru])
+                // l10n-ignore-end
+                _ = await CallInfoPrompt.answer(info,
                                                 title: L("О чём был звонок?"), okTitle: L("Расшифровать"),
                                                 allowLater: true, countdown: 9)
             }

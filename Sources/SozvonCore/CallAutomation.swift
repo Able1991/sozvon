@@ -46,13 +46,25 @@ public enum CallAutomation {
     public static func setAutoStop(_ on: Bool, _ d: UserDefaults = .standard) {
         d.set(on, forKey: autoStopKey)
     }
+
+    public static let remindConsentKey = "remindConsent"
+
+    /// "Remind me to say the call is recorded" (off by default).
+    public static func remindConsent(_ d: UserDefaults = .standard) -> Bool {
+        d.bool(forKey: remindConsentKey)
+    }
+
+    public static func setRemindConsent(_ on: Bool, _ d: UserDefaults = .standard) {
+        d.set(on, forKey: remindConsentKey)
+    }
 }
 
 /// During one recording: notices that the call is over. Armed once a call app has held the microphone for
 /// `armHold` seconds in a row during the recording (a recording of a meeting in the room is never stopped, and a
 /// voice message during it doesn't count). The countdown runs while no call app holds the microphone and the other
 /// side is silent: an app that releases the microphone on mute is still a call as long as someone is heard.
-/// "Keep recording" cancels it until the next call.
+/// "Keep recording" cancels it for the rest of this recording: apps that let go of the microphone on mute would
+/// otherwise bring the countdown back in the middle of the call.
 public struct CallEndDetector: Equatable, Sendable {
     public static let armHold: TimeInterval = 15
 
@@ -70,12 +82,12 @@ public struct CallEndDetector: Equatable, Sendable {
         if inCall {
             let since = heldSince ?? now
             heldSince = since
-            if now.timeIntervalSince(since) >= Self.armHold { armed = true; kept = false }
+            if now.timeIntervalSince(since) >= Self.armHold { armed = true }
             releasedAt = nil
             return nil
         }
         // The source reports changes only: how long the app held the microphone is known when it lets go.
-        if let since = heldSince, now.timeIntervalSince(since) >= Self.armHold { armed = true; kept = false }
+        if let since = heldSince, now.timeIntervalSince(since) >= Self.armHold { armed = true }
         heldSince = nil
         guard armed, !kept, !otherSideAudible else { releasedAt = nil; return nil }
         let since = releasedAt ?? now
@@ -83,9 +95,21 @@ public struct CallEndDetector: Equatable, Sendable {
         return max(0, grace - now.timeIntervalSince(since))
     }
 
-    /// "Keep recording": no automatic stop until a call app takes the microphone again and lets it go.
+    /// "Keep recording": no automatic stop for the rest of this recording.
     public mutating func keepRecording() {
         kept = true
         releasedAt = nil
+    }
+}
+
+/// Whole seconds on a countdown capsule.
+public enum Countdown {
+    /// Seconds left, rounded up: 0.2 s left still shows 1.
+    public static func seconds(left: TimeInterval) -> Int { Int(left.rounded(.up)) }
+
+    /// The start countdown at `now`: the seconds to show (never negative) and whether the deadline has come.
+    public static func startTick(deadline: Date, now: Date) -> (shown: Int, due: Bool) {
+        let left = seconds(left: deadline.timeIntervalSince(now))
+        return (max(left, 0), left <= 0)
     }
 }

@@ -4,12 +4,13 @@ The app, the MCP server and the engine never see a half-written file.
 Read-modify-write runs under locked(): otherwise two processes (MCP server and
 transcription) read the same version and the second overwrites the first one's change.
 """
-import fcntl
 import json
 import os
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+
+from . import platform_support
 
 SCHEMA = 1
 
@@ -68,10 +69,10 @@ def locked(path: Path):
     _ensure_parent(path)
     fd = os.open(path.with_name(path.name + ".lock"), os.O_RDWR | os.O_CREAT, 0o600)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+        platform_support.lock_exclusive(fd)
         yield
     finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
+        platform_support.unlock(fd)
         os.close(fd)
 
 

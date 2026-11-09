@@ -12,43 +12,66 @@
 
 <p align="center"><b><a href="https://github.com/Able1991/sozvon/releases/latest/download/Sozvon.dmg">Download for Mac</a></b> · <a href="https://able1991.github.io/sozvon/">Website</a> · <a href="https://able1991.github.io/sozvon/docs.html">Documentation</a> · <a href="README.ru.md">Русский</a></p>
 
-<p align="center"><img src="docs/images/en-calls.png" width="820" alt="Calls window"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-calls-dark.png"><img src="docs/images/en-calls.png" width="820" alt="Calls window"></picture></p>
 
 ## Features
 
-- **One button.** A floating panel above all windows (including full-screen Zoom) or a menu bar icon: Record, take the call, Stop. Works with Zoom, Google Meet, FaceTime, Telegram, TrueConf, anything: it captures system audio and the microphone, no virtual audio drivers.
-- **Offers to record, or records by itself if you choose.** When Zoom, Telegram, a browser or another call app turns on the microphone, the panel asks "A call is on in Zoom. Record?". Not Now keeps it quiet until that call ends. In Settings it can instead start recording after a 10 second countdown, and stop 30 seconds after the call ends; both are off by default and can be cancelled on the panel.
-- **Title and people from Calendar.** After Stop, the form is already filled from the meeting in your calendar: topic, participants and project.
-- **Later.** No time to describe the call right after Stop? Press Later: the call waits under "Waiting for Description" in the menu, and Sozvon reminds you once you are free.
-- **Mark what matters.** Press the star on the panel or ⌃⌥I during the call: that moment is starred in the transcript and explained in the summary.
-- **Never a silent recording.** If your mic or the other side goes silent for two minutes, Sozvon captures that audio again by itself and tells you if that did not help.
-- **Local.** Speech recognition and speaker separation run on Apple silicon. Audio leaves your Mac only for your own server, if you set one up and keep Send call audio on.
-- **No echo without headphones.** On speakers your mic hears the other side too; Sozvon removes that echo from your track before recognition, on the Mac, and raises a very quiet mic; the player plays this cleaned voice, so you hear yourself without the echo. During a recording it warns when the system input volume is below 50% or your voice has been barely audible for three minutes. Headphones are still best.
-- **Who said what.** Your voice and the other side are recorded on separate tracks, remote speakers are separated by voice, and the assistant names them from the conversation ("Masha, how are you?").
-- **Knows voices.** Record a 20-second sample of your voice in Settings > General > My voice (add one per call language if you like). Settings > General > Voices > Show… lists every saved voice and deletes any of them. When a transcript names everyone right, Remember Voices confirms them in one click. Name a speaker in a call once, and Sozvon saves their voice print for the project and names that voice by itself in the project's next calls, even two people with the same first name. Voice prints are biometric data: they stay on your Mac (and your own server, if you use one), and deleting one deletes it everywhere.
-- **Summary** in the language of the call: a short overview, decisions, action items with owners, open questions. Optional, through Claude Code, Codex or Cursor on your own subscription.
-- **Projects.** People, terms and replacements per client, so recognition spells names and jargon correctly. Projects can be discovered automatically from your Claude Code, Codex or Cursor sessions.
-- **Calls window.** Calls grouped by day, search across everything including transcript text, a card with the summary, the transcript and notes.
-- **Listen along.** Click a transcript line and the call plays from there, with the current line highlighted. Back and forward 15 s, 1x, 1.5x, 2x.
-- **Fix the transcript.** Rename a speaker (with name suggestions, in the whole transcript or just one line), swap two mixed-up people, or fix a misheard word and let the project remember the fix for the next calls. Then Update Summary rewrites only the summary to match.
-- **Delete audio automatically** after a week, 15, 30 or 60 days if you like, on your own server too: transcripts, summaries and notes stay.
-- **Import recordings.** Drop an old m4a, mp3, wav, mp4 or mov onto the Calls window and it is transcribed like a new call.
-- **Tasks to Reminders.** Your action items from the summary, and notes if you want, go to Apple Reminders, with due dates when the call named a clear day.
-- **Notes.** Leave a note on a call (a decision, a follow-up), or let Claude, Codex and Cursor add one. Notes show under the call and search finds them.
-- **Claude, Codex and Cursor can read your calls** through MCP: "what did we decide with the client last week?". Ranked search finds any word form, and the assistant passes alternative phrasings, because speech is transcribed as it was said.
-- **Ask about a call from your phone (optional).** Your own small server in your own free Cloudflare account, set up with one button, lets Claude or ChatGPT answer from the phone or the web while the Mac is off. We never see your data.
-- **Sync across Macs.** A second Mac connected to the same server gets your calls with their audio, notes and voice prints; a call you delete in Sozvon goes away on the others too (to the Trash).
-- **Multiple languages** in one call, Russian and English UI, light and dark mode.
+Recording, transcription and speaker separation run on your Mac. Audio leaves it only for [your own server](#your-own-server-optional), if you set one up. Every detail is in the [documentation](https://able1991.github.io/sozvon/docs.html).
+
+### Recording
+
+- **One button.** A floating panel above all windows, or a menu bar icon. Works with Zoom, Google Meet, FaceTime, Telegram, TrueConf, anything. No virtual audio drivers.
+- **Notices calls.** Asks "A call is on in Zoom. Record?". Can also start and stop by itself, if you turn that on.
+- **Filled in from Calendar.** After Stop, the topic, people and project are already in the form.
+- **Later.** No time to describe the call? It waits in the menu, and Sozvon reminds you.
+- **Mark what matters.** Press the star or ⌃⌥I: that moment is starred in the transcript and explained in the summary.
+- **Never a silent recording.** If your mic or the other side goes silent for two minutes, Sozvon captures that audio again.
+
+### Clean sound
+
+- **No echo without headphones.** The other side's voice is removed from your mic, on the Mac, with a small neural model (11 MB). Nearby voices are kept, though one much quieter than the speakers can come out quieter.
+- **A quiet mic is raised.** And Sozvon warns you during the recording if you are barely audible.
+- **Even volume in the player.** Loud stretches are lowered and quiet speech is raised a little.
+
+### Who said what
+
+- **Separate tracks.** You and the other side are recorded apart, and remote speakers are told apart by voice.
+- **Names from the conversation.** The assistant works them out ("Masha, how are you?").
+- **Knows voices.** Save your voice in 20 seconds. Name someone once, and later calls of that project name them by themselves. Voice prints are biometric data: they stay on your Mac (and your own server, if you use one), and you can delete any of them.
+- **Summary** in the language of the call: overview, decisions, action items with owners, open questions. Optional, through Claude Code, Codex or Cursor on your own subscription.
+- **Projects.** People, terms and replacements per client, so names and jargon are spelled right.
+- **Multiple languages** in one call.
+
+### Your calls
+
+- **Calls window.** Grouped by day, with search across everything, including transcript text.
+- **Listen along.** Click a line and the call plays from there, at up to 2x.
+- **Fix the transcript.** Rename a speaker, swap two people, correct a word, and the project remembers the fix.
+- **Notes.** Yours or an assistant's, shown under the call and found by search.
+- **Tasks to Reminders.** Your action items go to Apple Reminders, with due dates when the call names a day.
+- **Delete audio automatically** after 7, 15, 30 or 60 days. Transcripts, summaries and notes stay.
+
+### Beyond calls
+
+- **Reflections.** Think out loud and get the main point, an analysis, what to do and open questions.
+- **Recordings from your phone.** Voice Memos saved to a folder are transcribed by themselves, or record in one tap with the [Think Out Loud shortcut](https://www.icloud.com/shortcuts/eca8c5ccf15d474db3490d66f4dadaf0) for iPhone.
+- **Import recordings.** Drop an m4a, mp3, wav, mp4 or mov onto the Calls window.
+
+### Assistants and other devices
+
+- **Claude, Codex and Cursor read your calls** through [MCP](#claude-code-codex-and-cursor-mcp): "what did we decide with the client last week?".
+- **Ask from your phone (optional).** Claude or ChatGPT answer while the Mac is off, through [your own server](#your-own-server-optional).
+- **Sync across Macs.** A second Mac on the same server gets your calls, audio, notes and voices.
 
 <p align="center">
-<img src="docs/images/en-panel.png" width="300" alt="Floating panel">
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-panel-dark.png"><img src="docs/images/en-panel.png" width="300" alt="Floating panel"></picture>
 &nbsp;
-<img src="docs/images/en-menu.png" width="250" alt="Menu">
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-menu-dark.png"><img src="docs/images/en-menu.png" width="250" alt="Menu"></picture>
 </p>
 
 ## Installation
 
-1. Download `Sozvon.dmg` from [Releases](https://github.com/Able1991/sozvon/releases/latest) and drag Sozvon to Applications. The app is signed and notarized by Apple.
+1. Download `Sozvon.dmg` from [Releases](https://github.com/Able1991/sozvon/releases/latest) and drag Sozvon to Applications, or run `brew install --cask able1991/sozvon/sozvon`. The app is signed and notarized by Apple.
 2. Launch it. The setup assistant asks for your name, the language of your calls, a recognition model and an assistant for summaries, then installs the engine: 5-10 minutes, 1-4 GB depending on the model. No tokens or sign-ups.
 3. Allow the Microphone, Screen Recording and System Audio Recording (System Settings shows the last two under Screen & System Audio Recording; setup and Settings > General > Permissions have buttons for each). Video is not recorded, only audio. System audio comes through a Core Audio process tap, so FaceTime calls are heard too. Setup ends with a three second test recording that proves recording works before the first call; until setup is finished, the rest of the menu is unavailable. Access to Reminders is asked only when you first use To Reminders. The call prompt needs no permission.
 
@@ -57,9 +80,9 @@
 **Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional.
 
 <p align="center">
-<img src="docs/images/en-setup-model.png" width="360" alt="Choosing a model">
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-setup-model-dark.png"><img src="docs/images/en-setup-model.png" width="360" alt="Choosing a model"></picture>
 &nbsp;
-<img src="docs/images/en-callinfo.png" width="360" alt="After a call">
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-callinfo-dark.png"><img src="docs/images/en-callinfo.png" width="360" alt="After a call"></picture>
 </p>
 
 ## Recognition models
@@ -83,6 +106,8 @@ Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cur
 | `list_calls` | list calls: date, topic, project, people, duration; filter by any text |
 | `get_call` | summary and/or transcript of a call, with its notes |
 | `search_calls` | ranked search across all transcripts, summaries and notes, with timestamps; matches word forms; `also` takes 2-3 alternative phrasings of the query |
+| `get_commitments` | what people promised: action items from the summaries, by person or project |
+| `get_person` | a person across calls: how many and the last one, projects, who else was there, open commitments |
 | `add_note` | leave a note on a call (a decision, a follow-up); it shows in the Calls window |
 | `delete_note` | delete a note from a call, by the id `get_call` shows |
 | `transcribe` | transcribe any audio or video file |
@@ -93,7 +118,22 @@ Manual setup and details: [documentation](https://able1991.github.io/sozvon/docs
 
 ### Your own server (optional)
 
-To ask Claude or ChatGPT about your calls from your phone or the web while the Mac is off, set up your own small server in your free Cloudflare account: Settings > Cloud > Connect Cloudflare, then Allow. Then Open Claude (or ChatGPT) on the same tab adds it as a connector ([docs/SERVER.md](docs/SERVER.md)). It runs in your account, so your calls never go to us or any shared service, and you can delete everything at any time. The text of your calls always goes up. Two toggles on the same tab, both on by default, decide the rest: Send call audio (stored in chunks in your own Cloudflare D1; the free plan holds about 80 hours of calls, after that the server refuses new audio, only text syncs and Sozvon says so) and Send voice prints. The voices of other people are then in your Cloudflare account, under your responsibility, including their consent. Claude and ChatGPT never get audio or voice prints, only text. Sync goes both ways: a new Mac connected to the same server downloads your calls with their audio (so the player works), notes and voice prints, only calls you delete in Sozvon are deleted there, and a call deleted on one Mac goes to the Trash on the others. Connect Cloudflare keeps a copy of the server password in your own Cloudflare account, so Connect on a new Mac reuses it and the connectors stay signed in. Through the server Claude and ChatGPT can list, read and search calls, add notes and delete a note, but never change or delete a call. When a new Sozvon brings a new server, press Update server on the Cloud tab once.
+Ask Claude or ChatGPT about your calls from your phone or the web while the Mac is off. The server runs in your own free Cloudflare account, so your calls never reach us or any shared service, and you can delete everything at any time.
+
+**Set up:** Settings > Cloud > Connect Cloudflare, then Allow. Open Claude (or ChatGPT) on the same tab adds it as a connector.
+
+| What goes up | When |
+|---|---|
+| Text of your calls | always |
+| Call audio | Send call audio, on by default. The free plan holds about 80 hours, then only text syncs |
+| Voice prints | Send voice prints, on by default. Other people's voices are then your responsibility, including their consent |
+
+- **Claude and ChatGPT get text only,** never audio or voice prints. They can list, read and search calls and add or delete notes, but never change or delete a call.
+- **Second Mac.** Connect it to the same server: it downloads your calls with audio, notes and voices, and the connectors stay signed in.
+- **Deleting.** Only calls you delete in Sozvon are deleted on the server. On your other Macs they go to the Trash.
+- **Updates.** When a new Sozvon brings a new server, press Update server on the Cloud tab once.
+
+How it works: [docs/SERVER.md](docs/SERVER.md).
 
 ## What goes online
 
@@ -102,10 +142,12 @@ To ask Claude or ChatGPT about your calls from your phone or the web while the M
 | Recording, transcription, echo removal, speaker separation, imported recordings | nowhere, only `~/Documents/Calls` | always |
 | Voice prints (your sample and the people you named) | nowhere, `~/Library/Application Support/Sozvon/voices` | once you record a sample or name a speaker |
 | Live voice match during a recording (only if voices of other people are saved; pieces of the other side's audio, deleted as soon as they are matched) | nowhere, stays on the Mac | while recording |
-| Which app is using the microphone (for the call prompt; only the app, never the audio) | nowhere, read on the Mac | unless When a Call Starts is Do Nothing and the automatic stop is off |
+| Which app is using the microphone (for the call prompt; only the app, never the audio) | nowhere, read on the Mac | always while Sozvon runs |
 | The meeting at the time of a recording (title, attendees) for the call form | nowhere, read from Calendar on the Mac | after each recording, unless turned off in Settings |
 | Tasks and notes you send to Reminders | nowhere, the Reminders app on this Mac (if Reminders syncs through iCloud, Apple syncs them further) | only when you press To Reminders |
+| Recordings from your phone | the folder you chose (in iCloud Drive, Apple syncs the files and their move to Imported) | only if you choose a folder |
 | Python environment, models | PyPI, huggingface.co | once, during setup |
+| Echo removal model (11 MB) | huggingface.co | once, during setup, or at the first launch after the update that brings it |
 | uv binary (if missing), CPython for `uv sync`, fallback archive of the speaker separation models (release `models-v1`) | github.com | once, during setup |
 | Transcript text for the summary and speaker names | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
 | Whatever the assistant reads through MCP | Anthropic, OpenAI or Cursor | only when you ask it |
@@ -136,7 +178,7 @@ docs/               website (GitHub Pages), CONTRACT.md (app and engine contract
 build.sh            builds the .app and .dmg, signing, notarization
 ```
 
-After Stop: tracks are aligned → a very quiet track is raised and the other side's echo is removed from the microphone → recognition with hints from the project → speaker separation → names from saved voice prints, then from context → `transcript.md`, `summary.md`.
+After Stop: tracks are aligned → a very quiet track is raised and the other side's echo is removed from the microphone → recognition with hints from the project → speaker separation → names from saved voice prints, then from context → `transcript.md`, `summary.md` → the levelled `listen.m4a` for the player.
 
 ## Building and testing
 
@@ -152,4 +194,4 @@ Requires Xcode Command Line Tools and [uv](https://docs.astral.sh/uv/). Optional
 
 ## License
 
-MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0).
+MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0).

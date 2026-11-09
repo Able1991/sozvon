@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var menu: MenuController!
     let callPrompt = CallPromptController()
     let pendingInfo = PendingInfoController()
+    private let phoneInbox = PhoneInboxWatcher()
     /// Cached in stateChanged: the call prompt asks often while a call holds the mic.
     private var engineUsable = false
     private var updateTimer: Timer?
@@ -49,9 +50,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         guard takeInstanceLock() else { return }
         try? FileManager.default.createDirectory(at: Paths.calls, withIntermediateDirectories: true)
-        // The previous run quit mid-transcription: the call must not stay "transcribing" forever.
-        let calls = Paths.calls
-        Task.detached(priority: .utility) { CallFile.failStaleProcessing(in: calls) }
         // An import that crashed left a call folder without audio or a temp file: to the Trash.
         AudioImport.cleanLeftovers()
         Engine.syncCode()
@@ -61,8 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             switch action {
             case .record: self.callPrompt.record()
             case .notNow: self.callPrompt.notNow()
-            case .keepRecording: self.callPrompt.keepRecording()
-            case .callEnded: break
             case .callPrompt: break  // a click on the notification is not consent to record
             case .openCall:
                 self.showCalls(select: url)
@@ -78,14 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MCPServer.shared.start()
         pendingInfo.start()
         processing.updateEngineIfNeeded()
+        // After the check above, so an engine update holds them; a crashed run comes back once.
+        let restored = processing.restoreQueue()
         startUpdates()
+        // Working files of runs that were killed outright; off the main thread, next to the live pieces sweep.
+        let callsRoot = Paths.calls
+        Task.detached(priority: .utility) { WorkFiles.sweep(in: callsRoot, keeping: restored) }
         AudioCleanup.isBusy = { [weak self] dir in
             guard let self else { return true }
             return self.processing.contains(dir) || self.calls.recordingDir?.standardizedFileURL == dir.standardizedFileURL
         }
         AudioCleanup.onChange = { [weak self] in self?.calls.reload() }
         // Not in the first seconds after launch: the app is busy enough then.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { MainActor.assumeIsolated { _ = AudioCleanup.run() } }
+        mainAfter(60) { _ = AudioCleanup.run() }
         updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             MainActor.assumeIsolated { _ = AudioCleanup.run() }
         }
@@ -97,9 +98,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // A relaunch after granting screen recording permission resumes the setup assistant at the same step.
         // integer(forKey:) reads both a number from defaults and a string from launch arguments (-setupResumeStep 3).
-        var resume = UserDefaults.standard.object(forKey: "setupResumeStep") != nil
-            ? UserDefaults.standard.integer(forKey: "setupResumeStep") : nil
-        UserDefaults.standard.removeObject(forKey: "setupResumeStep")
+        var resume = UserDefaults.standard.object(forKey: DefaultsKey.setupResumeStep) != nil
+            ? UserDefaults.standard.integer(forKey: DefaultsKey.setupResumeStep) : nil
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.setupResumeStep)
         // Setup not finished: back on the step it was on (whatever relaunched us). Without a working engine
         // nothing past the model step makes sense: start from the model then.
         if resume == nil, UserDefaults.standard.object(forKey: Self.setupDoneKey) != nil, !Self.setupDone,
@@ -186,12 +187,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ), snapshot: { [unowned self] in self.menuSnapshot })
 
         recording.initialInfo = {
-            CallInfo(profile: UserDefaults.standard.string(forKey: "lastProfile") ?? "", languages: Settings.shared.languages)
+            CallInfo(profile: UserDefaults.standard.string(forKey: DefaultsKey.lastProfile) ?? "", languages: Settings.shared.languages)
         }
         recording.onChange = { [weak self] in self?.stateChanged() }
         recording.canStart = { [weak self] in self?.requireSetup() ?? false }
         recording.onLevels = { [weak self] in self?.panel.fit() }
-        recording.onSaved = { [weak self] session in self?.processing.recorded(session) }
+        recording.onSaved = { [weak self] session in
+            guard let self else { return }
+            self.processing.recorded(session)
+        }
         processing.onAnswered = { [weak self] dir in self?.recording.dismissSaved(dir) }
         processing.onChange = { [weak self] in self?.stateChanged() }
         processing.showSetup = { [weak self] step in self?.showSetup(step: step) }
@@ -203,7 +207,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         processing.onPendingChange = { [weak self] in self?.pendingInfo.refresh() }
         processing.onOpenCall = { [weak self] dir in self?.showCalls(select: dir) }
-        processing.isRecording = { [weak self] in self?.recording.state.isCapturing ?? false }
+        processing.holdsQueue = { [weak self] in
+            guard let self else { return true }
+            let s = self.recording.state
+            // A broken engine would fail a restored call and spend its only retry.
+            return !self.engineUsable || s.isCapturing || s.isStarting || LiveVoices.shared.isActive || CallApps.inCall()
+        }
+        callPrompt.onMicChange = { [weak self] in self?.processing.startNext() }
+        calls.onRemoveFromQueue = { [weak self] call in self?.processing.removeFromQueue(call.url) }
         calls.onResummarize = { [weak self] call in self?.processing.resummarize(call.url) }
         pendingInfo.isBusy = { [weak self] in
             guard let self else { return false }
@@ -274,7 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         p.elapsed = s.session?.elapsed() ?? "0:00"
         importantKey.setActive(s.isRecording)
-        if !s.isCapturing && !s.isStarting { processing.recordingEnded() }
+        processing.startNext()
         // Without a ready engine, don't show the "Record" capsule: the recording couldn't be transcribed anyway.
         var showPanel = (engineUsable && Self.setupDone) || s.isCapturing || processing.isProcessing
         #if SOZVON_PREVIEW
@@ -285,9 +296,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu?.stateChanged()
         if s.isRecording, tickTimer == nil {
             // In .common mode the timer keeps running while the menu is open.
-            let t = Timer(timeInterval: 1, repeats: true) { [weak self] _ in MainActor.assumeIsolated { self?.tick() } }
-            RunLoop.main.add(t, forMode: .common)
-            tickTimer = t
+            tickTimer = Timer.repeatingOnMain(every: 1) { [weak self] in self?.tick() }
         } else if !s.isRecording {
             tickTimer?.invalidate()
             tickTimer = nil
@@ -397,10 +406,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startUpdates() {
         AppUpdater.announceIfUpdated()
         LiveVoices.sweep()
+        phoneInbox.calls = calls
+        phoneInbox.isBusy = { [weak self] in
+            guard let self else { return true }
+            return !self.isIdle || !self.engineUsable || !Self.setupDone || self.processing.hasWork
+                || AppUpdater.shared.updateReady  // the quiet install would meet the modal
+        }
+        phoneInbox.onImported = { [weak self] dir, info in self?.processing.transcribe(dir, info) }
+        phoneInbox.start()
         AppUpdater.shared.activity = { [weak self] in
             guard let self else { return .init() }
             let windowOpen = NSApp.windows.contains { $0.isVisible && !($0 is NSPanel) && $0.styleMask.contains(.titled) }
-            return Updates.Activity(recording: !self.isIdle, processing: self.processing.isProcessing,
+            return Updates.Activity(recording: !self.isIdle, processing: self.processing.hasWork,
                                     inCall: CallApps.inCall(), windowOpen: windowOpen, settingUp: !Self.setupDone)
         }
         AppUpdater.shared.onChange = { [weak self] in self?.stateChanged() }
@@ -437,8 +454,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSApp.activate(ignoringOtherApps: true)
                 guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
             }
-            processing.abortAll()
         }
+        processing.abortAll()  // also with nothing running: no waiting call may start while the app quits
         guard let finalize = recording.finalizeForTermination() else { return .terminateNow }
         Task {
             await finalize.value

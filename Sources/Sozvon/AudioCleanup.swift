@@ -36,7 +36,7 @@ enum AudioCleanup {
         let dirs = expired(days: newDays)
         guard !dirs.isEmpty else { return true }
         let size = dirs.reduce(Int64(0)) { total, d in
-            total + AudioRetention.tracks.reduce(Int64(0)) { t, name in
+            total + AudioRetention.removedFiles.reduce(Int64(0)) { t, name in
                 t + ((try? FileManager.default.attributesOfItem(atPath: d.appendingPathComponent(name).path)[.size]
                       as? NSNumber)?.int64Value ?? 0)
             }

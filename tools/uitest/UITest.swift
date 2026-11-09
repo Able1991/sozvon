@@ -176,7 +176,8 @@ let actionable: Set<String> = ["AXButton", "AXMenuButton", "AXPopUpButton", "AXC
 let external = ["Finder", "Подключ", "Connect", "Claude", "ChatGPT", "Codex", "Cursor", "Терминал", "Terminal", "Выйти", "Quit",
                 "браузер", "Перезапустить", "Relaunch", "Cloudflare", "Открыть сайт", "GitHub", "Системные настройки",
                 "Скачать модель", "Переустановить", "Установить", "Повторить", "Записать", "Обновить сервер",
-                "Проверить", "Синхронизировать", "Импорт"]
+                "Проверить", "Сохранить архив", "Save Archive", "Синхронизировать", "Импорт", "Выбрать папку", "Choose Folder",
+                "Запись одним нажатием", "Record in one tap"]
 /// Toggles that ask macOS for a permission (Calendar, Reminders, notifications): hit-tested, never switched.
 let permissionToggles = ["Календар", "Calendar", "Напоминан", "Reminders", "уведомлен"]
 /// Menu items never picked by the popup check.
@@ -193,7 +194,7 @@ func reveal(_ e: AXUIElement, in w: AXUIElement) -> CGRect? {
         // Clip to the enclosing scroll view, if any.
         var x = parent(e)
         while let y = x { if role(y) == "AXScrollArea", let sf = frame(y) { v = v.intersection(sf); break }; x = parent(y) }
-        return v.insetBy(dx: 1, dy: 1)
+        return v.insetBy(dx: 1, dy: 0)  // a center on the last visible row still takes a click (reachable checks it)
     }
     AXUIElementPerformAction(e, "AXScrollToVisible" as CFString)
     wait(0.15)

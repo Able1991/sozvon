@@ -10,5 +10,6 @@
     "parakeet": {"kind": "onnx", "onnx_name": "nemo-parakeet-tdt-0.6b-v3", "repo": "istupakov/parakeet-tdt-0.6b-v3-onnx", "revision": "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce", "dir": "parakeet-tdt-0.6b-v3-onnx",
                  "files": ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"], "size_gb": 0.7}
   },
-  "vad": {"repo": "istupakov/silero-vad-onnx", "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6", "dir": "silero-vad-onnx", "files": ["config.json", "silero_vad.onnx"]}
+  "vad": {"repo": "istupakov/silero-vad-onnx", "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6", "dir": "silero-vad-onnx", "files": ["config.json", "silero_vad.onnx"]},
+  "aec": {"repo": "LocalAI-io/LocalVQE", "revision": "29ca38495cba9d6393a92a4dd890f28dd81f758d", "dir": "localvqe-v1.2", "files": ["localvqe-v1.2-1.3M.pt"], "sha256": "ff6885e7c8d7d29a8ce963303dcd668ae0f2a7bdafae28631292fe6f06f7cd77", "license": "Apache-2.0"}
 }

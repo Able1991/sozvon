@@ -119,6 +119,7 @@ public enum CloudflareOAuth {
             s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
         }
+        let openApp = L("Открыть Sozvon")  // outside the template: tools/l10n.py does not see an L() inside \( )
         return """
         <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">\
         <title>Sozvon</title><style>body{font:16px -apple-system,system-ui,sans-serif;margin:0;display:flex;\
@@ -127,7 +128,7 @@ public enum CloudflareOAuth {
         h1{font-size:22px;margin:0 0 8px}p{margin:0;opacity:.7}</style></head>\
         \(returnTo.map { "<meta http-equiv=\"refresh\" content=\"0;url=\(esc($0))\">" } ?? "")\
         <body><main><h1>\(esc(title))</h1><p>\(esc(text))</p>\
-        \(returnTo.map { "<p style=\"margin-top:16px\"><a href=\"\(esc($0))\">\(esc(L("Открыть Sozvon")))</a></p>" } ?? "")\
+        \(returnTo.map { "<p style=\"margin-top:16px\"><a href=\"\(esc($0))\">\(esc(openApp))</a></p>" } ?? "")\
         </main></body></html>
         """
     }
@@ -481,10 +482,15 @@ public struct CloudflareAPI: Sendable {
     public let session: URLSession
     public let base: URL
 
-    public init(token: String, session: URLSession = .shared, base: URL = CloudflareAPI.base) {
+    /// Pauses before the second and third try of a request Cloudflare answered with a temporary error.
+    let retryDelays: [Double]
+
+    public init(token: String, session: URLSession = .shared, base: URL = CloudflareAPI.base,
+                retryDelays: [Double] = [2, 6]) {
         self.token = token
         self.session = session
         self.base = base
+        self.retryDelays = retryDelays
     }
 
     /// One request. `path` segments must already be percent-encoded where needed (KV key names).
@@ -516,8 +522,8 @@ public struct CloudflareAPI: Sendable {
                     // No path: the request id identifies the call for Cloudflare, and a path may name a KV key.
                     Self.log("\(method) -> \(status) cf-ray \(ray) \(errors.joined(separator: "; "))")
                 }
-                if Self.retryable(status), attempt < Self.retryDelays.count {
-                    try await Task.sleep(for: .seconds(Self.retryDelays[attempt]))
+                if Self.retryable(status), attempt < retryDelays.count {
+                    try await Task.sleep(for: .seconds(retryDelays[attempt]))
                     attempt += 1
                     continue
                 }
@@ -532,9 +538,6 @@ public struct CloudflareAPI: Sendable {
             }
         }
     }
-
-    /// Pauses before the second and third try of a request Cloudflare answered with a temporary error.
-    nonisolated(unsafe) static var retryDelays: [Double] = [2, 6]
 
     static func retryable(_ status: Int) -> Bool { status == 502 || status == 503 || status == 504 }
 

@@ -203,3 +203,27 @@ def test_transcribe_tool_auto_language_and_word_times(data, tmp_path, monkeypatc
     f.write_bytes(b"x")
     assert tools.transcribe(str(f), language="auto") == "[00:07] Привет.\n[00:08] Да."
     assert seen["language"] is None and seen["word_timestamps"] is True
+
+
+def _ts_tools() -> dict:
+    """Tool name -> argument names, read from the hosted server's registerTool calls (server/src/mcp.ts)."""
+    import re
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2] / "server" / "src" / "mcp.ts").read_text(encoding="utf-8")
+    out = {}
+    for chunk in src.split('registerTool("')[1:]:
+        name = chunk.split('"', 1)[0]
+        schema = chunk.split("inputSchema:", 1)[1]
+        schema = re.split(r"\n\s+(?:annotations|outputSchema):|outputSchema:", schema, maxsplit=1)[0]
+        out[name] = set(re.findall(r"^\s{6}(\w+): z\.", schema, re.M)) or set(re.findall(r"[{,]\s*(\w+): z\.", schema))
+    return out
+
+
+def test_mcp_tools_shared_with_the_hosted_server():
+    """The calls tools exist twice (mcp/tools.py here, server/src/mcp.ts for the cloud): same names, same arguments."""
+    import asyncio
+    local = {t.name: set(t.inputSchema.get("properties", {})) for t in asyncio.run(tools.build_server().list_tools())}
+    hosted = _ts_tools()
+    shared = set(local) & set(hosted)
+    assert shared >= {"list_calls", "get_call", "search_calls", "add_note", "delete_note"}
+    assert {n: local[n] for n in shared} == {n: hosted[n] for n in shared}

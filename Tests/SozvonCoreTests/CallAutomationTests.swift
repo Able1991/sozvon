@@ -30,6 +30,14 @@ final class CallAutomationTests: XCTestCase {
         d.removePersistentDomain(forName: "sozvon-tests-callauto")
     }
 
+    func testConsentReminderIsOffUntilChosen() {
+        let d = defaults()
+        XCTAssertFalse(CallAutomation.remindConsent(d))
+        CallAutomation.setRemindConsent(true, d)
+        XCTAssertTrue(CallAutomation.remindConsent(d))
+        d.removePersistentDomain(forName: "sozvon-tests-callauto")
+    }
+
     func testEndCountdown() {
         var e = CallEndDetector()
         let t0 = Date(timeIntervalSince1970: 1_000)
@@ -84,7 +92,8 @@ final class CallAutomationTests: XCTestCase {
         XCTAssertNil(e.update(inCall: false, now: t0 + 160, grace: 30), "«Продолжить»: не останавливаем")
         XCTAssertNil(e.update(inCall: true, now: t0 + 161, grace: 30), "новый звонок в той же записи")
         XCTAssertNil(e.update(inCall: true, now: t0 + 221, grace: 30))
-        XCTAssertEqual(e.update(inCall: false, now: t0 + 222, grace: 30), 30, "и после него снова отсчёт")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 222, grace: 30), "приложение отпустило микрофон на mute: запись не трогаем")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 400, grace: 30), "до конца этой записи")
     }
 
     @MainActor

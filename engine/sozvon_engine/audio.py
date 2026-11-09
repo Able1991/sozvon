@@ -64,10 +64,15 @@ def duration(path) -> float:
     return int(h) * 3600 + int(mi) * 60 + float(sec)
 
 
+def delay_filter(delay: float) -> list:
+    """ffmpeg arguments that delay a track by whole milliseconds; a start offset under 10 ms is left alone.
+    One rule for the working wav and the listening file, so they line up to the sample."""
+    return ["-af", f"adelay={int(delay * 1000)}:all=1"] if delay > 0.01 else []
+
+
 def to_wav(src: Path, dst: Path, delay: float = 0.0) -> Path:
     """Track -> 16 kHz mono wav, with a start offset to sync tracks."""
-    af = ["-af", f"adelay={int(delay * 1000)}:all=1"] if delay > 0.01 else []
-    _run(["-y", "-i", str(src), *af, "-ac", "1", "-ar", str(SR), str(dst)], src)
+    _run(["-y", "-i", str(src), *delay_filter(delay), "-ac", "1", "-ar", str(SR), str(dst)], src)
     return dst
 
 

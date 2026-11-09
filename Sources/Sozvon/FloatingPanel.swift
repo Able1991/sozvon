@@ -39,6 +39,8 @@ final class PanelModel: ObservableObject {
     @Published var startIn: Int?
     /// The call is over and the recording stops by itself in this many seconds (Settings: stop after the call).
     @Published var stopIn: Int?
+    /// A short message instead of the waveform for a few seconds at the start of a recording.
+    @Published var hint: String?
     /// The panel moved between mouse down and mouse up: that's a drag, not a click.
     var wasDragged: () -> Bool = { false }
 
@@ -81,9 +83,7 @@ final class PanelModel: ObservableObject {
         marks += 1
         justMarked = true
         let n = marks
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            MainActor.assumeIsolated { if self?.marks == n { self?.justMarked = false } }
-        }
+        mainAfter(1.2) { [weak self] in if self?.marks == n { self?.justMarked = false } }
     }
 
     func push(mic: Float, sys: Float) {
@@ -292,6 +292,7 @@ struct PanelView: View {
         .animation(.easeInOut(duration: 0.25), value: m.state)
         .animation(.easeInOut(duration: 0.25), value: m.callPrompt)
         .animation(.easeInOut(duration: 0.25), value: m.stopIn == nil)
+        .animation(.easeInOut(duration: 0.25), value: m.hint)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: m.warning == nil)
         .fixedSize()
         // Pinned to the window's left edge: the text stays put while the window changes width.
@@ -330,6 +331,12 @@ struct PanelView: View {
                     .help(L("Звонок закончился, но запись нужна дальше"))
                 }
                 .transition(.blurReplace)
+            } else if let hint = m.hint {
+                Text(hint)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(SZ.label)
+                    .lineLimit(1)
+                    .transition(.blurReplace)
             } else if let w = m.warning {
                 HStack(spacing: 5) {
                     Image(systemName: warningSymbol(w))
@@ -585,11 +592,9 @@ final class FloatingPanel {
         if NSEvent.pressedMouseButtons & 1 != 0, panel.frame.insetBy(dx: -40, dy: -40).contains(NSEvent.mouseLocation) {
             guard !fitPending else { return }
             fitPending = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                MainActor.assumeIsolated {
-                    self?.fitPending = false
-                    self?.fit(keepLeft: keepLeft)
-                }
+            mainAfter(0.25) { [weak self] in
+                self?.fitPending = false
+                self?.fit(keepLeft: keepLeft)
             }
             return
         }

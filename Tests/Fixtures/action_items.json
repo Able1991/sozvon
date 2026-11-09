@@ -1,0 +1,57 @@
+{
+  "about": "Shared cases for the action item rules: the app's ActionItems.parse / ActionItems.isMine and the engine's commitments.parse / commitments.is_owner_of run the same cases (Tests/SozvonCoreTests/CallsWindowTests.swift, engine/tests/test_commitments.py).",
+  "parse": [
+    {"note": "the Russian heading, checkboxes, bold owner, links and times are not owners, other sections ignored",
+     "summary": "## Коротко\nОбсудили запуск.\n\n## Задачи\n- [ ] Олег: прислать договор, пятница\n- [x] Анна: согласовать бюджет\n- [ ] **Олег Иванов:** проверить оплату\n- [ ] Вы: подготовить демо\n- [ ] Проверить https://x.y/page\n- [ ] Встреча в 10:30 с юристами\n\n## Открытые вопросы\n- Олег: это не задача\n",
+     "items": [
+       {"owner": "Олег", "task": "прислать договор, пятница", "done": false},
+       {"owner": "Анна", "task": "согласовать бюджет", "done": true},
+       {"owner": "Олег Иванов", "task": "проверить оплату", "done": false},
+       {"owner": "Вы", "task": "подготовить демо", "done": false},
+       {"owner": "", "task": "Проверить https://x.y/page", "done": false},
+       {"owner": "", "task": "Встреча в 10:30 с юристами", "done": false}]},
+    {"note": "English headings in any case, star bullets, a trailing colon, no checkbox",
+     "summary": "# Summary\nText\n### ACTION ITEMS:\n* Oleg: send the invoice\n- [X] Anna, Борис: созвониться с банком\n- Just a loose task\n",
+     "items": [
+       {"owner": "Oleg", "task": "send the invoice", "done": false},
+       {"owner": "Anna, Борис", "task": "созвониться с банком", "done": true},
+       {"owner": "", "task": "Just a loose task", "done": false}]},
+    {"note": "Tasks heading; a rule line ends the section; a later heading of another name ends it too",
+     "summary": "## Tasks\n- [ ] Ira: call back\n---\n- [ ] Not a task: after the rule\n## Notes\n- Ira: nothing\n",
+     "items": [{"owner": "Ira", "task": "call back", "done": false}]},
+    {"note": "owner rules: no space after the colon, digits, a domain, an at sign, more than four words",
+     "summary": "## Задачи\n- [ ] Олег:прислать\n- [ ] Отдел 5: проверить\n- [ ] site.ru: обновить\n- [ ] a@b: написать\n- [ ] Один Два Три Четыре Пять: сделать\n- [ ] Один Два Три Четыре: сделать\n",
+     "items": [
+       {"owner": "", "task": "Олег:прислать", "done": false},
+       {"owner": "", "task": "Отдел 5: проверить", "done": false},
+       {"owner": "", "task": "site.ru: обновить", "done": false},
+       {"owner": "", "task": "a@b: написать", "done": false},
+       {"owner": "", "task": "Один Два Три Четыре Пять: сделать", "done": false},
+       {"owner": "Один Два Три Четыре", "task": "сделать", "done": false}]},
+    {"note": "empty items and non-list lines are skipped; an owner with nothing after the colon stays one task",
+     "summary": "## Задачи\n- \n- [ ] \nplain text\n- [ ] Олег:\n- [ ] Олег: \n",
+     "items": [
+       {"owner": "", "task": "Олег:", "done": false},
+       {"owner": "", "task": "Олег:", "done": false}]},
+    {"note": "bold owners, a space before the colon, an indented bullet, an upper case heading, tabs after the colon, a checkbox glued to the text",
+     "summary": "## ЗАДАЧИ\n- [ ] **Анна:** сделать\n- [ ] **Олег**: проверить\n- [ ] Ира : позвонить\n  - [ ] Влад: написать\n- [ ] Петя:\tответить\n- [x]Сдать отчёт\n- [ ] Ключевое: **срочно** позвонить\n",
+     "items": [
+       {"owner": "Анна", "task": "сделать", "done": false},
+       {"owner": "Олег", "task": "проверить", "done": false},
+       {"owner": "Ира", "task": "позвонить", "done": false},
+       {"owner": "Влад", "task": "написать", "done": false},
+       {"owner": "Петя", "task": "ответить", "done": false},
+       {"owner": "", "task": "Сдать отчёт", "done": true},
+       {"owner": "Ключевое", "task": "срочно позвонить", "done": false}]},
+    {"note": "no section at all", "summary": "## Коротко\n- Олег: не задача\n", "items": []}
+  ],
+  "mine": [
+    {"note": "the name from Settings, its first word, any case",
+     "me": "Борис Петров", "yes": ["Борис Петров", "борис петров", "Борис", "БОРИС"], "no": ["Анна", "Борисов", "Олег Петров"]},
+    {"note": "self words, with or without a name",
+     "me": "", "yes": ["Я", "я", "Вы", "You", "me"], "no": ["Анна", "Борис", ""]},
+    {"note": "several owners: one of them is the user",
+     "me": "Борис", "yes": ["Anna, Борис", "Анна и Борис", "Anna and Борис", "Анна / Борис", "Анна & Борис", "Анна, Я"],
+     "no": ["Анна, Олег", "Анна и Олег"]}
+  ]
+}

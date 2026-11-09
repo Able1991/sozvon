@@ -87,26 +87,23 @@ final class CallPlayer: ObservableObject {
         }
     }
 
-    /// Mic and system tracks at their offsets (TrackOffsets, as in the engine). nil: no readable track.
+    /// The engine's levelled listening file, one track at offset 0, when there is one; otherwise the mic and system
+    /// tracks at their offsets (TrackOffsets, as in the engine; the cleaned mic is already aligned). nil: nothing readable.
     private static func composition(_ dir: URL) async -> AVMutableComposition? {
         let offsets = TrackOffsets(TrackOffsets.times(of: dir))
-        let comp = AVMutableComposition()
-        // The engine's cleaned microphone (echo removed, a quiet voice raised) when there is one: it is already
-        // aligned to the call's start, so it plays at offset 0. Otherwise the original mic track.
-        let clean = FileManager.default.fileExists(atPath: dir.appendingPathComponent(AudioRetention.cleanMic).path)
-        let mic = clean ? (AudioRetention.cleanMic, 0.0) : ("mic.m4a", offsets.mic)
-        for (name, offset) in [mic, ("system.m4a", offsets.system)] {
-            let url = dir.appendingPathComponent(name)
-            // Same threshold as the engine's tracks.track_files: a smaller file is a track that never recorded.
-            guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size >= 1024 else { continue }
-            let asset = AVURLAsset(url: url)
-            guard let track = try? await asset.loadTracks(withMediaType: .audio).first,
-                  let range = try? await track.load(.timeRange),
-                  let out = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
-            else { continue }
-            try? out.insertTimeRange(range, of: track, at: CMTime(seconds: max(0, offset), preferredTimescale: 48000))
+        for plan in CallPlayback.plans(in: dir, offsets: offsets) {
+            let comp = AVMutableComposition()
+            for source in plan {
+                let asset = AVURLAsset(url: dir.appendingPathComponent(source.name))
+                guard let track = try? await asset.loadTracks(withMediaType: .audio).first,
+                      let range = try? await track.load(.timeRange),
+                      let out = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+                else { continue }
+                try? out.insertTimeRange(range, of: track, at: CMTime(seconds: max(0, source.offset), preferredTimescale: 48000))
+            }
+            if !comp.tracks.isEmpty { return comp }
         }
-        return comp.tracks.isEmpty ? nil : comp
+        return nil
     }
 
     private func tick(_ t: Double) {

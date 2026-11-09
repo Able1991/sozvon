@@ -303,7 +303,7 @@ def sync_audio(srv, root: Path, status, attempt, skip: set, enabled: bool) -> tu
     """
     remote = _remote()
     theirs, _ = remote.remote_state(srv)  # fresh: includes the calls the text step just sent
-    local = {c.id: c for c in calls.list_calls(root)}
+    local, _ = remote.local_calls(root)  # demo calls have no audio and never leave this Mac
     hashes = Hashes()
     sent = downloaded = deleted = 0
     full = False

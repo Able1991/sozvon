@@ -59,6 +59,9 @@ final class AppUpdater: NSObject {
         controller?.checkForUpdates(nil)
     }
 
+    /// A downloaded update waits for a quiet moment: the quit that installs it must not meet a new transcription.
+    var updateReady: Bool { installNow != nil }
+
     /// Called on every state change and once a minute.
     func installIfQuiet() {
         guard let installNow, Updates.canInstallQuietly(activity()) else { return }

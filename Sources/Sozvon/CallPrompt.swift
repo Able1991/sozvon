@@ -9,7 +9,6 @@ import SozvonCore
 @MainActor
 final class CallPromptController {
     private static let notificationID = "sozvon.callPrompt"
-    private static let endNotificationID = "sozvon.callEnded"
 
     static var mode: CallStartMode {
         get { CallAutomation.mode() }
@@ -23,7 +22,6 @@ final class CallPromptController {
     private let watcher = CallWatcher(source: CoreAudioMicSource())
     private var notified: CallApp?
     private var end = CallEndDetector()
-    private var endNotified = false
     private var startDeadline: Date?
     private var ticker: Timer?
 
@@ -39,6 +37,9 @@ final class CallPromptController {
     var onRecord: () -> Void = {}
     /// The stop countdown ran out.
     var onStop: () -> Void = {}
+    /// The microphone's users may have changed (the transcription queue waits for a call to end).
+    var onMicChange: () -> Void = {}
+
 
     /// Seconds left before the automatic start, while counting down.
     private(set) var startIn: Int?
@@ -47,7 +48,11 @@ final class CallPromptController {
 
     init() {
         watcher.onPrompt = { [weak self] app in self?.promptChanged(app) }
-        watcher.onRefresh = { [weak self] in self?.checkEnd() }
+        watcher.onRefresh = { [weak self] in
+            guard let self else { return }
+            self.checkEnd()
+            self.onMicChange()
+        }
         watcher.isBusy = { [weak self] in
             guard let self else { return true }
             return Self.mode == .off || self.isBusy()
@@ -67,7 +72,8 @@ final class CallPromptController {
 
     /// Settings or Sozvon's state changed: start or stop listening, re-check busy.
     func sync() {
-        if Self.mode != .off || Self.autoStop { watcher.start() } else { watcher.stop() }
+        // Also with "Do nothing": it tells a reflection from a call.
+        watcher.start()
         watcher.refresh()
         checkEnd()
     }
@@ -126,13 +132,13 @@ final class CallPromptController {
             onChange()
             return
         }
-        let left = Int(d.timeIntervalSinceNow.rounded(.up))
-        if left <= 0, prompt != nil {
+        let tick = Countdown.startTick(deadline: d, now: Date())
+        if tick.due, prompt != nil {
             record()
             return
         }
-        if startIn != max(left, 0) {
-            startIn = max(left, 0)
+        if startIn != tick.shown {
+            startIn = tick.shown
             onChange()
         }
         updateTicker()
@@ -157,21 +163,12 @@ final class CallPromptController {
             onStop()
             return
         }
-        setStopIn(Int(left.rounded(.up)))
+        setStopIn(Countdown.seconds(left: left))
     }
 
     private func setStopIn(_ n: Int?) {
-        let wasCounting = stopIn != nil
         guard stopIn != n else { return }
-        stopIn = n
-        if n != nil, !wasCounting, !FloatingPanel.enabled {
-            endNotified = true
-            Notifier.shared.post(L("Звонок закончился"), L("Запись остановится через %@ секунд", CallAutomation.stopGrace),
-                                 action: .callEnded, id: Self.endNotificationID, sound: false)
-        } else if n == nil, endNotified {
-            endNotified = false
-            Notifier.shared.remove(id: Self.endNotificationID)
-        }
+        stopIn = n  // the capsule shows it even with the floating panel off
         updateTicker()
         onChange()
     }
@@ -184,15 +181,11 @@ final class CallPromptController {
         let waitingForEnd = Self.autoStop && end.armed && !end.kept && !watcher.inCall && isRecording()
         let needed = startDeadline != nil || stopIn != nil || waitingForEnd
         if needed, ticker == nil {
-            let t = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.updateStart()
-                    self.checkEnd()
-                }
+            ticker = Timer.repeatingOnMain(every: 0.5) { [weak self] in  // also while the menu or an alert is open
+                guard let self else { return }
+                self.updateStart()
+                self.checkEnd()
             }
-            RunLoop.main.add(t, forMode: .common)  // also while the menu or an alert is open
-            ticker = t
         } else if !needed {
             ticker?.invalidate()
             ticker = nil

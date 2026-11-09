@@ -1,5 +1,5 @@
 {
-  "about": "Shared cases for the participants rule: the engine's names.participants / names.is_generic and the app's CallParticipants.derived / Voices.isGenericLabel run the same cases (engine/tests/test_names.py, Tests/SozvonCoreTests/CallsWindowTests.swift).",
+  "about": "Shared cases for the participants rule: the engine's names.participants / names.is_generic and the app's CallParticipants.derived / Voices.isGenericLabel run the same cases, and so do Voices.sameName / voices.same_name (the same_name pairs) (engine/tests/test_names.py, Tests/SozvonCoreTests/CallsWindowTests.swift).",
   "participants": [
     {"note": "speaking order first, then typed names that never spoke; generic labels and the user stay out",
      "me": "Boris", "typed": ["Олег"],
@@ -36,5 +36,11 @@
     "yes": ["Собеседник", "Собеседник 2", "Speaker 3", "speaker_1", "Спикер ?", "Speaker N", "Я", "Me", "я", "ME",
             "Борис + собеседники", "Me + others", "", "  ", "борис", " Борис "],
     "no": ["Анна", "Собеседница Анна", "Speaker Ann", "Борис Петров", "Вова"]
+  },
+  "same_name": {
+    "same": [["Борис", "boris"], ["Борис", "БОРИС"], ["Анна  Ли", "anna li"], ["Юля", "yulya"], ["Щука", "schuka"],
+             ["Ёлка", "elka"], ["Борис", " борис "], ["Мария", "Mariya"], ["Эля", "elya"], ["Ольга", "olga"]],
+    "different": [["Борис", "Борис Петров"], ["Анна", "Анн"], ["", ""], ["  ", ""], ["", "Борис"], ["Борис", ""],
+                  ["Иван", "Ivan Petrov"], ["Ъ", ""], ["Boris", "Boriss"]]
   }
 }

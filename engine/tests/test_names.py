@@ -88,6 +88,13 @@ def test_generic_labels_shared_with_the_app():
     assert [n for n in g["no"] if names.is_generic(n, g["me"])] == []
 
 
+def test_same_name_shared_with_the_app():
+    from sozvon_engine import voices
+    pairs = FIXTURE["same_name"]
+    assert [p for p in pairs["same"] if not voices.same_name(*p)] == []
+    assert [p for p in pairs["different"] if voices.same_name(*p)] == []
+
+
 def test_is_voice_counts_names_and_numbered_labels_only():
     for label in ["Анна", "Собеседник 2", "speaker_3", "Спикер 10"]:
         assert names.is_voice(label, "Борис"), label

@@ -4,13 +4,16 @@ Steps, all safe to rerun:
   1. the ASR model from models.json at its pinned revision (SOZVON_MODEL, default turbo),
      plus the voice activity detector for onnx models; downloads are marked .complete, old
      complete downloads without a marker are marked without re-downloading;
-  2. pyannote diarization models: the archive from the app bundle (SOZVON_PYANNOTE_TAR),
+  2. the echo suppressor's weights (models.json key "aec"): optional, the classic filter works without them;
+     SHA-256 is verified, a bad copy is fetched once more, a failed download leaves a .no-echo-model marker;
+  3. pyannote diarization models: the archive from the app bundle (SOZVON_PYANNOTE_TAR),
      or from the network if it is missing or broken; SHA-256 is verified; on failure: .no-diarization marker;
-  3. .venv-lock (first 16 characters of the uv.lock SHA-256) and .installed (install time).
+  4. .venv-lock (first 16 characters of the uv.lock SHA-256) and .installed (install time).
 The app's install window shows the "==> ..." lines.
 """
 import hashlib
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -25,6 +28,7 @@ from .paths import EngineDir
 
 PYANNOTE_URL = "https://github.com/Able1991/sozvon/releases/download/models-v1/pyannote-models-v1.tar.gz"
 PYANNOTE_SHA = "0b9d5795aea1f8a2a943d4b4d8beaab0128f1cec5561de4d2f4573e3726d90d6"
+PREVIOUS_ECHO_DIRS = ("localvqe-v1.3",)   # models.json key "aec" used to point here
 
 # downloader(repo, filename, revision, local_dir): download one file from a Hugging Face repo.
 Downloader = Callable[[str, str, str, Path], None]
@@ -69,6 +73,42 @@ def ensure_model(data: Path, name: str, downloader: Downloader = hf_download) ->
     if m["kind"] == "onnx":
         ensure_entry(models.VAD, models.vad_dir(data), downloader)
     return d
+
+
+def echo_model_intact(entry: dict, d: Path) -> bool:
+    """The downloaded checkpoint matches the hash pinned in the manifest."""
+    f = d / entry["files"][0]
+    return f.is_file() and sha256(f) == entry["sha256"]
+
+
+def ensure_echo_model(data: Path, downloader: Downloader = hf_download) -> None:
+    """The neural echo suppressor's weights. Optional: without them the classic canceller is used. A bad copy is
+    downloaded once more; a run that still fails leaves no .complete, so the next launch retries."""
+    entry = models.MANIFEST.get("aec")
+    if not entry:
+        return
+    d = Path(data) / "models" / entry["dir"]
+    marker = EngineDir(Path(data)).no_echo_model
+    for name in PREVIOUS_ECHO_DIRS:                      # a replaced checkpoint nothing reads any more
+        if name != entry["dir"]:
+            shutil.rmtree(Path(data) / "models" / name, ignore_errors=True)
+    try:
+        if (d / models.COMPLETE).exists() and echo_model_intact(entry, d):
+            marker.unlink(missing_ok=True)
+            return
+        step(t("install_echo_model"))
+        for attempt in range(2):
+            if (d / models.COMPLETE).exists() and not echo_model_intact(entry, d):
+                shutil.rmtree(d, ignore_errors=True)         # corrupted, or marked complete without a hash
+            ensure_entry(entry, d, downloader)
+            if echo_model_intact(entry, d):
+                marker.unlink(missing_ok=True)
+                return
+            shutil.rmtree(d, ignore_errors=True)
+        raise ValueError(f"{entry['files'][0]}: checksum mismatch")
+    except Exception as ex:  # noqa: BLE001  the engine works without it
+        marker.touch()
+        print(t("install_no_echo_model", err=ex), flush=True)
 
 
 def sha256(path: Path) -> str:
@@ -135,6 +175,8 @@ def main(argv=None, downloader: Downloader = hf_download, fetch: Fetcher = curl_
     model = settings.model if settings.model in models.MODELS else models.DEFAULT_MODEL
     step(t("install_model", model=model))
     ensure_model(engine.root, model, downloader)
+
+    ensure_echo_model(engine.root, downloader)
 
     if not engine.pyannote_cache.is_dir():
         step(t("install_pyannote"))

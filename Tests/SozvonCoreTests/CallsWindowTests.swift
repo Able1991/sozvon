@@ -173,6 +173,66 @@ final class TranscriptTests: TempDirTestCase {
         return dir
     }
 
+    private func tracks(_ dir: URL) -> [String: String]? { CallFile.read(dir)["speaker_tracks"] as? [String: String] }
+
+    private func setTracks(_ dir: URL, _ t: [String: String]) throws {
+        try CallFile.edit(dir) { c in c["speaker_tracks"] = t; return true }
+    }
+
+    func testRenameKeepsTheSpeakerTrack() throws {
+        let dir = try makeCall()
+        try setTracks(dir, ["Я": "mic", "Собеседник 1": "mic", "Анна": "system"])
+        try TranscriptEdit.renameSpeaker(in: dir, from: "Собеседник 1", to: "Вера")
+        XCTAssertEqual(tracks(dir), ["Я": "mic", "Вера": "mic", "Анна": "system"])
+    }
+
+    func testRenameOntoASpeakerOfTheOtherTrackIsBoth() throws {
+        let dir = try makeCall()
+        try write("[00:01] Собеседник 1: а\n[00:03] Анна: б\n", dir.appendingPathComponent("transcript.txt"))
+        try setTracks(dir, ["Собеседник 1": "mic", "Анна": "system"])
+        try TranscriptEdit.renameSpeaker(in: dir, from: "Собеседник 1", to: "Анна")
+        XCTAssertEqual(tracks(dir), ["Анна": "both"])
+    }
+
+    func testRenameOfAnUnknownSpeakerStaysUnknown() throws {
+        let dir = try makeCall()
+        try setTracks(dir, ["Я": "mic"])
+        try TranscriptEdit.renameSpeaker(in: dir, from: "Собеседник 1", to: "Вера")
+        XCTAssertEqual(tracks(dir), ["Я": "mic"])
+    }
+
+    func testRenameWithoutTheFieldAddsNone() throws {
+        let dir = try makeCall()
+        try TranscriptEdit.renameSpeaker(in: dir, from: "Собеседник 1", to: "Вера")
+        XCTAssertNil(CallFile.read(dir)["speaker_tracks"])
+    }
+
+    func testSwapSwapsTheSpeakerTracks() throws {
+        let dir = try makeCall()
+        try write("[00:01] Собеседник 1: а\n[00:03] Анна: б\n", dir.appendingPathComponent("transcript.txt"))
+        try setTracks(dir, ["Собеседник 1": "mic", "Анна": "system"])
+        try TranscriptEdit.swapSpeakers(in: dir, "Собеседник 1", "Анна")
+        XCTAssertEqual(tracks(dir), ["Анна": "mic", "Собеседник 1": "system"])
+    }
+
+    func testAReassignedLineMakesTheNewSpeakerBoth() throws {
+        let dir = try makeCall()
+        try write("[00:01] Собеседник 1: а\n[00:03] Анна: б\n", dir.appendingPathComponent("transcript.txt"))
+        try setTracks(dir, ["Собеседник 1": "mic", "Анна": "system"])
+        let line = TranscriptLine(start: 1, speaker: "Собеседник 1", text: "а")
+        try TranscriptEdit.reassignLine(in: dir, line: line, to: "Анна")
+        XCTAssertEqual(tracks(dir), ["Собеседник 1": "mic", "Анна": "both"])
+    }
+
+    func testAReassignedLineGivesANewSpeakerItsTrack() throws {
+        let dir = try makeCall()
+        try write("[00:01] Собеседник 1: а\n[00:03] Анна: б\n", dir.appendingPathComponent("transcript.txt"))
+        try setTracks(dir, ["Собеседник 1": "mic", "Анна": "system"])
+        let line = TranscriptLine(start: 1, speaker: "Собеседник 1", text: "а")
+        try TranscriptEdit.reassignLine(in: dir, line: line, to: "Вера")
+        XCTAssertEqual(tracks(dir), ["Собеседник 1": "mic", "Анна": "system", "Вера": "mic"])
+    }
+
     func testRenameSpeakerFiles() throws {
         let dir = try makeCall()
         XCTAssertTrue(try TranscriptEdit.renameSpeaker(in: dir, from: "Собеседник 1", to: " Иван "))
@@ -439,6 +499,40 @@ final class ActionItemsTests: XCTestCase {
     }
 }
 
+/// Tests/Fixtures/action_items.json: the same cases the engine's commitments.parse / is_owner_of run (engine/tests/test_commitments.py).
+final class ActionItemsSharedFixtureTests: XCTestCase {
+    private func fixture() throws -> [String: Any] {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/action_items.json")
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    }
+
+    func testParseMatchesTheEngineRule() throws {
+        let cases = try XCTUnwrap(try fixture()["parse"] as? [[String: Any]])
+        XCTAssertGreaterThan(cases.count, 4)
+        for c in cases {
+            let got = ActionItems.parse(c["summary"] as? String ?? "").map {
+                ["owner": $0.owner, "task": $0.task, "done": $0.done ? "true" : "false"]
+            }
+            let want = (c["items"] as? [[String: Any]] ?? []).map {
+                ["owner": $0["owner"] as? String ?? "", "task": $0["task"] as? String ?? "",
+                 "done": ($0["done"] as? Bool ?? false) ? "true" : "false"]
+            }
+            XCTAssertEqual(got, want, c["note"] as? String ?? "")
+        }
+    }
+
+    func testOwnershipMatchesTheEngineRule() throws {
+        let cases = try XCTUnwrap(try fixture()["mine"] as? [[String: Any]])
+        for c in cases {
+            let me = c["me"] as? String ?? ""
+            let note = c["note"] as? String ?? ""
+            XCTAssertEqual((c["yes"] as? [String] ?? []).filter { !ActionItems.isMine($0, me: me) }, [], note)
+            XCTAssertEqual((c["no"] as? [String] ?? []).filter { ActionItems.isMine($0, me: me) }, [], note)
+        }
+    }
+}
+
 final class CallParticipantsTests: TempDirTestCase {
     /// Tests/Fixtures/participants.json: the same cases the engine's names.participants runs (engine/tests/test_names.py).
     private func fixture() throws -> [String: Any] {
@@ -462,6 +556,12 @@ final class CallParticipantsTests: TempDirTestCase {
         let me = g["me"] as? String ?? ""
         XCTAssertEqual((g["yes"] as? [String] ?? []).filter { !Voices.isGenericLabel($0, me: me) }, [])
         XCTAssertEqual((g["no"] as? [String] ?? []).filter { Voices.isGenericLabel($0, me: me) }, [])
+    }
+
+    func testSameNameMatchesTheEngineRule() throws {
+        let pairs = try XCTUnwrap(try fixture()["same_name"] as? [String: [[String]]])
+        XCTAssertEqual((pairs["same"] ?? []).filter { !Voices.sameName($0[0], $0[1]) }, [])
+        XCTAssertEqual((pairs["different"] ?? []).filter { Voices.sameName($0[0], $0[1]) }, [])
     }
 
     func testListPrefersParticipantsOverTypedNames() {

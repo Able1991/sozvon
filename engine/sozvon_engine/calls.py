@@ -46,11 +46,14 @@ def write_call(d: Path, call: dict) -> None:
     jsonfile.write_atomic(call_file(d), jsonfile.with_schema(call))
 
 
-def update_call(d: Path, **fields) -> dict:
-    """Re-read call.json, update fields, write atomically, under the call.json flock. -> resulting dict."""
+def update_call(d: Path, drop: tuple = (), **fields) -> dict:
+    """Re-read call.json, update fields, remove the `drop` keys, write atomically, under the call.json flock.
+    -> resulting dict."""
     with jsonfile.locked(call_file(d)):
         call = read_call(d)
         call.update(fields)
+        for key in drop:
+            call.pop(key, None)
         write_call(d, call)
     return call
 

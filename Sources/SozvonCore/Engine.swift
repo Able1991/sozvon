@@ -17,6 +17,17 @@ public enum EngineState: Equatable, Sendable {
     /// Ready to record and transcribe (an environment update runs in the background, transcriptions will wait).
     public var isUsable: Bool { self == .ready || self == .needsUpdate }
 
+    /// What the user has to fix before a queued transcription can start.
+    public enum WaitReason: Equatable, Sendable { case engine, model }
+
+    public var waitReason: WaitReason? {
+        switch self {
+        case .notInstalled: return .engine
+        case .modelMissing: return .model
+        case .needsUpdate, .ready: return nil
+        }
+    }
+
     public static func evaluate(data: URL, model: WhisperModel, isDevEngine: Bool) -> EngineState {
         let fm = FileManager.default
         guard fm.isExecutableFile(atPath: data.appendingPathComponent(".venv/bin/python3").path) else { return .notInstalled }
@@ -26,6 +37,26 @@ public enum EngineState: Equatable, Sendable {
             if installed != lockHash(lock) { return .needsUpdate }
         }
         return model.isDownloaded(in: data) ? .ready : .modelMissing(model)
+    }
+
+    /// Folder of the echo suppressor's weights under `models/` (engine/models.json, key "aec").
+    public static let echoModelDir = "localvqe-v1.2"
+
+    /// Run setup.sh for the missing echo model? At most once a day: where huggingface.co can't be reached, every
+    /// launch would otherwise hold the transcription queue for an install that fails. `lastTry`: the previous attempt.
+    public static let echoRetryInterval: TimeInterval = 24 * 3600
+    public static func shouldRetryEchoModel(data: URL, isDevEngine: Bool, lastTry: Date?, now: Date = Date()) -> Bool {
+        guard echoModelMissing(data: data, isDevEngine: isDevEngine) else { return false }
+        guard let lastTry else { return true }
+        return !(0..<echoRetryInterval).contains(now.timeIntervalSince(lastTry))
+    }
+
+    /// The engine is installed but the optional echo model is not: a run of setup.sh can still fetch it.
+    /// `.complete` appears only after a verified download.
+    public static func echoModelMissing(data: URL, isDevEngine: Bool) -> Bool {
+        guard !isDevEngine,
+              FileManager.default.isExecutableFile(atPath: data.appendingPathComponent(".venv/bin/python3").path) else { return false }
+        return !FileManager.default.fileExists(atPath: data.appendingPathComponent("models/\(echoModelDir)/.complete").path)
     }
 
     /// Same as setup.sh: the first 16 hex chars of the sha256 of uv.lock.
@@ -59,7 +90,9 @@ public enum Engine {
                                    gentle: Bool = Engine.gentle, uiLanguage: String = Engine.uiLanguage,
                                    mcpToken: String? = MCP.token, pyannoteTar: URL? = Engine.bundledPyannote) -> [String: String] {
         var env = base
-        env.removeValue(forKey: "WHISPER_MCP_DIR")  // old name: the engine must not pick up a foreign folder
+        // Compatibility shim: WHISPER_MCP_DIR is the name from before Sozvon. Can go in 0.3.0, once nobody
+        // upgrades from a build that still read it; until then the engine must not pick up a foreign folder.
+        env.removeValue(forKey: "WHISPER_MCP_DIR")
         env["PATH"] = [data.appendingPathComponent(".venv/bin").path, "\(Paths.home.path)/.local/bin",
                        "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].joined(separator: ":")
         env["PYTHONUNBUFFERED"] = "1"
@@ -149,7 +182,7 @@ public enum EngineSync {
 
     /// Not code: these names in the data folder belong to the install and the user, never touch them.
     public static let protected: Set<String> = [".venv", "models", "profiles", "voices", "hf-cache", "vocab.json",
-                                                ".env", stamp, ".venv-lock", ".installed", ".no-diarization", ".mcp-token",
+                                                ".env", stamp, ".venv-lock", ".installed", ".no-diarization", ".no-echo-model", ".mcp-token",
                                                 ".lock", "vocab.json.lock", "index.db", "index.db.lock"]
     /// Present in the bundle but not copied into the data folder
     /// (the archive is passed to setup.sh via SOZVON_PYANNOTE_TAR,
@@ -157,6 +190,7 @@ public enum EngineSync {
     public static let skipped: Set<String> = [pyannoteTar, defaultVocab]
     /// Modules of old installs in `<data>/scripts/`: in contract 1 the code lives
     /// in sozvon_engine/ and bin/, and scripts/ was removed from the bundle.
+    /// Compatibility shim: can go in 0.3.0, when installs from before contract 1 are no longer updated in place.
     public static let obsoleteScripts = ["voiceid.py", "transcribe.py", "diarize.py", "enginedir.py", "llm.py",
                                          "langid.py", "asr_onnx.py"]
 
