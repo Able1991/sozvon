@@ -850,9 +850,7 @@ def test_chosen_cursor_gets_the_text_through_request_md(monkeypatch, npm_dir, tm
     monkeypatch.setenv("SOZVON_LLM", "cursor")
     assert llm.run(NASTY, tmp_path)[0] == "ответ готов"
     spy = _spy(tmp_path)
-    assert spy["request_md"].replace("
-", "
-") == NASTY and NASTY not in " ".join(spy["argv"])
+    assert spy["request_md"].replace("\r\n", "\n") == NASTY and NASTY not in " ".join(spy["argv"])
     assert "--sandbox" in spy["argv"] and spy["argv"][spy["argv"].index("--mode") + 1] == "ask"
     err = capfd.readouterr().err
     assert "cursor" in err and "Cursor" in err, "both warnings"
