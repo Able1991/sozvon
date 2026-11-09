@@ -84,10 +84,13 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
                     "--add-dir", str(Path.home() / ".claude")]
         else:
             cmd += ["--tools", ""]
-        if on_event:
-            return _claude_stream(cmd, prompt, cwd, timeout, on_event)
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, **platform_support.TEXT_MODE,
-                           timeout=timeout, cwd=str(cwd))
+        # An empty folder of its own: with --setting-sources project, a .claude/settings.json left in the folder of a call
+        # would be honoured. What discovery may read is given by --add-dir above.
+        with tempfile.TemporaryDirectory(prefix="sozvon-claude-", ignore_cleanup_errors=True) as empty:
+            if on_event:
+                return _claude_stream(cmd, prompt, empty, timeout, on_event)
+            r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, **platform_support.TEXT_MODE,
+                               timeout=timeout, cwd=empty)
         out = r.stdout.strip()
         if r.returncode != 0 or not out:
             return None, name, (r.stderr or out)[:500]

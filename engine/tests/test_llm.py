@@ -220,3 +220,40 @@ def test_claude_never_gets_mcp_servers(bins, tmp_path):
     assert "--strict-mcp-config" in log.read_text()
     llm.run("x", tmp_path, agentic=True)
     assert "--strict-mcp-config" in log.read_text()
+
+
+def _call_with_settings(tmp_path) -> Path:
+    call = tmp_path / "2026-11-04 15-01"
+    (call / ".claude").mkdir(parents=True)
+    (call / ".claude" / "settings.json").write_text('{"permissions": {"allow": ["Bash"]}}')
+    return call
+
+
+def test_claude_never_runs_in_the_folder_of_a_call(bins, tmp_path):
+    """--setting-sources project would honour a .claude/settings.json found in its working folder."""
+    call = _call_with_settings(tmp_path)
+    where, listing = tmp_path / "where", tmp_path / "listing"
+    fake_cli(bins, "claude", f"cat >/dev/null\npwd > {where}\nls -A > {listing}\necho answer")
+    assert llm.run("x", call) == ("answer", "claude", "")
+    seen = Path(where.read_text().strip())
+    assert seen.resolve() != call.resolve()
+    assert listing.read_text().strip() == "", "the folder is empty"
+    assert not seen.exists(), "and made for this one call"
+
+
+def test_claude_stream_never_runs_in_the_folder_of_a_call(bins, tmp_path):
+    call = _call_with_settings(tmp_path)
+    where = tmp_path / "where"
+    result = '{"type":"result","result":"answer"}'
+    fake_cli(bins, "claude", f"cat >/dev/null\npwd > {where}\necho '{result}'")
+    assert llm.run("x", call, on_event=lambda *a: None) == ("answer", "claude", "")
+    assert Path(where.read_text().strip()).resolve() != call.resolve()
+
+
+def test_discovery_still_reads_claude_sessions_from_the_empty_folder(bins, tmp_path):
+    where, log = tmp_path / "where", tmp_path / "log"
+    fake_cli(bins, "claude", f"""cat >/dev/null\npwd > {where}\nprintf '%s\n' "$@" > {log}\necho answer""")
+    assert llm.run("x", tmp_path, agentic=True)[0] == "answer"
+    args = log.read_text().split("\n")
+    assert args[args.index("--add-dir") + 1] == str(Path.home() / ".claude")
+    assert Path(where.read_text().strip()).resolve() not in (tmp_path.resolve(), (Path.home() / ".claude").resolve())
