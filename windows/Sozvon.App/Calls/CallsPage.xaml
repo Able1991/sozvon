@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Sozvon.App.Calls.CallsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:calls="using:Sozvon.App.Calls"
+    xmlns:s="using:Sozvon.App.Strings">
+    <UserControl.Resources>
+        <CollectionViewSource x:Name="GroupedCalls" IsSourceGrouped="True" />
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Grid BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Padding="8,8,8,4" Spacing="8">
+                <DropDownButton x:Name="ProjectButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="ProjectMenu" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" IsEnabled="False"
+                        ToolTipService.ToolTip="{s:L K='Пока не подключено'}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE896;" />
+                        <TextBlock Text="{s:L K='Импортировать запись…'}" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <InfoBar Grid.Row="1" Margin="8,0,8,4" IsOpen="{x:Bind ViewModel.IsDemoOnly, Mode=OneWay}" IsClosable="False"
+                     Severity="Informational" Title="{s:L K='Настоящих звонков пока нет'}"
+                     Message="{s:L K='Показан демо-звонок'}" />
+
+            <ListView x:Name="CallList" Grid.Row="2" Padding="0,0,0,8" SelectionMode="Single"
+                      ItemsSource="{x:Bind GroupedCalls.View, Mode=OneWay}"
+                      SelectionChanged="OnCallSelected">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="calls:CallRow">
+                        <Grid Padding="0,6" RowSpacing="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                       Style="{ThemeResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Time}" />
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind calls:CallsPage.ProjectBrush(ProjectSlug)}"
+                                         Visibility="{x:Bind calls:CallsPage.Shown(ProjectSlug)}" />
+                                <Border Padding="6,0" CornerRadius="4" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                                        Visibility="{x:Bind calls:CallsPage.Shown(Lead)}">
+                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind Lead}" />
+                                </Border>
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind calls:CallsPage.ShownIf(IsCritical, x:False)}" />
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="{x:Bind calls:CallsPage.ShownIf(IsCritical, x:True)}" />
+                                <Border Padding="6,0" CornerRadius="4" Background="{ThemeResource ControlAltFillColorQuarternaryBrush}"
+                                        Visibility="{x:Bind calls:CallsPage.Shown(Badge)}">
+                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Badge}" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+                <ListView.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate x:DataType="calls:CallGroup">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Title}" />
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListView.GroupStyle>
+            </ListView>
+
+            <TextBlock Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{s:L K='Ничего не найдено'}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
+        </Grid>
+
+        <calls:CallDetailView x:Name="Detail" Grid.Column="1" />
+        <StackPanel x:Name="NoSelection" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+            <FontIcon HorizontalAlignment="Center" FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE717;" />
+            <TextBlock Style="{ThemeResource BodyLargeTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{s:L K='Выбери звонок'}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

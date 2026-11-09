@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Sozvon.App.Shell.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:s="using:Sozvon.App.Strings"
+    Title="Sozvon">
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar" Title="Sozvon" IsBackButtonVisible="False" IsPaneToggleButtonVisible="False">
+            <TitleBar.Content>
+                <AutoSuggestBox x:Name="SearchBox" Width="400" VerticalAlignment="Center"
+                                PlaceholderText="{s:L K='Поиск по звонкам'}" QueryIcon="Find"
+                                TextChanged="OnSearchChanged" />
+            </TitleBar.Content>
+        </TitleBar>
+
+        <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="LeftCompact"
+                        IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False"
+                        SelectionChanged="OnNavigationChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="{s:L K='Звонки'}" Tag="calls" Icon="Phone" />
+                <NavigationViewItem Content="{s:L K='Проекты'}" Tag="projects">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8B7;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="{s:L K='Голоса'}" Tag="voices">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE720;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="{s:L K='Настройки'}" Tag="settings" Icon="Setting" />
+            </NavigationView.FooterMenuItems>
+            <ContentPresenter x:Name="PageHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        </NavigationView>
+    </Grid>
+</Window>

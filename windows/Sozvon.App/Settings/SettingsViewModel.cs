@@ -1,0 +1,73 @@
+using System.ComponentModel;
+using System.IO;
+using System.Reflection;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Sozvon.App.Shell;
+
+namespace Sozvon.App.Settings;
+
+/// <summary>The Settings page: the persisted values, and what the app can really report about itself.</summary>
+public sealed partial class SettingsViewModel : ObservableObject
+{
+    private readonly SettingsStore _store;
+    private readonly AppLanguage _startupLanguage;
+
+    public SettingsViewModel(SettingsStore store, AppLanguage startupLanguage, Action relaunch)
+    {
+        _store = store;
+        _startupLanguage = startupLanguage;
+        RelaunchCommand = new RelayCommand(relaunch);
+        _store.PropertyChanged += OnStoreChanged;
+        Settings.PropertyChanged += OnSettingsChanged;
+    }
+
+    public AppSettings Settings => _store.Settings;
+
+    public IRelayCommand RelaunchCommand { get; }
+
+    public int ThemeIndex
+    {
+        get => (int)Settings.Theme switch { 1 => 0, 2 => 1, _ => 2 };
+        set => Settings.Theme = value switch { 0 => AppTheme.Light, 1 => AppTheme.Dark, _ => AppTheme.System };
+    }
+
+    public int LanguageIndex
+    {
+        get => (int)Settings.Language;
+        set => Settings.Language = (AppLanguage)value;
+    }
+
+    public bool NeedsRelaunch => Settings.Language != _startupLanguage;
+
+    public string SaveError => _store.SaveError;
+
+    public bool HasSaveError => _store.SaveError.Length > 0;
+
+    public bool EngineInstalled => File.Exists(AppPaths.EnginePython);
+
+    public string CallsFolder => AppPaths.CallsDir;
+
+    public string DataFolder => AppPaths.DataDir;
+
+    public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
+
+    private void OnStoreChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(SaveError));
+        OnPropertyChanged(nameof(HasSaveError));
+    }
+
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AppSettings.Theme))
+        {
+            OnPropertyChanged(nameof(ThemeIndex));
+        }
+        else if (e.PropertyName == nameof(AppSettings.Language))
+        {
+            OnPropertyChanged(nameof(LanguageIndex));
+            OnPropertyChanged(nameof(NeedsRelaunch));
+        }
+    }
+}
