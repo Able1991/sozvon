@@ -43,21 +43,7 @@ public sealed partial class MainWindow : Window
         Show(AppPage.Calls);
     }
 
-    public void ApplyTheme(AppTheme theme)
-    {
-        Root.RequestedTheme = theme switch
-        {
-            AppTheme.Light => ElementTheme.Light,
-            AppTheme.Dark => ElementTheme.Dark,
-            _ => ElementTheme.Default,
-        };
-        AppWindow.TitleBar.PreferredTheme = theme switch
-        {
-            AppTheme.Light => TitleBarTheme.Light,
-            AppTheme.Dark => TitleBarTheme.Dark,
-            _ => TitleBarTheme.UseDefaultAppMode,
-        };
-    }
+    public void ApplyTheme(AppTheme theme) => WindowTheme.Apply(this, Root, theme);
 
     public void Show(AppPage page)
     {

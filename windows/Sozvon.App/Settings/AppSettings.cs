@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
 
@@ -6,7 +7,10 @@ public enum AppTheme { System, Light, Dark }
 
 public enum AppLanguage { System, Russian, English }
 
-/// <summary>Everything in Settings, one property per row. Theme and Language are applied; the rest are stored for now.</summary>
+/// <summary>
+/// Everything in Settings, one property per row. A *Choice property is null until the user changes that row, and then
+/// overrides the wizard's .env (<see cref="EngineSettings"/>). Rows marked "not connected" in the page are only stored.
+/// </summary>
 public sealed partial class AppSettings : ObservableObject
 {
     [ObservableProperty] public partial AppTheme Theme { get; set; }
@@ -26,11 +30,14 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial bool TranscribeWhenClear { get; set; } = true;
     [ObservableProperty] public partial int AudioRetention { get; set; }
 
-    [ObservableProperty] public partial int SpeechModel { get; set; }
-    [ObservableProperty] public partial int CallLanguages { get; set; }
-    [ObservableProperty] public partial bool LanguageSwitching { get; set; }
+    [ObservableProperty] public partial WhisperModel? SpeechModelChoice { get; set; }
+    [ObservableProperty] public partial string? CallLanguagesChoice { get; set; }
+    [ObservableProperty] public partial bool? LanguageSwitchingChoice { get; set; }
     [ObservableProperty] public partial bool LowPriority { get; set; } = true;
 
-    [ObservableProperty] public partial int SummaryAssistant { get; set; }
+    [ObservableProperty] public partial Assistant? SummaryAssistantChoice { get; set; }
     [ObservableProperty] public partial bool AutoUpdate { get; set; } = true;
+
+    /// <summary>The project of the last transcribed call: the form starts with it.</summary>
+    [ObservableProperty] public partial string LastProject { get; set; } = "";
 }

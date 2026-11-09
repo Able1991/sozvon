@@ -1,3 +1,5 @@
+using Sozvon.Core.Settings;
+
 namespace Sozvon.Core.Engine;
 
 /// <summary>Where the engine and the calls live on Windows.</summary>
@@ -20,7 +22,9 @@ public sealed record EngineLayout(string Data, string Calls)
 
 /// <summary>What the app decides for every engine run (contract section 2).</summary>
 /// <param name="Threads">SOZVON_THREADS; null leaves the engine's own default.</param>
-public sealed record EngineOptions(string UiLanguage = "ru", int? Threads = null, int? McpPort = null, string? McpToken = null);
+/// <param name="Me">SOZVON_ME. This and the choices after it override .env; null leaves .env in charge.</param>
+public sealed record EngineOptions(string UiLanguage = "ru", int? Threads = null, int? McpPort = null, string? McpToken = null,
+    string? Me = null, Assistant? Llm = null, IReadOnlyList<SpeechLanguage>? Languages = null, bool? LanguageSwitch = null, WhisperModel? Model = null);
 
 public static class EngineEnvironment
 {
@@ -45,6 +49,11 @@ public static class EngineEnvironment
         SetOrRemove(env, "SOZVON_THREADS", options.Threads?.ToString());
         SetOrRemove(env, "SOZVON_MCP_PORT", options.McpPort?.ToString());
         SetOrRemove(env, "SOZVON_MCP_TOKEN", options.McpToken);
+        SetOrRemove(env, "SOZVON_ME", options.Me);
+        SetOrRemove(env, "SOZVON_LLM", options.Llm?.Key());
+        SetOrRemove(env, "SOZVON_LANGUAGE", options.Languages is { } languages ? SpeechLanguages.Serialize(languages) : null);
+        SetOrRemove(env, "SOZVON_LANG_SWITCH", options.LanguageSwitch is { } switching ? (switching ? "1" : "0") : null);
+        SetOrRemove(env, "SOZVON_MODEL", options.Model?.Key());
         env.Remove(StopEventVariable);
         return env;
     }

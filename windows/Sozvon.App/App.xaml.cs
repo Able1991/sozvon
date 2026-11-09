@@ -34,7 +34,7 @@ public partial class App : Application
             return;
         }
         var layout = Layout();
-        _recording = new RecordingController(_capsule, layout);
+        _recording = new RecordingController(_capsule, layout, Shell.AppHost.Current!.Settings, Shell.AppHost.Current.EngineSettings);
         Shell.AppHost.Current!.Attach(_capsule, _recording);
         _recording.Start();
         if (!layout.IsInstalled)

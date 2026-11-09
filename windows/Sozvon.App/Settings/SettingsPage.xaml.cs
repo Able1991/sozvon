@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Sozvon.Core.Settings;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Settings;
@@ -12,9 +13,31 @@ public sealed partial class SettingsPage : UserControl
         ViewModel = viewModel;
         InitializeComponent();
         PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
+        AddModels();
+        CallLanguagesBox.Languages = ViewModel.CallLanguages;
+        CallLanguagesBox.LanguagesChanged += (_, _) => ViewModel.CallLanguages = CallLanguagesBox.Languages;
     }
 
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>In enum order: the box's index is the model. A model that is not on disk cannot be chosen: the engine would refuse the call.</summary>
+    private void AddModels()
+    {
+        foreach (var model in Enum.GetValues<WhisperModel>())
+        {
+            var downloaded = model.IsDownloaded(ViewModel.DataFolder);
+            ModelBox.Items.Add(new ComboBoxItem { Content = ModelTitle(model) + (downloaded ? "" : " · " + L("не скачана")), IsEnabled = downloaded });
+        }
+    }
+
+    private static string ModelTitle(WhisperModel model) => model switch
+    {
+        WhisperModel.Turbo => "Whisper Turbo",
+        WhisperModel.Large => "Whisper Large v3",
+        WhisperModel.Small => "Whisper Small",
+        WhisperModel.GigaAm => "GigaAM v3",
+        _ => "Parakeet v3",
+    };
 
     private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {

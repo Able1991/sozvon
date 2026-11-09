@@ -19,6 +19,7 @@ public sealed class AppHost
     private static AppHost? _current;
 
     private readonly SettingsStore _store = new(AppPaths.SettingsFile);
+    private readonly EngineSettings _engineSettings;
     private readonly CallRepository _repository = new(AppPaths.CallsDir, AppPaths.DataDir);
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly AppLanguage _startupLanguage;
@@ -34,8 +35,13 @@ public sealed class AppHost
 
     public RecordingController? Recording => _recording;
 
+    public AppSettings Settings => _store.Settings;
+
+    public EngineSettings EngineSettings => _engineSettings;
+
     private AppHost()
     {
+        _engineSettings = new EngineSettings(_store.Settings, AppPaths.EnvFile);
         _startupLanguage = _store.Settings.Language;
         Loc.Initialize(ResolvesToRussian(_startupLanguage));
         _store.Settings.PropertyChanged += OnSettingChanged;
@@ -164,7 +170,7 @@ public sealed class AppHost
     private MainWindow CreateWindow()
     {
         _calls = new CallsViewModel(_repository, _store.Settings);
-        var settings = new SettingsViewModel(_store, _startupLanguage, Relaunch);
+        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
         return new MainWindow(_calls, settings);
     }
 

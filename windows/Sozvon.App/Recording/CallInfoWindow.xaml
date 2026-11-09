@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Sozvon.App.Recording.CallInfoWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Sozvon.App.Recording"
+    xmlns:settings="using:Sozvon.App.Settings"
+    xmlns:s="using:Sozvon.App.Strings"
+    Title="Sozvon">
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+    <Grid x:Name="Root" KeyDown="OnKeyDown">
+        <Grid.Resources>
+            <Style x:Key="FormLabel" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+                <Setter Property="TextAlignment" Value="Right" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Margin" Value="0,18,0,0" />
+            </Style>
+            <Style x:Key="FormHint" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+            <DataTemplate x:Key="ProjectTemplate" x:DataType="local:ProjectChoice">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind Dot}" Visibility="{x:Bind DotVisibility}" />
+                    <TextBlock Text="{x:Bind Title}" />
+                </StackPanel>
+            </DataTemplate>
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="32" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel x:Name="TitleBarArea" Orientation="Horizontal" Padding="16,0,0,0" Spacing="12">
+            <Image x:Name="AppIcon" Width="16" Height="16" VerticalAlignment="Center" />
+            <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Text="Sozvon" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <ScrollViewer x:Name="BodyScroll" Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto"
+                      Background="{ThemeResource LayerFillColorDefaultBrush}">
+            <StackPanel x:Name="Body" Padding="24,16,24,16" Spacing="16" VerticalAlignment="Top">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="Heading" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <TextBlock Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" Text="{s:L K='Тема и имена помогут расшифровке и саммари.'}" />
+                </StackPanel>
+
+                <Grid ColumnSpacing="12" Margin="0,-12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource FormLabel}" Text="{s:L K='Что это:'}" />
+                    <RadioButtons x:Name="KindChoice" Grid.Row="0" Grid.Column="1" Margin="0,12,0,0" MaxColumns="2" SelectionChanged="OnFormChanged"
+                                  AutomationProperties.Name="{s:L K='Что это:'}">
+                        <RadioButton Content="{s:L K='Звонок'}" />
+                        <RadioButton Content="{s:L K='Размышления'}" />
+                    </RadioButtons>
+
+                    <TextBlock Grid.Row="1" Style="{StaticResource FormLabel}" Text="{s:L K='Проект:'}" />
+                    <ComboBox x:Name="ProjectBox" Grid.Row="1" Grid.Column="1" Margin="0,12,0,0" Width="200" ItemTemplate="{StaticResource ProjectTemplate}"
+                              SelectionChanged="OnProjectChanged" AutomationProperties.Name="{s:L K='Проект:'}" />
+
+                    <TextBlock Grid.Row="2" Style="{StaticResource FormLabel}" Text="{s:L K='Тема:'}" />
+                    <TextBox x:Name="TopicBox" Grid.Row="2" Grid.Column="1" Margin="0,12,0,0" TextChanged="OnFormChanged"
+                             PlaceholderText="{s:L K='О чём говорили, двумя словами'}" AutomationProperties.Name="{s:L K='Тема:'}" />
+
+                    <TextBlock Grid.Row="3" Style="{StaticResource FormLabel}" Text="{s:L K='Собеседники:'}" />
+                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,12,0,0" Spacing="4">
+                        <TextBox x:Name="NamesBox" TextChanged="OnNamesChanged" PlaceholderText="{s:L K='Анна, Иван'}"
+                                 AutomationProperties.Name="{s:L K='Собеседники:'}" />
+                        <TextBlock Style="{StaticResource FormHint}" Text="{s:L K='Собеседников без себя, через запятую, по порядку, кто заговорит первым. Всё можно оставить пустым.'}" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="SuggestionsLabel" Grid.Row="4" Style="{StaticResource FormLabel}" Text="{s:L K='Похоже, это:'}" Visibility="Collapsed" />
+                    <local:FlowPanel x:Name="Suggestions" Grid.Row="4" Grid.Column="1" Margin="0,12,0,0" Visibility="Collapsed" />
+
+                    <TextBlock Grid.Row="5" Style="{StaticResource FormLabel}" Text="{s:L K='Ключевые слова:'}" />
+                    <TextBox x:Name="TermsBox" Grid.Row="5" Grid.Column="1" Margin="0,12,0,0" TextChanged="OnFormChanged"
+                             PlaceholderText="{s:L K='HMAC, invoice.paid, песочница'}" AutomationProperties.Name="{s:L K='Ключевые слова:'}" />
+
+                    <TextBlock Grid.Row="6" Style="{StaticResource FormLabel}" Text="{s:L K='Язык:'}" />
+                    <settings:LanguagesButton x:Name="LanguagesBox" Grid.Row="6" Grid.Column="1" Margin="0,12,0,0" MinWidth="200" HorizontalContentAlignment="Left"
+                                              AutomationProperties.Name="{s:L K='Язык:'}" />
+
+                    <TextBlock Grid.Row="7" Style="{StaticResource FormLabel}" Margin="0,12,0,0" Text="{s:L K='Саммари:'}" />
+                    <CheckBox x:Name="SummaryBox" Grid.Row="7" Grid.Column="1" Margin="0,12,0,0" Click="OnFormChanged" MinHeight="20" Padding="8,0,0,0" />
+                </Grid>
+
+                <InfoBar x:Name="CountdownBar" IsOpen="False" IsClosable="False" Severity="Informational">
+                    <InfoBar.ActionButton>
+                        <Button Content="{s:L K='Подождать'}" Click="OnWait" ToolTipService.ToolTip="{s:L K='Не расшифровывать сразу, сначала проверю'}" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Grid Grid.Row="2" Padding="24,16,24,16" ColumnSpacing="8" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="OkButton" Style="{StaticResource AccentButtonStyle}" Click="OnOk" />
+            <Button x:Name="LaterButton" Grid.Column="1" Content="{s:L K='Позже'}" Click="OnLater"
+                    ToolTipService.ToolTip="{s:L K='Закрыть и вернуться к звонку потом: меню Sozvon → «Ждут описания»'}" />
+            <Button x:Name="CancelButton" Grid.Column="3" Click="OnCancel" />
+        </Grid>
+    </Grid>
+</Window>

@@ -34,6 +34,27 @@ public class EngineEnvironmentTests : TempFolders
     }
 
     [Fact]
+    public void ChoicesOverrideTheEnvFile()
+    {
+        var options = new EngineOptions(Me: "Анна", Llm: Assistant.None, Languages: [SpeechLanguage.Ru, SpeechLanguage.En], LanguageSwitch: true, Model: WhisperModel.Large);
+        var env = EngineEnvironment.Build(Layout, options, []);
+        Assert.Equal("Анна", env["SOZVON_ME"]);
+        Assert.Equal("none", env["SOZVON_LLM"]);
+        Assert.Equal("ru,en", env["SOZVON_LANGUAGE"]);
+        Assert.Equal("1", env["SOZVON_LANG_SWITCH"]);
+        Assert.Equal("large-v3", env["SOZVON_MODEL"]);
+        Assert.Equal("auto", EngineEnvironment.Build(Layout, new EngineOptions(Languages: []), [])["SOZVON_LANGUAGE"]);
+    }
+
+    [Fact]
+    public void WithoutAChoiceTheEnvFileDecides()
+    {
+        var env = EngineEnvironment.Build(Layout, new EngineOptions(), new Dictionary<string, string> { ["SOZVON_MODEL"] = "small", ["SOZVON_LLM"] = "claude" });
+        Assert.False(env.ContainsKey("SOZVON_MODEL"));
+        Assert.False(env.ContainsKey("SOZVON_LLM"));
+    }
+
+    [Fact]
     public void LayoutFindsTheEngine()
     {
         Assert.False(Layout.IsInstalled);
