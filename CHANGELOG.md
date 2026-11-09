@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5
+
+- **Find inside a transcript.** ⌘F on the Transcript tab finds words in this call: every match is highlighted, Return and Shift-Return move between them. On the Summary tab, or with ⌥⌘F, it searches across all calls as before.
+
 ## 0.1.4
 
 - **Ask your assistant about people.** Two new MCP tools: `get_commitments` ("what did Oleg promise me", from the summaries across calls) and `get_person` (how many calls, the last one, projects, who else was there, open commitments).

@@ -787,3 +787,9 @@
 "Демо-звонки" = "Demo Calls";
 "Вымышленные звонки с расшифровкой и саммари, без звука: можно сразу спросить ассистента. Никуда не отправляются." = "Fictional calls with a transcript and summary, no audio, so you can ask your assistant right away. They are never sent anywhere.";
 "Демо" = "Demo";
+"Найти в расшифровке" = "Find in Transcript";
+"Ничего не найдено" = "Not found";
+"%@ из %@" = "%@ of %@";
+"Предыдущее совпадение" = "Previous Match";
+"Следующее совпадение" = "Next Match";
+"Закрыть поиск" = "Close Find";
