@@ -43,6 +43,7 @@ defaults; environment variables take precedence over `.env`.
 | `SOZVON_UI_LANG` | `ru` or `en`: language of engine messages and transcript files | the app |
 | `SOZVON_THREADS` | thread limit on performance cores ("Transcribe at low priority" setting) | the app |
 | `SOZVON_MCP_PORT`, `SOZVON_MCP_TOKEN` | port and token of the shared MCP server | the app |
+| `SOZVON_STOP_EVENT` | Windows only: name of a named event the app created; signalling it stops the run as SIGTERM does (`finally` blocks, exit code 143). Not set: no thread waits for it | the Windows app |
 | `SOZVON_PYANNOTE_TAR` | path to the speaker separation model archive in the bundle | the app (for `setup.sh`) |
 | `SOZVON_PYANNOTE_URL`, `SOZVON_PYANNOTE_SHA` | alternative URL and SHA-256 of the speaker separation model archive (for development) | nobody by default |
 | `SOZVON_AEC` | `0`: skip the echo cancellation of the microphone (the system track is the reference for removing the other side's voices that the mic picked up from the speakers; the original `mic.m4a` is never changed). Manual, for debugging | nobody by default |

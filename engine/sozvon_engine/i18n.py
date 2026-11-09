@@ -87,6 +87,8 @@ MESSAGES = {
                          "speaker names: not sure, keeping “{speaker}”"),
     "log_waiting_for_run": ("этот звонок ещё обрабатывает другой запуск, жду, пока он закончится",
                             "another run is still processing this call, waiting for it to end"),
+    "log_stop_event_failed": ("не удалось ждать событие остановки SOZVON_STOP_EVENT ({name}): этот запуск можно только прервать",
+                              "cannot wait for the stop event SOZVON_STOP_EVENT ({name}): this run can only be killed"),
     "log_names_error": ("имена собеседников: ошибка помощника ({err}), имена по порядку",
                         "speaker names: assistant error ({err}), names in order of appearance"),
     "log_voice_match": ("голос: {speaker} → {name} ({score:.2f})", "voice: {speaker} → {name} ({score:.2f})"),
