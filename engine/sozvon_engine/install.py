@@ -55,12 +55,25 @@ def ensure_entry(entry: dict, d: Path, downloader: Downloader) -> None:
         return
     if models.files_present(d, entry["files"]):
         # Downloaded before markers existed (installs before 0.1): mark it, do not re-download.
+        verify_files(entry, d)
         (d / models.COMPLETE).write_text("legacy\n")
         return
     d.mkdir(parents=True, exist_ok=True)
     for f in entry["files"]:
         downloader(entry["repo"], f, entry["revision"], d)
+    verify_files(entry, d)
     (d / models.COMPLETE).write_text(entry["revision"] + "\n")
+
+
+def verify_files(entry: dict, d: Path) -> None:
+    """Check the files of an entry that pins a hash per file; a bad one is removed so a new run fetches it again."""
+    sums = entry.get("sha256")
+    if not isinstance(sums, dict):
+        return
+    for name, want in sums.items():
+        if sha256(d / name) != want:
+            (d / name).unlink(missing_ok=True)
+            raise ValueError(f"{name}: checksum mismatch")
 
 
 def ensure_model(data: Path, name: str, downloader: Downloader = hf_download) -> Path:

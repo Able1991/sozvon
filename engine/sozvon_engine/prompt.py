@@ -5,6 +5,8 @@ the limit: at 196 tokens a short utterance turned into garbage "ru, c'f-5,2,0,0,
 Hence a 120-token budget and this priority: base, project, participants, call keywords,
 then project people and terms and common terms, while they fit.
 """
+from . import platform_support
+
 PROMPT_MAX_TOKENS = 120
 
 # A Russian base pulls Whisper toward Russian: other languages get their own base or none.
@@ -25,6 +27,9 @@ _tokenizer = None
 
 def count_tokens(text: str) -> int:
     """Whisper tokens (mlx-whisper multilingual tokenizer, without loading the model)."""
+    if platform_support.SYSTEM == "win32":
+        from . import whisper_ct2
+        return whisper_ct2.count_tokens(text)
     global _tokenizer
     if _tokenizer is None:
         from mlx_whisper.tokenizer import get_tokenizer

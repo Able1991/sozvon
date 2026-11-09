@@ -43,8 +43,11 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 |---|---|
 | No network, a broken or interrupted download (SHA, a retry), models at a pinned revision | tests, real run in block 7 |
 | The speaker models archive without symlink rights | block 7 |
+| Two copies of the OpenMP runtime in one process (torch and ctranslate2) | block 6, no `KMP_DUPLICATE_LIB_OK` without agreement |
 | No administrator rights: everything is in the user's folders | block 7 |
-| GPU is optional, a missing library falls back to int8 on the CPU with a log line | blocks 5 to 7 |
+| GPU is optional, a missing library falls back to int8 on the CPU with a log line | done |
+| A failure on the GPU in the middle of a track: the track starts over on the CPU, the GPU is not tried again | done |
+| The contents of `cuda-libs` are checked against sha256 | block 7 |
 | No assistant, `SOZVON_LLM=none`, a failed summary and its warning | block 4 |
 | Low priority and `SOZVON_THREADS` | block 4 for the process, block 5 for Whisper |
 | Memory on long calls, speed on CPU and GPU | block 9 |
@@ -65,7 +68,8 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Cyrillic and spaces in paths and user names: one full run | block 9 |
 | `?*"<>\|`, reserved and very long names in call folders | block 8 |
 | A file held open by an antivirus or a player | block 8 |
-| Console code page | block 4 |
+| Console code page | done |
+| Text mode writes a prompt's line ends as CRLF on stdin (every character intact, harmless for summaries) | known, left as is |
 | Sleep and wake, the profile being unloaded | block 9 where possible, otherwise stage 2 |
 | Calls live outside OneDrive by default | done |
 

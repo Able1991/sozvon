@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from . import audio as _audio
+from . import platform_support
 
 SR = _audio.SR
 WIN = 30 * SR
@@ -53,6 +54,9 @@ class Detector:
         return self._model
 
     def probs(self, chunk: np.ndarray) -> dict:
+        if platform_support.SYSTEM == "win32":
+            from . import whisper_ct2
+            return whisper_ct2.language_probs(self.repo, chunk)
         import mlx.core as mx
         from mlx_whisper.audio import N_FRAMES, log_mel_spectrogram, pad_or_trim
         m = self.model()

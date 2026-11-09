@@ -6,11 +6,13 @@ download from an interrupted one. The revision is pinned in the manifest. Downlo
 import json
 from pathlib import Path
 
-from . import paths
+from . import paths, platform_support
 
 MANIFEST_FILE = paths.CODE_DIR / "models.json"
 MANIFEST = json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
-MODELS: dict = MANIFEST["models"]
+# On Windows a Whisper model comes from its faster-whisper conversion, the "win32" block of its entry.
+MODELS: dict = {k: {**v, **v["win32"]} if "win32" in v and platform_support.SYSTEM == "win32" else v
+                for k, v in MANIFEST["models"].items()}
 VAD: dict = MANIFEST["vad"]
 COMPLETE = ".complete"
 DEFAULT_MODEL = "turbo"

@@ -194,4 +194,4 @@ Requires Xcode Command Line Tools and [uv](https://docs.astral.sh/uv/). Optional
 
 ## License
 
-MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0).
+MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0). The Windows engine uses the faster-whisper conversions of Whisper (MIT); `engine/sozvon_engine/assets/whisper-tokenizer.json` is the Whisper tokenizer from `Systran/faster-whisper-small` (MIT).

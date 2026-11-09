@@ -194,4 +194,4 @@ SLOW=1 ./test.sh       # плюс сквозные тесты на настоя�
 
 ## Лицензия
 
-MIT. Модели: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0).
+MIT. Модели: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0). Движок для Windows использует конвертации Whisper для faster-whisper (MIT); `engine/sozvon_engine/assets/whisper-tokenizer.json` это токенайзер Whisper из `Systran/faster-whisper-small` (MIT).

@@ -7,6 +7,8 @@ must not load hundreds of megabytes until it is asked to transcribe.
 import re
 import zlib
 
+from . import platform_support
+
 # Typical Whisper hallucinations on silence (trained on YouTube subtitles) and empty lines. Subtitle credits
 # are matched as credits ("Редактор субтитров А.Синецкая", "Корректор А.Егорова"), so a real sentence about
 # an editor stays.
@@ -136,13 +138,20 @@ def clean_texts(texts, replacements: list) -> list:
 
 
 def _transcribe(audio, **kw) -> dict:
-    """Test seam: the real mlx_whisper.transcribe call."""
+    """Test seam: the real mlx_whisper.transcribe call (faster-whisper on Windows)."""
+    if platform_support.SYSTEM == "win32":
+        from . import whisper_ct2
+        return whisper_ct2.transcribe(audio, **kw)
     import mlx_whisper
     return mlx_whisper.transcribe(audio, **kw)
 
 
 def ensure_backend() -> None:
     """Check that mlx-whisper imports (otherwise the engine is broken)."""
+    if platform_support.SYSTEM == "win32":
+        from . import whisper_ct2
+        whisper_ct2.ensure_backend()
+        return
     import mlx_whisper  # noqa: F401
 
 

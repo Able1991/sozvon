@@ -11,6 +11,12 @@ from sozvon_engine import install, models
 from sozvon_engine.paths import EngineDir
 
 
+@pytest.fixture(autouse=True)
+def no_pinned_hashes(monkeypatch):
+    """The fake hub writes stand-in files. Hashes per file (the Windows models) have tests of their own below."""
+    monkeypatch.setattr(models, "MODELS", {k: {a: b for a, b in v.items() if a != "sha256"} for k, v in models.MODELS.items()})
+
+
 class FakeHub:
     def __init__(self):
         self.calls = []
@@ -18,6 +24,21 @@ class FakeHub:
     def __call__(self, repo, filename, revision, local_dir):
         self.calls.append((repo, filename, revision))
         Path(local_dir, filename).write_text("weights")
+
+
+ENTRY = {"repo": "r", "revision": "v", "files": ["a.bin"], "sha256": {"a.bin": hashlib.sha256(b"weights").hexdigest()}}
+
+
+def test_files_are_checked_against_their_pinned_hashes(tmp_path):
+    install.ensure_entry(ENTRY, tmp_path, FakeHub())
+    assert (tmp_path / models.COMPLETE).read_text() == "v\n"
+
+
+def test_a_file_with_the_wrong_hash_is_not_marked_complete(tmp_path):
+    entry = {**ENTRY, "sha256": {"a.bin": "0" * 64}}
+    with pytest.raises(ValueError, match="checksum"):
+        install.ensure_entry(entry, tmp_path, FakeHub())
+    assert not (tmp_path / models.COMPLETE).exists() and not (tmp_path / "a.bin").exists()
 
 
 def test_fresh_download_passes_pinned_revision(tmp_path):

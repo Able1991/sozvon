@@ -40,7 +40,7 @@ def test_complete_marker_and_legacy(tmp_path):
     for f in models.MODELS["turbo"]["files"]:
         (d / f).write_text("x")
     assert models.is_downloaded(tmp_path, "turbo"), "старые установки без метки .complete"
-    (d / "weights.safetensors").write_text("")
+    (d / models.MODELS["turbo"]["files"][-1]).write_text("")  # the weights on the Mac
     assert not models.is_downloaded(tmp_path, "turbo"), "пустой файл значит оборванная загрузка"
 
 
