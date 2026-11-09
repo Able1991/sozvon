@@ -18,6 +18,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        Shell.AppHost.Start();
         _capsule = new CapsuleWindow();
         _capsule.HideRequested += (_, _) => Exit();
         _capsule.PlaceDefault();
