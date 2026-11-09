@@ -67,7 +67,18 @@ public sealed class AppHost
         _trayState.Recording = recording;
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         recording.StateChanged += (_, _) => _tray.Refresh();
+        recording.RemindToSay = () => _store.Settings.RemindToSay;
+        recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
+        capsule.Moved += (_, position) =>
+        {
+            _store.Settings.CapsuleX = position.X;
+            _store.Settings.CapsuleY = position.Y;
+        };
+        if (_store.Settings is { CapsuleX: { } x, CapsuleY: { } y })
+        {
+            capsule.MoveToIfOnScreen(x, y);
+        }
         recording.Problem += (_, text) => _tray.Notify(text);
         ApplyCapsuleTheme();
         ApplyFloatingPanel();

@@ -33,9 +33,14 @@ public partial class App : Application
             _demo.Start(demoState);
             return;
         }
-        _recording = new RecordingController(_capsule, Layout());
+        var layout = Layout();
+        _recording = new RecordingController(_capsule, layout);
         Shell.AppHost.Current!.Attach(_capsule, _recording);
         _recording.Start();
+        if (!layout.IsInstalled)
+        {
+            Shell.AppHost.Current!.OpenSetup();
+        }
     }
 
     /// <summary>The default folders, or the ones given for a run outside the normal install.</summary>

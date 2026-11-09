@@ -13,6 +13,7 @@ namespace Sozvon.App.Recording;
 public sealed class RecordingController
 {
     private static readonly TimeSpan SavedShownFor = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan ReminderShownFor = TimeSpan.FromSeconds(8);
 
     private readonly CapsuleWindow _capsule;
     private readonly EngineLayout _layout;
@@ -26,6 +27,7 @@ public sealed class RecordingController
     private TrackWarning? _warning;
     private bool _recording;
     private bool _changing;
+    private bool _remind;
 
     /// <summary>Asked for when the user presses Record and the engine is not installed yet.</summary>
     public event EventHandler? SetupNeeded;
@@ -35,6 +37,12 @@ public sealed class RecordingController
 
     /// <summary>Something the user has to know about, as a sentence ready to show.</summary>
     public event EventHandler<string>? Problem;
+
+    /// <summary>Settings: remind to say that the call is recorded.</summary>
+    public Func<bool> RemindToSay { get; set; } = () => false;
+
+    /// <summary>Settings: the capsule is on screen. Without it the reminder comes as a notification.</summary>
+    public Func<bool> PanelVisible { get; set; } = () => true;
 
     public bool IsRecording => _recording;
 
@@ -149,6 +157,11 @@ public sealed class RecordingController
         _warning = null;
         _recording = true;
         _clock.Start();
+        _remind = RemindToSay();
+        if (_remind && !PanelVisible())
+        {
+            Problem?.Invoke(this, CapsuleText.TellOthers);
+        }
         RenderRecording();
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -208,6 +221,7 @@ public sealed class RecordingController
         {
             RecordingTrack.Microphone => CapsuleHint.MicSilent,
             RecordingTrack.System => CapsuleHint.SystemSilent,
+            _ when _remind && Elapsed < ReminderShownFor => CapsuleHint.TellOthers,
             _ => CapsuleHint.None,
         };
         _capsule.Render(new CapsuleModel(CapsulePhase.Recording)

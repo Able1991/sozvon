@@ -37,6 +37,9 @@ public sealed partial class CapsuleWindow : Window
     public event EventHandler? SecondaryClicked;
     public event EventHandler? HideRequested;
 
+    /// <summary>The user finished dragging the capsule to this position.</summary>
+    public event EventHandler<Windows.Graphics.PointInt32>? Moved;
+
     public CapsuleWindow()
     {
         InitializeComponent();
@@ -70,6 +73,16 @@ public sealed partial class CapsuleWindow : Window
     public void ApplyTheme(ElementTheme theme) => Root.RequestedTheme = theme;
 
     public void MoveTo(int x, int y) => AppWindow.Move(new(x, y));
+
+    /// <summary>A remembered position is used only while a display still shows it: monitors come and go.</summary>
+    public void MoveToIfOnScreen(int x, int y)
+    {
+        var area = DisplayArea.GetFromPoint(new(x, y), DisplayAreaFallback.None);
+        if (area is not null)
+        {
+            MoveTo(x, y);
+        }
+    }
 
     public void Render(CapsuleModel model)
     {
@@ -286,6 +299,10 @@ public sealed partial class CapsuleWindow : Window
 
     private void OnReleased(object sender, PointerRoutedEventArgs e)
     {
+        if (_dragging)
+        {
+            Moved?.Invoke(this, AppWindow.Position);
+        }
         _dragging = false;
         Root.ReleasePointerCaptures();
     }

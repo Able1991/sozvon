@@ -14,6 +14,8 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial string DisplayName { get; set; } = "";
 
     [ObservableProperty] public partial bool FloatingPanel { get; set; } = true;
+    [ObservableProperty] public partial int? CapsuleX { get; set; }
+    [ObservableProperty] public partial int? CapsuleY { get; set; }
     [ObservableProperty] public partial bool PanelWhenIdle { get; set; }
     [ObservableProperty] public partial int CallStartAction { get; set; }
     [ObservableProperty] public partial bool StopAfterCall { get; set; }
