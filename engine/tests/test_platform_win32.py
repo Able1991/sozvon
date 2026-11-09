@@ -571,6 +571,231 @@ def test_known_folders_are_real_folders(win32):
         assert win32._known_folder(folder_id).is_dir()
 
 
+# ---- external programs: absolute paths only ----
+
+def test_tool_path_is_next_to_python_and_must_exist(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "python.exe"))
+    with pytest.raises(FileNotFoundError):
+        ps.tool_path("ffmpeg")
+    (tmp_path / "ffmpeg.exe").write_bytes(b"x")
+    assert ps.tool_path("ffmpeg") == str(tmp_path / "ffmpeg.exe")
+
+
+def test_tool_path_of_a_system_tool_is_in_the_system_folder():
+    curl = Path(ps.tool_path("curl"))
+    assert curl.is_absolute() and curl.name.lower() == "curl.exe" and curl.parent.name.lower() == "system32"
+
+
+def test_a_forged_ffmpeg_in_the_current_folder_is_not_run(monkeypatch, tmp_path):
+    """A call folder or a phone folder can hold anything, and CreateProcess looks in the current folder before PATH."""
+    from sozvon_engine import audio
+    if not (Path(sys.executable).parent / "ffmpeg.exe").exists():
+        pytest.skip("this environment has no ffmpeg.exe next to python")
+    import shutil
+    import wave
+    with wave.open(str(tmp_path / "a.wav"), "wb") as w:
+        w.setnchannels(1), w.setsampwidth(2), w.setframerate(16000), w.writeframes(b"\x10\x00" * 16000)
+    shutil.copy(BASE_PYTHON, tmp_path / "ffmpeg.exe")  # cannot start here, and is no ffmpeg if it could
+    monkeypatch.chdir(tmp_path)
+    assert len(audio.decode(tmp_path / "a.wav")) == 16000
+
+
+def test_a_forged_assistant_in_the_current_folder_is_not_found(monkeypatch, tmp_path):
+    (tmp_path / "claude.exe").write_bytes(b"x")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(tmp_path / "elsewhere"))
+    assert ps.find_cli("claude", []) is None
+
+
+def test_exe_wins_over_cmd_and_scripts_are_ignored(monkeypatch, tmp_path):
+    (tmp_path / "tool.ps1").write_text("x")
+    (tmp_path / "tool.bat").write_text("x")
+    monkeypatch.setenv("PATH", str(tmp_path))
+    assert ps.find_cli("tool", []) is None
+    (tmp_path / "tool.exe").write_bytes(b"x")
+    assert ps.find_cli("tool", []) == str(tmp_path / "tool.exe")
+    assert ps.cli_argv(str(tmp_path / "tool.exe")) == [str(tmp_path / "tool.exe")]
+
+
+NPM_SHIM = r"""@ECHO off
+GOTO start
+:find_dp0
+SET dp0=%~dp0
+EXIT /b
+:start
+SETLOCAL
+CALL :find_dp0
+
+IF EXIST "%dp0%\node.exe" (
+  SET "_prog=%dp0%\node.exe"
+) ELSE (
+  SET "_prog=node"
+  SET PATHEXT=%PATHEXT:;.JS;=;%
+)
+
+endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\{target}" %*
+"""
+
+SPY_JS = """
+const fs = require('fs');
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', c => input += c);
+process.stdin.on('end', () => {
+  fs.writeFileSync(process.env.SPY_OUT, JSON.stringify({argv: process.argv.slice(2), stdin: input, cwd: process.cwd()}), 'utf8');
+  process.stdout.write('ответ готов');
+});
+"""
+
+
+@pytest.fixture
+def npm_dir(tmp_path):
+    d = tmp_path / "Программы и тесты"
+    d.mkdir()
+    return d
+
+
+def _shim(folder: Path, name: str, target: str = r"node_modules\pkg\cli.js", script: str | None = SPY_JS) -> Path:
+    (folder / f"{name}.cmd").write_text(NPM_SHIM.format(target=target), encoding="utf-8")
+    if script is not None:
+        f = folder / target
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(script, encoding="utf-8")
+    return folder / f"{name}.cmd"
+
+
+def _need_node():
+    if ps.find_cli("node", []) is None:
+        pytest.skip("no node on PATH")
+
+
+def test_npm_shim_runs_node_with_the_script_directly(npm_dir):
+    _need_node()
+    argv = ps.cli_argv(str(_shim(npm_dir, "codex")))
+    assert len(argv) == 2 and Path(argv[0]).is_absolute() and Path(argv[0]).name.lower() == "node.exe"
+    assert argv[1] == str((npm_dir / "node_modules" / "pkg" / "cli.js").resolve())
+
+
+def test_node_next_to_the_shim_is_preferred(npm_dir):
+    (npm_dir / "node.exe").write_bytes(b"x")
+    assert ps.cli_argv(str(_shim(npm_dir, "codex")))[0] == str(npm_dir.resolve() / "node.exe")
+
+
+@pytest.mark.parametrize("target,script", [
+    (r"..\outside.js", SPY_JS),                         # leaves the folder of the shim
+    (r"node_modules\..\..\outside.js", SPY_JS),
+    (r"node_modules\pkg\missing.js", None),             # no such file
+])
+def test_npm_shim_pointing_elsewhere_is_refused(npm_dir, target, script):
+    shim = _shim(npm_dir, "codex", target, script)
+    with pytest.raises(FileNotFoundError):
+        ps.cli_argv(str(shim))
+    assert ps.find_cli("codex", [npm_dir]) is None
+
+
+def test_a_cmd_file_that_is_no_npm_shim_is_refused(monkeypatch, npm_dir):
+    monkeypatch.setenv("PATH", "")  # a real claude on this machine must not answer for the fake one
+    (npm_dir / "claude.cmd").write_text("@echo off\r\nsomething.exe %*\r\n", encoding="utf-8")
+    with pytest.raises(FileNotFoundError):
+        ps.cli_argv(str(npm_dir / "claude.cmd"))
+    assert ps.find_cli("claude", [npm_dir]) is None
+
+
+NASTY = 'Анна: & echo pwned > pwned.txt | %PATH% "кавычки" <x> ^ `id` $(id) ✓\nвторая строка'
+
+
+def _assistant(monkeypatch, npm_dir, tmp_path, name="claude"):
+    from sozvon_engine import llm
+    _need_node()
+    monkeypatch.setenv("PATH", str(Path(ps.find_cli("node", [])).parent))  # only node, no real assistant of this machine
+    _shim(npm_dir, name)
+    monkeypatch.setattr(llm, "BIN_DIRS", [npm_dir])
+    monkeypatch.setenv("SOZVON_LLM", name)
+    monkeypatch.setenv("SPY_OUT", str(tmp_path / "spy.json"))
+    return llm
+
+
+def test_transcript_reaches_the_assistant_untouched_through_stdin(monkeypatch, npm_dir, tmp_path):
+    """No cmd.exe anywhere: the text of a call can hold any characters. --tools "" must arrive as an empty argument."""
+    import json
+    llm = _assistant(monkeypatch, npm_dir, tmp_path)
+    cwd = tmp_path / "звонок с пробелом"
+    cwd.mkdir()
+    out, name, err = llm.run(NASTY, cwd)
+    assert (out, name, err) == ("ответ готов", "claude", "")
+    spy = json.loads((tmp_path / "spy.json").read_text(encoding="utf-8"))
+    assert spy["stdin"].replace("\r\n", "\n") == NASTY  # text mode writes line ends as CRLF here, every character is intact
+    assert spy["argv"][spy["argv"].index("--tools") + 1] == "", "an empty argument, not a missing one"
+    assert not list(cwd.iterdir()), "nothing ran"
+
+
+def test_project_discovery_is_off_on_windows(monkeypatch, npm_dir, tmp_path):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path)
+    out, name, err = llm.run("x", tmp_path, agentic=True)
+    assert out is None and name == "claude" and err
+    assert not (tmp_path / "spy.json").exists(), "the assistant was not started"
+
+
+@pytest.mark.parametrize("name", ["codex", "cursor"])
+def test_chosen_codex_and_cursor_fail_with_a_clear_error(monkeypatch, npm_dir, tmp_path, name):
+    binary = {"codex": "codex", "cursor": "cursor-agent"}[name]
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, binary)
+    monkeypatch.setenv("SOZVON_LLM", name)
+    assert llm.backend()[0] == name, "it counts as chosen, so the failure reaches warnings"
+    out, got, err = llm.run("x", tmp_path)
+    assert out is None and got == name and err
+    assert not (tmp_path / "spy.json").exists(), "the assistant was not started"
+
+
+def test_a_failed_codex_summary_is_a_warning(monkeypatch, npm_dir, tmp_path):
+    from sozvon_engine.pipeline import summary
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, "codex")
+    monkeypatch.setenv("SOZVON_LLM", "codex")
+    warned = []
+    assert summary.summarize("текст", "Я", tmp_path, warn=warned.append) is None
+    assert len(warned) == 1 and warned[0].startswith("codex")
+    assert llm is not None
+
+
+def test_auto_does_not_choose_codex_or_cursor(monkeypatch, npm_dir, tmp_path):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, "codex")
+    _shim(npm_dir, "cursor-agent")
+    monkeypatch.setenv("SOZVON_LLM", "auto")
+    monkeypatch.setenv("PATH", str(npm_dir))
+    assert llm.backend() == (None, None)
+
+
+# ---- the process itself ----
+
+PREPARE = """
+    import ctypes, sys
+    from sozvon_engine import runtime
+    runtime.prepare()
+    print("Анна · ✓", flush=True)
+    k = ctypes.WinDLL("kernel32")
+    k.GetCurrentProcess.restype = ctypes.c_void_p
+    k.GetPriorityClass.argtypes = [ctypes.c_void_p]
+    print(hex(k.GetPriorityClass(k.GetCurrentProcess())), flush=True)
+"""
+
+
+def _prepared(tmp_path, **extra) -> list:
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING", "SOZVON_THREADS")}
+    env.update(PYTHONPATH=str(ENGINE_ROOT), SOZVON_DATA_DIR=str(tmp_path), **extra)
+    r = subprocess.run([sys.executable, "-c", textwrap.dedent(PREPARE)], capture_output=True, env=env, timeout=60)
+    assert r.returncode == 0, r.stderr.decode("utf-8", "replace")
+    return r.stdout.decode("utf-8").split()
+
+
+def test_output_is_utf8_in_a_pipe(tmp_path):
+    assert _prepared(tmp_path)[:3] == ["Анна", "·", "✓"]
+
+
+def test_low_priority_only_with_a_thread_limit(tmp_path):
+    assert _prepared(tmp_path)[3] == "0x20"  # NORMAL_PRIORITY_CLASS
+    assert _prepared(tmp_path, SOZVON_THREADS="2")[3] == "0x4000"  # BELOW_NORMAL_PRIORITY_CLASS
+
+
 # ---- who can read the data folder ----
 
 def _aces(path: Path) -> list:

@@ -18,6 +18,13 @@ from pathlib import Path
 
 SYSTEM = sys.platform  # "darwin", "win32", "linux" (behaves like POSIX where it can)
 
+# Stage 1 on Windows: a call's text is untrusted, and the sandboxes of these assistants could not be checked there.
+UNVERIFIED_ASSISTANTS = ("codex", "cursor") if SYSTEM == "win32" else ()
+# Project discovery lets an assistant read files; its read-only rules have no equivalent on Windows yet.
+AGENTIC_OFF = SYSTEM == "win32"
+# For text=True pipes to a command line tool. On Windows stderr can come in the console code page.
+TEXT_MODE = {"encoding": "utf-8", "errors": "replace"} if SYSTEM == "win32" else {"encoding": "utf-8"}
+
 
 # --- default folders and tool directories ---
 
@@ -43,6 +50,37 @@ def tool_bin_dirs() -> list[Path]:
     if SYSTEM == "win32":
         return [Path.home() / ".local" / "bin"]
     return [Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
+
+
+# --- programs the engine starts ---
+
+def tool_path(name: str) -> str:
+    """What to start for an external program. On Windows an absolute path, FileNotFoundError if it is absent."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.tool_path(name)
+    return name
+
+
+def find_cli(name: str, extra_dirs) -> str | None:
+    """Windows: an assistant's command line tool that can be started safely, by absolute path."""
+    from . import platform_win32
+    return platform_win32.find_cli(name, extra_dirs)
+
+
+def cli_argv(path: str) -> list:
+    """The start of the command line for a tool found on this machine."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.cli_argv(path)
+    return [path]
+
+
+def prepare_process(threads: int | None) -> None:
+    """What an engine process sets up about itself. Nothing on macOS, where the app does it."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        platform_win32.prepare_process(threads)
 
 
 # --- file locks (advisory, released by the OS when the process dies) ---

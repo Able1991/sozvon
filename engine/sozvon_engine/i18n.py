@@ -113,6 +113,9 @@ MESSAGES = {
     "err_model_missing": ("модель {model} не скачана", "model {model} is not downloaded"),
     "err_ffmpeg": ("ffmpeg не смог прочитать {file}: {err}", "ffmpeg could not read {file}: {err}"),
     "err_engine": ("движок повреждён: {err}", "the engine is broken: {err}"),
+    "llm_unverified_assistant": ("{name} на Windows пока недоступен: его песочницу ещё не проверили. Выберите Claude Code",
+                                 "{name} is not available on Windows yet: its sandbox has not been checked. Choose Claude Code"),
+    "llm_no_discovery": ("поиск проектов на Windows пока недоступен", "finding projects is not available on Windows yet"),
 
     # Voice prints (bin/voice.py: RESULT: error <code> <message>)
     "voice_no_model": ("нет модели образцов голосов: переустанови движок",

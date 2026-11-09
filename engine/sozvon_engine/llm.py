@@ -12,11 +12,14 @@ import time
 from pathlib import Path
 
 from . import config, platform_support
+from .i18n import t
 
 BIN_DIRS = platform_support.tool_bin_dirs()
 
 
 def _find(name: str):
+    if platform_support.SYSTEM == "win32":
+        return platform_support.find_cli(name, BIN_DIRS)
     p = shutil.which(name)
     if p:
         return p
@@ -37,6 +40,10 @@ def backend(settings: config.Settings | None = None):
         return None, None
     order = [want] if want in BINARIES else list(BINARIES)
     for name in order:
+        if name in platform_support.UNVERIFIED_ASSISTANTS:
+            if want == name:
+                return name, None  # chosen: counts, so the failure reaches the call's warnings
+            continue
         path = _find(BINARIES[name])
         if path:
             return name, path
@@ -57,10 +64,14 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     name, path = backend(settings)
     if not name:
         return None, None, "не найден ни claude, ни codex, ни cursor-agent CLI"
+    if not path:
+        return None, name, t("llm_unverified_assistant", name=name)
+    if agentic and platform_support.AGENTIC_OFF:
+        return None, name, t("llm_no_discovery")
     if name == "claude":
         # --setting-sources project: skip ~/.claude/settings.json, otherwise the user's allow rules
         # (Bash, Write ...) would widen the assistant's permissions.
-        cmd = [path, "-p", "--model", settings.summary_model,
+        cmd = [*platform_support.cli_argv(path), "-p", "--model", settings.summary_model,
                "--no-session-persistence", "--strict-mcp-config", "--setting-sources", "project"]
         if agentic:
             # Read-only and only inside ~/.claude: enforced by permission rules, not by a request in the prompt.
@@ -75,7 +86,7 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
             cmd += ["--tools", ""]
         if on_event:
             return _claude_stream(cmd, prompt, cwd, timeout, on_event)
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, **platform_support.TEXT_MODE,
                            timeout=timeout, cwd=str(cwd))
         out = r.stdout.strip()
         if r.returncode != 0 or not out:
@@ -88,7 +99,7 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     # codex exec: read-only sandbox, no session persistence, answer written to a file.
     with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
         out_file = tf.name
-    cmd = [path, "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
+    cmd = [*platform_support.cli_argv(path), "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
            "-C", str(cwd), "-o", out_file]
     if settings.codex_model:
         cmd += ["-m", settings.codex_model]
@@ -96,7 +107,7 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
         cmd += ["--ignore-rules"]
     cmd.append("-")
     try:
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, **platform_support.TEXT_MODE,
                            timeout=timeout, cwd=str(cwd))
         out = Path(out_file).read_text(encoding="utf-8").strip() if Path(out_file).exists() else ""
     finally:
@@ -119,7 +130,7 @@ def _cursor(path, prompt, agentic, timeout, settings):
     so it can read ~/.cursor/projects. Otherwise the prompt is written to request.md in a fresh
     temporary folder, which is the workspace.
     """
-    cmd = [path, "-p", "--mode", "ask", "--sandbox", "enabled", "--trust", "--output-format", "text"]
+    cmd = [*platform_support.cli_argv(path), "-p", "--mode", "ask", "--sandbox", "enabled", "--trust", "--output-format", "text"]
     if settings.cursor_model:
         cmd += ["--model", settings.cursor_model]
     tmp = None
@@ -135,7 +146,7 @@ def _cursor(path, prompt, agentic, timeout, settings):
             arg = CURSOR_FILE_PROMPT
         cmd += ["--workspace", str(workspace), arg]
         try:
-            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, **platform_support.TEXT_MODE,
                                timeout=timeout, cwd=str(workspace))
         except subprocess.TimeoutExpired:
             return None, "cursor", "timeout"
@@ -152,9 +163,9 @@ def _claude_stream(cmd, prompt, cwd, timeout, on_event):
     """claude -p in streaming mode: agent steps go to on_event, the answer text comes at the end."""
     cmd = cmd + ["--output-format", "stream-json", "--verbose"]
     # stderr to a file, not a pipe: an unread pipe fills up and claude hangs.
-    errf = tempfile.TemporaryFile(mode="w+")
+    errf = tempfile.TemporaryFile(mode="w+", **platform_support.TEXT_MODE)
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errf,
-                            text=True, cwd=str(cwd))
+                            text=True, **platform_support.TEXT_MODE, cwd=str(cwd))
     proc.stdin.write(prompt)
     proc.stdin.close()
     result, err, start = None, "", time.time()

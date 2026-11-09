@@ -80,6 +80,8 @@ _sig(_kernel32.TerminateJobObject, wintypes.BOOL, wintypes.HANDLE, wintypes.UINT
 
 _sig(_shell32.SHGetKnownFolderPath, ctypes.c_long, ctypes.c_void_p, wintypes.DWORD, wintypes.HANDLE, ctypes.POINTER(ctypes.c_void_p))
 _sig(_ole32.CoTaskMemFree, None, ctypes.c_void_p)
+_sig(_kernel32.GetSystemDirectoryW, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT)
+_sig(_kernel32.SetPriorityClass, wintypes.BOOL, wintypes.HANDLE, wintypes.DWORD)
 
 _INVALID_HANDLE = wintypes.HANDLE(-1).value
 
@@ -326,6 +328,97 @@ def kill_own_process_group() -> None:
     if _job is not None:
         _kernel32.TerminateJobObject(_job, 1)
     os._exit(1)
+
+
+# --- external programs: absolute paths only ---
+#
+# CreateProcess looks in the current folder before PATH, and a call folder or a phone folder can hold anything, so no
+# program is ever started by its short name. A batch file would go through cmd.exe, where the characters of a call's
+# text are commands, so none is ever started at all: npm's .cmd wrapper is read and node runs its script directly.
+
+_SYSTEM_TOOLS = ("curl",)
+_NPM_TARGET = re.compile(r'"%~?dp0%?\\([^"]+)"\s+%\*')
+_BELOW_NORMAL_PRIORITY_CLASS = 0x4000
+
+
+def _system_dir() -> Path:
+    buf = ctypes.create_unicode_buffer(32768)
+    if not _kernel32.GetSystemDirectoryW(buf, len(buf)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return Path(buf.value)
+
+
+def tool_path(name: str) -> str:
+    """Absolute path of a program the engine runs: next to python in the .venv, or in System32. FileNotFoundError if absent."""
+    folder = _system_dir() if name in _SYSTEM_TOOLS else Path(sys.executable).parent
+    path = folder / f"{name}.exe"
+    if not path.is_file():
+        raise FileNotFoundError(name)
+    return str(path)
+
+
+def _search_dirs(extra) -> list:
+    """Absolute folders only: an empty or relative entry in PATH means the current folder."""
+    entries = [e.strip().strip('"') for e in os.environ.get("PATH", "").split(os.pathsep)] + [str(d) for d in extra]
+    return [Path(e) for e in entries if e and os.path.isabs(e)]
+
+
+def _npm_script(wrapper: Path) -> Path:
+    """The script npm's .cmd wrapper starts, if it lies inside the wrapper's folder and exists."""
+    targets = _NPM_TARGET.findall(wrapper.read_text(encoding="utf-8", errors="replace"))
+    if len(targets) != 1:
+        raise FileNotFoundError(f"{wrapper}: not an npm wrapper")
+    base = wrapper.parent.resolve()
+    script = (base / targets[0]).resolve()
+    if not script.is_relative_to(base) or not script.is_file():
+        raise FileNotFoundError(f"{wrapper}: no script inside its folder")
+    return script
+
+
+def _node_for(wrapper: Path) -> str:
+    beside = wrapper.parent.resolve() / "node.exe"
+    if beside.is_file():
+        return str(beside)
+    for folder in _search_dirs([]):
+        if (folder / "node.exe").is_file():
+            return str(folder / "node.exe")
+    raise FileNotFoundError("node")
+
+
+def cli_argv(path: str) -> list:
+    """How to start a command line tool found by find_cli. FileNotFoundError if it cannot be started safely."""
+    file = Path(path)
+    suffix = file.suffix.lower()
+    if suffix == ".exe":
+        return [str(file)]
+    if suffix == ".cmd":
+        script = _npm_script(file)
+        return [_node_for(file), str(script)]
+    raise FileNotFoundError(f"{path}: only .exe and npm's .cmd wrappers are started")
+
+
+def find_cli(name: str, extra_dirs) -> str | None:
+    """Absolute path of a command line tool that can be started safely; None if there is none."""
+    for folder in _search_dirs(extra_dirs):
+        for suffix in (".exe", ".cmd"):
+            candidate = folder / f"{name}{suffix}"
+            if candidate.is_file():
+                try:
+                    cli_argv(str(candidate))
+                except (OSError, ValueError):
+                    continue
+                return str(candidate)
+    return None
+
+
+def prepare_process(threads: int | None) -> None:
+    """UTF-8 on stdout and stderr, which default to the console code page in a pipe; a thread limit means low priority,
+    inherited by ffmpeg and the other children. On macOS the app asks for the priority (taskpolicy)."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+    if threads:
+        _kernel32.SetPriorityClass(_kernel32.GetCurrentProcess(), _BELOW_NORMAL_PRIORITY_CLASS)
 
 
 # --- the Recycle Bin ---

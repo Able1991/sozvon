@@ -1,7 +1,7 @@
 """Engine process environment. Called in entry points before heavy libraries are imported."""
 import os
 
-from . import config, paths
+from . import config, paths, platform_support
 
 
 def prepare(offline: bool = True) -> None:
@@ -14,6 +14,7 @@ def prepare(offline: bool = True) -> None:
     if cache.is_dir():
         os.environ.setdefault("HF_HUB_CACHE", str(cache))
     threads = config.load().threads
+    platform_support.prepare_process(threads)
     if threads:
         # "Stay out of the way": before importing numpy, torch and onnxruntime, or thread pools already exist.
         for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .. import audio
+from .. import audio, platform_support
 from ..i18n import t
 from . import tracks as tracks_stage
 
@@ -113,9 +113,9 @@ class _Decoder:
 
     def __init__(self, path, delay: float):
         self.path = path
-        args = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), *audio.delay_filter(delay),
-                "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"]
         try:
+            args = [platform_support.tool_path("ffmpeg"), "-nostdin", "-v", "error", "-i", str(path),
+                    *audio.delay_filter(delay), "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"]
             self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         except FileNotFoundError as e:
             raise audio.FfmpegMissing("ffmpeg") from e
@@ -235,8 +235,9 @@ def _write(d: Path, files: dict, offsets: dict, tracks: dict, gains: dict) -> bo
             return False
         tmp.parent.mkdir(exist_ok=True)
         pcm = mix_pcm(files, offsets, tracks, gains)
-        encoder = subprocess.Popen(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "f32le", "-ar", str(RATE), "-ac", "1",
-                                    "-i", "-", *ENCODER, str(tmp)], stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        encoder = subprocess.Popen([platform_support.tool_path("ffmpeg"), "-nostdin", "-v", "error", "-y", "-f", "f32le",
+                                    "-ar", str(RATE), "-ac", "1", "-i", "-", *ENCODER, str(tmp)],
+                                   stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
         total = 0
         for chunk in pcm:
             encoder.stdin.write(chunk.tobytes())

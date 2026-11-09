@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from . import config, models
+from . import config, models, platform_support
 from .i18n import t
 from .paths import EngineDir
 
@@ -46,7 +46,7 @@ def hf_download(repo: str, filename: str, revision: str, local_dir: Path) -> Non
 
 
 def curl_fetch(url: str, dest: Path) -> None:
-    subprocess.run(["curl", "-fsSL", "--retry", "3", "-o", str(dest), url], check=True)
+    subprocess.run([platform_support.tool_path("curl"), "-fsSL", "--retry", "3", "-o", str(dest), url], check=True)
 
 
 def ensure_entry(entry: dict, d: Path, downloader: Downloader) -> None:

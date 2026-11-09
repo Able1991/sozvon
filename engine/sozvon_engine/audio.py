@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from . import platform_support
+
 SR = 16000
 
 # Formats mlx-whisper reads directly. Any video CONTAINER (and .webm) goes to
@@ -27,7 +29,7 @@ class FfmpegMissing(RuntimeError):
 
 def _run(args: list, src) -> bytes:
     try:
-        r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", *args], capture_output=True)
+        r = subprocess.run([platform_support.tool_path("ffmpeg"), "-nostdin", "-v", "error", *args], capture_output=True)
     except FileNotFoundError as e:
         raise FfmpegMissing("ffmpeg") from e
     if r.returncode != 0:
@@ -54,7 +56,8 @@ def duration(path) -> float:
     """Length of a file in seconds, from ffmpeg's header line (nothing is decoded)."""
     import re
     try:
-        r = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(path)], capture_output=True)
+        r = subprocess.run([platform_support.tool_path("ffmpeg"), "-nostdin", "-hide_banner", "-i", str(path)],
+                           capture_output=True)
     except FileNotFoundError as e:
         raise FfmpegMissing("ffmpeg") from e
     m = re.search(r"Duration: (\d+):(\d{2}):(\d{2}(?:\.\d+)?)", r.stderr.decode("utf-8", "replace"))

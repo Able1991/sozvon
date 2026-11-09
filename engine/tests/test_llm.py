@@ -1,14 +1,20 @@
 """Choosing and calling Claude Code / Codex / Cursor CLI (with fake binaries)."""
+import os
+import re
+import shutil
 import stat
 from pathlib import Path
 
 import pytest
 
-from sozvon_engine import llm
+from sozvon_engine import llm, platform_support
 
 
 def fake_cli(dirpath: Path, name: str, script: str) -> Path:
     p = dirpath / name
+    if os.name == "nt":  # bash would eat the backslashes of the paths written into the script
+        script = re.sub(r"[A-Za-z]:\\[^\s\"']*", lambda m: m.group(0).replace("\\", "/"), script)
+        script = re.sub(r"\bpwd\b", "pwd -W", script)  # the Windows path, not the msys one
     p.write_text("#!/bin/bash\n" + script)
     p.chmod(p.stat().st_mode | stat.S_IEXEC)
     return p
@@ -19,9 +25,25 @@ def bins(tmp_path, monkeypatch):
     d = tmp_path / "bin"
     d.mkdir()
     monkeypatch.setattr(llm, "BIN_DIRS", [d])
+    if os.name == "nt":
+        _bash_fakes(monkeypatch)
     monkeypatch.setenv("PATH", f"{d}:/usr/bin:/bin")
     monkeypatch.delenv("SOZVON_LLM", raising=False)
     return d
+
+
+def _bash_fakes(monkeypatch):
+    """The fake CLIs are bash scripts. On Windows they run through Git's bash, and what only Windows forbids is switched
+    off here so the same cases run: test_platform_win32.py checks those rules with real processes."""
+    git = shutil.which("git")
+    bash = next((p / "bin" / "bash.exe" for p in Path(git).parents if (p / "bin" / "bash.exe").exists()), None) if git else None
+    if bash is None:
+        pytest.skip("no Git bash to run the fake CLIs")
+    monkeypatch.setattr(platform_support, "find_cli",
+                        lambda name, dirs: next((str(Path(x) / name) for x in dirs if (Path(x) / name).exists()), None))
+    monkeypatch.setattr(platform_support, "cli_argv", lambda path: [str(bash), path])
+    monkeypatch.setattr(platform_support, "UNVERIFIED_ASSISTANTS", ())
+    monkeypatch.setattr(platform_support, "AGENTIC_OFF", False)
 
 
 def test_nothing_installed(bins):
