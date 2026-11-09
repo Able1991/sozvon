@@ -75,7 +75,7 @@ def test_calls_dir(monkeypatch, tmp_path):
     monkeypatch.setenv("SOZVON_CALLS_DIR", str(tmp_path / "C"))
     assert paths.calls_dir() == tmp_path / "C"
     monkeypatch.delenv("SOZVON_CALLS_DIR")
-    assert paths.calls_dir() == Path.home() / "Documents" / "Calls"
+    assert paths.calls_dir() == paths.DEFAULT_CALLS_DIR  # the folder itself: test_platform_support, test_platform_win32
 
 
 def test_engine_version(monkeypatch, data):

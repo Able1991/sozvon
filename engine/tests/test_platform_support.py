@@ -1,6 +1,7 @@
 """The platform seam: the one place that knows about macOS (locks, Trash, default folders, bin dirs)."""
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -24,22 +25,7 @@ def test_tool_bin_dirs_macos(monkeypatch):
     assert ps.tool_bin_dirs() == [Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
 
 
-def test_windows_is_explicitly_unsupported_for_locks_and_trash(monkeypatch, tmp_path):
-    monkeypatch.setattr(ps, "SYSTEM", "win32")
-    fd = os.open(tmp_path, os.O_RDONLY)
-    try:
-        with pytest.raises(NotImplementedError):
-            ps.lock_exclusive(fd)
-        with pytest.raises(NotImplementedError):
-            ps.unlock(fd)
-    finally:
-        os.close(fd)
-    with pytest.raises(NotImplementedError):
-        ps.move_to_trash(tmp_path)
-    with pytest.raises(NotImplementedError):
-        ps.kill_own_process_group()
-
-
+@pytest.mark.skipif(sys.platform == "win32", reason="a folder cannot be opened as a file on Windows (test_platform_win32.py)")
 def test_lock_exclusive_nonblocking_reports_contention(tmp_path):
     a = os.open(tmp_path, os.O_RDONLY)
     b = os.open(tmp_path, os.O_RDONLY)
@@ -58,6 +44,7 @@ def test_parent_pid_is_getppid():
     assert ps.parent_pid() == os.getppid()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the macOS Trash (test_platform_win32.py has the Recycle Bin)")
 def test_trash_fallback_moves_to_dot_trash(monkeypatch, tmp_path):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()

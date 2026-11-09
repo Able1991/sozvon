@@ -4,9 +4,8 @@ File locks, moving a folder to the Trash, the default data and calls folders, th
 user-installed command line tools live, and process-tree control. Other modules call these
 functions and never import fcntl, osascript or "/opt/homebrew" themselves.
 
-Only macOS is implemented. The Windows branches either use the obvious stdlib path or raise
-NotImplementedError with a clear message, so a port has one place to fill in. (Named
-platform_support so it never shadows the stdlib `platform`.) The Whisper/mlx backends are a
+macOS is implemented here; Windows lives in platform_win32.py, imported only inside the win32 branches.
+(Named platform_support so it never shadows the stdlib `platform`.) The Whisper/mlx backends are a
 separate seam in whisper.py.
 """
 import os
@@ -17,11 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-SYSTEM = sys.platform  # "darwin" (supported), "win32" (not yet), "linux" (behaves like POSIX where it can)
-
-
-def _unsupported(what: str) -> NotImplementedError:
-    return NotImplementedError(f"{what} is not implemented for platform {SYSTEM!r} yet")
+SYSTEM = sys.platform  # "darwin", "win32", "linux" (behaves like POSIX where it can)
 
 
 # --- default folders and tool directories ---
@@ -29,13 +24,16 @@ def _unsupported(what: str) -> NotImplementedError:
 def default_data_dir() -> Path:
     """Engine data folder when neither SOZVON_DATA_DIR nor the repo layout decides."""
     if SYSTEM == "win32":
-        base = os.environ.get("APPDATA")
-        return (Path(base) if base else Path.home() / "AppData" / "Roaming") / "Sozvon"
+        from . import platform_win32
+        return platform_win32.default_data_dir()
     return Path.home() / "Library" / "Application Support" / "Sozvon"
 
 
 def default_calls_dir() -> Path:
     """Where call folders live when SOZVON_CALLS_DIR is not set."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.default_calls_dir()
     return Path.home() / "Documents" / "Calls"
 
 
@@ -52,7 +50,8 @@ def tool_bin_dirs() -> list[Path]:
 def lock_exclusive(fd: int, wait: bool = True) -> bool:
     """Exclusive flock on an open descriptor. wait=False: return False instead of blocking if it is held."""
     if SYSTEM == "win32":
-        raise _unsupported("file locking")
+        from . import platform_win32
+        return platform_win32.lock_exclusive(fd, wait)
     import fcntl
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | (0 if wait else fcntl.LOCK_NB))
@@ -65,22 +64,53 @@ def lock_exclusive(fd: int, wait: bool = True) -> bool:
 
 def unlock(fd: int) -> None:
     if SYSTEM == "win32":
-        raise _unsupported("file locking")
+        from . import platform_win32
+        platform_win32.unlock(fd)
+        return
     import fcntl
     fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+def open_call_lock(folder: Path) -> int:
+    """The descriptor to take lock_exclusive on for "one run on this call"; close it to release."""
+    if SYSTEM == "win32":
+        from . import paths, platform_win32
+        return platform_win32.open_call_lock(folder, paths.data_dir() / "locks")
+    return os.open(folder, os.O_RDONLY)
 
 
 # --- processes ---
 
 def parent_pid() -> int:
     """PID of the parent (the app). Changes when the parent dies."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.parent_pid()
     return os.getppid()
+
+
+def bind_workers_to_process() -> bool:
+    """Make the workers of this process die with it, however it dies. On macOS the app's process group does that."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.bind_workers_to_process()
+    return False
+
+
+def owns_process_group() -> bool:
+    """Whether kill_own_process_group would take only this engine and its workers."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.owns_process_group()
+    return os.getpgrp() == os.getpid()
 
 
 def kill_own_process_group() -> None:
     """SIGKILL the whole process group of this process (the engine and its workers)."""
     if SYSTEM == "win32":
-        raise _unsupported("killing a process group")
+        from . import platform_win32
+        platform_win32.kill_own_process_group()
+        return
     os.killpg(0, signal.SIGKILL)
 
 
@@ -101,7 +131,12 @@ def move_to_trash(path: Path) -> None:
     """Move a folder to the macOS Trash, like Finder (Put Back works): NSFileManager.trashItem through
     osascript's ObjC bridge. If that fails, a plain move to ~/.Trash under a free name."""
     if SYSTEM == "win32":
-        raise _unsupported("moving to the Recycle Bin")
+        # TODO before sync is turned on for Windows: a folder larger than the Recycle Bin quota is deleted for good
+        # without a word, and sync calls this for calls deleted on another machine. It needs a guard against that,
+        # for example moving such a deletion to a <data>/trash folder.
+        from . import platform_win32
+        platform_win32.move_to_trash(Path(path))
+        return
     path = Path(path)
     try:
         r = subprocess.run(["/usr/bin/osascript", "-l", "JavaScript", "-e", _JXA_TRASH, str(path)],

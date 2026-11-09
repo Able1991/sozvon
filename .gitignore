@@ -7,6 +7,7 @@ __pycache__/
 models/
 voices/
 profiles/
+locks/
 *.p12
 *.pem
 .build/

@@ -16,6 +16,7 @@ from .. import platform_support
 
 def watch_parent(interval: float = 2.0) -> None:
     """Exit, with the workers (ffmpeg, an assistant), once the parent is gone. Nothing to watch if it already was."""
+    platform_support.bind_workers_to_process()
     parent = platform_support.parent_pid()
     if parent == 1:
         return
@@ -23,7 +24,7 @@ def watch_parent(interval: float = 2.0) -> None:
     def loop():
         while platform_support.parent_pid() == parent:
             time.sleep(interval)
-        if os.getpgrp() == os.getpid():  # the app starts the engine as the leader of its own group
+        if platform_support.owns_process_group():  # the app starts the engine as the leader of its own group
             platform_support.kill_own_process_group()
         os._exit(1)
 
@@ -32,11 +33,17 @@ def watch_parent(interval: float = 2.0) -> None:
 
 def exit_on_sigterm() -> None:
     """SIGTERM (the app stopping a run) ends the run through its `finally` blocks, so the working files go too.
-    Exit code 143, as for any process killed by SIGTERM. Only the main thread can install it."""
+    Exit code 143, as for any process killed by SIGTERM. Only the main thread can install it.
+
+    Windows has no SIGTERM between processes, so CTRL_BREAK stands in for it. Limitation for the Windows app (stage 2):
+    CTRL_BREAK reaches only a process started with CREATE_NEW_PROCESS_GROUP that shares the sender's console, and an app
+    with windows has no console. It will need another way to ask for a stop, for example a named event."""
     def handler(signum, frame):
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, handler)
+    if platform_support.SYSTEM == "win32":
+        signal.signal(signal.SIGBREAK, lambda signum, frame: handler(signal.SIGTERM, frame))
 
 
 def lock_call(d: Path, on_wait: Callable[[], None] = lambda: None) -> int:
@@ -44,7 +51,7 @@ def lock_call(d: Path, on_wait: Callable[[], None] = lambda: None) -> int:
 
     The folder itself is locked: no extra file in it, and a rename does not matter.
     """
-    fd = os.open(d, os.O_RDONLY)
+    fd = platform_support.open_call_lock(d)
     if not platform_support.lock_exclusive(fd, wait=False):
         on_wait()
         platform_support.lock_exclusive(fd)
