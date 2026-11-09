@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Sozvon.App.Capsule.CapsuleWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Sozvon">
+    <Grid x:Name="Root" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" Padding="12,0,6,0" ColumnSpacing="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Ellipse Width="10" Height="10" Fill="{ThemeResource SystemFillColorCriticalBrush}" VerticalAlignment="Center" />
+        <TextBlock x:Name="Timer" Grid.Column="1" Text="12:47" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" />
+        <Canvas x:Name="Wave" Grid.Column="2" Width="150" Height="28" VerticalAlignment="Center" />
+        <Button Grid.Column="3" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0" AutomationProperties.Name="Mark">
+            <FontIcon Glyph="&#xE734;" FontSize="14" />
+        </Button>
+        <Button Grid.Column="4" Width="32" Height="32" Padding="0" AutomationProperties.Name="Stop">
+            <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" Fill="{ThemeResource TextFillColorPrimaryBrush}" />
+        </Button>
+    </Grid>
+</Window>
