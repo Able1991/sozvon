@@ -140,7 +140,7 @@ How it works: [docs/SERVER.md](docs/SERVER.md).
 | What | Where | When |
 |---|---|---|
 | Recording, transcription, echo removal, speaker separation, imported recordings | nowhere, only `~/Documents/Calls` | always |
-| The calls folder, audio and transcripts included | iCloud Drive, synced by macOS and not by Sozvon | only if Desktop & Documents Folders is on in iCloud Drive settings; to avoid it, choose a calls folder outside Documents in Settings |
+| The calls folder, audio and transcripts included | iCloud Drive, synced by macOS and not by Sozvon | only if Desktop & Documents Folders is on in iCloud Drive settings; turn it off to keep the calls off iCloud |
 | Voice prints (your sample and the people you named) | nowhere, `~/Library/Application Support/Sozvon/voices` | once you record a sample or name a speaker |
 | Live voice match during a recording (only if voices of other people are saved; pieces of the other side's audio, deleted as soon as they are matched) | nowhere, stays on the Mac | while recording |
 | Which app is using the microphone (for the call prompt; only the app, never the audio) | nowhere, read on the Mac | always while Sozvon runs |
