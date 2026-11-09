@@ -30,6 +30,9 @@ public sealed partial class CapsuleWindow : Window
     private NativeWindow.Point _dragCursor;
     private Windows.Graphics.PointInt32 _dragWindow;
 
+    private readonly HashSet<UIElement> _shown = [];
+    private bool _hovered;
+
     public event EventHandler? RecordClicked;
     public event EventHandler? StopClicked;
     public event EventHandler? MarkClicked;
@@ -87,12 +90,16 @@ public sealed partial class CapsuleWindow : Window
     public void Render(CapsuleModel model)
     {
         _model = model;
-        Hide(RecordDot, Spinner, Check, RecordButton, Message, Timer, Wave, ActionButton, SecondButton, MarkArea, StopButton, HideButton);
+        _shown.Clear();
         Spinner.IsActive = model.Phase is CapsulePhase.Starting or CapsulePhase.Processing;
         switch (model.Phase)
         {
             case CapsulePhase.Idle:
                 Show(RecordButton);
+                if (_hovered)
+                {
+                    Show(HideButton);
+                }
                 RecordLabel.Text = CapsuleText.Record;
                 break;
             case CapsulePhase.Starting:
@@ -114,7 +121,24 @@ public sealed partial class CapsuleWindow : Window
                 RenderRecording(model);
                 break;
         }
+        ApplyVisibility();
         DispatcherQueue.TryEnqueue(FitToContent);
+    }
+
+    /// <summary>
+    /// Only what really changed is touched: the timer renders every second, and collapsing a button
+    /// even for a moment drops its pressed state and loses the click in progress.
+    /// </summary>
+    private void ApplyVisibility()
+    {
+        foreach (var part in new UIElement[] { RecordDot, Spinner, Check, RecordButton, Message, Timer, Wave, ActionButton, SecondButton, MarkArea, StopButton, HideButton })
+        {
+            var wanted = _shown.Contains(part) ? Visibility.Visible : Visibility.Collapsed;
+            if (part.Visibility != wanted)
+            {
+                part.Visibility = wanted;
+            }
+        }
     }
 
     /// <summary>The newest level of each voice, 0 to 1. The wave moves away from the start of each side.</summary>
@@ -188,21 +212,7 @@ public sealed partial class CapsuleWindow : Window
         SecondButton.Content = secondary;
     }
 
-    private static void Show(params UIElement[] elements)
-    {
-        foreach (var element in elements)
-        {
-            element.Visibility = Visibility.Visible;
-        }
-    }
-
-    private static void Hide(params UIElement[] elements)
-    {
-        foreach (var element in elements)
-        {
-            element.Visibility = Visibility.Collapsed;
-        }
-    }
+    private void Show(params UIElement[] elements) => _shown.UnionWith(elements);
 
     private void FitToContent()
     {
@@ -254,11 +264,8 @@ public sealed partial class CapsuleWindow : Window
     private void OnEntered(object sender, PointerRoutedEventArgs e)
     {
         Root.Opacity = 1;
-        if (_model.Phase == CapsulePhase.Idle)
-        {
-            Show(HideButton);
-            DispatcherQueue.TryEnqueue(FitToContent);
-        }
+        _hovered = true;
+        Render(_model);
     }
 
     private void OnExited(object sender, PointerRoutedEventArgs e)
@@ -268,11 +275,8 @@ public sealed partial class CapsuleWindow : Window
             return;
         }
         Root.Opacity = RestOpacity;
-        if (_model.Phase == CapsulePhase.Idle)
-        {
-            Hide(HideButton);
-            DispatcherQueue.TryEnqueue(FitToContent);
-        }
+        _hovered = false;
+        Render(_model);
     }
 
     private void OnPressed(object sender, PointerRoutedEventArgs e)
