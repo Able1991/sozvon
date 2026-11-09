@@ -16,10 +16,18 @@ if (Get-Process -Name Sozvon -ErrorAction SilentlyContinue) {
     throw "Sozvon is running. Quit it from the tray icon and run this again."
 }
 
-& $dotnet publish (Join-Path $windows "Sozvon.App\Sozvon.App.csproj") -c Release -p:Platform=x64 -o $Target --nologo
+& $dotnet build (Join-Path $windows "Sozvon.App\Sozvon.App.csproj") -c Release -p:Platform=x64 --nologo
 if ($LASTEXITCODE -ne 0) {
     throw "The build failed with code $LASTEXITCODE."
 }
+
+# The build output, not "dotnet publish": publish leaves out the compiled XAML and Sozvon.pri, and the app dies on start.
+$built = Join-Path $windows "Sozvon.App\bin\x64\Release\net10.0-windows10.0.26100.0\win-x64"
+if (Test-Path -LiteralPath (Join-Path $Target "Sozvon.exe")) {
+    Remove-Item -LiteralPath $Target -Recurse -Force
+}
+New-Item -ItemType Directory -Path $Target -Force | Out-Null
+Copy-Item -Path (Join-Path $built "*") -Destination $Target -Recurse -Force
 
 # The wizard looks for an engine folder next to the app.
 $engine = Join-Path $Target "engine"
