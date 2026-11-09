@@ -146,6 +146,13 @@ def _transcribe(audio, **kw) -> dict:
     return mlx_whisper.transcribe(audio, **kw)
 
 
+def release_backend() -> None:
+    """Windows: free the GPU after recognition. mlx keeps its model cached as before."""
+    if platform_support.SYSTEM == "win32":
+        from . import whisper_ct2
+        whisper_ct2.release()
+
+
 def ensure_backend() -> None:
     """Check that mlx-whisper imports (otherwise the engine is broken)."""
     if platform_support.SYSTEM == "win32":

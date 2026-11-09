@@ -83,4 +83,5 @@ def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | N
                 audio, segs[key], lang, allowed, det.probs,
                 lambda chunk, lg: retranscribe(chunk, model_path, lg, prompts))
             log(t("log_switched", track=key, n=n))
+    whisper.release_backend()
     return segs, langs

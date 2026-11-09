@@ -776,6 +776,8 @@ PREPARE = """
     k.GetCurrentProcess.restype = ctypes.c_void_p
     k.GetPriorityClass.argtypes = [ctypes.c_void_p]
     print(hex(k.GetPriorityClass(k.GetCurrentProcess())), flush=True)
+    import os
+    print(os.environ["SOZVON_THREADS"], os.environ["OMP_NUM_THREADS"], flush=True)
 """
 
 
@@ -791,9 +793,14 @@ def test_output_is_utf8_in_a_pipe(tmp_path):
     assert _prepared(tmp_path)[:3] == ["Анна", "·", "✓"]
 
 
-def test_low_priority_only_with_a_thread_limit(tmp_path):
-    assert _prepared(tmp_path)[3] == "0x20"  # NORMAL_PRIORITY_CLASS
-    assert _prepared(tmp_path, SOZVON_THREADS="2")[3] == "0x4000"  # BELOW_NORMAL_PRIORITY_CLASS
+def test_low_priority_always(tmp_path):
+    assert _prepared(tmp_path)[3] == "0x4000"  # BELOW_NORMAL_PRIORITY_CLASS
+
+
+def test_one_thread_limit_for_every_library(tmp_path):
+    half = str(max(1, os.cpu_count() // 2))
+    assert _prepared(tmp_path)[4:6] == [half, half]
+    assert _prepared(tmp_path, SOZVON_THREADS="2")[4:6] == ["2", "2"], "the setting wins"
 
 
 # ---- who can read the data folder ----

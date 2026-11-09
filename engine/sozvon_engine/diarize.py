@@ -5,10 +5,11 @@ you can download them yourself. The pipeline loads once per process and only whe
 is heavy. Voices here are anonymous: numbered by order of first appearance, names and labels
 are up to the caller.
 """
-from . import audio, config, paths
+from . import accel, audio, config, paths
 
 PIPELINE = "pyannote/speaker-diarization-3.1"
 _pipeline = None
+_pipeline_device = None
 
 
 class DiarizationUnavailable(RuntimeError):
@@ -21,8 +22,8 @@ def available() -> bool:
 
 
 def load_pipeline():
-    global _pipeline
-    if _pipeline is not None:
+    global _pipeline, _pipeline_device
+    if _pipeline is not None and _pipeline_device == accel.torch_device("diarize"):
         return _pipeline
     if not available():
         raise DiarizationUnavailable("нет моделей pyannote: переустанови движок")
@@ -32,7 +33,8 @@ def load_pipeline():
         torch.set_num_threads(settings.threads)
     from pyannote.audio import Pipeline
     pipeline = Pipeline.from_pretrained(PIPELINE, token=settings.hf_token or None)
-    pipeline.to(torch.device("mps" if torch.backends.mps.is_available() else "cpu"))
+    _pipeline_device = accel.torch_device("diarize")
+    pipeline.to(torch.device(_pipeline_device))
     _pipeline = pipeline
     return pipeline
 
@@ -50,9 +52,13 @@ def load_waveform(path) -> dict:
 
 def run(path, num_speakers=None) -> list:
     """-> [(start, end, raw_label)] who spoke when."""
-    pipeline = load_pipeline()
     wave = load_waveform(path)
-    output = pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
+
+    def work():
+        pipeline = load_pipeline()
+        return pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
+
+    output = accel.with_cpu_fallback("diarize", work)
     # pyannote>=4 wraps the result in DiarizeOutput, older versions return an Annotation.
     annotation = getattr(output, "speaker_diarization", output)
     return [(turn.start, turn.end, label) for turn, _, label in annotation.itertracks(yield_label=True)]

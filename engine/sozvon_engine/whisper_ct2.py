@@ -1,27 +1,18 @@
 """Whisper on Windows: faster-whisper (ctranslate2) in place of mlx-whisper. Imported only on win32.
 
-The GPU is optional and only speeds things up: with no CUDA libraries, or when anything goes wrong on the card, the
-same transcription runs with int8 on the CPU. The device is chosen once per process, at the first load of a model.
+The GPU is optional and only speeds things up: without the GPU part of the install, or when anything goes wrong on the
+card, the same transcription runs with int8 on the CPU. The device is chosen once per process, at the first load of a
+model.
 """
-import ctypes
 import os
 import sys
-from ctypes import wintypes
 from pathlib import Path
 
-from . import audio, config, paths
+from . import accel, audio, config
 from .i18n import t
 
-_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-_kernel32.LoadLibraryExW.restype = wintypes.HMODULE
-_kernel32.LoadLibraryExW.argtypes = (wintypes.LPCWSTR, wintypes.HANDLE, wintypes.DWORD)
-
-# Dependencies first. Enough to run on the GPU: Whisper's convolutions need no cuDNN.
-_CUBLAS = ("cublasLt64_12.dll", "cublas64_12.dll")
-_LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR = 0x100
-_LOAD_LIBRARY_SEARCH_DEFAULT_DIRS = 0x1000
-
 _CPU = ("cpu", "int8")
+_SEED = 1  # the retries with a temperature above 0 sample at random: the same call gives the same text
 
 # What mlx_whisper.transcribe uses, spelled out so that faster-whisper's own defaults decide nothing. Greedy search,
 # as on the Mac (faster-whisper defaults to a beam of 5), and no voice activity filter of its own.
@@ -48,24 +39,14 @@ def _log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def _load_cuda_libraries() -> bool:
-    """cublas from <data>/cuda-libs, by absolute path, its dependencies from that folder and the system folders.
-
-    ctranslate2 asks for it by name only and the loader would then look in the current folder and on PATH. Loaded here
-    first, that request finds this module; without these files the CPU is used and nothing is asked for at all."""
-    folder = (paths.data_dir() / "cuda-libs").resolve()
-    files = [folder / name for name in _CUBLAS]
-    if not all(f.is_file() for f in files):
-        return False
-    flags = _LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | _LOAD_LIBRARY_SEARCH_DEFAULT_DIRS
-    return all(_kernel32.LoadLibraryExW(str(f), None, flags) for f in files)
-
-
 def _decide() -> tuple:
-    import ctranslate2
-    if _load_cuda_libraries() and ctranslate2.get_cuda_device_count() > 0:
-        types = ctranslate2.get_supported_compute_types("cuda")
-        return "cuda", "float16" if "float16" in types else "float32"
+    """torch first, always: it loads the CUDA libraries by absolute path, and ctranslate2, which asks for them by name
+    only, then finds those. Without the GPU part of the install nothing asks for them at all."""
+    if accel.gpu_configured() and accel.torch_device("whisper") == "cuda":
+        import ctranslate2
+        if ctranslate2.get_cuda_device_count() > 0:
+            types = ctranslate2.get_supported_compute_types("cuda")
+            return "cuda", "float16" if "float16" in types else "float32"
     return _CPU
 
 
@@ -102,6 +83,7 @@ def _with_fallback(path: str, work):
             if device != "cuda":
                 raise
             _log(t("log_whisper_gpu_failed", err=" ".join(str(e).split())[:300]))
+            accel.note_failure("whisper", e)
             _choice = _CPU
             _models.clear()
 
@@ -123,6 +105,8 @@ def transcribe(audio_input, *, path_or_hf_repo: str, language=None, initial_prom
                "condition_on_previous_text": condition_on_previous_text}
 
     def work(model):
+        import ctranslate2
+        ctranslate2.set_random_seed(_SEED)
         segments, info = model.transcribe(samples, **options)
         return {"segments": [_segment(s) for s in segments], "language": info.language}  # lazy: the work happens here
 
@@ -151,6 +135,12 @@ def _tokenizer():
 def count_tokens(text: str) -> int:
     """Whisper tokens of a prompt, as faster-whisper feeds it to the model, without loading the model."""
     return len(_tokenizer().encode(" " + text, add_special_tokens=False).ids)
+
+
+def release() -> None:
+    """The models leave the memory of the card for the stages after recognition."""
+    _models.clear()
+    accel.release()
 
 
 def ensure_backend() -> None:

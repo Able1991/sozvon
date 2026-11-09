@@ -76,11 +76,16 @@ def cli_argv(path: str) -> list:
     return [path]
 
 
-def prepare_process(threads: int | None) -> None:
+def prepare_process() -> None:
     """What an engine process sets up about itself. Nothing on macOS, where the app does it."""
     if SYSTEM == "win32":
         from . import platform_win32
-        platform_win32.prepare_process(threads)
+        platform_win32.prepare_process()
+
+
+def default_thread_limit() -> int:
+    """Half of the logical cores: on Windows faster than all of them, and the computer stays usable."""
+    return max(1, (os.cpu_count() or 2) // 2)
 
 
 # --- file locks (advisory, released by the OS when the process dies) ---

@@ -83,13 +83,15 @@ def models_by_device(ct2, monkeypatch):
 
 def gpu(monkeypatch, ct2, types=("float32", "int8")):
     import ctranslate2
-    monkeypatch.setattr(ct2, "_load_cuda_libraries", lambda: True)
+    monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: True)
+    monkeypatch.setattr(ct2.accel, "torch_device", lambda stage: "cuda")
+    monkeypatch.setattr(ct2.accel, "note_failure", lambda stage, e: None)
     monkeypatch.setattr(ctranslate2, "get_cuda_device_count", lambda: 1)
     monkeypatch.setattr(ctranslate2, "get_supported_compute_types", lambda device: set(types))
 
 
 def no_gpu(monkeypatch, ct2):
-    monkeypatch.setattr(ct2, "_load_cuda_libraries", lambda: False)
+    monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: False)
 
 
 AUDIO = np.zeros(16000, dtype=np.float32)
@@ -174,7 +176,8 @@ def test_compute_type_comes_from_what_the_card_supports(monkeypatch, ct2, models
 @win_only
 def test_libraries_without_a_device_stay_on_the_cpu(monkeypatch, ct2, models_by_device):
     import ctranslate2
-    monkeypatch.setattr(ct2, "_load_cuda_libraries", lambda: True)
+    monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: True)
+    monkeypatch.setattr(ct2.accel, "torch_device", lambda stage: "cuda")
     monkeypatch.setattr(ctranslate2, "get_cuda_device_count", lambda: 0)
     models_by_device.fakes["cpu"] = FakeWhisper([seg("а")])
     ct2.transcribe(AUDIO, path_or_hf_repo="m", language="ru")
@@ -221,34 +224,34 @@ def test_a_cpu_failure_is_a_failure(monkeypatch, ct2, models_by_device):
 
 
 @win_only
-def test_cublas_is_loaded_by_absolute_path_with_a_safe_search(monkeypatch, ct2, data):
-    """Never by name: a DLL in the folder of a call or on PATH must not be picked up, for it or for what it depends on."""
-    libs = data / "cuda-libs"
-    libs.mkdir()
-    (libs / "cublasLt64_12.dll").write_bytes(b"x")
-    (libs / "cublas64_12.dll").write_bytes(b"x")
-    calls = []
-    monkeypatch.setattr(ct2._kernel32, "LoadLibraryExW", lambda path, h, flags: calls.append((path, flags)) or 1)
-    assert ct2._load_cuda_libraries() is True
-    assert [Path(c[0]).name for c in calls] == ["cublasLt64_12.dll", "cublas64_12.dll"], "dependencies first"
-    assert all(Path(c[0]).is_absolute() and Path(c[0]).parent == libs.resolve() for c in calls)
-    assert all(c[1] == 0x100 | 0x1000 for c in calls)  # LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | ..._DEFAULT_DIRS
+def test_torch_is_asked_before_ctranslate2(monkeypatch, ct2):
+    """torch loads the CUDA libraries by absolute path; ctranslate2 asks by name and must find those."""
+    import ctranslate2
+    order = []
+    monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: True)
+    monkeypatch.setattr(ct2.accel, "torch_device", lambda stage: order.append("torch") or "cuda")
+    monkeypatch.setattr(ctranslate2, "get_cuda_device_count", lambda: order.append("ct2") or 1)
+    monkeypatch.setattr(ctranslate2, "get_supported_compute_types", lambda device: {"float32"})
+    assert ct2._decide() == ("cuda", "float32")
+    assert order == ["torch", "ct2"]
 
 
 @win_only
-def test_no_cublas_file_means_nothing_is_loaded(monkeypatch, ct2):
-    monkeypatch.setattr(ct2._kernel32, "LoadLibraryExW", lambda *a: pytest.fail("nothing to load"))
-    assert ct2._load_cuda_libraries() is False
+def test_no_gpu_part_of_the_install_does_not_touch_torch(monkeypatch, ct2):
+    monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: False)
+    monkeypatch.setattr(ct2.accel, "torch_device", lambda stage: pytest.fail("torch is not imported for this"))
+    assert ct2._decide() == ("cpu", "int8")
 
 
 @win_only
-def test_a_library_that_does_not_load_means_the_cpu(monkeypatch, ct2, data):
-    libs = data / "cuda-libs"
-    libs.mkdir()
-    (libs / "cublasLt64_12.dll").write_bytes(b"x")
-    (libs / "cublas64_12.dll").write_bytes(b"x")
-    monkeypatch.setattr(ct2._kernel32, "LoadLibraryExW", lambda *a: None)
-    assert ct2._load_cuda_libraries() is False
+def test_the_seed_is_set_for_each_transcription(monkeypatch, ct2, models_by_device):
+    import ctranslate2
+    seeds = []
+    monkeypatch.setattr(ctranslate2, "set_random_seed", seeds.append)
+    no_gpu(monkeypatch, ct2)
+    models_by_device.fakes["cpu"] = FakeWhisper([seg("а")])
+    ct2.transcribe(AUDIO, path_or_hf_repo="m", language="ru")
+    assert seeds == [ct2._SEED]
 
 
 # ---- threads, languages ----

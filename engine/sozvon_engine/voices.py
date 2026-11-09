@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import audio, config, jsonfile, paths, platform_support
+from . import accel, audio, config, jsonfile, paths, platform_support
 from .i18n import t
 
 EMBEDDING = "pyannote/wespeaker-voxceleb-resnet34-LM"
@@ -317,16 +317,22 @@ def seconds_of(pieces: list, sr: int = audio.SR) -> float:
 
 
 _inference = None
+_inference_device = None
 
 
 def available() -> bool:
     return paths.engine_dir().wespeaker_cache.is_dir() or bool(config.load().hf_token)
 
 
+def _device() -> str:
+    """On the Mac the CPU, as the contract says; on Windows the install's choice, this model is most of pyannote's time."""
+    return accel.torch_device("voices") if platform_support.SYSTEM == "win32" else "cpu"
+
+
 def _load():
     """The embedding model, once per process, on the CPU (small and fast enough; no GPU memory)."""
-    global _inference
-    if _inference is not None:
+    global _inference, _inference_device
+    if _inference is not None and _inference_device == _device():
         return _inference
     if not available():
         raise VoiceUnavailable(t("voice_no_model"))
@@ -344,12 +350,17 @@ def _load():
     if model is None:
         raise VoiceUnavailable(t("voice_no_model"))
     model.eval()
-    _inference = Inference(model, window="whole", device=torch.device("cpu"))
+    _inference_device = _device()
+    _inference = Inference(model, window="whole", device=torch.device(_inference_device))
     return _inference
 
 
 def embed(pieces: list, sr: int = audio.SR) -> np.ndarray | None:
     """Speech pieces of one voice -> L2-normalized embedding (windows weighted by length), None if nothing usable."""
+    return accel.with_cpu_fallback("voices", lambda: _embed(pieces, sr))
+
+
+def _embed(pieces: list, sr: int) -> np.ndarray | None:
     import torch
     inf = _load()
     vecs, weights = [], []

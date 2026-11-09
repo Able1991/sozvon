@@ -82,6 +82,7 @@ _sig(_shell32.SHGetKnownFolderPath, ctypes.c_long, ctypes.c_void_p, wintypes.DWO
 _sig(_ole32.CoTaskMemFree, None, ctypes.c_void_p)
 _sig(_kernel32.GetSystemDirectoryW, wintypes.UINT, wintypes.LPWSTR, wintypes.UINT)
 _sig(_kernel32.SetPriorityClass, wintypes.BOOL, wintypes.HANDLE, wintypes.DWORD)
+_sig(_kernel32.SetProcessInformation, wintypes.BOOL, wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD)
 
 _INVALID_HANDLE = wintypes.HANDLE(-1).value
 
@@ -339,6 +340,8 @@ def kill_own_process_group() -> None:
 _SYSTEM_TOOLS = ("curl",)
 _NPM_TARGET = re.compile(r'"%~?dp0%?\\([^"]+)"\s+%\*')
 _BELOW_NORMAL_PRIORITY_CLASS = 0x4000
+_PROCESS_MEMORY_PRIORITY = 0
+_MEMORY_PRIORITY_BELOW_NORMAL = 4
 
 
 def _system_dir() -> Path:
@@ -411,14 +414,20 @@ def find_cli(name: str, extra_dirs) -> str | None:
     return None
 
 
-def prepare_process(threads: int | None) -> None:
-    """UTF-8 on stdout and stderr, which default to the console code page in a pipe; a thread limit means low priority,
-    inherited by ffmpeg and the other children. On macOS the app asks for the priority (taskpolicy)."""
+class _MEMORY_PRIORITY_INFORMATION(ctypes.Structure):
+    _fields_ = [("MemoryPriority", wintypes.ULONG)]
+
+
+def prepare_process() -> None:
+    """UTF-8 on stdout and stderr, which default to the console code page in a pipe; low priority always, inherited by
+    ffmpeg and the other children (measured: no cost in speed, unlike the background mode or EcoQoS)."""
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
-    if threads:
-        _kernel32.SetPriorityClass(_kernel32.GetCurrentProcess(), _BELOW_NORMAL_PRIORITY_CLASS)
+    me = _kernel32.GetCurrentProcess()
+    _kernel32.SetPriorityClass(me, _BELOW_NORMAL_PRIORITY_CLASS)
+    memory = _MEMORY_PRIORITY_INFORMATION(_MEMORY_PRIORITY_BELOW_NORMAL)
+    _kernel32.SetProcessInformation(me, _PROCESS_MEMORY_PRIORITY, ctypes.byref(memory), ctypes.sizeof(memory))
 
 
 # --- the Recycle Bin ---

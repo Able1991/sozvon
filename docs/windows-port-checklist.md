@@ -46,10 +46,12 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Two copies of the OpenMP runtime in one process (torch and ctranslate2) | block 6, no `KMP_DUPLICATE_LIB_OK` without agreement |
 | No administrator rights: everything is in the user's folders | block 7 |
 | GPU is optional, a missing library falls back to int8 on the CPU with a log line | done |
+| Speaker separation, voice prints and the echo model on the GPU, each stage falling back to the CPU | done, on CUDA |
+| AMD Radeon (ROCm), RTX 50xx | not verified, no such card here |
 | A failure on the GPU in the middle of a track: the track starts over on the CPU, the GPU is not tried again | done |
 | The contents of `cuda-libs` are checked against sha256 | block 7 |
 | No assistant, `SOZVON_LLM=none`, a failed summary and its warning | block 4 |
-| Low priority and `SOZVON_THREADS` | block 4 for the process, block 5 for Whisper |
+| Low priority by default, half the logical cores, one limit for every library | done |
 | Memory on long calls, speed on CPU and GPU | block 9 |
 
 ## Assistants
@@ -78,6 +80,8 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 - A stop path that works for an app with no console (a named event or `.work/stop`, a timeout, killing through the Job). CTRL_BREAK needs a shared console, and a stop is delayed while native code or `time.sleep` runs.
 - The app holds the launcher in its own Job and opens engine files with `FileShare.ReadWrite | Delete`.
 - The low priority setting comes from the app, as on macOS, and no console window appears for child processes.
+- Raw microphone capture without system effects (`AUDCLNT_STREAMOPTIONS_RAW` where the device has it), and a check whether WASAPI loopback comes before the output device's effects: the echo filter needs no system AEC or noise suppression in its way.
+- Echo removal was tuned on one 75-minute call on a MacBook: compare with the Mac on a synthetic pair (block 9) and by ear.
 - Choosing a calls folder inside OneDrive or another synced folder shows an honest warning.
 - A guard against the silent deletion of a folder larger than the Recycle Bin quota, before sync is turned on.
 - Recording (WASAPI), the capsule, automatic start and stop, the Calls window.

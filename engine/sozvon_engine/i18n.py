@@ -116,6 +116,8 @@ MESSAGES = {
     "llm_unverified_assistant": ("{name} на Windows пока недоступен: его песочницу ещё не проверили. Выберите Claude Code",
                                  "{name} is not available on Windows yet: its sandbox has not been checked. Choose Claude Code"),
     "log_whisper_device": ("Whisper: {device}, {compute}", "Whisper: {device}, {compute}"),
+    "log_gpu_stage_failed": ("{stage}: видеокарта не справилась ({err}), продолжаю на процессоре",
+                             "{stage}: the GPU failed ({err}), going on with the CPU"),
     "log_whisper_gpu_failed": ("Whisper: видеокарта не справилась ({err}), продолжаю на процессоре",
                                "Whisper: the GPU failed ({err}), going on with the CPU"),
     "llm_no_discovery": ("поиск проектов на Windows пока недоступен", "finding projects is not available on Windows yet"),

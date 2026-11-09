@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import models, paths
+from . import accel, models, paths
 
 SR = 16000
 CHUNK = 30 * SR            # model input length; memory stays bounded for any call length
@@ -78,7 +78,7 @@ class _Model:
                        n_freqs=cfg["n_freqs"]).eval()
         net.load_state_dict(ck["model_state_dict"])
         net.align.fold_temperature()
-        self.device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.device = accel.torch_device("echo")
         self.net = net.to(self.device)
         self.torch = torch
 
@@ -183,9 +183,14 @@ def apply(mic_path: Path, ref_path: Path, classic: Path, track, thr: float) -> s
         weights, state = weights_state()
         if weights is None:
             return state
-        model = _Model(weights)
         m, r, c = aec._Reader(mic_path), aec._Reader(ref_path), aec._Reader(classic)
-        enhance(m, r, c, tmp, track, thr, model)
+
+        def work():
+            nonlocal model
+            model = _Model(weights)
+            enhance(m, r, c, tmp, track, thr, model)
+
+        accel.with_cpu_fallback("echo", work)
         for f in (m, r, c):
             f.close()
         m = r = c = None
@@ -204,12 +209,4 @@ def apply(mic_path: Path, ref_path: Path, classic: Path, track, thr: float) -> s
 
 def _free_gpu() -> None:
     """The rest of the run (Whisper, pyannote) needs the GPU memory the model held."""
-    try:
-        import gc
-
-        import torch
-        gc.collect()
-        if torch.backends.mps.is_available():
-            torch.mps.empty_cache()
-    except Exception:  # noqa: BLE001  cleanup only
-        pass
+    accel.release()

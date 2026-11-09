@@ -8,6 +8,7 @@ import numpy as np
 
 from . import config
 from . import models as _models
+from . import platform_support
 from .audio import SR
 
 is_onnx = _models.is_onnx
@@ -25,6 +26,8 @@ def _load(engine_dir, model: str):
         if threads:
             opts = onnxruntime.SessionOptions()
             opts.intra_op_num_threads = threads
+            if platform_support.SYSTEM == "win32":
+                opts.add_session_config_entry("session.intra_op.allow_spinning", "0")  # no idle threads burning a core
         # CPU only. By default onnxruntime hands the graph to CoreML, which compiles it
         # piecewise: Parakeet ate 7 GB of memory, GigaAM ran 10x slower than real time.
         cpu = ["CPUExecutionProvider"]
