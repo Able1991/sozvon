@@ -1,11 +1,13 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
 
 namespace Sozvon.App.Setup;
 
 /// <summary>Opens the wizard when the app was started with --setup [--data-dir folder] [--engine folder].</summary>
 public static partial class SetupLauncher
 {
+    private const string InstanceKey = "sozvon-setup";
     private const uint MB_ICONERROR = 0x10;
     private static SetupWindow? _window;
 
@@ -16,6 +18,14 @@ public static partial class SetupLauncher
         {
             return false;
         }
+        // Two wizards would run two installers over the same folder: the second start brings the first to the front.
+        var instance = AppInstance.FindOrRegisterForKey(InstanceKey);
+        if (!instance.IsCurrent)
+        {
+            Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();
+            Environment.Exit(0);
+        }
+        instance.Activated += (_, _) => _window?.DispatcherQueue.TryEnqueue(() => _window.Activate());
         var engine = ArgumentAfter(args, "--engine") ?? SetupContext.FindEngineFolder();
         if (engine is null || !File.Exists(Path.Combine(engine, "setup.ps1")))
         {
