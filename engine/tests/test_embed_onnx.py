@@ -1,6 +1,7 @@
 """Speaker embeddings through ONNX Runtime on Windows, and the way back to torch."""
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -117,6 +118,7 @@ def entry_for(monkeypatch, content=b"model"):
 
 
 def test_install_fetches_and_checks_the_file_with_its_notice(windows, monkeypatch, tmp_path):
+    monkeypatch.setattr(platform_support, "replace_file", os.replace)  # SYSTEM is faked: platform_win32 only imports on Windows
     entry_for(monkeypatch)
     install.ensure_embedding_onnx(tmp_path, good_fetch)
     d = tmp_path / "models" / ENTRY["dir"]
@@ -149,8 +151,6 @@ def test_macos_install_does_not_touch_it(monkeypatch, tmp_path):
 @pytest.mark.slow
 def test_same_turns_as_torch(data, monkeypatch, tmp_path):
     """On the pinned pyannote: ONNX and torch give the same diarization. Needs an installed engine with the file."""
-    import os
-
     from conftest import installed_engine
     engine = installed_engine() or (Path(os.environ["SOZVON_TEST_ENGINE"]) if os.environ.get("SOZVON_TEST_ENGINE") else None)
     if engine is None or not (engine / "models" / ENTRY["dir"] / ENTRY["file"]).exists():
