@@ -91,6 +91,13 @@ public sealed class AppHost
         _tray.Refresh();
     }
 
+    /// <summary>The capsule alone, for the demo states: it follows the theme but drives nothing.</summary>
+    public void AttachDemo(CapsuleWindow capsule)
+    {
+        _capsule = capsule;
+        ApplyCapsuleTheme();
+    }
+
     public void SetFloatingPanel(bool visible) => _store.Settings.FloatingPanel = visible;
 
     /// <summary>The wizard runs as its own process, so the tray and the capsule stay as they are meanwhile.</summary>

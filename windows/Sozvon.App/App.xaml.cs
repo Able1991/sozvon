@@ -28,6 +28,7 @@ public partial class App : Application
         var demoState = Argument("--capsule-state");
         if (demoState.Length > 0 || Environment.GetCommandLineArgs().Contains("--capsule-demo"))
         {
+            Shell.AppHost.Current!.AttachDemo(_capsule);
             _capsule.ShowWithoutFocus();
             _demo = new CapsuleDemo(_capsule);
             _demo.Start(demoState);
