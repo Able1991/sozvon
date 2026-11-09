@@ -18,8 +18,9 @@ from pathlib import Path
 
 SYSTEM = sys.platform  # "darwin", "win32", "linux" (behaves like POSIX where it can)
 
-# Stage 1 on Windows: a call's text is untrusted, and the sandboxes of these assistants could not be checked there.
-UNVERIFIED_ASSISTANTS = ("codex", "cursor") if SYSTEM == "win32" else ()
+# On Windows the sandboxes of the other assistants could not be checked and a call's text is untrusted, so only an
+# explicit choice runs them. None: no limit.
+AUTO_ASSISTANTS = ("claude",) if SYSTEM == "win32" else None
 # Project discovery lets an assistant read files; its read-only rules have no equivalent on Windows yet.
 AGENTIC_OFF = SYSTEM == "win32"
 # For text=True pipes to a command line tool. On Windows stderr can come in the console code page.

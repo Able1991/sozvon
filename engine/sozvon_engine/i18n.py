@@ -113,8 +113,12 @@ MESSAGES = {
     "err_model_missing": ("модель {model} не скачана", "model {model} is not downloaded"),
     "err_ffmpeg": ("ffmpeg не смог прочитать {file}: {err}", "ffmpeg could not read {file}: {err}"),
     "err_engine": ("движок повреждён: {err}", "the engine is broken: {err}"),
-    "llm_unverified_assistant": ("{name} на Windows пока недоступен: его песочницу ещё не проверили. Выберите Claude Code",
-                                 "{name} is not available on Windows yet: its sandbox has not been checked. Choose Claude Code"),
+    "log_assistant_unverified": ("{name} на Windows не проверен на настоящем CLI. Заявленная его производителем песочница может работать "
+                                 "не так, как на macOS. Текст звонка уходит этому ассистенту, и защита от вредных инструкций в нём зависит от него",
+                                 "{name} has not been checked on Windows with the real CLI. The sandbox its maker describes may not work as on macOS. "
+                                 "The text of the call goes to this assistant, and protection from harmful instructions in it depends on the assistant"),
+    "log_cursor_no_file_sandbox": ("Cursor: файловой песочницы на Windows может не быть",
+                                   "Cursor: there may be no file sandbox on Windows"),
     "log_whisper_device": ("Whisper: {device}, {compute}", "Whisper: {device}, {compute}"),
     "log_gpu_stage_failed": ("{stage}: видеокарта не справилась ({err}), продолжаю на процессоре",
                              "{stage}: the GPU failed ({err}), going on with the CPU"),

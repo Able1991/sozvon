@@ -727,8 +727,12 @@ let input = '';
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', c => input += c);
 process.stdin.on('end', () => {
-  fs.writeFileSync(process.env.SPY_OUT, JSON.stringify({argv: process.argv.slice(2), stdin: input, cwd: process.cwd()}), 'utf8');
-  process.stdout.write('ответ готов');
+  const argv = process.argv.slice(2);
+  let request = null;
+  try { request = fs.readFileSync('request.md', 'utf8'); } catch (e) {}
+  fs.writeFileSync(process.env.SPY_OUT, JSON.stringify({argv, stdin: input, cwd: process.cwd(), request_md: request}), 'utf8');
+  if (argv.includes('-o')) { fs.writeFileSync(argv[argv.indexOf('-o') + 1], 'ответ готов', 'utf8'); }
+  else { process.stdout.write('ответ готов'); }
 });
 """
 
@@ -821,24 +825,51 @@ def test_project_discovery_is_off_on_windows(monkeypatch, npm_dir, tmp_path):
     assert not (tmp_path / "spy.json").exists(), "the assistant was not started"
 
 
-@pytest.mark.parametrize("name", ["codex", "cursor"])
-def test_chosen_codex_and_cursor_fail_with_a_clear_error(monkeypatch, npm_dir, tmp_path, name):
-    binary = {"codex": "codex", "cursor": "cursor-agent"}[name]
-    llm = _assistant(monkeypatch, npm_dir, tmp_path, binary)
-    monkeypatch.setenv("SOZVON_LLM", name)
-    assert llm.backend()[0] == name, "it counts as chosen, so the failure reaches warnings"
-    out, got, err = llm.run("x", tmp_path)
-    assert out is None and got == name and err
-    assert not (tmp_path / "spy.json").exists(), "the assistant was not started"
+def _spy(tmp_path) -> dict:
+    import json
+    return json.loads((tmp_path / "spy.json").read_text(encoding="utf-8"))
 
 
-def test_a_failed_codex_summary_is_a_warning(monkeypatch, npm_dir, tmp_path):
-    from sozvon_engine.pipeline import summary
-    _assistant(monkeypatch, npm_dir, tmp_path, "codex")
+def test_chosen_codex_runs_with_its_flags_and_the_text_on_stdin(monkeypatch, npm_dir, tmp_path, capfd):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, "codex")
     monkeypatch.setenv("SOZVON_LLM", "codex")
-    warned = []
-    assert summary.summarize("текст", "Я", tmp_path, warn=warned.append) is None
-    assert len(warned) == 1 and warned[0].startswith("codex")
+    call = tmp_path / "звонок с пробелом"
+    call.mkdir()
+    assert llm.run(NASTY, call) == ("ответ готов", "codex", "")
+    spy = _spy(tmp_path)
+    assert spy["stdin"].replace("\r\n", "\n") == NASTY
+    for flag in ("exec", "--skip-git-repo-check", "--ephemeral", "--ignore-rules"):
+        assert flag in spy["argv"]
+    assert spy["argv"][spy["argv"].index("-s") + 1] == "read-only"
+    assert Path(spy["cwd"]).resolve() != call.resolve() and not list(call.iterdir())
+    assert "codex" in capfd.readouterr().err, "the log says what is not known about it"
+
+
+def test_chosen_cursor_gets_the_text_through_request_md(monkeypatch, npm_dir, tmp_path, capfd):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, "cursor-agent")
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    assert llm.run(NASTY, tmp_path)[0] == "ответ готов"
+    spy = _spy(tmp_path)
+    assert spy["request_md"].replace("
+", "
+") == NASTY and NASTY not in " ".join(spy["argv"])
+    assert "--sandbox" in spy["argv"] and spy["argv"][spy["argv"].index("--mode") + 1] == "ask"
+    err = capfd.readouterr().err
+    assert "cursor" in err and "Cursor" in err, "both warnings"
+
+
+def test_claude_has_no_unverified_warning(monkeypatch, npm_dir, tmp_path, capfd):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path)
+    llm.run("x", tmp_path)
+    assert capfd.readouterr().err == ""
+
+
+def test_project_discovery_stays_off_for_codex(monkeypatch, npm_dir, tmp_path):
+    llm = _assistant(monkeypatch, npm_dir, tmp_path, "codex")
+    monkeypatch.setenv("SOZVON_LLM", "codex")
+    out, name, err = llm.run("x", tmp_path, agentic=True)
+    assert out is None and name == "codex" and err
+    assert not (tmp_path / "spy.json").exists()
 
 
 def test_auto_does_not_choose_codex_or_cursor(monkeypatch, npm_dir, tmp_path):

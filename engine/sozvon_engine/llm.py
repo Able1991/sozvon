@@ -7,6 +7,7 @@ Text goes to Anthropic (claude), OpenAI (codex) or Cursor and the model chosen t
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from pathlib import Path
@@ -30,12 +31,9 @@ def backend(settings: config.Settings | None = None):
     want = (settings or config.load()).llm
     if want == "none":
         return None, None
-    order = [want] if want in BINARIES else list(BINARIES)
+    allowed = platform_support.AUTO_ASSISTANTS
+    order = [want] if want in BINARIES else [n for n in BINARIES if allowed is None or n in allowed]
     for name in order:
-        if name in platform_support.UNVERIFIED_ASSISTANTS:
-            if want == name:
-                return name, None  # chosen: counts, so the failure reaches the call's warnings
-            continue
         path = _find(BINARIES[name])
         if path:
             return name, path
@@ -44,6 +42,15 @@ def backend(settings: config.Settings | None = None):
 
 def vendor(name) -> str:
     return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor"}.get(name, "")
+
+
+def _warn_unverified(name: str) -> None:
+    """Windows: what is not known about the assistant the user chose, in the log of the call."""
+    if platform_support.SYSTEM != "win32" or name == "claude":
+        return
+    print(t("log_assistant_unverified", name=name), file=sys.stderr, flush=True)
+    if name == "cursor":
+        print(t("log_cursor_no_file_sandbox"), file=sys.stderr, flush=True)
 
 
 def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_event=None):
@@ -56,10 +63,9 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     name, path = backend(settings)
     if not name:
         return None, None, "не найден ни claude, ни codex, ни cursor-agent CLI"
-    if not path:
-        return None, name, t("llm_unverified_assistant", name=name)
     if agentic and platform_support.AGENTIC_OFF:
         return None, name, t("llm_no_discovery")
+    _warn_unverified(name)
     if name == "claude":
         # --setting-sources project: skip ~/.claude/settings.json, otherwise the user's allow rules
         # (Bash, Write ...) would widen the assistant's permissions.

@@ -42,7 +42,7 @@ def _bash_fakes(monkeypatch):
     monkeypatch.setattr(platform_support, "find_cli",
                         lambda name, dirs: next((str(Path(x) / name) for x in dirs if (Path(x) / name).exists()), None))
     monkeypatch.setattr(platform_support, "cli_argv", lambda path: [str(bash), path])
-    monkeypatch.setattr(platform_support, "UNVERIFIED_ASSISTANTS", ())
+    monkeypatch.setattr(platform_support, "AUTO_ASSISTANTS", None)
     monkeypatch.setattr(platform_support, "AGENTIC_OFF", False)
 
 

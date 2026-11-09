@@ -65,7 +65,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | The text of a call never passes through `cmd.exe`, only stdin or a file; `--tools ""` arrives as an empty argument | block 4 |
 | Programs start by absolute path only, nothing from the current folder | block 4 |
 | Finding projects | off on Windows until the read-only rules can be expressed there |
-| Codex and Cursor | unavailable until their sandboxes can be checked on Windows |
+| Codex and Cursor | run only when the user chooses them. Not verified on Windows with the real CLI, their sandboxes were not checked, and the text of the call goes to the chosen assistant. Cursor may have no file sandbox on Windows |
 
 ## Windows only
 
