@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sozvon.App.Calls;
+using Sozvon.App.Recording;
 using Sozvon.App.Settings;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
@@ -26,7 +27,10 @@ public sealed partial class TrayViewModel : ObservableObject
         Refresh();
     }
 
-    /// <summary>The recorder is not connected yet, so "recording" can only be previewed from the command line.</summary>
+    /// <summary>Set once the capsule and the recorder exist.</summary>
+    public RecordingController? Recording { get; set; }
+
+    /// <summary>The state was forced from the command line for a screenshot.</summary>
     public bool IsPreview => _previewState is not null;
 
     public bool FloatingPanel => _settings.FloatingPanel;
@@ -41,7 +45,7 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public string StatusText => State switch
     {
-        TrayState.Recording => Loc.L("Идёт запись %@", CallFormat.Clock((DateTime.Now - _startedAt).TotalSeconds)) + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
+        TrayState.Recording => Loc.L("Идёт запись %@", CallFormat.Clock((Recording?.IsRecording == true ? Recording.Elapsed : DateTime.Now - _startedAt).TotalSeconds)) + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
         TrayState.SetupNeeded => Loc.L("Нужна настройка"),
         _ => Loc.L("Готов к записи"),
     };
@@ -55,7 +59,7 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public void Refresh()
     {
-        State = _previewState ?? (EngineInstalled() ? TrayState.Ready : TrayState.SetupNeeded);
+        State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : EngineInstalled() ? TrayState.Ready : TrayState.SetupNeeded);
         var calls = _repository.Scan();
         WaitingForDescription = calls.Count(c => c.IsWaitingForDescription);
         LatestCallId = calls.FirstOrDefault(c => c.Status == CallStatus.Done && !c.IsDemo)?.Id;

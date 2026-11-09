@@ -60,8 +60,14 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         return new Guid(MD5.HashData(Encoding.UTF8.GetBytes(path)));
     }
 
-    private void Refresh()
+    public void Notify(string text) => _icon?.ShowNotification("Sozvon", text);
+
+    public void Refresh()
     {
+        if (_icon is null)
+        {
+            return;
+        }
         state.Refresh();
         _icon!.ContextFlyout = BuildMenu();
         _icon.ToolTipText = state.ToolTip;
@@ -77,7 +83,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         if (state.State == TrayState.SetupNeeded)
         {
             AddSeparator(menu);
-            AddNotConnected(menu, "Завершить настройку…");
+            AddAction(menu, "Завершить настройку…", host.OpenSetup);
             AddSeparator(menu);
             AddAction(menu, "Выход", host.Exit);
             return menu;
@@ -87,20 +93,25 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         AddSeparator(menu);
         if (state.State == TrayState.Recording)
         {
-            AddNotConnected(menu, "Остановить и расшифровать");
-            AddNotConnected(menu, "Отметить важное");
+            AddAction(menu, "Остановить и расшифровать", () => host.Recording?.Stop());
+            AddAction(menu, "Отметить важное", () => host.Recording?.Mark());
             AddNotConnected(menu, "Проект и собеседники…");
         }
         else
         {
-            AddNotConnected(menu, "Начать запись");
+            AddAction(menu, "Начать запись", () => host.Recording?.Begin());
         }
         AddSeparator(menu);
         AddCallItems(menu);
         AddAction(menu, "Звонки…", () => host.OpenWindow(AppPage.Calls));
         AddAction(menu, "Проекты…", () => host.OpenWindow(AppPage.Projects));
         AddSeparator(menu);
-        AddStored(menu, "Плавающая панель", state.FloatingPanel);
+        Add(menu, new ToggleMenuFlyoutItem
+        {
+            Text = L("Плавающая панель"),
+            IsChecked = state.FloatingPanel,
+            Command = new RelayCommand(() => host.SetFloatingPanel(!state.FloatingPanel)),
+        });
         AddStored(menu, "Открывать при входе", state.OpenAtSignIn);
         AddSeparator(menu);
         AddAction(menu, "Настройки…", () => host.OpenWindow(AppPage.Settings));

@@ -71,3 +71,6 @@
 "Свой сервер, свои данные" = "Your server, your data";
 "Твой голос" = "Your voice";
 "Удалить в корзину" = "Move to Recycle Bin";
+"Не получилось: подробности в журнале программы." = "That did not work. The details are in the app log.";
+"Нет доступа к микрофону. Разреши его в параметрах Windows: Конфиденциальность и защита, Микрофон." = "No access to the microphone. Allow it in Windows Settings: Privacy & security, Microphone.";
+"Микрофон не открылся. Проверь, что он подключён." = "The microphone did not open. Check that it is connected.";

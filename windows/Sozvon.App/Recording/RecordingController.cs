@@ -1,7 +1,8 @@
-using System.Globalization;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Sozvon.App.Capsule;
+using Sozvon.App.Shell;
+using Sozvon.App.Strings;
 using Sozvon.Audio;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
@@ -9,7 +10,7 @@ using Sozvon.Core.Engine;
 namespace Sozvon.App.Recording;
 
 /// <summary>Connects the capsule to the recorder and the engine: one recording, then its transcription.</summary>
-internal sealed class RecordingController
+public sealed class RecordingController
 {
     private static readonly TimeSpan SavedShownFor = TimeSpan.FromSeconds(3);
 
@@ -24,16 +25,27 @@ internal sealed class RecordingController
     private int _marks;
     private TrackWarning? _warning;
     private bool _recording;
+    private bool _changing;
 
     /// <summary>Asked for when the user presses Record and the engine is not installed yet.</summary>
     public event EventHandler? SetupNeeded;
+
+    /// <summary>A recording started or ended.</summary>
+    public event EventHandler? StateChanged;
+
+    /// <summary>Something the user has to know about, as a sentence ready to show.</summary>
+    public event EventHandler<string>? Problem;
+
+    public bool IsRecording => _recording;
+
+    public TimeSpan Elapsed => DateTimeOffset.Now - _startedAt;
 
     public RecordingController(CapsuleWindow capsule, EngineLayout layout)
     {
         _capsule = capsule;
         _layout = layout;
         _recorder = new WasapiRecorder(RecorderOptions.ForDataDirectory(layout.Data));
-        var language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru" ? "ru" : "en";
+        var language = Loc.IsRussian ? "ru" : "en";
         _processor = new CallProcessor(layout.Calls, new EngineSupervisor(layout, new EngineOptions(language)), () => Project.All(layout.Profiles))
         {
             HoldsQueue = () => _recording,
@@ -41,11 +53,25 @@ internal sealed class RecordingController
         _processor.Changed += () => _ui.TryEnqueue(ShowProcessing);
         _clock.Tick += (_, _) => RenderRecording();
         _recorder.LevelsChanged += (_, levels) => _ui.TryEnqueue(() => OnLevels(levels));
-        _recorder.Failed += (_, _) => _ui.TryEnqueue(() => _ = StopAsync());
-        capsule.RecordClicked += (_, _) => _ = StartAsync();
-        capsule.PrimaryClicked += (_, _) => _ = StartAsync();
-        capsule.StopClicked += (_, _) => _ = StopAsync();
+        _recorder.Failed += (_, _) => _ui.TryEnqueue(Stop);
+        capsule.RecordClicked += (_, _) => Begin();
+        capsule.PrimaryClicked += (_, _) => Begin();
+        capsule.StopClicked += (_, _) => Stop();
         capsule.MarkClicked += (_, _) => Mark();
+    }
+
+    public void Begin() => Run(StartAsync);
+
+    public void Stop() => Run(() => StopAsync(transcribeNow: true));
+
+    /// <summary>Saves a recording in progress and stops the engine; the saved call is transcribed on the next launch.</summary>
+    public async Task ShutdownAsync()
+    {
+        if (_recording)
+        {
+            await StopAsync(transcribeNow: false);
+        }
+        await _processor.AbortAllAsync();
     }
 
     public void Start()
@@ -53,11 +79,43 @@ internal sealed class RecordingController
         _processor.RestoreQueue();
         _processor.StartNext();
         ShowProcessing();
+        Run(RecoverInterruptedAsync);
+    }
+
+    /// <summary>A launch may find a recording the previous run never closed: it is saved and goes to the queue.</summary>
+    private async Task RecoverInterruptedAsync()
+    {
+        foreach (var dir in RecordingRecovery.FindInterrupted(_layout.Calls))
+        {
+            var result = await RecordingRecovery.RecoverAsync(dir, RecorderOptions.ForDataDirectory(_layout.Data).FfmpegPath);
+            Save(dir, Directory.GetCreationTime(dir), result, new CallInfo());
+            _processor.Transcribe(dir, new CallInfo());
+        }
+        ShowProcessing();
+    }
+
+    /// <summary>Runs a step started by the user. A failure is logged and said out loud, and the capsule returns to rest.</summary>
+    private async void Run(Func<Task> step)
+    {
+        try
+        {
+            await step();
+        }
+        catch (Exception error)
+        {
+            AppHost.Log(error);
+            _recording = false;
+            _changing = false;
+            _clock.Stop();
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            Problem?.Invoke(this, Loc.L("Не получилось: подробности в журнале программы."));
+            ShowProcessing();
+        }
     }
 
     private async Task StartAsync()
     {
-        if (_recording)
+        if (_recording || _changing)
         {
             return;
         }
@@ -66,18 +124,25 @@ internal sealed class RecordingController
             SetupNeeded?.Invoke(this, EventArgs.Empty);
             return;
         }
+        _changing = true;
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var dir = CallFolder.Create(_layout.Calls);
         try
         {
             await _recorder.StartAsync(dir);
         }
-        catch (RecorderStartException)
+        catch (RecorderStartException error)
         {
+            AppHost.Log(error);
+            _changing = false;
             Directory.Delete(dir, recursive: true);
-            _capsule.Render(new CapsuleModel(CapsulePhase.Idle));
+            Problem?.Invoke(this, error.AccessDenied
+                ? Loc.L("Нет доступа к микрофону. Разреши его в параметрах Windows: Конфиденциальность и защита, Микрофон.")
+                : Loc.L("Микрофон не открылся. Проверь, что он подключён."));
+            ShowProcessing();
             return;
         }
+        _changing = false;
         _dir = dir;
         _startedAt = DateTimeOffset.Now;
         _marks = 0;
@@ -85,9 +150,10 @@ internal sealed class RecordingController
         _recording = true;
         _clock.Start();
         RenderRecording();
+        StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task StopAsync()
+    private async Task StopAsync(bool transcribeNow)
     {
         if (!_recording || _dir is not { } dir)
         {
@@ -95,19 +161,29 @@ internal sealed class RecordingController
         }
         _recording = false;
         _clock.Stop();
+        StateChanged?.Invoke(this, EventArgs.Empty);
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var result = await _recorder.StopAsync();
         var minutes = (int)Math.Round((DateTimeOffset.Now - _startedAt).TotalMinutes);
         var info = new CallInfo();
-        var audio = result.Audio;
-        CallFile.SaveStopped(dir, _startedAt, new Sozvon.Core.Calls.AudioTimes(audio.MicStart, audio.SystemStart, audio.MicSeconds, audio.SystemSeconds), info);
+        Save(dir, _startedAt, result, info);
+        if (!transcribeNow)
+        {
+            return;
+        }
         _capsule.Render(new CapsuleModel(CapsulePhase.Saved) { SavedMinutes = minutes > 0 ? minutes : null });
         await Task.Delay(SavedShownFor);
         _processor.Transcribe(dir, info);
         ShowProcessing();
     }
 
-    private void Mark()
+    private static void Save(string dir, DateTimeOffset startedAt, RecordingResult result, CallInfo info)
+    {
+        var audio = result.Audio;
+        CallFile.SaveStopped(dir, startedAt, new Sozvon.Core.Calls.AudioTimes(audio.MicStart, audio.SystemStart, audio.MicSeconds, audio.SystemSeconds), info);
+    }
+
+    public void Mark()
     {
         if (_recorder.Mark())
         {
@@ -145,7 +221,7 @@ internal sealed class RecordingController
 
     private void ShowProcessing()
     {
-        if (_recording)
+        if (_recording || _changing)
         {
             return;
         }

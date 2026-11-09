@@ -18,19 +18,23 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        if (Setup.SetupLauncher.TryShow())
+        {
+            return;
+        }
         Shell.AppHost.Start();
         _capsule = new CapsuleWindow();
-        _capsule.HideRequested += (_, _) => Exit();
         _capsule.PlaceDefault();
-        _capsule.ShowWithoutFocus();
         var demoState = Argument("--capsule-state");
         if (demoState.Length > 0 || Environment.GetCommandLineArgs().Contains("--capsule-demo"))
         {
+            _capsule.ShowWithoutFocus();
             _demo = new CapsuleDemo(_capsule);
             _demo.Start(demoState);
             return;
         }
         _recording = new RecordingController(_capsule, Layout());
+        Shell.AppHost.Current!.Attach(_capsule, _recording);
         _recording.Start();
     }
 

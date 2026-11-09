@@ -67,6 +67,8 @@ public sealed partial class CapsuleWindow : Window
         Root.Opacity = RestOpacity;
     }
 
+    public void ApplyTheme(ElementTheme theme) => Root.RequestedTheme = theme;
+
     public void MoveTo(int x, int y) => AppWindow.Move(new(x, y));
 
     public void Render(CapsuleModel model)

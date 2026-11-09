@@ -1,9 +1,11 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 using Sozvon.App.Calls;
+using Sozvon.App.Capsule;
+using Sozvon.App.Recording;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
 using Sozvon.App.Tray;
@@ -24,6 +26,13 @@ public sealed class AppHost
     private readonly TrayController _tray;
     private MainWindow? _window;
     private CallsViewModel? _calls;
+    private CapsuleWindow? _capsule;
+    private RecordingController? _recording;
+
+    /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
+    public static AppHost? Current => _current;
+
+    public RecordingController? Recording => _recording;
 
     private AppHost()
     {
@@ -50,6 +59,36 @@ public sealed class AppHost
         instance.Activated += (_, _) => _current._dispatcher.TryEnqueue(() => _current.OpenWindow(AppPage.Calls));
     }
 
+    /// <summary>Connects the capsule and the recorder to the tray and to the settings that concern them.</summary>
+    public void Attach(CapsuleWindow capsule, RecordingController recording)
+    {
+        _capsule = capsule;
+        _recording = recording;
+        _trayState.Recording = recording;
+        capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
+        recording.StateChanged += (_, _) => _tray.Refresh();
+        recording.SetupNeeded += (_, _) => OpenSetup();
+        recording.Problem += (_, text) => _tray.Notify(text);
+        ApplyCapsuleTheme();
+        ApplyFloatingPanel();
+        _tray.Refresh();
+    }
+
+    public void SetFloatingPanel(bool visible) => _store.Settings.FloatingPanel = visible;
+
+    /// <summary>The wizard runs as its own process, so the tray and the capsule stay as they are meanwhile.</summary>
+    public void OpenSetup()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+        }
+        catch (System.ComponentModel.Win32Exception error)
+        {
+            Log(error);
+        }
+    }
+
     public void OpenWindow(AppPage page)
     {
         try
@@ -71,8 +110,19 @@ public sealed class AppHost
         _calls!.SelectCall(id);
     }
 
-    public void Exit()
+    public async void Exit()
     {
+        try
+        {
+            if (_recording is { } recording)
+            {
+                await recording.ShutdownAsync();
+            }
+        }
+        catch (Exception error)
+        {
+            Log(error);
+        }
         _tray.Dispose();
         _window?.CloseForExit();
         Application.Current.Exit();
@@ -87,7 +137,7 @@ public sealed class AppHost
 
     private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e) => Log(e.Exception);
 
-    private static void Log(Exception error)
+    internal static void Log(Exception error)
     {
         try
         {
@@ -112,6 +162,31 @@ public sealed class AppHost
         if (e.PropertyName == nameof(AppSettings.Theme))
         {
             _window?.ApplyTheme(_store.Settings.Theme);
+            ApplyCapsuleTheme();
+        }
+        else if (e.PropertyName == nameof(AppSettings.FloatingPanel))
+        {
+            ApplyFloatingPanel();
+            _tray.Refresh();
+        }
+    }
+
+    private void ApplyCapsuleTheme() => _capsule?.ApplyTheme(_store.Settings.Theme switch
+    {
+        AppTheme.Light => ElementTheme.Light,
+        AppTheme.Dark => ElementTheme.Dark,
+        _ => ElementTheme.Default,
+    });
+
+    private void ApplyFloatingPanel()
+    {
+        if (_store.Settings.FloatingPanel)
+        {
+            _capsule?.ShowWithoutFocus();
+        }
+        else
+        {
+            _capsule?.AppWindow.Hide();
         }
     }
 
