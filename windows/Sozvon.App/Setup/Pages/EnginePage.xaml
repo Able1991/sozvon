@@ -1,0 +1,27 @@
+<UserControl
+    x:Class="Sozvon.App.Setup.Pages.EnginePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="12">
+        <Border x:Name="RunningCard" Style="{StaticResource SetupCard}" Padding="16,12">
+            <StackPanel Spacing="12">
+                <TextBlock x:Name="PhaseText" AutomationProperties.AutomationId="SetupPhase" TextWrapping="Wrap" />
+                <ProgressBar IsIndeterminate="True" />
+            </StackPanel>
+        </Border>
+        <InfoBar x:Name="FailedBar" Severity="Error" IsClosable="False" IsOpen="False">
+            <InfoBar.ActionButton>
+                <Button x:Name="OpenLogButton" Click="OnOpenLog" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+        <InfoBar x:Name="StoppedBar" Severity="Informational" IsClosable="False" IsOpen="False" />
+        <Expander x:Name="LogExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Visibility="Collapsed">
+            <ScrollViewer x:Name="LogScroll" MaxHeight="200">
+                <TextBlock x:Name="LogText" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </ScrollViewer>
+        </Expander>
+        <Border x:Name="DoneCard" Style="{StaticResource SetupCard}" Visibility="Collapsed">
+            <StackPanel x:Name="DoneRows" />
+        </Border>
+    </StackPanel>
+</UserControl>
