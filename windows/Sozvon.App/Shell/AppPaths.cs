@@ -13,6 +13,8 @@ public static class AppPaths
 
     public static string SettingsFile => Path.Combine(DataDir, "settings.json");
 
+    public static string EnvFile => Path.Combine(DataDir, ".env");
+
     public static string EnginePython => Path.Combine(DataDir, ".venv", "Scripts", "python.exe");
 
     public static string InstalledMarker => Path.Combine(DataDir, ".installed");

@@ -4,6 +4,7 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
 
@@ -11,11 +12,13 @@ namespace Sozvon.App.Settings;
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsStore _store;
+    private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
 
-    public SettingsViewModel(SettingsStore store, AppLanguage startupLanguage, Action relaunch)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch)
     {
         _store = store;
+        _engine = engine;
         _startupLanguage = startupLanguage;
         RelaunchCommand = new RelayCommand(relaunch);
         _store.PropertyChanged += OnStoreChanged;
@@ -36,6 +39,60 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         get => (int)Settings.Language;
         set => Settings.Language = (AppLanguage)value;
+    }
+
+    public string DisplayName
+    {
+        get => _engine.Name;
+        set
+        {
+            if (value != _engine.Name)
+            {
+                Settings.DisplayName = value;
+            }
+        }
+    }
+
+    public int SpeechModelIndex
+    {
+        get => (int)_engine.Model;
+        set
+        {
+            if (value >= 0 && value != (int)_engine.Model)
+            {
+                Settings.SpeechModelChoice = (WhisperModel)value;
+            }
+        }
+    }
+
+    public bool LanguageSwitching
+    {
+        get => _engine.LanguageSwitch;
+        set
+        {
+            if (value != _engine.LanguageSwitch)
+            {
+                Settings.LanguageSwitchingChoice = value;
+            }
+        }
+    }
+
+    public int SummaryAssistantIndex
+    {
+        get => (int)_engine.Assistant;
+        set
+        {
+            if (value >= 0 && value != (int)_engine.Assistant)
+            {
+                Settings.SummaryAssistantChoice = (Assistant)value;
+            }
+        }
+    }
+
+    public IReadOnlyList<SpeechLanguage> CallLanguages
+    {
+        get => _engine.Languages;
+        set => Settings.CallLanguagesChoice = SpeechLanguages.Serialize(value);
     }
 
     public bool NeedsRelaunch => Settings.Language != _startupLanguage;

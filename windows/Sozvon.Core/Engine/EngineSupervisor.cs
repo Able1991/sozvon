@@ -24,12 +24,16 @@ public interface IEngineRunner
 }
 
 /// <summary>Runs <c>bin\process_call.py</c> for a call folder with the contract's environment.</summary>
-public sealed class EngineSupervisor(EngineLayout layout, EngineOptions options, TimeSpan? stopGrace = null) : IEngineRunner
+public sealed class EngineSupervisor(EngineLayout layout, Func<EngineOptions> options, TimeSpan? stopGrace = null) : IEngineRunner
 {
     public const string Script = "process_call.py";
     public const string LogName = "process.log";
 
     private readonly TimeSpan _stopGrace = stopGrace ?? TimeSpan.FromSeconds(10);
+
+    public EngineSupervisor(EngineLayout layout, EngineOptions options, TimeSpan? stopGrace = null) : this(layout, () => options, stopGrace)
+    {
+    }
 
     public IEngineRun Start(ProcessingJob job, Action<string>? onLine = null)
     {
@@ -39,7 +43,7 @@ public sealed class EngineSupervisor(EngineLayout layout, EngineOptions options,
         var arguments = new List<string> { layout.Script(Script), job.Dir };
         if (job.Kind == ProcessingKind.SummaryOnly) arguments.Add("--summary-only");
         var stop = new EngineStopEvent(CallFile.CallId(job.Dir));
-        var environment = EngineEnvironment.Build(layout, options);
+        var environment = EngineEnvironment.Build(layout, options());
         environment[EngineEnvironment.StopEventVariable] = stop.Name;
         var tracker = new OutputTracker();
         var request = new EngineRunRequest(layout.Python, arguments, environment, layout.Data, log);

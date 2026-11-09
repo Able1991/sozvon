@@ -36,8 +36,8 @@
             <Grid MaxWidth="1000" Padding="0,0,16,16">
                 <StackPanel x:Name="General" Spacing="4">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Профиль'}" />
-                    <local:SettingsRow Header="{s:L K='Как тебя подписывать'}" Description="{s:L K='Имя пишется в расшифровке рядом с твоими репликами'}" NotConnected="True">
-                        <TextBox Width="260" Text="{x:Bind ViewModel.Settings.DisplayName, Mode=TwoWay}" />
+                    <local:SettingsRow Header="{s:L K='Как тебя подписывать'}" Description="{s:L K='Имя пишется в расшифровке рядом с твоими репликами'}">
+                        <TextBox Width="260" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Тема'}">
                         <RadioButtons MaxColumns="3" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}">
@@ -107,7 +107,7 @@
                     <local:SettingsRow Header="{s:L K='Открывать при входе'}" NotConnected="True">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.OpenAtSignIn, Mode=TwoWay}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}" NotConnected="True">
+                    <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Автоудаление аудио'}" NotConnected="True">
@@ -123,22 +123,14 @@
 
                 <StackPanel x:Name="Recognition" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Модель'}" />
-                    <local:SettingsRow Header="{s:L K='Модель распознавания'}" NotConnected="True">
-                        <ComboBox Width="240" SelectedIndex="{x:Bind ViewModel.Settings.SpeechModel, Mode=TwoWay}">
-                            <ComboBoxItem Content="Whisper Turbo" />
-                            <ComboBoxItem Content="Whisper Large" />
-                            <ComboBoxItem Content="Whisper Small" />
-                        </ComboBox>
+                    <local:SettingsRow Header="{s:L K='Модель распознавания'}">
+                        <ComboBox x:Name="ModelBox" Width="240" SelectedIndex="{x:Bind ViewModel.SpeechModelIndex, Mode=TwoWay}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Языки звонков'}" NotConnected="True">
-                        <ComboBox Width="240" SelectedIndex="{x:Bind ViewModel.Settings.CallLanguages, Mode=TwoWay}">
-                            <ComboBoxItem Content="{s:L K='Русский + English'}" />
-                            <ComboBoxItem Content="{s:L K='Русский'}" />
-                            <ComboBoxItem Content="English" />
-                        </ComboBox>
+                    <local:SettingsRow Header="{s:L K='Языки звонков'}">
+                        <local:LanguagesButton x:Name="CallLanguagesBox" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Переключение языка посреди речи'}" Description="{s:L K='Язык определяется для каждой фразы, медленнее на 20-30%'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.LanguageSwitching, Mode=TwoWay}" />
+                    <local:SettingsRow Header="{s:L K='Переключение языка посреди речи'}" Description="{s:L K='Язык определяется для каждой фразы, медленнее на 20-30%'}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.LanguageSwitching, Mode=TwoWay}" />
                     </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Производительность'}" />
@@ -162,8 +154,8 @@
 
                 <StackPanel x:Name="Assistants" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Саммари'}" />
-                    <local:SettingsRow Header="{s:L K='Помощник для саммари'}" NotConnected="True">
-                        <RadioButtons SelectedIndex="{x:Bind ViewModel.Settings.SummaryAssistant, Mode=TwoWay}">
+                    <local:SettingsRow Header="{s:L K='Помощник для саммари'}">
+                        <RadioButtons SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}">
                             <RadioButton Content="Claude Code" />
                             <RadioButton Content="Codex" IsEnabled="False" />
                             <RadioButton Content="Cursor" IsEnabled="False" />

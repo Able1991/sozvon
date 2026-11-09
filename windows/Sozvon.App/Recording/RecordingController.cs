@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Sozvon.App.Capsule;
+using Sozvon.App.Settings;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
 using Sozvon.Audio;
@@ -17,12 +18,16 @@ public sealed class RecordingController
 
     private readonly CapsuleWindow _capsule;
     private readonly EngineLayout _layout;
+    private readonly AppSettings _settings;
+    private readonly EngineSettings _engine;
+    private readonly CallInfoPrompt _prompt;
     private readonly IRecorder _recorder;
     private readonly CallProcessor _processor;
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private string? _dir;
     private DateTimeOffset _startedAt;
+    private CallInfo _info = new();
     private int _marks;
     private TrackWarning? _warning;
     private bool _recording;
@@ -32,7 +37,7 @@ public sealed class RecordingController
     /// <summary>Asked for when the user presses Record and the engine is not installed yet.</summary>
     public event EventHandler? SetupNeeded;
 
-    /// <summary>A recording started or ended.</summary>
+    /// <summary>A recording started or ended, or a call got or lost its description.</summary>
     public event EventHandler? StateChanged;
 
     /// <summary>Something the user has to know about, as a sentence ready to show.</summary>
@@ -48,13 +53,15 @@ public sealed class RecordingController
 
     public TimeSpan Elapsed => DateTimeOffset.Now - _startedAt;
 
-    public RecordingController(CapsuleWindow capsule, EngineLayout layout)
+    public RecordingController(CapsuleWindow capsule, EngineLayout layout, AppSettings settings, EngineSettings engine)
     {
         _capsule = capsule;
         _layout = layout;
+        _settings = settings;
+        _engine = engine;
+        _prompt = new CallInfoPrompt(layout, engine, settings);
         _recorder = new WasapiRecorder(RecorderOptions.ForDataDirectory(layout.Data));
-        var language = Loc.IsRussian ? "ru" : "en";
-        _processor = new CallProcessor(layout.Calls, new EngineSupervisor(layout, new EngineOptions(language)), () => Project.All(layout.Profiles))
+        _processor = new CallProcessor(layout.Calls, new EngineSupervisor(layout, engine.Options), () => Project.All(layout.Profiles))
         {
             HoldsQueue = () => _recording,
         };
@@ -70,14 +77,51 @@ public sealed class RecordingController
 
     public void Begin() => Run(StartAsync);
 
-    public void Stop() => Run(() => StopAsync(transcribeNow: true));
+    public void Stop() => Run(() => StopAsync(askNow: true));
 
-    /// <summary>Saves a recording in progress and stops the engine; the saved call is transcribed on the next launch.</summary>
+    /// <summary>"Project and participants" during a recording: what the form after it will start with.</summary>
+    public void EditInfo()
+    {
+        if (_prompt.IsOpen)
+        {
+            _prompt.BringToFront();
+        }
+        else if (_recording)
+        {
+            Ask(new CallInfoRequest(_info, Loc.L("Проект и собеседники"), Loc.L("Сохранить"), AllowLater: false), answer =>
+            {
+                if (_recording && answer is CallInfoAnswer.Transcribe edited)
+                {
+                    _info = edited.Info;
+                }
+            });
+        }
+    }
+
+    /// <summary>The oldest call waiting for its description: the form again.</summary>
+    public void DescribePending()
+    {
+        if (_prompt.IsOpen)
+        {
+            _prompt.BringToFront();
+        }
+        else if (PendingInfo.All(_layout.Calls).FirstOrDefault(p => !_processor.Contains(p.Dir)) is { } pending)
+        {
+            var initial = CallFile.Info(CallFile.Read(pending.Dir), fallback: _engine.NewCall());
+            Ask(DescribeRequest(initial), answer => Apply(pending.Dir, answer));
+        }
+    }
+
+    private static CallInfoRequest DescribeRequest(CallInfo initial, int? countdown = null) =>
+        new(initial, Loc.L("О чём был звонок?"), Loc.L("Расшифровать"), AllowLater: true, countdown);
+
+    /// <summary>Saves a recording in progress and stops the engine; the saved call waits for its description.</summary>
     public async Task ShutdownAsync()
     {
+        _prompt.Close();
         if (_recording)
         {
-            await StopAsync(transcribeNow: false);
+            await StopAsync(askNow: false);
         }
         await _processor.AbortAllAsync();
     }
@@ -108,8 +152,9 @@ public sealed class RecordingController
         foreach (var dir in RecordingRecovery.FindInterrupted(_layout.Calls))
         {
             var result = await RecordingRecovery.RecoverAsync(dir, RecorderOptions.ForDataDirectory(_layout.Data).FfmpegPath);
-            Save(dir, Directory.GetCreationTime(dir), result, new CallInfo());
-            _processor.Transcribe(dir, new CallInfo());
+            var info = _engine.NewCall();
+            Save(dir, Directory.GetCreationTime(dir), result, info);
+            _processor.Transcribe(dir, info);
         }
         ShowProcessing();
     }
@@ -165,6 +210,7 @@ public sealed class RecordingController
         _changing = false;
         _dir = dir;
         _startedAt = DateTimeOffset.Now;
+        _info = _engine.NewCall() with { Profile = _settings.LastProject };
         _marks = 0;
         _warning = null;
         _recording = true;
@@ -178,7 +224,11 @@ public sealed class RecordingController
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private async Task StopAsync(bool transcribeNow)
+    /// <summary>
+    /// The call stays pending until the form is answered: ignored, closed or the app gone, it waits under
+    /// "Waiting for description" rather than being lost.
+    /// </summary>
+    private async Task StopAsync(bool askNow)
     {
         if (!_recording || _dir is not { } dir)
         {
@@ -190,15 +240,61 @@ public sealed class RecordingController
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var result = await _recorder.StopAsync();
         var minutes = (int)Math.Round((DateTimeOffset.Now - _startedAt).TotalMinutes);
-        var info = new CallInfo();
-        Save(dir, _startedAt, result, info);
-        if (!transcribeNow)
+        Save(dir, _startedAt, result, _info);
+        CallFile.SetInfoPending(dir, true);
+        StateChanged?.Invoke(this, EventArgs.Empty);
+        if (!askNow)
         {
             return;
         }
+        _processor.StartNext();
         _capsule.Render(new CapsuleModel(CapsulePhase.Saved) { SavedMinutes = minutes > 0 ? minutes : null });
+        var (info, sure) = CallGuess.Fill(_info, _settings.LastProject, _startedAt, calendarEvent: null, heard: [], Project.All(_layout.Profiles));
+        if (info != _info)
+        {
+            CallFile.WriteInfo(dir, info);
+        }
+        var countdown = sure && _settings.TranscribeWhenClear ? CallGuess.FormCountdown : (int?)null;
+        Ask(DescribeRequest(info, countdown), answer => Apply(dir, answer));
         await Task.Delay(SavedShownFor);
-        _processor.Transcribe(dir, info);
+        ShowProcessing();
+    }
+
+    /// <summary>Waits for the form outside <see cref="Run"/>: by the time it is answered a new recording may be going on.</summary>
+    private async void Ask(CallInfoRequest request, Action<CallInfoAnswer> apply)
+    {
+        try
+        {
+            apply(await _prompt.AskAsync(request));
+        }
+        catch (Exception error)
+        {
+            AppHost.Log(error);
+            Problem?.Invoke(this, Loc.L("Не получилось: подробности в журнале программы."));
+        }
+    }
+
+    private void Apply(string dir, CallInfoAnswer answer)
+    {
+        var saved = true;
+        switch (answer)
+        {
+            case CallInfoAnswer.Transcribe { Info: var info }:
+                _settings.LastProject = info.Profile;
+                saved = _processor.Transcribe(dir, info) != EnqueueResult.NotSaved;
+                break;
+            case CallInfoAnswer.Later { Info: var info }:
+                saved = (info is null || CallFile.WriteInfo(dir, info)) && CallFile.SetInfoPending(dir, true);
+                break;
+            case CallInfoAnswer.Cancel:
+                saved = CallFile.SetInfoPending(dir, false);
+                break;
+        }
+        if (!saved)
+        {
+            Problem?.Invoke(this, Loc.L("Не удалось сохранить данные звонка"));
+        }
+        StateChanged?.Invoke(this, EventArgs.Empty);
         ShowProcessing();
     }
 

@@ -74,3 +74,21 @@
 "Не получилось: подробности в журнале программы." = "That did not work. The details are in the app log.";
 "Нет доступа к микрофону. Разреши его в параметрах Windows: Конфиденциальность и защита, Микрофон." = "No access to the microphone. Allow it in Windows Settings: Privacy & security, Microphone.";
 "Микрофон не открылся. Проверь, что он подключён." = "The microphone did not open. Check that it is connected.";
+
+/* The form after a call. */
+"О чём был звонок?" = "What was the call about?";
+"Проект и собеседники" = "Project and participants";
+"Что это:" = "What is this:";
+"Проект:" = "Project:";
+"Тема:" = "Topic:";
+"Собеседники:" = "Participants:";
+"Ключевые слова:" = "Keywords:";
+"Язык:" = "Language:";
+"Саммари:" = "Summary:";
+"Без проекта" = "No project";
+"Новый проект…" = "New project…";
+"Новый проект" = "New project";
+"Нужно название" = "A name is needed";
+"Не расшифровывать" = "Don’t transcribe";
+"Не удалось сохранить данные звонка" = "Couldn’t save the call data";
+"не скачана" = "not downloaded";

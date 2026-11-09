@@ -95,7 +95,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         {
             AddAction(menu, "Остановить и расшифровать", () => host.Recording?.Stop());
             AddAction(menu, "Отметить важное", () => host.Recording?.Mark());
-            AddNotConnected(menu, "Проект и собеседники…");
+            AddAction(menu, "Проект и собеседники…", () => host.Recording?.EditInfo());
         }
         else
         {
@@ -124,7 +124,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         if (state.WaitingForDescription > 0)
         {
             var text = L("Ждут описания: %d", state.WaitingForDescription);
-            menu.Items.Add(new MenuFlyoutItem { Text = text, Command = new RelayCommand(() => host.OpenWindow(AppPage.Calls)) });
+            menu.Items.Add(new MenuFlyoutItem { Text = text, Command = new RelayCommand(() => host.Recording?.DescribePending()) });
         }
         if (state.LatestCallId is { } id)
         {
