@@ -616,6 +616,49 @@ listen.render(d, files, {}, tr, {}, print)
 """
 
 
+BREAK_CHILD = """
+import os, pathlib, subprocess, sys, time
+from sozvon_engine.pipeline import guard, listen, tracks
+guard.exit_on_sigterm()
+children = []
+popen = subprocess.Popen
+def spy(args, **kw):
+    proc = popen(args, **kw)
+    children.append(proc.pid)
+    return proc
+subprocess.Popen = spy
+real = listen.mix_pcm
+def held(*a):
+    for i, chunk in enumerate(real(*a)):
+        yield chunk
+        if i == 0:
+            tmp = pathlib.Path(sys.argv[1] + ".pids")
+            tmp.write_text(" ".join(map(str, children)), encoding="utf-8")
+            os.replace(tmp, sys.argv[1] + ".ready")
+        for _ in range(600):
+            time.sleep(0.05)
+listen.mix_pcm = held
+d = pathlib.Path(sys.argv[1])
+work = d / tracks.WORK
+files = {k: d / f"{k}.m4a" for k in ("mic", "system")}
+tr = {k: work / f"{k}.wav" for k in files}
+listen.render(d, files, {}, tr, {}, print)
+"""
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the Windows stop signal")
+def test_ctrl_break_during_the_render(tmp_path):
+    """test_real_sigterm_during_the_render with CTRL_BREAK: exit 143, every ffmpeg gone, no temp file, no listen.m4a."""
+    from test_platform_win32 import pid_alive, run_and_ctrl_break, wait_for
+    d, files, offsets, tr = call(tmp_path, sys_x=noise(65, -30, sr=RATE), mic_x=noise(65, -30))
+    assert run_and_ctrl_break(BREAK_CHILD, d) == 143
+    pids = [int(p) for p in Path(str(d) + ".ready").read_text(encoding="utf-8").split()]
+    assert len(pids) == 3, "two decoders and the encoder were running"
+    assert wait_for(lambda: not any(pid_alive(p) for p in pids), 15), "ffmpeg still running"
+    assert not (d / listen.OUT).exists() and not (d / tracks.WORK / listen.OUT).exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="SIGTERM is a hard kill on Windows (test_ctrl_break_during_the_render)")
 def test_real_sigterm_during_the_render(tmp_path):
     """A real SIGTERM mid-render with real decoders and encoder, as the app sends on quit: exit 143, every ffmpeg gone, no
     temp file, no listen.m4a. Catches children left running and a handler that does not unwind the render."""

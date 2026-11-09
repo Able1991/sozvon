@@ -491,15 +491,41 @@ BREAK_ENGINE = """
 """
 
 
-def test_ctrl_break_ends_the_run_through_finally_with_143(tmp_path):
-    done = tmp_path / "done"
+def run_and_ctrl_break(code: str, path) -> int:
+    """Run code with `path` as its argument, send CTRL_BREAK once it created <path>.ready; -> its exit code."""
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 0
-    p = spawn(BREAK_DRIVER, textwrap.dedent(BREAK_ENGINE), done, stdout=None,
+    p = spawn(BREAK_DRIVER, textwrap.dedent(code), path, stdout=None,
               creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=info)
-    assert p.wait(timeout=60) == 143
+    return p.wait(timeout=120)
+
+
+def test_ctrl_break_ends_the_run_through_finally_with_143(tmp_path):
+    done = tmp_path / "done"
+    assert run_and_ctrl_break(BREAK_ENGINE, done) == 143
     assert done.read_text(encoding="utf-8") == "cleaned"
+
+
+def test_ctrl_break_removes_working_files(tmp_path):
+    """test_run.test_sigterm_removes_working_files, with the Windows stop signal."""
+    d = tmp_path / "2026-11-04 15-01"
+    d.mkdir()
+    assert run_and_ctrl_break("""
+        import pathlib, sys, time
+        from sozvon_engine.pipeline import guard, tracks
+        d = pathlib.Path(sys.argv[1])
+        guard.exit_on_sigterm()
+        try:
+            (d / ".work").mkdir()
+            (d / ".work" / "mic.wav").write_bytes(b"x" * 1000)
+            pathlib.Path(sys.argv[1] + ".ready").touch()
+            for _ in range(600):
+                time.sleep(0.05)
+        finally:
+            tracks.cleanup(d)
+    """, d) == 143
+    assert not (d / ".work").exists()
 
 
 # ---- known folders ----

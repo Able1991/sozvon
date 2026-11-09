@@ -653,6 +653,7 @@ finally:
 """
 
 
+@pytest.mark.skipif(os.name == "nt", reason="terminate() is a hard kill on Windows (test_platform_win32.py: CTRL_BREAK)")
 def test_sigterm_removes_working_files(tmp_path):
     p = subprocess.Popen([sys.executable, "-c", _TERMINATED, str(tmp_path)], stdout=subprocess.PIPE, text=True,
                          cwd=Path(__file__).resolve().parent.parent)
