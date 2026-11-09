@@ -91,22 +91,21 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     if name == "cursor":
         return _cursor(path, prompt, agentic, timeout, settings)
 
-    # codex exec: read-only sandbox, no session persistence, answer written to a file.
-    with tempfile.NamedTemporaryFile("r", suffix=".txt", delete=False) as tf:
-        out_file = tf.name
-    cmd = [*platform_support.cli_argv(path), "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
-           "-C", str(cwd), "-o", out_file]
-    if settings.codex_model:
-        cmd += ["-m", settings.codex_model]
-    if not agentic:
-        cmd += ["--ignore-rules"]
-    cmd.append("-")
-    try:
+    # codex exec: read-only sandbox, no session persistence, answer written to a file. A summary runs in an empty folder of
+    # its own, not in the folder of the call; discovery runs where the sessions it has to read are.
+    with tempfile.TemporaryDirectory(prefix="sozvon-codex-", ignore_cleanup_errors=True) as empty:
+        workspace = str(cwd) if agentic else empty
+        out_file = Path(empty) / "answer.txt"
+        cmd = [*platform_support.cli_argv(path), "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only",
+               "-C", workspace, "-o", str(out_file)]
+        if settings.codex_model:
+            cmd += ["-m", settings.codex_model]
+        if not agentic:
+            cmd += ["--ignore-rules"]
+        cmd.append("-")
         r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, **platform_support.TEXT_MODE,
-                           timeout=timeout, cwd=str(cwd))
-        out = Path(out_file).read_text(encoding="utf-8").strip() if Path(out_file).exists() else ""
-    finally:
-        Path(out_file).unlink(missing_ok=True)
+                           timeout=timeout, cwd=workspace)
+        out = out_file.read_text(encoding="utf-8").strip() if out_file.exists() else ""
     if r.returncode != 0 or not out:
         return None, name, (r.stderr or r.stdout)[-500:]
     return out, name, ""

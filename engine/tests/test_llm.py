@@ -257,3 +257,34 @@ def test_discovery_still_reads_claude_sessions_from_the_empty_folder(bins, tmp_p
     args = log.read_text().split("\n")
     assert args[args.index("--add-dir") + 1] == str(Path.home() / ".claude")
     assert Path(where.read_text().strip()).resolve() not in (tmp_path.resolve(), (Path.home() / ".claude").resolve())
+
+
+CODEX_SPY = '''cat >/dev/null
+pwd > {where}
+ls -A > {listing}
+printf '%s\\n' "$@" > {log}
+while [ $# -gt 0 ]; do if [ "$1" = "-o" ]; then out="$2"; fi; shift; done
+echo answer > "$out"'''
+
+
+def test_codex_summary_never_runs_in_the_folder_of_a_call(bins, tmp_path):
+    call = _call_with_settings(tmp_path)
+    where, listing, log = tmp_path / "where", tmp_path / "listing", tmp_path / "log"
+    fake_cli(bins, "codex", CODEX_SPY.format(where=where, listing=listing, log=log))
+    assert llm.run("x", call) == ("answer", "codex", "")
+    seen = Path(where.read_text().strip())
+    assert seen.resolve() != call.resolve() and not seen.exists()
+    assert listing.read_text().strip() == "", "nothing of the call is there"
+    args = log.read_text().split("\n")
+    for flag in ("exec", "--skip-git-repo-check", "--ephemeral", "--ignore-rules"):
+        assert flag in args
+    assert args[args.index("-s") + 1] == "read-only"
+    assert Path(args[args.index("-C") + 1]).resolve() == seen.resolve()
+
+
+def test_codex_discovery_still_runs_where_the_sessions_are(bins, tmp_path):
+    where, listing, log = tmp_path / "where", tmp_path / "listing", tmp_path / "log"
+    fake_cli(bins, "codex", CODEX_SPY.format(where=where, listing=listing, log=log))
+    assert llm.run("x", tmp_path, agentic=True)[0] == "answer"
+    assert Path(where.read_text().strip()).resolve() == tmp_path.resolve()
+    assert "--ignore-rules" not in log.read_text().split("\n")
