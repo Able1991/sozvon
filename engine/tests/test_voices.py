@@ -556,6 +556,56 @@ def test_a_voice_recognized_by_its_print_is_never_merged(monkeypatch, fake_track
     assert who[2] == "Собеседник 3"  # like Anna, but not recognized as her
 
 
+def merged_system(monkeypatch, vectors, diar, **kw):
+    logs = []
+    monkeypatch.setattr(voices, "cluster_vectors", lambda path, d, known=None: {
+        label: (None if vectors[label] is None else np.array(vectors[label])) for label in dict.fromkeys(x for *_, x in d)})
+    return voices.merge_same_voice("s", diar, logs.append, {}, **kw), logs
+
+
+def test_one_voice_split_in_two_on_the_system_track_is_one_label(monkeypatch):
+    diar = [(0, 60, "A"), (60, 70, "B"), (70, 100, "C")]
+    out, logs = merged_system(monkeypatch, {"A": mix(1, 2, 0.97), "B": mix(1, 3, 0.97), "C": one_hot(20)}, diar)
+    assert out == [(0, 60, "A"), (60, 70, "A"), (70, 100, "C")]  # named after the cluster with the most speech
+    assert logs
+
+
+def test_similar_but_different_people_on_the_system_track_stay_apart(monkeypatch):
+    """0.7 is what two voices of one real call measured: wespeaker calls it the same person, we are not that sure."""
+    diar = [(0, 60, "A"), (60, 70, "B")]
+    out, logs = merged_system(monkeypatch, {"A": one_hot(1), "B": mix(1, 2, 0.7)}, diar)
+    assert out == diar and not logs
+
+
+def test_a_cluster_without_a_print_is_left_alone(monkeypatch):
+    diar = [(0, 60, "A"), (60, 61, "B")]
+    assert merged_system(monkeypatch, {"A": one_hot(1), "B": None}, diar)[0] == diar
+
+
+def assign_system(monkeypatch, same_voice, speakers_n=3):
+    monkeypatch.setattr(speakers.diarize, "available", lambda: True)
+    logs = []
+    items = speakers.assign_speakers(
+        mic=[], mic_dead=[], system=[(1, 9, "первый"), (11, 19, "второй")], tracks={"system": "s"}, me="Я", names=[],
+        speakers=speakers_n, diarize_on=True, single_name=None, log=logs.append,
+        run_diarization=lambda path, k=None: [(0, 10, "A"), (10, 20, "B")], name_voices=lambda t, d: {},
+        same_voice=same_voice)
+    return [w for *_, w in items], logs
+
+
+def test_a_merged_voice_keeps_one_label_in_the_transcript(monkeypatch):
+    who, _ = assign_system(monkeypatch, lambda d: [(s, e, "A") for s, e, _ in d])
+    assert len(set(who)) == 1
+
+
+def test_a_failure_of_the_merge_keeps_the_split(monkeypatch):
+    def boom(d):
+        raise RuntimeError("no model")
+    who, logs = assign_system(monkeypatch, boom)
+    assert len(set(who)) == 2
+    assert any("no model" in m for m in logs)
+
+
 def test_mic_diarization_failure_keeps_todays_labels(monkeypatch, fake_track):
     voices.store("Борис", "", True, one_hot(0), 30)
     who, logs, _ = assign_mic(monkeypatch, fail_mic=True)

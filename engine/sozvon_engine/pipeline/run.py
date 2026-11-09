@@ -68,6 +68,8 @@ class CallSpec:
     terms: str = ""
     languages: str = "ru"
     speakers: int | None = None
+    # The user set that number (not worked out from the names or the last transcript): diarization has to keep it.
+    speakers_given: bool = False
     switch: bool = False
     diarize: bool = True
     summary: bool = True
@@ -142,7 +144,8 @@ def build_spec(d: Path, call: dict, args: argparse.Namespace, settings: config.S
     names = _names(merged.get("names"))
     me = _str(args.me) or settings.me or t("me")
     speakers_n = args.speakers if args.speakers is not None else merged.get("speakers")
-    if not isinstance(speakers_n, int) or speakers_n <= 0:
+    speakers_given = isinstance(speakers_n, int) and speakers_n > 0
+    if not speakers_given:
         speakers_n = max(len([n for n in names if not names_stage.is_generic(n, me)]), _voices_heard(d, me, merged.get("speaker_tracks"))) or None
     profile = _str(merged.get("profile"))
     if profile and not profiles.valid_slug(profile):
@@ -156,6 +159,7 @@ def build_spec(d: Path, call: dict, args: argparse.Namespace, settings: config.S
         topic=_str(merged.get("topic")), terms=_str(merged.get("terms")),
         languages=_str(merged.get("languages")) or settings.languages,
         speakers=speakers_n,
+        speakers_given=speakers_given,
         switch=bool(args.switch) or settings.lang_switch,
         diarize=not args.no_diarize and call.get("kind") != "reflection",
         summary=merged.get("summary", True) is not False,
@@ -367,7 +371,8 @@ def arrange(spec: CallSpec, prof: dict, tracks: dict, segs: dict, settings: conf
         mic=mic, mic_dead=mic_dead, system=system, tracks=tracks, me=spec.me,
         names=[] if smart else typed, speakers=spec.speakers, diarize_on=spec.diarize,
         single_name=spec.me if spec.reflection else typed[0] if len(typed) == 1 and not smart else None, log=log,
-        name_voices=name_voices, mic_people=None if spec.reflection or "mic" not in tracks else mic_people)
+        name_voices=name_voices, mic_people=None if spec.reflection or "mic" not in tracks else mic_people,
+        same_voice=None if spec.speakers_given else lambda diar: voices.merge_same_voice(tracks["system"], diar, log, embedded))
     paras = render.merge(items)
     unnamed = paras
     known = {n.casefold() for n in recognized}

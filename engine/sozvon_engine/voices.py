@@ -39,6 +39,7 @@ MAX_NAME = 80
 THRESHOLD = 0.5          # cosine: wespeaker same person ~0.7-0.95, different people ~0.1-0.4
 MARGIN = 0.1             # above the second best candidate
 MIN_MATCH_SPEECH = 2.0   # seconds of clean speech a cluster needs to be matched at all
+SAME_VOICE = 0.85        # cosine: two clusters of one track this alike are one voice (real calls: one voice split 0.86-0.93, two people up to 0.7)
 MIN_MIC_PERSON = 15.0    # seconds of speech a microphone cluster needs to count as a separate person
 WINDOW = 10.0            # seconds per embedding window (memory stays flat on long pieces)
 MIN_PIECE = 0.5          # seconds
@@ -616,7 +617,7 @@ def identify(path, diar: list, profile: str, me: str | None, log, known: dict | 
     return {label: (me if rec["me"] and me else rec["name"], score) for label, (rec, score) in found.items()}
 
 
-def _merge_similar(labels: list, vecs: dict, speech: dict) -> dict:
+def _merge_similar(labels: list, vecs: dict, speech: dict, threshold: float = THRESHOLD) -> dict:
     """{raw label: label of its group} for unknown voices that are alike, directly or through another one.
 
     Voices far from the microphone blur together and diarization deals them out at random, so its clusters are
@@ -630,7 +631,7 @@ def _merge_similar(labels: list, vecs: dict, speech: dict) -> dict:
         return k
     for i, a in enumerate(labels):
         for b in labels[i + 1:]:
-            if float(unit(vecs[a]) @ unit(vecs[b])) >= THRESHOLD:
+            if float(unit(vecs[a]) @ unit(vecs[b])) >= threshold:
                 group[root(b)] = root(a)
     longest_of: dict = {}
     for k in labels:
@@ -638,6 +639,28 @@ def _merge_similar(labels: list, vecs: dict, speech: dict) -> dict:
         if r not in longest_of or speech[k] > speech[longest_of[r]]:
             longest_of[r] = k
     return {k: longest_of[root(k)] for k in labels}
+
+
+def merge_same_voice(path, diar: list, log, known: dict | None = None, threshold: float = SAME_VOICE) -> list:
+    """The other side's diarization with one voice that was split in two put back together.
+
+    Told to expect more voices than there are (a typed name of someone in the room), or by itself, diarization cuts
+    one person into clusters. Only near-identical clusters are joined, the bar is far above "the same person" for
+    naming: two different people must never end up under one label. -> diar, relabeled when something was joined.
+    """
+    labels = list(dict.fromkeys(label for *_, label in diar))
+    if len(labels) < 2:
+        return diar
+    vecs = {k: v for k, v in cluster_vectors(path, diar, known).items() if v is not None}
+    speech: dict = {}
+    for s, e, label in diar:
+        speech[label] = speech.get(label, 0.0) + e - s
+    one_label = _merge_similar(list(vecs), vecs, speech, threshold)
+    joined = sum(1 for k, v in one_label.items() if k != v)
+    if not joined:
+        return diar
+    log(t("log_same_voice", n=joined))
+    return [(s, e, one_label.get(label, label)) for s, e, label in diar]
 
 
 def mic_people(path, diarize_mic, system_path, system_diar: list, profile: str, log, known: dict | None = None) -> tuple:
