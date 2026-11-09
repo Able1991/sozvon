@@ -44,7 +44,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 |---|---|
 | No network, a broken or interrupted download (SHA, a retry), models at a pinned revision | tests, real run in block 7 |
 | The speaker models archive without symlink rights | block 7 |
-| Two copies of the OpenMP runtime in one process (torch and ctranslate2) | block 6, no `KMP_DUPLICATE_LIB_OK` without agreement |
+| Two copies of the OpenMP runtime in one process (torch and ctranslate2) | no error in full runs on CPU and GPU; no `KMP_DUPLICATE_LIB_OK` without agreement |
 | No administrator rights: everything is in the user's folders | block 7 |
 | GPU is optional, a missing library falls back to int8 on the CPU with a log line | done |
 | Speaker separation, voice prints and the echo model on the GPU, each stage falling back to the CPU | done, on CUDA |
@@ -53,7 +53,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | A failed GPU step leaves the working CPU install | done for a failed download or check; a killed process, a lost network and a full disk not reproduced yet |
 | Windows on ARM | refused with a message |
 | A failure on the GPU in the middle of a track: the track starts over on the CPU, the GPU is not tried again | done |
-| The contents of `cuda-libs` are checked against sha256 | block 7 |
+| The GPU build of torch is installed by pinned hashes | done |
 | No assistant, `SOZVON_LLM=none`, a failed summary and its warning | block 4 |
 | Low priority by default, half the logical cores, one limit for every library | done |
 | Memory on long calls, speed on CPU and GPU | block 9 |
@@ -78,6 +78,11 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Text mode writes a prompt's line ends as CRLF on stdin (every character intact, harmless for summaries) | known, left as is |
 | Sleep and wake, the profile being unloaded | block 9 where possible, otherwise stage 2 |
 | Calls live outside OneDrive by default | done |
+
+## To investigate
+
+- Speaker embeddings through ONNX Runtime on the CPU (float only) gave the same result as torch 40 % faster: a block after stage 1, with a test against torch and a fallback to it.
+- pyannote computes each chunk three times on the same audio: computing the convolutions once per chunk could save far more.
 
 ## Stage 2
 

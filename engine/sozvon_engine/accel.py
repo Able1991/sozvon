@@ -39,12 +39,17 @@ def torch_device(stage: str) -> str:
     import torch
     if not _windows():
         return "mps" if torch.backends.mps.is_available() else "cpu"
-    threads = config.load().threads
-    if threads:
-        torch.set_num_threads(threads)
     if stage in _cpu_stages or not gpu_configured():
         return "cpu"
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def apply_thread_limit() -> None:
+    """The engine's one thread limit, for torch."""
+    threads = config.load().threads
+    if threads:
+        import torch
+        torch.set_num_threads(threads)
 
 
 def note_failure(stage: str, error) -> None:
@@ -57,17 +62,21 @@ def note_failure(stage: str, error) -> None:
         pass
 
 
-def with_cpu_fallback(stage: str, work):
+def with_cpu_fallback(stage: str, work, drop=None):
     """Run a stage; on Windows, a failure on the GPU runs it once more on the CPU. work asks torch_device itself and
-    must start over from nothing. On macOS a failure stays what it always was."""
+    must start over from nothing. drop lets go of what the failed attempt holds, before its memory is released.
+    On macOS a failure stays what it always was."""
     if not _windows():
         return work()
+    on_gpu = torch_device(stage) == "cuda"
     try:
         return work()
     except _GPU_ERRORS as e:
-        if stage in _cpu_stages or not gpu_configured():
+        if not on_gpu:
             raise
         note_failure(stage, e)
+        if drop:
+            drop()
         release()
         return work()
 

@@ -18,15 +18,7 @@ BIN_DIRS = platform_support.tool_bin_dirs()
 
 
 def _find(name: str):
-    if platform_support.SYSTEM == "win32":
-        return platform_support.find_cli(name, BIN_DIRS)
-    p = shutil.which(name)
-    if p:
-        return p
-    for d in BIN_DIRS:
-        if (d / name).exists():
-            return str(d / name)
-    return None
+    return platform_support.find_cli(name, BIN_DIRS)
 
 
 # Backend name -> CLI binary, in auto-detection order.

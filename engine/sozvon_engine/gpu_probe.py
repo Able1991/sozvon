@@ -89,7 +89,10 @@ def check() -> dict:
     got = (x.to("cuda") @ x.to("cuda")).sum().item()
     if abs(expected - got) > abs(expected) * 1e-3:
         return {"ok": False, "reason": f"the GPU computed {got}, the CPU {expected}"}
+    # What the swapped torch has to work with. A failure here ends this process, and the GPU step with it.
     import ctranslate2
+    import faster_whisper  # noqa: F401
+    import pyannote.audio  # noqa: F401
     return {"ok": True, "device": "cuda", "torch": torch.__version__, "name": torch.cuda.get_device_name(0),
             "vram_mb": torch.cuda.get_device_properties(0).total_memory // (1 << 20), "ctranslate2_gpus": ctranslate2.get_cuda_device_count()}
 

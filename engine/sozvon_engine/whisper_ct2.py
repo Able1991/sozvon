@@ -4,11 +4,10 @@ The GPU is optional and only speeds things up: without the GPU part of the insta
 card, the same transcription runs with int8 on the CPU. The device is chosen once per process, at the first load of a
 model.
 """
-import os
 import sys
 from pathlib import Path
 
-from . import accel, audio, config
+from . import accel, audio, config, platform_support
 from .i18n import t
 
 _CPU = ("cpu", "int8")
@@ -60,7 +59,7 @@ def _device() -> tuple:
 
 def _new_model(path: str, device: str, compute: str):
     from faster_whisper import WhisperModel
-    threads = config.load().threads or max(1, (os.cpu_count() or 2) // 2)
+    threads = config.load().threads or platform_support.default_thread_limit()
     return WhisperModel(path, device=device, compute_type=compute, cpu_threads=threads, num_workers=1, local_files_only=True)
 
 
@@ -82,7 +81,6 @@ def _with_fallback(path: str, work):
         except (RuntimeError, ValueError) as e:
             if device != "cuda":
                 raise
-            _log(t("log_whisper_gpu_failed", err=" ".join(str(e).split())[:300]))
             accel.note_failure("whisper", e)
             _choice = _CPU
             _models.clear()
@@ -115,11 +113,8 @@ def transcribe(audio_input, *, path_or_hf_repo: str, language=None, initial_prom
 
 def language_probs(model_path: str, chunk) -> dict:
     """{language code: probability} for a piece of audio, all the languages of the model."""
-    from faster_whisper.audio import pad_or_trim
-
     def work(model):
-        encoded = model.encode(pad_or_trim(model.feature_extractor(chunk), 3000))
-        return {token[2:-2]: p for token, p in model.model.detect_language(encoded)[0]}
+        return dict(model.detect_language(audio=chunk)[2])
 
     return _with_fallback(model_path, work)
 

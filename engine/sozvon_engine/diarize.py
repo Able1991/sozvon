@@ -29,14 +29,18 @@ def load_pipeline():
         raise DiarizationUnavailable("нет моделей pyannote: переустанови движок")
     settings = config.load()
     import torch
-    if settings.threads:
-        torch.set_num_threads(settings.threads)
+    accel.apply_thread_limit()
     from pyannote.audio import Pipeline
     pipeline = Pipeline.from_pretrained(PIPELINE, token=settings.hf_token or None)
     _pipeline_device = accel.torch_device("diarize")
     pipeline.to(torch.device(_pipeline_device))
     _pipeline = pipeline
     return pipeline
+
+
+def _drop_pipeline() -> None:
+    global _pipeline
+    _pipeline = None
 
 
 def load_waveform(path) -> dict:
@@ -58,7 +62,7 @@ def run(path, num_speakers=None) -> list:
         pipeline = load_pipeline()
         return pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
 
-    output = accel.with_cpu_fallback("diarize", work)
+    output = accel.with_cpu_fallback("diarize", work, drop=_drop_pipeline)
     # pyannote>=4 wraps the result in DiarizeOutput, older versions return an Annotation.
     annotation = getattr(output, "speaker_diarization", output)
     return [(turn.start, turn.end, label) for turn, _, label in annotation.itertracks(yield_label=True)]

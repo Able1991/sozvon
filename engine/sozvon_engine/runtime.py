@@ -17,6 +17,7 @@ def prepare(offline: bool = True) -> None:
         os.environ.setdefault("SOZVON_THREADS", str(platform_support.default_thread_limit()))
     threads = config.load().threads
     platform_support.prepare_process()
+    platform_support.bind_workers_to_process()
     if threads:
         # "Stay out of the way": before importing numpy, torch and onnxruntime, or thread pools already exist.
         for var in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):

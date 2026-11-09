@@ -85,7 +85,6 @@ def gpu(monkeypatch, ct2, types=("float32", "int8")):
     import ctranslate2
     monkeypatch.setattr(ct2.accel, "gpu_configured", lambda: True)
     monkeypatch.setattr(ct2.accel, "torch_device", lambda stage: "cuda")
-    monkeypatch.setattr(ct2.accel, "note_failure", lambda stage, e: None)
     monkeypatch.setattr(ctranslate2, "get_cuda_device_count", lambda: 1)
     monkeypatch.setattr(ctranslate2, "get_supported_compute_types", lambda device: set(types))
 
@@ -272,9 +271,8 @@ def test_cpu_threads_follow_the_setting(monkeypatch, ct2):
 @win_only
 def test_language_probabilities_cover_every_language(monkeypatch, ct2, models_by_device):
     no_gpu(monkeypatch, ct2)
-    fake = NS(feature_extractor=lambda chunk: np.zeros((80, 100)), encode=lambda feats: ("encoded", feats.shape),
-              model=NS(detect_language=lambda enc: [[("<|ru|>", 0.7), ("<|en|>", 0.2), ("<|uk|>", 0.1)]]))
-    models_by_device.fakes["cpu"] = fake
+    probs = [("ru", 0.7), ("en", 0.2), ("uk", 0.1)]
+    models_by_device.fakes["cpu"] = NS(detect_language=lambda audio: ("ru", 0.7, probs))
     det = langid.Detector("m")
     assert det.probs(AUDIO) == {"ru": 0.7, "en": 0.2, "uk": 0.1}
 

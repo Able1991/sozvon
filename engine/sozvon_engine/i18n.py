@@ -118,8 +118,6 @@ MESSAGES = {
     "log_whisper_device": ("Whisper: {device}, {compute}", "Whisper: {device}, {compute}"),
     "log_gpu_stage_failed": ("{stage}: видеокарта не справилась ({err}), продолжаю на процессоре",
                              "{stage}: the GPU failed ({err}), going on with the CPU"),
-    "log_whisper_gpu_failed": ("Whisper: видеокарта не справилась ({err}), продолжаю на процессоре",
-                               "Whisper: the GPU failed ({err}), going on with the CPU"),
     "llm_no_discovery": ("поиск проектов на Windows пока недоступен", "finding projects is not available on Windows yet"),
 
     # Voice prints (bin/voice.py: RESULT: error <code> <message>)

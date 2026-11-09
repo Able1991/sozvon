@@ -75,12 +75,19 @@ if (-not (Test-Path -LiteralPath $Uv)) {
 
 $Python = Join-Path $DataDir ".venv\Scripts\python.exe"
 
-function SyncEnvironment {
-    return (Run $Uv @("sync", "--frozen", "--no-dev"))
+# torch can be left half replaced (a killed GPU step), which a plain sync does not notice.
+function SyncEnvironment([switch]$ReinstallTorch) {
+    $syncArgs = @("sync", "--frozen", "--no-dev")
+    if ($ReinstallTorch) { $syncArgs += @("--reinstall-package", "torch") }
+    return (Run $Uv $syncArgs)
 }
 
+$gpuMarker = Join-Path $DataDir ".gpu-installing"
+$interrupted = Test-Path -LiteralPath $gpuMarker
+
 Step (T "Ставлю Python 3.12 и зависимости (около 1 ГБ, только в первый раз)" "Installing Python 3.12 and dependencies (about 1 GB, first time only)")
-if (-not (SyncEnvironment)) { Die (T "ОШИБКА: не удалось поставить зависимости." "ERROR: could not install the dependencies.") }
+if (-not (SyncEnvironment -ReinstallTorch:$interrupted)) { Die (T "ОШИБКА: не удалось поставить зависимости." "ERROR: could not install the dependencies.") }
+Remove-Item -LiteralPath $gpuMarker -Force -ErrorAction SilentlyContinue
 
 Step (T "Подключаю ffmpeg" "Setting up ffmpeg")
 $ffmpeg = & $Python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"
@@ -96,7 +103,8 @@ if ((Test-Path -LiteralPath $gpuState) -and -not $Gpu) {
 function GiveUpGpu([string]$backend, [string]$reason) {
     Write-Output (T "Ускорение не подключено ($reason). Всё будет работать на процессоре." "Acceleration was not set up ($reason). Everything will run on the processor.")
     & $Python -m sozvon_engine.gpu_probe fail $backend $reason
-    if (-not (SyncEnvironment)) { Die (T "ОШИБКА: не удалось вернуть окружение." "ERROR: could not restore the environment.") }
+    if (-not (SyncEnvironment -ReinstallTorch)) { Die (T "ОШИБКА: не удалось вернуть окружение." "ERROR: could not restore the environment.") }
+    Remove-Item -LiteralPath $gpuMarker -Force -ErrorAction SilentlyContinue
 }
 
 if ($Gpu) {
@@ -118,6 +126,7 @@ if ($Gpu) {
         } else {
             Step (T "Ставлю ускорение ($backend, несколько ГБ)" "Installing acceleration ($backend, several GB)")
             $file = Join-Path $DataDir "gpu\$requirements"
+            New-Item -ItemType File -Force -Path $gpuMarker | Out-Null
             $installed = Run $Uv @("pip", "install", "--python", $Python, "--require-hashes", "--no-deps", "--reinstall-package", "torch", "--index-url", $index, "-r", $file)
             if (-not $installed) {
                 GiveUpGpu $backend (T "не удалось скачать" "the download failed")
@@ -126,6 +135,8 @@ if ($Gpu) {
                 & $Python -m sozvon_engine.gpu_probe verify $backend
                 if ($LASTEXITCODE -ne 0) {
                     GiveUpGpu $backend (T "проверка на карте не прошла" "the check on the card failed")
+                } else {
+                    Remove-Item -LiteralPath $gpuMarker -Force -ErrorAction SilentlyContinue
                 }
             }
         }

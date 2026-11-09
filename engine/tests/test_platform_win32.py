@@ -556,15 +556,18 @@ def test_no_warning_for_a_calls_folder_outside_the_cloud(monkeypatch, win32, tmp
     monkeypatch.setenv("OneDrive", str(tmp_path / "User" / "OneDrive"))
     monkeypatch.delenv("OneDriveConsumer", raising=False)
     monkeypatch.delenv("OneDriveCommercial", raising=False)
-    win32.default_calls_dir()
+    monkeypatch.setattr(win32, "_warned_synced", False)
+    win32.warn_if_synced(win32.default_calls_dir())
     assert capsys.readouterr().err == ""
 
 
 def test_warning_when_the_default_calls_folder_is_inside_onedrive(monkeypatch, win32, tmp_path, capsys):
     monkeypatch.setattr(win32, "_known_folder", lambda folder_id: tmp_path / "OneDrive" / "Profile")
     monkeypatch.setenv("OneDrive", str(tmp_path / "OneDrive"))
-    win32.default_calls_dir()
-    assert "OneDrive" in capsys.readouterr().err
+    monkeypatch.setattr(win32, "_warned_synced", False)
+    win32.warn_if_synced(win32.default_calls_dir())
+    win32.warn_if_synced(win32.default_calls_dir())
+    assert capsys.readouterr().err.count("OneDrive") == 2, "the folder and the word, once"
 
 
 def test_known_folders_are_real_folders(win32):
@@ -831,12 +834,11 @@ def test_chosen_codex_and_cursor_fail_with_a_clear_error(monkeypatch, npm_dir, t
 
 def test_a_failed_codex_summary_is_a_warning(monkeypatch, npm_dir, tmp_path):
     from sozvon_engine.pipeline import summary
-    llm = _assistant(monkeypatch, npm_dir, tmp_path, "codex")
+    _assistant(monkeypatch, npm_dir, tmp_path, "codex")
     monkeypatch.setenv("SOZVON_LLM", "codex")
     warned = []
     assert summary.summarize("текст", "Я", tmp_path, warn=warned.append) is None
     assert len(warned) == 1 and warned[0].startswith("codex")
-    assert llm is not None
 
 
 def test_auto_does_not_choose_codex_or_cursor(monkeypatch, npm_dir, tmp_path):

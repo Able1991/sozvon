@@ -84,6 +84,8 @@ _sig(_kernel32.GetSystemDirectoryW, wintypes.UINT, wintypes.LPWSTR, wintypes.UIN
 _sig(_kernel32.SetPriorityClass, wintypes.BOOL, wintypes.HANDLE, wintypes.DWORD)
 _sig(_kernel32.SetProcessInformation, wintypes.BOOL, wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD)
 
+_sig(_shell32.SHFileOperationW, ctypes.c_int, ctypes.POINTER(_SHFILEOPSTRUCTW))
+
 _INVALID_HANDLE = wintypes.HANDLE(-1).value
 
 
@@ -123,11 +125,18 @@ def _is_inside(path: Path, folder: str) -> bool:
 def default_calls_dir() -> Path:
     """The profile folder, not Documents: Known Folder Move can put Documents in OneDrive, and recordings must not
     be uploaded to a cloud without the user choosing that. The profile itself is not redirected by it."""
-    calls = Path(_known_folder(_FOLDERID_PROFILE) or os.environ.get("USERPROFILE") or Path.home()) / "Sozvon Calls"
-    if any(_is_inside(calls, cloud) for cloud in _cloud_folders()):
-        print(f"WARNING: the default calls folder {calls} is inside OneDrive, recordings may be uploaded to the cloud. "
+    return Path(_known_folder(_FOLDERID_PROFILE) or os.environ.get("USERPROFILE") or Path.home()) / "Sozvon Calls"
+
+
+_warned_synced = False
+
+
+def warn_if_synced(calls_dir: Path) -> None:
+    global _warned_synced
+    if not _warned_synced and any(_is_inside(calls_dir, cloud) for cloud in _cloud_folders()):
+        _warned_synced = True
+        print(f"WARNING: the calls folder {calls_dir} is inside OneDrive, recordings may be uploaded to the cloud. "
               "Set SOZVON_CALLS_DIR to a local folder.", file=sys.stderr, flush=True)
-    return calls
 
 
 # --- file locks ---
@@ -136,7 +145,6 @@ _LOCKFILE_FAIL_IMMEDIATELY = 0x1
 _LOCKFILE_EXCLUSIVE_LOCK = 0x2
 _ERROR_NOT_LOCKED = 158
 _ERROR_LOCK_VIOLATION = 33
-_ERROR_IO_PENDING = 997
 _LOCK_POLL = 0.05  # seconds. Polled, not a blocking call: a stop signal cannot run while a thread is inside one.
 
 
@@ -157,7 +165,7 @@ def lock_exclusive(fd: int, wait: bool = True) -> bool:
         if _kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(_OVERLAPPED())):
             return True
         err = ctypes.get_last_error()
-        if err not in (_ERROR_LOCK_VIOLATION, _ERROR_IO_PENDING):
+        if err != _ERROR_LOCK_VIOLATION:
             raise ctypes.WinError(err)
         if not wait:
             return False
@@ -172,15 +180,12 @@ def unlock(fd: int) -> None:
             raise ctypes.WinError(err)
 
 
-_CALL_ID = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}-\d{2}(?:-\d+)?(?= |$)")  # calls.ID_RE: the id survives renames
-
-
-def open_call_lock(folder: Path, locks_dir: Path) -> int:
+def open_call_lock(folder: Path, locks_dir: Path, call_id: re.Pattern) -> int:
     """Descriptor to lock for "one run on this call". A directory cannot be opened as a file here, and a lock file
     inside the call would stop it from being renamed after transcription, so the file lives in locks_dir, named after
     the call id, which a rename keeps."""
     name = Path(folder).name
-    match = _CALL_ID.match(name)
+    match = call_id.match(name)
     locks_dir.mkdir(parents=True, exist_ok=True)
     key = match.group(0) if match else hashlib.sha256(name.encode("utf-8")).hexdigest()  # an id is a safe file name
     return os.open(locks_dir / f"{key}.lock", os.O_RDWR | os.O_CREAT, 0o600)

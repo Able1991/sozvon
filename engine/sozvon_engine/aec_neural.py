@@ -68,6 +68,8 @@ class _Model:
         import torch
 
         from .localvqe.model import LocalVQE
+        if platform_support.SYSTEM == "win32":
+            accel.apply_thread_limit()
         # weights_only: no pickled code runs, and the file was checked against its SHA-256 before this.
         ck = torch.load(path, map_location="cpu", weights_only=True)  # nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch
         cfg = ck["model_config"]
@@ -190,7 +192,11 @@ def apply(mic_path: Path, ref_path: Path, classic: Path, track, thr: float) -> s
             model = _Model(weights)
             enhance(m, r, c, tmp, track, thr, model)
 
-        accel.with_cpu_fallback("echo", work)
+        def drop():
+            nonlocal model
+            model = None
+
+        accel.with_cpu_fallback("echo", work, drop=drop)
         for f in (m, r, c):
             f.close()
         m = r = c = None

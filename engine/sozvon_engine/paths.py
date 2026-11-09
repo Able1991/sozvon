@@ -94,7 +94,10 @@ def engine_dir() -> EngineDir:
 
 def calls_dir() -> Path:
     value = os.environ.get("SOZVON_CALLS_DIR")
-    return Path(value).expanduser() if value else DEFAULT_CALLS_DIR
+    if value:
+        return Path(value).expanduser()
+    platform_support.warn_if_synced(DEFAULT_CALLS_DIR)
+    return DEFAULT_CALLS_DIR
 
 
 def engine_version() -> str:

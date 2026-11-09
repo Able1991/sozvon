@@ -36,6 +36,13 @@ def default_data_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / "Sozvon"
 
 
+def warn_if_synced(calls_dir: Path) -> None:
+    """Windows: say so once if recordings would land in a cloud folder."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        platform_win32.warn_if_synced(calls_dir)
+
+
 def default_calls_dir() -> Path:
     """Where call folders live when SOZVON_CALLS_DIR is not set."""
     if SYSTEM == "win32":
@@ -83,9 +90,14 @@ def tool_path(name: str) -> str:
 
 
 def find_cli(name: str, extra_dirs) -> str | None:
-    """Windows: an assistant's command line tool that can be started safely, by absolute path."""
-    from . import platform_win32
-    return platform_win32.find_cli(name, extra_dirs)
+    """An assistant's command line tool, or None. On Windows only one that can be started safely, by absolute path."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.find_cli(name, extra_dirs)
+    found = shutil.which(name)
+    if found:
+        return found
+    return next((str(Path(d) / name) for d in extra_dirs if (Path(d) / name).exists()), None)
 
 
 def cli_argv(path: str) -> list:
@@ -137,8 +149,8 @@ def unlock(fd: int) -> None:
 def open_call_lock(folder: Path) -> int:
     """The descriptor to take lock_exclusive on for "one run on this call"; close it to release."""
     if SYSTEM == "win32":
-        from . import paths, platform_win32
-        return platform_win32.open_call_lock(folder, paths.data_dir() / "locks")
+        from . import calls, paths, platform_win32
+        return platform_win32.open_call_lock(folder, paths.data_dir() / "locks", calls.ID_RE)
     return os.open(folder, os.O_RDONLY)
 
 

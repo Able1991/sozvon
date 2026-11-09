@@ -179,7 +179,9 @@ def environment_hash(engine: EngineDir) -> str:
     if platform_support.SYSTEM != "win32":
         return lock[:16]
     overlay = windows_overlay(engine)
-    return hashlib.sha256((lock + (sha256(overlay) if overlay else "")).encode()).hexdigest()[:16] if overlay else lock[:16]
+    if not overlay:
+        return lock[:16]
+    return hashlib.sha256((lock + sha256(overlay)).encode()).hexdigest()[:16]
 
 
 def windows_overlay(engine: EngineDir) -> Path | None:

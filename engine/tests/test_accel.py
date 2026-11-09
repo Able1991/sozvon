@@ -104,6 +104,35 @@ def test_a_failure_on_the_cpu_is_a_failure(windows):
         accel.with_cpu_fallback("diarize", work)
 
 
+def test_a_failure_with_the_card_gone_is_not_a_gpu_failure(windows, monkeypatch, data):
+    """The probe once passed, the card is not there now: the stage never ran on the GPU and is not run twice."""
+    probe(data, ok=True, device="cuda")
+    cuda(monkeypatch, available=False)
+    runs = []
+
+    def work():
+        runs.append(1)
+        raise RuntimeError("something else")
+
+    with pytest.raises(RuntimeError):
+        accel.with_cpu_fallback("diarize", work)
+    assert len(runs) == 1 and not (data / ".gpu-failed").exists()
+
+
+def test_the_failed_attempt_lets_go_before_the_memory_is_released(windows, monkeypatch, data):
+    probe(data, ok=True, device="cuda")
+    cuda(monkeypatch)
+    order = []
+    monkeypatch.setattr(accel, "release", lambda: order.append("release"))
+
+    def work():
+        if accel.torch_device("diarize") == "cuda":
+            raise RuntimeError("no memory")
+
+    accel.with_cpu_fallback("diarize", work, drop=lambda: order.append("drop"))
+    assert order == ["drop", "release"]
+
+
 def test_other_errors_are_not_treated_as_gpu_failures(windows, monkeypatch, data):
     probe(data, ok=True, device="cuda")
     cuda(monkeypatch)

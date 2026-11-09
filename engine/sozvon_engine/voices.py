@@ -339,8 +339,7 @@ def _load():
     settings = config.load()
     try:
         import torch
-        if settings.threads:
-            torch.set_num_threads(settings.threads)
+        accel.apply_thread_limit()
         from pyannote.audio import Inference, Model
         model = Model.from_pretrained(EMBEDDING, token=settings.hf_token or None)
     except ImportError:
@@ -357,7 +356,12 @@ def _load():
 
 def embed(pieces: list, sr: int = audio.SR) -> np.ndarray | None:
     """Speech pieces of one voice -> L2-normalized embedding (windows weighted by length), None if nothing usable."""
-    return accel.with_cpu_fallback("voices", lambda: _embed(pieces, sr))
+    return accel.with_cpu_fallback("voices", lambda: _embed(pieces, sr), drop=_drop_model)
+
+
+def _drop_model() -> None:
+    global _inference
+    _inference = None
 
 
 def _embed(pieces: list, sr: int) -> np.ndarray | None:

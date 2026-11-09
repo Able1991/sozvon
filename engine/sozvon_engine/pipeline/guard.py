@@ -16,7 +16,6 @@ from .. import platform_support
 
 def watch_parent(interval: float = 2.0) -> None:
     """Exit, with the workers (ffmpeg, an assistant), once the parent is gone. Nothing to watch if it already was."""
-    platform_support.bind_workers_to_process()
     parent = platform_support.parent_pid()
     if parent == 1:
         return

@@ -1,7 +1,7 @@
 """Which torch build goes with which card, and what the check of the GPU step leaves behind."""
 import json
-import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -80,16 +80,42 @@ def test_garbage_from_the_check_is_a_failed_gpu(data):
 
 
 def test_a_hanging_check_is_cut_off(data, monkeypatch):
-    def hang(*a, **kw):
-        raise subprocess.TimeoutExpired("x", 120)
-
-    monkeypatch.setattr(gp.subprocess, "run", hang)
-    result = gp.verify("cu126")
-    assert result["ok"] is False and "120" in result["reason"]
+    monkeypatch.setattr(gp, "TIMEOUT", 1)
+    result = gp.verify("cu126", child("import time; time.sleep(30)"))
+    assert result["ok"] is False and "1 s" in result["reason"]
+    assert state(data)["ok"] is False
 
 
-def test_the_time_limit_allows_a_slow_disk():
-    assert gp.TIMEOUT >= 120
+def test_a_library_that_does_not_import_is_a_failed_gpu(data):
+    """After torch is swapped, a broken pyannote or faster-whisper must end the GPU step, not a later transcription."""
+    result = gp.verify("cu126", child("import a_module_that_is_not_there"))
+    assert result["ok"] is False and "a_module_that_is_not_there" in result["reason"]
+
+
+class FakeTensor:
+    def to(self, device):
+        return self
+
+    def __matmul__(self, other):
+        return self
+
+    def sum(self):
+        return self
+
+    def item(self):
+        return 1.0
+
+
+@pytest.mark.parametrize("missing", ["faster_whisper", "pyannote.audio"])
+def test_the_check_fails_when_a_library_does_not_import_with_this_torch(monkeypatch, missing):
+    fake_torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: True), manual_seed=lambda s: None,
+                                 rand=lambda *a: FakeTensor())
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, missing, None)  # Python raises ImportError for it
+    with pytest.raises(ImportError):
+        gp.check()
 
 
 def test_fail_records_the_reason(data):
