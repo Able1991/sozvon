@@ -1,0 +1,51 @@
+<UserControl
+    x:Class="Sozvon.App.Setup.Pages.MicrophonePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="12">
+        <InfoBar x:Name="BlockedBar" Severity="Warning" IsClosable="False" IsOpen="False" />
+        <StackPanel Spacing="4">
+            <Border Style="{StaticResource SetupCard}" Padding="16,12">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE720;" FontSize="20" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="MicTitle" />
+                        <TextBlock x:Name="MicDetail" Style="{StaticResource SetupDetail}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
+                        <TextBlock x:Name="MicStatus" VerticalAlignment="Center" />
+                        <Button x:Name="SettingsButton" AutomationProperties.AutomationId="SetupOpenSettings" Click="OnOpenSettings" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Border Style="{StaticResource SetupCard}" Padding="16,12">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Glyph="&#xE767;" FontSize="20" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock x:Name="TestTitle" />
+                        <TextBlock x:Name="TestDetail" AutomationProperties.AutomationId="SetupTestDetail" Style="{StaticResource SetupDetail}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <ProgressBar x:Name="LevelMeter" Width="64" Maximum="1" Visibility="Collapsed" VerticalAlignment="Center" />
+                        <StackPanel x:Name="PassedMark" Orientation="Horizontal" Spacing="8" Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                            <TextBlock x:Name="PassedText" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button x:Name="TestButton" AutomationProperties.AutomationId="SetupTestMic" Click="OnTest" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </StackPanel>
+        <TextBlock x:Name="ConsentText" Style="{StaticResource SetupDetail}" />
+    </StackPanel>
+</UserControl>

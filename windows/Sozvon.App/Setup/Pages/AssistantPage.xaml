@@ -1,0 +1,11 @@
+<UserControl
+    x:Class="Sozvon.App.Setup.Pages.AssistantPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Spacing="12">
+        <Border Style="{StaticResource SetupCard}" Padding="16,4">
+            <StackPanel x:Name="Choices" />
+        </Border>
+        <InfoBar x:Name="WarningBar" Severity="Warning" IsClosable="False" IsOpen="False" />
+    </StackPanel>
+</UserControl>
