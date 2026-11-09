@@ -190,6 +190,14 @@ def kill_own_process_group() -> None:
     os.killpg(0, signal.SIGKILL)
 
 
+def wait_for_named_event(name: str) -> bool:
+    """Windows: block until the named event is signalled. False if it cannot be waited on, and always off Windows."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        return platform_win32.wait_for_named_event(name)
+    return False
+
+
 # --- the Trash ---
 
 # No Ref() out-parameters: on current macOS a Ref for the NSError crashes osascript (signal 11).

@@ -66,6 +66,7 @@ _sig(_kernel32.UnlockFileEx, wintypes.BOOL, wintypes.HANDLE, wintypes.DWORD, win
 _sig(_kernel32.OpenProcess, wintypes.HANDLE, wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
 _sig(_kernel32.CloseHandle, wintypes.BOOL, wintypes.HANDLE)
 _sig(_kernel32.WaitForSingleObject, wintypes.DWORD, wintypes.HANDLE, wintypes.DWORD)
+_sig(_kernel32.OpenEventW, wintypes.HANDLE, wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR)
 _sig(_kernel32.GetCurrentProcess, wintypes.HANDLE)
 _sig(_kernel32.GetProcessTimes, wintypes.BOOL, wintypes.HANDLE, *[ctypes.POINTER(ctypes.c_uint64)] * 4)
 _sig(_kernel32.QueryFullProcessImageNameW, wintypes.BOOL, wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR,
@@ -196,6 +197,7 @@ def open_call_lock(folder: Path, locks_dir: Path, call_id: re.Pattern) -> int:
 _SYNCHRONIZE = 0x00100000
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _WAIT_OBJECT_0 = 0
+_INFINITE = 0xFFFFFFFF
 _TH32CS_SNAPPROCESS = 0x2
 _ERROR_ACCESS_DENIED = 5
 _UNOBSERVABLE = object()  # alive, but this process may not open it
@@ -334,6 +336,17 @@ def kill_own_process_group() -> None:
     if _job is not None:
         _kernel32.TerminateJobObject(_job, 1)
     os._exit(1)
+
+
+def wait_for_named_event(name: str) -> bool:
+    """Block, without polling, until the named event is signalled. False if there is no such event or the wait fails."""
+    handle = _kernel32.OpenEventW(_SYNCHRONIZE, False, name)
+    if not handle:
+        return False
+    try:
+        return _kernel32.WaitForSingleObject(handle, _INFINITE) == _WAIT_OBJECT_0
+    finally:
+        _kernel32.CloseHandle(handle)
 
 
 # --- files that another process may be holding ---

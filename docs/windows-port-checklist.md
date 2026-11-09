@@ -23,6 +23,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 | Raw tracks are never changed | tests, real run in block 9 |
 | `done` is written before `listen.m4a`, leaving during the render does not break the call, the player falls back to the tracks | tests |
 | A stop runs the `finally` blocks, `.work` is removed, exit code 143 | done, with CTRL_BREAK |
+| A stop from an app with no console: a named event (`SOZVON_STOP_EVENT`) that the app creates and signals; a waiting thread raises the same signal, no polling, no thread without the variable | done, tested with a real process and a real event, exit 143, `.work` removed. The stop still waits until the main thread is back in Python, so it is delayed while native code or `time.sleep` runs |
 | One engine per call, the lock goes away with the process | done |
 | The engine and its workers end with the app | done (Job Object, parent watchdog) |
 | `call.json` is atomic and locked, a corrupted one is not overwritten | tests, retries in block 8 |
@@ -86,7 +87,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 
 ## Stage 2
 
-- A stop path that works for an app with no console (a named event or `.work/stop`, a timeout, killing through the Job). CTRL_BREAK needs a shared console, and a stop is delayed while native code or `time.sleep` runs.
+- The app's side of the stop: create the event, pass `SOZVON_STOP_EVENT`, signal it, and after a timeout kill through the Job, since the engine reacts only when the main thread is back in Python.
 - The app holds the launcher in its own Job and opens engine files with `FileShare.ReadWrite | Delete`.
 - The low priority setting comes from the app, as on macOS, and no console window appears for child processes.
 - Raw microphone capture without system effects (`AUDCLNT_STREAMOPTIONS_RAW` where the device has it), and a check whether WASAPI loopback comes before the output device's effects: the echo filter needs no system AEC or noise suppression in its way.

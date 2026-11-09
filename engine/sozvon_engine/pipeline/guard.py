@@ -6,12 +6,14 @@ app, and a run holds a lock on the call folder until it ends: the lock goes away
 """
 import os
 import signal
+import sys
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from .. import platform_support
+from ..i18n import t
 
 
 def watch_parent(interval: float = 2.0) -> None:
@@ -34,15 +36,31 @@ def exit_on_sigterm() -> None:
     """SIGTERM (the app stopping a run) ends the run through its `finally` blocks, so the working files go too.
     Exit code 143, as for any process killed by SIGTERM. Only the main thread can install it.
 
-    Windows has no SIGTERM between processes, so CTRL_BREAK stands in for it. Limitation for the Windows app (stage 2):
-    CTRL_BREAK reaches only a process started with CREATE_NEW_PROCESS_GROUP that shares the sender's console, and an app
-    with windows has no console. It will need another way to ask for a stop, for example a named event."""
+    Windows has no SIGTERM between processes, so CTRL_BREAK stands in for it. CTRL_BREAK reaches only a process started
+    with CREATE_NEW_PROCESS_GROUP that shares the sender's console, and an app with windows has no console: such an app
+    creates a named event and passes its name in SOZVON_STOP_EVENT, and signalling it does the same as CTRL_BREAK. Either
+    way the stop waits until the main thread is back in Python: it is delayed while native code or time.sleep runs."""
     def handler(signum, frame):
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, handler)
     if platform_support.SYSTEM == "win32":
         signal.signal(signal.SIGBREAK, lambda signum, frame: handler(signal.SIGTERM, frame))
+        _stop_on_named_event(os.environ.get("SOZVON_STOP_EVENT"))
+
+
+def _stop_on_named_event(name: str | None) -> None:
+    """Windows: a thread waits on the event the app gave and raises the stop signal in this process. No name, no thread."""
+    if not name:
+        return
+
+    def wait():
+        if platform_support.wait_for_named_event(name):
+            signal.raise_signal(signal.SIGBREAK)
+        else:
+            print(t("log_stop_event_failed", name=name), file=sys.stderr, flush=True)
+
+    threading.Thread(target=wait, daemon=True).start()
 
 
 def lock_call(d: Path, on_wait: Callable[[], None] = lambda: None) -> int:

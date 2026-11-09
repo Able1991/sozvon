@@ -529,6 +529,79 @@ def test_ctrl_break_removes_working_files(tmp_path):
     assert not (d / ".work").exists()
 
 
+# ---- a stop through a named event: an app with windows has no console to send CTRL_BREAK from ----
+
+@pytest.fixture
+def stop_event():
+    """A named event as the app creates it. -> (name, what signals it)."""
+    import uuid
+    from ctypes import wintypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateEventW.restype = wintypes.HANDLE
+    kernel32.CreateEventW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.BOOL, wintypes.LPCWSTR)
+    kernel32.SetEvent.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    name = f"Local\\sozvon-test-stop-{uuid.uuid4()}"
+    handle = kernel32.CreateEventW(None, True, False, name)
+    assert handle, ctypes.get_last_error()
+    yield name, lambda: kernel32.SetEvent(handle)
+    kernel32.CloseHandle(handle)
+
+
+def test_a_named_event_ends_the_run_through_finally_with_143(tmp_path, monkeypatch, stop_event):
+    """No console at all, as for an app with windows: exit 143 and .work removed, as with CTRL_BREAK."""
+    name, signal_it = stop_event
+    d = tmp_path / "2026-11-04 15-01"
+    d.mkdir()
+    monkeypatch.setenv("SOZVON_STOP_EVENT", name)
+    p = spawn("""
+        import pathlib, sys, time
+        from sozvon_engine.pipeline import guard, tracks
+        d = pathlib.Path(sys.argv[1])
+        guard.exit_on_sigterm()
+        try:
+            (d / ".work").mkdir()
+            (d / ".work" / "mic.wav").write_bytes(b"x" * 1000)
+            pathlib.Path(sys.argv[1] + ".ready").touch()
+            for _ in range(600):
+                time.sleep(0.05)
+        finally:
+            tracks.cleanup(d)
+    """, d, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, creationflags=subprocess.DETACHED_PROCESS)
+    assert wait_for(lambda: Path(f"{d}.ready").exists(), 60), "the engine did not start"
+    assert (d / ".work").is_dir()
+    assert signal_it()
+    assert p.wait(timeout=20) == 143
+    assert not (d / ".work").exists()
+
+
+def test_a_name_no_event_has_changes_nothing_but_a_log_line(monkeypatch):
+    monkeypatch.setenv("SOZVON_STOP_EVENT", "Local\\sozvon-test-no-such-event")
+    p = spawn("""
+        import time
+        from sozvon_engine.pipeline import guard
+        guard.exit_on_sigterm()
+        time.sleep(1)
+        print("finished", flush=True)
+    """, stderr=subprocess.PIPE, encoding="utf-8")
+    out, err = p.communicate(timeout=60)
+    assert p.returncode == 0 and out.strip() == "finished"
+    assert "SOZVON_STOP_EVENT" in err
+
+
+@pytest.mark.parametrize("system,name", [("win32", None), ("win32", ""), ("darwin", "Local\\anything")])
+def test_no_thread_without_the_variable_or_off_windows(monkeypatch, system, name):
+    from sozvon_engine.pipeline import guard
+    if name is None:
+        monkeypatch.delenv("SOZVON_STOP_EVENT", raising=False)
+    else:
+        monkeypatch.setenv("SOZVON_STOP_EVENT", name)
+    monkeypatch.setattr(ps, "SYSTEM", system)
+    monkeypatch.setattr(guard.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(guard.threading, "Thread", lambda *a, **kw: pytest.fail("no thread is started"))
+    guard.exit_on_sigterm()
+
+
 # ---- known folders ----
 
 def test_default_folders_come_from_known_folders(monkeypatch, win32, tmp_path):
