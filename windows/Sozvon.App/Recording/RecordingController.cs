@@ -84,10 +84,22 @@ public sealed class RecordingController
 
     public void Start()
     {
+        CreateVocabularyIfMissing();
         _processor.RestoreQueue();
         _processor.StartNext();
         ShowProcessing();
         Run(RecoverInterruptedAsync);
+    }
+
+    /// <summary>As on the Mac, the default dictionary becomes vocab.json only on first install.</summary>
+    private void CreateVocabularyIfMissing()
+    {
+        var vocabulary = Path.Combine(_layout.Data, "vocab.json");
+        var initial = Path.Combine(_layout.Data, "vocab.default.json");
+        if (!File.Exists(vocabulary) && File.Exists(initial))
+        {
+            File.Copy(initial, vocabulary);
+        }
     }
 
     /// <summary>A launch may find a recording the previous run never closed: it is saved and goes to the queue.</summary>
