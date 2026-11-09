@@ -865,6 +865,7 @@ def test_push_of_a_deleted_call(fake, root, capsys, monkeypatch):
     assert logs and "только на этом Mac" in logs[0]
 
 
+@pytest.mark.skipif(platform_support.SYSTEM == "win32", reason="the macOS ~/.Trash (Windows: test_platform_win32.py)")
 def test_move_to_trash_falls_back_to_a_free_name_in_dot_trash(tmp_path, monkeypatch):
     home = tmp_path / "home"
     (home / ".Trash" / "2026-11-04 15-01").mkdir(parents=True)  # a folder with this name is there already

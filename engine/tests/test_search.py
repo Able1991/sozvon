@@ -118,7 +118,8 @@ def test_incremental_sync(root, data):
     assert search.search("бета", root=root) == []
     assert con.execute("SELECT count(*) FROM chunks").fetchone()[0] == 1
     assert con.execute("SELECT count(*) FROM chunks_fts").fetchone()[0] == 1
-    assert stat.S_IMODE(os.stat(search.index_path()).st_mode) == 0o600
+    if os.name != "nt":  # chmod sets no permissions on Windows: test_platform_win32.py checks the ACL of the data folder
+        assert stat.S_IMODE(os.stat(search.index_path()).st_mode) == 0o600
 
 
 def test_noop_sync_is_fast(root):

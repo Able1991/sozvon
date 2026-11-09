@@ -85,6 +85,7 @@ def test_apply_adds_replacements(tmp_path):
 def test_main_cursor_gets_cursor_extra_and_cursor_dir(tmp_path, monkeypatch, capsys):
     from sozvon_engine import discover, llm
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # what Path.home() reads on Windows
     seen = {}
 
     def fake_run(prompt, cwd, agentic=False, timeout=600, on_event=None):

@@ -113,7 +113,7 @@ def test_explicit_cursor(bins, monkeypatch):
     fake_cli(bins, "cursor-agent", "echo hi")
     monkeypatch.setenv("SOZVON_LLM", "cursor")
     name, path = llm.backend()
-    assert name == "cursor" and path.endswith("/cursor-agent")
+    assert name == "cursor" and path.replace("\\", "/").endswith("/cursor-agent")
 
 
 # Fake cursor-agent: logs its arguments (one per line) and working dir, copies request.md to keep it

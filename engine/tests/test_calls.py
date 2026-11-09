@@ -67,7 +67,12 @@ def test_symlink_outside_is_ignored(tmp_path):
     root.mkdir()
     outside = tmp_path / "outside"
     outside.mkdir()
-    (root / "2026-11-04 15-01").symlink_to(outside)
+    try:
+        (root / "2026-11-04 15-01").symlink_to(outside)
+    except OSError as e:
+        if getattr(e, "winerror", None) == 1314:  # ERROR_PRIVILEGE_NOT_HELD: Windows without Developer Mode
+            pytest.skip("creating symlinks needs Developer Mode or administrator rights here")
+        raise
     with pytest.raises(ValueError):
         calls.find_call("2026-11-04 15-01", root)
 

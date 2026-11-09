@@ -1,5 +1,4 @@
 """bin/process_call.py: call.json as the source of truth, exit codes and the RESULT line (with fakes)."""
-import fcntl
 import json
 import os
 import subprocess
@@ -10,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from sozvon_engine import platform_support
 from conftest import fake_model
 from sozvon_engine import audio, llm, prompt, whisper
 from sozvon_engine.pipeline import run, speakers, tracks, transcribe
@@ -236,7 +236,7 @@ def test_bin_script_runs_standalone(tmp_path):
     r = subprocess.run([sys.executable, str(engine / "bin" / "process_call.py"), str(tmp_path / "nope")],
                        capture_output=True, text=True, timeout=120,
                        env={"PATH": "/usr/bin:/bin", "SOZVON_DATA_DIR": str(tmp_path), "SOZVON_UI_LANG": "en",
-                            "HOME": str(tmp_path)})
+                            "HOME": str(tmp_path), **({"SYSTEMROOT": os.environ["SYSTEMROOT"], "USERPROFILE": str(tmp_path)} if os.name == "nt" else {})})
     assert r.returncode == 2, r.stderr
     assert r.stdout.strip().splitlines()[-1].startswith("RESULT: error 2 call folder not found")
 
@@ -578,6 +578,8 @@ def _alive(pid: int) -> bool:
     return True
 
 
+# os.kill(pid, 0) sends Ctrl+C on Windows; test_platform_win32.py has the same case with real processes.
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process groups (Windows: test_platform_win32.py)")
 def test_engine_and_its_workers_die_with_the_app():
     app = subprocess.Popen([sys.executable, "-c", _APP, _ORPHAN], stdout=subprocess.PIPE, text=True,
                            cwd=Path(__file__).resolve().parent.parent)
@@ -596,8 +598,8 @@ def test_engine_and_its_workers_die_with_the_app():
 
 
 def _hold(d):
-    fd = os.open(d, os.O_RDONLY)
-    fcntl.flock(fd, fcntl.LOCK_EX)
+    fd = platform_support.open_call_lock(d)
+    platform_support.lock_exclusive(fd)
     return fd
 
 
@@ -617,8 +619,8 @@ def test_second_run_on_a_call_waits_for_the_first(tmp_path, capsys, fakes):
 def test_run_releases_the_call_when_it_ends(tmp_path, capsys, fakes):
     d = make_call(tmp_path, {"schema": 1, "id": "x"})
     assert run.main([str(d), "--no-summary"]) == 0
-    fd = os.open(d, os.O_RDONLY)
-    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if still held
+    fd = platform_support.open_call_lock(d)
+    assert platform_support.lock_exclusive(fd, wait=False), "still held"
     os.close(fd)
 
 

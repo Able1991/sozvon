@@ -74,11 +74,12 @@ def slow_model() -> str:
 
 def installed_engine():
     """A data folder with a .venv and the test model downloaded, or None."""
-    from sozvon_engine import models
+    from sozvon_engine import models, platform_support
     name = slow_model()
     if name not in models.MODELS:
         return None
-    for c in (os.environ.get("SOZVON_TEST_ENGINE"), str(Path.home() / "Library/Application Support/Sozvon")):
-        if c and models.is_downloaded(c, name) and (Path(c) / ".venv/bin/python3").exists():
+    python = ".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python3"
+    for c in (os.environ.get("SOZVON_TEST_ENGINE"), str(platform_support.default_data_dir())):
+        if c and models.is_downloaded(c, name) and (Path(c) / python).exists():
             return Path(c)
     return None

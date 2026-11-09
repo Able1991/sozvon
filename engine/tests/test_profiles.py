@@ -1,5 +1,6 @@
 """Projects, vocabulary, Whisper prompt, replacements, learning participants, atomic writes."""
 import json
+import os
 
 import pytest
 
@@ -190,7 +191,8 @@ def test_parallel_edits_in_processes_are_not_lost(profiles, data):
     code = ("import sys; sys.path.insert(0, sys.argv[1]); from sozvon_engine.mcp import tools\n"
             "for i in range(15):\n"
             "    tools.add_terms(f'p{sys.argv[2]}t{i}', profile='acme'); tools.add_terms(f'p{sys.argv[2]}s{i}')")
-    env = {"PATH": "/usr/bin:/bin", "SOZVON_DATA_DIR": str(data), "SOZVON_UI_LANG": "en", "HOME": str(data)}
+    env = {"PATH": "/usr/bin:/bin", "SOZVON_DATA_DIR": str(data), "SOZVON_UI_LANG": "en", "HOME": str(data),
+           **({"SYSTEMROOT": os.environ["SYSTEMROOT"], "USERPROFILE": str(data)} if os.name == "nt" else {})}
     procs = [subprocess.Popen([sys.executable, "-c", code, str(engine), str(n)], env=env) for n in range(4)]
     assert all(p.wait(timeout=120) == 0 for p in procs)
     want_p = {f"p{n}t{i}" for n in range(4) for i in range(15)}

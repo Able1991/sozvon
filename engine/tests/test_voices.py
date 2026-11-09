@@ -79,7 +79,8 @@ def test_enroll_from_file(tmp_path, data, fake_embed, capsys):
     assert rec["name"] == "Борис Иванов" and rec["me"] is True and rec["profile"] == ""
     assert len(rec["embedding"]) == 256 and abs(np.linalg.norm(rec["embedding"]) - 1) < 1e-9
     assert 10 < rec["seconds"] <= 12 and rec["updated_at"].endswith("Z")
-    assert stat.S_IMODE(os.stat(data / "voices" / f"{vid}.json").st_mode) == 0o600
+    if os.name != "nt":  # chmod sets no permissions on Windows: test_platform_win32.py checks the ACL of the data folder
+        assert stat.S_IMODE(os.stat(data / "voices" / f"{vid}.json").st_mode) == 0o600
     assert abs(fake_embed[0]["freq"] - 300) < 10
     assert not list((data / "voices").glob(".*.tmp"))
 

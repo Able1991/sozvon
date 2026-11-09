@@ -4,6 +4,7 @@ Real processes wherever the behaviour is about processes. The Recycle Bin call i
 """
 import ctypes
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -542,6 +543,36 @@ def test_warning_when_the_default_calls_folder_is_inside_onedrive(monkeypatch, w
 def test_known_folders_are_real_folders(win32):
     for folder_id in (win32._FOLDERID_LOCAL_APP_DATA, win32._FOLDERID_PROFILE):
         assert win32._known_folder(folder_id).is_dir()
+
+
+# ---- who can read the data folder ----
+
+def _aces(path: Path) -> list:
+    """(flags, trustee) of every entry of a folder's DACL, from its SDDL."""
+    r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", f"(Get-Acl -LiteralPath '{path}').Sddl"],
+                       capture_output=True, text=True, errors="replace", timeout=60)
+    assert r.returncode == 0, r.stderr
+    dacl = r.stdout.strip().split("D:", 1)[1]
+    return [(a.split(";")[1], a.split(";")[5]) for a in re.findall(r"\(([^()]*)\)", dacl)]
+
+
+def test_data_folder_is_private_to_the_user(win32):
+    """Voice prints and transcripts live here, and chmod does nothing on Windows: the profile's ACL is the protection.
+    Everyone (WD), Users (BU) and Authenticated Users (AU) get nothing, and the engine adds no entry of its own."""
+    assert ps.default_data_dir().is_relative_to(win32._known_folder(win32._FOLDERID_PROFILE))
+    folder = win32._known_folder(win32._FOLDERID_LOCAL_APP_DATA) / f"Sozvon-acl-test-{os.getpid()}"
+    folder.mkdir()
+    try:
+        (folder / "voices").mkdir()
+        os.chmod(folder / "voices", 0o700)  # as voices.py does
+        for path in (folder, folder / "voices"):
+            aces = _aces(path)
+            assert aces, "a DACL is present"
+            assert all("ID" in flags for flags, _ in aces), f"only inherited entries: {aces}"
+            assert not [t for _, t in aces if t in ("WD", "BU", "AU", "S-1-1-0", "S-1-5-32-545", "S-1-5-11")], aces
+    finally:
+        (folder / "voices").rmdir()
+        folder.rmdir()
 
 
 # ---- Recycle Bin (the shell call is replaced) ----
