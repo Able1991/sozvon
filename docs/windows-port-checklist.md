@@ -81,7 +81,7 @@ Status: **done** (checked on Windows), **tests** (the engine tests pass on Windo
 
 ## To investigate
 
-- Speaker embeddings through ONNX Runtime on the CPU (float only) gave the same result as torch 40 % faster: a block after stage 1, with a test against torch and a fallback to it.
+- Speaker embeddings through ONNX Runtime on the CPU (float only) are in the code, with a fallback to torch; they take effect once the model file is published in the `models-v1` release.
 - pyannote computes each chunk three times on the same audio: computing the convolutions once per chunk could save far more.
 
 ## Stage 2

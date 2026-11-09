@@ -14,5 +14,6 @@
                  "files": ["config.json", "vocab.txt", "nemo128.onnx", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"], "size_gb": 0.7}
   },
   "vad": {"repo": "istupakov/silero-vad-onnx", "revision": "b3e3ee3cce4c11ceb63b1a0b229d916069c1ddf6", "dir": "silero-vad-onnx", "files": ["config.json", "silero_vad.onnx"]},
+  "embedding_onnx": {"dir": "wespeaker-onnx", "file": "wespeaker-resnet34-lm-v1.onnx", "url": "https://github.com/Able1991/sozvon/releases/download/models-v1/wespeaker-resnet34-lm-v1.onnx", "sha256": "969f5486dcb22f7f20b5d41e7bffcc8816c84c8439d13b5365d08e8f9bfc0893", "license": "CC-BY-4.0", "notice": "Speaker embedding model: WeSpeaker ResNet34-LM by Hongji Wang, Chengdong Liang, Shuai Wang, Zhengyang Chen, Binbin Zhang, Xu Xiang, Yanlei Deng and Yanmin Qian, as published by pyannote at https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changed: the ResNet part was exported to ONNX (opset 18)."},
   "aec": {"repo": "LocalAI-io/LocalVQE", "revision": "29ca38495cba9d6393a92a4dd890f28dd81f758d", "dir": "localvqe-v1.2", "files": ["localvqe-v1.2-1.3M.pt"], "sha256": "ff6885e7c8d7d29a8ce963303dcd668ae0f2a7bdafae28631292fe6f06f7cd77", "license": "Apache-2.0"}
 }

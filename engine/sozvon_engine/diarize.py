@@ -5,7 +5,7 @@ you can download them yourself. The pipeline loads once per process and only whe
 is heavy. Voices here are anonymous: numbered by order of first appearance, names and labels
 are up to the caller.
 """
-from . import accel, audio, config, paths
+from . import accel, audio, config, embed_onnx, paths
 
 PIPELINE = "pyannote/speaker-diarization-3.1"
 _pipeline = None
@@ -34,6 +34,8 @@ def load_pipeline():
     pipeline = Pipeline.from_pretrained(PIPELINE, token=settings.hf_token or None)
     _pipeline_device = accel.torch_device("diarize")
     pipeline.to(torch.device(_pipeline_device))
+    if _pipeline_device == "cpu":
+        embed_onnx.install_on(pipeline)
     _pipeline = pipeline
     return pipeline
 
@@ -58,9 +60,19 @@ def run(path, num_speakers=None) -> list:
     """-> [(start, end, raw_label)] who spoke when."""
     wave = load_waveform(path)
 
-    def work():
+    def attempt():
         pipeline = load_pipeline()
         return pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
+
+    def work():
+        try:
+            return attempt()
+        except Exception as e:  # noqa: BLE001  whatever ONNX raised: the whole diarization starts over on torch
+            if not embed_onnx.is_active(_pipeline):
+                raise
+            embed_onnx.give_up(e)
+            _drop_pipeline()
+            return attempt()
 
     output = accel.with_cpu_fallback("diarize", work, drop=_drop_pipeline)
     # pyannote>=4 wraps the result in DiarizeOutput, older versions return an Annotation.

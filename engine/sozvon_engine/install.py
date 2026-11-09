@@ -130,6 +130,29 @@ def ensure_echo_model(data: Path, downloader: Downloader = hf_download) -> None:
         print(t("install_no_echo_model", err=ex), flush=True)
 
 
+def ensure_embedding_onnx(data: Path, fetch: Fetcher) -> None:
+    """Windows: the faster speaker embeddings for the CPU. Optional: without this file the engine uses torch, so a failed
+    download is not worth a message."""
+    if platform_support.SYSTEM != "win32":
+        return
+    entry = models.MANIFEST["embedding_onnx"]
+    d = Path(data) / "models" / entry["dir"]
+    target = d / entry["file"]
+    if target.is_file() and sha256(target) == entry["sha256"]:
+        return
+    temporary = target.with_suffix(".download")
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        fetch(entry["url"], temporary)
+        if sha256(temporary) == entry["sha256"]:
+            platform_support.replace_file(temporary, target)
+            (d / "NOTICE.txt").write_text(entry["notice"] + "\n", encoding="utf-8")
+    except (OSError, subprocess.SubprocessError):
+        pass
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -240,6 +263,7 @@ def main(argv=None, downloader: Downloader = hf_download, fetch: Fetcher = curl_
     ensure_model(engine.root, model, downloader)
 
     ensure_echo_model(engine.root, downloader)
+    ensure_embedding_onnx(engine.root, fetch)
 
     if not engine.pyannote_cache.is_dir():
         step(t("install_pyannote"))

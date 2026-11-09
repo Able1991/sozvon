@@ -120,6 +120,8 @@ MESSAGES = {
     "log_cursor_no_file_sandbox": ("Cursor: файловой песочницы на Windows может не быть",
                                    "Cursor: there may be no file sandbox on Windows"),
     "log_whisper_device": ("Whisper: {device}, {compute}", "Whisper: {device}, {compute}"),
+    "log_onnx_embedding_failed": ("разбивка по голосам: ONNX не справился ({err}), начинаю заново на torch",
+                                  "speaker separation: ONNX failed ({err}), starting over on torch"),
     "log_gpu_stage_failed": ("{stage}: видеокарта не справилась ({err}), продолжаю на процессоре",
                              "{stage}: the GPU failed ({err}), going on with the CPU"),
     "llm_no_discovery": ("поиск проектов на Windows пока недоступен", "finding projects is not available on Windows yet"),
