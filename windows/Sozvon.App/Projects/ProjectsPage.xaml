@@ -41,7 +41,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{s:L K='Проекты'}" />
+                    <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="{s:L K='Проекты'}" />
                     <TextBlock x:Name="Summary" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
                 <Button x:Name="NewButton" Grid.Column="1" VerticalAlignment="Center" Style="{ThemeResource AccentButtonStyle}" Click="OnNew"
@@ -86,7 +86,7 @@
                     </Grid.ColumnDefinitions>
                     <Ellipse x:Name="DetailDot" Width="12" Height="12" Margin="0,12,0,0" VerticalAlignment="Top" />
                     <StackPanel Grid.Column="1" Spacing="2">
-                        <TextBlock x:Name="DetailTitle" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                        <TextBlock x:Name="DetailTitle" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                         <TextBlock x:Name="DetailMeta" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" Margin="0,6,0,0" VerticalAlignment="Top" Orientation="Horizontal" Spacing="8">

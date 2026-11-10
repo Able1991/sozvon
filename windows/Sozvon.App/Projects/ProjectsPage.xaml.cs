@@ -219,7 +219,8 @@ public sealed partial class ProjectsPage : UserControl
         }
         if (DetailVoices.Children.Count == 0)
         {
-            DetailVoices.Children.Add(new TextBlock { Text = "—" });
+            // The hint about saving a voice is already under the list.
+            DetailVoices.Children.Add(new TextBlock { Text = L("Голосов пока нет") });
         }
     }
 
