@@ -101,9 +101,14 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.RecordingFooter, Mode=OneWay}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Записи с телефона'}" />
-                    <local:SettingsRow Header="{s:L K='Папка для записей'}" NotConnected="True">
-                        <Button Content="{s:L K='Выбрать папку…'}" IsEnabled="False" />
+                    <local:SettingsRow Header="{s:L K='Папка для записей'}" Description="{x:Bind ViewModel.PhoneFolderText, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{s:L K='Убрать'}" Visibility="{x:Bind ViewModel.HasPhoneFolder, Mode=OneWay}" Click="OnClearPhoneFolder" />
+                            <Button Content="{s:L K='Выбрать папку…'}" Click="OnChoosePhoneFolder" />
+                        </StackPanel>
                     </local:SettingsRow>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Новая запись в этой папке расшифруется сама, а файл перейдёт в подпапку Imported. Подойдёт папка, куда телефон сохраняет записи: iCloud Drive, OneDrive или Google Drive.'}" />
+                    <HyperlinkButton Margin="-12,0,0,0" Padding="12,2" Content="{s:L K='Запись одним нажатием на iPhone'}" NavigateUri="{x:Bind ViewModel.PhoneShortcutDocs}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Разрешения'}" />
                     <local:SettingsRow Header="{s:L K='Микрофон'}">
@@ -121,8 +126,8 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках.'}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='После звонка'}" />
-                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.OpenAtSignIn, Mode=TwoWay}" />
+                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" Description="{x:Bind ViewModel.SignIn.Description, Mode=OneWay}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.SignIn.IsOn, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Открывать при входе'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />
@@ -160,6 +165,10 @@
                     <local:SettingsRow Header="Python">
                         <TextBlock x:Name="PythonStatus" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='MCP-сервер'}" Description="{x:Bind ViewModel.Integrations.ServerFailure, Mode=OneWay}">
+                        <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="{x:Bind ViewModel.Integrations.ServerStatus, Mode=OneWay}" />
+                    </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Файлы'}" />
                     <local:SettingsRow Header="{s:L K='Папка записей'}" Description="{x:Bind ViewModel.CallsFolder}">
@@ -183,26 +192,123 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic.'}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключения'}" />
-                    <local:SettingsRow Header="Claude Code" Description="{s:L K='Видит звонки, саммари и заметки'}" NotConnected="True">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="Codex" Description="{s:L K='Пока недоступно на Windows'}">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="Cursor" Description="{s:L K='Пока недоступно на Windows'}">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:AssistantRow">
+                                <local:SettingsRow Header="{x:Bind Title}" Description="{s:L K='Видит звонки, саммари и заметки'}">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <ProgressRing Width="16" Height="16" IsActive="{x:Bind Checking, Mode=OneWay}" Visibility="{x:Bind Checking, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind StatusVisible, Mode=OneWay}">
+                                            <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{x:Bind IsConnected, Mode=OneWay}" />
+                                            <FontIcon FontSize="14" Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind Outdated, Mode=OneWay}"
+                                                      ToolTipService.ToolTip="{s:L K='Sozvon подключён по-старому: без общего сервера или пароля. Подключи заново.'}" />
+                                            <TextBlock Text="{x:Bind Status, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Button Content="{x:Bind ActionText, Mode=OneWay}" Visibility="{x:Bind ActionVisible, Mode=OneWay}"
+                                                IsEnabled="{x:Bind Enabled, Mode=OneWay}" Tag="{x:Bind}" Click="OnAssistantAction" />
+                                    </StackPanel>
+                                </local:SettingsRow>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <InfoBar IsOpen="{x:Bind ViewModel.Integrations.HasMessage, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             Message="{x:Bind ViewModel.Integrations.Message, Mode=OneWay}" />
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключить вручную'}" />
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:AssistantRow">
+                                <local:SettingsRow Header="{x:Bind Title}" Description="{x:Bind ShortCommand}">
+                                    <Button Content="{x:Bind CopyText, Mode=OneWay}" Tag="{x:Bind}" Click="OnCopyAssistantCommand"
+                                            ToolTipService.ToolTip="{s:L K='То же, что делает «Подключить», с паролем'}" />
+                                </local:SettingsRow>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого компьютера.'}" />
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Codex и Cursor на Windows ещё не проверены с настоящими программами: подключаются только по кнопке.'}" />
                 </StackPanel>
 
                 <StackPanel x:Name="Cloud" Spacing="4" Visibility="Collapsed">
-                    <InfoBar IsOpen="True" IsClosable="False" Severity="Informational" Title="{s:L K='Облако на Windows пока не подключено'}" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.Server.HasSaveError, Mode=OneWay}" Severity="Error" IsClosable="False"
+                             Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.Server.SaveError, Mode=OneWay}" />
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Свой сервер, свои данные'}" />
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Копии готовых звонков уходят на сервер в твоём аккаунте Cloudflare: так Claude и ChatGPT видят их и с телефона. У нас ничего не хранится.'}" />
-                    <local:SettingsRow Header="{s:L K='Подключить Cloudflare'}" NotConnected="True">
+                    <local:SettingsRow Header="Cloudflare" Description="{s:L K='Поставить сервер в один клик пока можно только с Mac. Здесь укажи адрес и пароль сервера, который уже есть.'}">
                         <Button Content="{s:L K='Подключить Cloudflare'}" IsEnabled="False" />
                     </local:SettingsRow>
-                </StackPanel>
 
+                    <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.Server.HasConnector, Mode=OneWay}">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Claude и ChatGPT'}" />
+                        <local:SettingsRow Header="{s:L K='Адрес коннектора'}" Description="{x:Bind ViewModel.Server.ConnectorUrl, Mode=OneWay}">
+                            <Button Content="{s:L K='Скопировать'}" Click="OnCopyConnector" AutomationProperties.Name="{s:L K='Скопировать адрес для коннектора'}" />
+                        </local:SettingsRow>
+                        <local:SettingsRow Header="{s:L K='Пароль'}" Description="{x:Bind ViewModel.Server.PasswordShown, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ToggleButton IsChecked="{x:Bind ViewModel.Server.ShowPassword, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Показать пароль'}">
+                                    <FontIcon FontSize="14" Glyph="&#xE7B3;" />
+                                </ToggleButton>
+                                <Button Content="{s:L K='Скопировать'}" Click="OnCopyServerPassword" AutomationProperties.Name="{s:L K='Скопировать пароль'}" />
+                            </StackPanel>
+                        </local:SettingsRow>
+                        <local:SettingsRow Header="{s:L K='Подключить в приложении'}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Content="{s:L K='Открыть Claude'}" Click="OnOpenClaudeConnectors" />
+                                <Button Content="{s:L K='Открыть ChatGPT'}" Click="OnOpenChatGptConnectors" />
+                            </StackPanel>
+                        </local:SettingsRow>
+                        <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Добавь адрес как коннектор и войди тем же паролем'}" />
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Свой адрес'}" />
+                    <local:SettingsRow Header="{s:L K='Адрес сервера'}">
+                        <TextBox Width="320" PlaceholderText="https://sozvon.example.com" Text="{x:Bind ViewModel.Server.UrlDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 KeyDown="OnServerFieldKeyDown" AutomationProperties.Name="{s:L K='Адрес сервера'}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Пароль'}">
+                        <PasswordBox Width="320" Password="{x:Bind ViewModel.Server.PasswordDraft, Mode=TwoWay}" KeyDown="OnServerFieldKeyDown"
+                                     AutomationProperties.Name="{s:L K='Пароль'}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Синхронизация'}" Description="{x:Bind ViewModel.Server.StatusWhenFine, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.Server.IsRunning, Mode=OneWay}" Visibility="{x:Bind ViewModel.Server.IsRunning, Mode=OneWay}" />
+                            <Button Content="{s:L K='Синхронизировать'}" Visibility="{x:Bind ViewModel.Server.HasServer, Mode=OneWay}"
+                                    IsEnabled="{x:Bind ViewModel.Server.CanSync, Mode=OneWay}" Click="OnSyncServer" />
+                            <Button Content="{s:L K='Сохранить'}" IsEnabled="{x:Bind ViewModel.Server.CanSave, Mode=OneWay}" Click="OnSaveServer" Style="{StaticResource AccentButtonStyle}" />
+                        </StackPanel>
+                    </local:SettingsRow>
+                    <InfoBar IsOpen="{x:Bind ViewModel.Server.Failed, Mode=OneWay}" Severity="Warning" IsClosable="False" Message="{x:Bind ViewModel.Server.Status, Mode=OneWay}" />
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Сервер в твоём аккаунте Cloudflare: звонки не попадают к нам, удалить всё можно в любой момент. Текст звонков уходит всегда, звук и отпечатки голосов, только если включено ниже. Согласие собеседников на запись на тебе.'}" />
+                    <HyperlinkButton Margin="-12,0,0,0" Padding="12,2" Content="{s:L K='Как это устроено'}" NavigateUri="{x:Bind ViewModel.Server.DocsUrl}" />
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Что отправляется'}" />
+                    <local:SettingsRow Header="{s:L K='Расшифровки, саммари и заметки'}">
+                        <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Всегда'}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Аудио звонков'}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Server.SyncAudio, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.Server.HasServer, Mode=OneWay}"
+                                      AutomationProperties.Name="{s:L K='Аудио звонков'}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Отпечатки голосов'}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Server.SyncVoices, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.Server.HasServer, Mode=OneWay}"
+                                      AutomationProperties.Name="{s:L K='Отпечатки голосов'}" />
+                    </local:SettingsRow>
+                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.Server.HasServer, Mode=OneWay}">
+                        <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Звук звонков с голосами собеседников будет храниться в твоём аккаунте Cloudflare: за него и за согласие тех, кого ты записываешь, отвечаешь ты. Бесплатного хранилища хватит примерно на 80 часов звонков, дальше уходит только текст. Если выключить, новые записи перестанут отправляться.'}" />
+                        <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Отпечатки голосов относятся к биометрическим данным. Когда включено, они хранятся в твоём аккаунте Cloudflare, и отвечаешь за них ты. Если выключить, они останутся только на этом компьютере, а уже отправленные пробудут на сервере, пока их не удалить.'}" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Foot}" Visibility="{x:Bind ViewModel.Server.NotReady, Mode=OneWay}" Text="{s:L K='Станет доступно после подключения сервера.'}" />
+                </StackPanel>
                 <StackPanel x:Name="About" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Sozvon" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Version}" />

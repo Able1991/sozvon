@@ -7,7 +7,7 @@ using Microsoft.Win32.SafeHandles;
 namespace Sozvon.Core.Engine;
 
 public sealed record EngineRunRequest(string Executable, IReadOnlyList<string> Arguments, IReadOnlyDictionary<string, string> Environment,
-                                      string WorkingDirectory, string? LogPath = null);
+                                      string WorkingDirectory, string? LogPath = null, bool AppendLog = false);
 
 /// <summary>The process could not be started; the message says why.</summary>
 public sealed class EngineStartException(string message, Exception? inner = null) : Exception(message, inner);
@@ -61,7 +61,7 @@ public sealed class EngineProcess
         JobObject? job = null;
         try
         {
-            log = OpenLog(request.LogPath);
+            log = OpenLog(request.LogPath, request.AppendLog);
             job = new JobObject();
             var pipeName = $"sozvon-engine-{Guid.NewGuid():N}";
             output = new NamedPipeServerStream(pipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte,
@@ -93,8 +93,8 @@ public sealed class EngineProcess
         }
     }
 
-    private static FileStream? OpenLog(string? path) =>
-        path is null ? null : new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+    private static FileStream? OpenLog(string? path, bool append) =>
+        path is null ? null : new FileStream(path, append ? FileMode.Append : FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
 
     private static (SafeProcessHandle, int) Launch(EngineRunRequest request, JobObject job, SafeFileHandle stdin, SafePipeHandle stdout)
     {

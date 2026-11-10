@@ -112,3 +112,20 @@
 "OK" = "OK";
 "Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках." = "Voice prints are biometric data: they are stored on this computer. Sozvon uses them only to name the people in your calls.";
 "Sozvon перестанет узнавать собеседников и тебя по голосу. Свой голос можно будет записать заново." = "Sozvon will stop recognizing other people and you by voice. You can record your own voice again.";
+
+/* Settings, Assistants: the shared MCP server for Claude Code, Codex and Cursor. */
+"Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого компьютера." = "The assistant can search your calls and read summaries and transcripts: “what did we agree with the client last week?”. One shared server for all sessions, running while Sozvon is open. Data is read from this computer.";
+"Codex и Cursor на Windows ещё не проверены с настоящими программами: подключаются только по кнопке." = "Codex and Cursor have not been tried with the real programs on Windows yet: they are connected only when you press the button.";
+"Не получилось разобрать %@. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn’t read %@. Add Sozvon by hand: the Copy button below.";
+"Программа ассистента не найдена" = "The assistant’s program wasn’t found";
+
+/* Settings, phone recordings folder. */
+"Новая запись в этой папке расшифруется сама, а файл перейдёт в подпапку Imported. Подойдёт папка, куда телефон сохраняет записи: iCloud Drive, OneDrive или Google Drive." = "A new recording in this folder is transcribed on its own, and the file moves to the Imported subfolder. Any folder your phone saves recordings to will do: iCloud Drive, OneDrive or Google Drive.";
+
+/* Settings, open at sign-in. */
+"Выключено в диспетчере задач. Если включить здесь, Sozvon снова будет запускаться." = "Turned off in Task Manager. Turn it on here and Sozvon starts again at sign-in.";
+"Не получилось изменить автозапуск: %@" = "Couldn’t change opening at sign-in: %@";
+
+/* Settings, Cloud: the own server. */
+"Поставить сервер в один клик пока можно только с Mac. Здесь укажи адрес и пароль сервера, который уже есть." = "Setting up the server in one click is only on the Mac for now. Here, enter the address and password of a server you already have.";
+"Отпечатки голосов относятся к биометрическим данным. Когда включено, они хранятся в твоём аккаунте Cloudflare, и отвечаешь за них ты. Если выключить, они останутся только на этом компьютере, а уже отправленные пробудут на сервере, пока их не удалить." = "Voice prints are biometric data. When this is on, they are stored in your Cloudflare account, and you are responsible for them. If you turn it off, they stay only on this computer, and the ones already sent remain on the server until you delete them.";

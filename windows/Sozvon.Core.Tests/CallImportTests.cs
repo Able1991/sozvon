@@ -81,7 +81,7 @@ public class CallImportTests : TempFolders
     }
 
     /// <summary>16-bit mono PCM, 16 kHz, silence.</summary>
-    private static void WriteSilence(string path, int seconds)
+    internal static void WriteSilence(string path, int seconds)
     {
         const int rate = 16000;
         var data = rate * 2 * seconds;

@@ -21,8 +21,6 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
     [LibraryImport("user32.dll")]
     private static partial int GetSystemMetrics(int index);
 
-    private static string NotConnected => "\t" + L("пока не подключено");
-
     public void Start()
     {
         var size = GetSystemMetrics(SM_CXSMICON);
@@ -112,7 +110,12 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
             IsChecked = state.FloatingPanel,
             Command = new RelayCommand(() => host.SetFloatingPanel(!state.FloatingPanel)),
         });
-        AddStored(menu, "Открывать при входе", state.OpenAtSignIn);
+        Add(menu, new ToggleMenuFlyoutItem
+        {
+            Text = L("Открывать при входе"),
+            IsChecked = host.SignIn.IsOn,
+            Command = new RelayCommand(() => host.SignIn.IsOn = !host.SignIn.IsOn),
+        });
         AddSeparator(menu);
         AddAction(menu, "Настройки…", () => host.OpenWindow(AppPage.Settings));
         AddAction(menu, "Выход", host.Exit);
@@ -142,7 +145,4 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
 
     private static void AddAction(MenuFlyout menu, string key, Action action) =>
         Add(menu, new MenuFlyoutItem { Text = L(key), Command = new RelayCommand(action) });
-
-    private static void AddStored(MenuFlyout menu, string key, bool isChecked) =>
-        Add(menu, new ToggleMenuFlyoutItem { Text = L(key) + NotConnected, IsChecked = isChecked, IsEnabled = false });
 }

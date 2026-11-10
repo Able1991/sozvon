@@ -11,6 +11,10 @@ using Sozvon.App.Settings;
 using Sozvon.App.Strings;
 using Sozvon.App.Tray;
 using Sozvon.App.VoicePrints;
+using Sozvon.Core.Assistants;
+using Sozvon.Core.Engine;
+using Sozvon.Core.Server;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Shell;
 
@@ -27,11 +31,15 @@ public sealed class AppHost
     private readonly AppLanguage _startupLanguage;
     private readonly TrayViewModel _trayState;
     private readonly TrayController _tray;
+    private readonly EngineLayout _layout = new(AppPaths.DataDir, AppPaths.CallsDir);
+    private readonly McpServer _mcp;
+    private readonly ServerSync _server;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
     private RecordingController? _recording;
     private AudioCleanup? _cleanup;
+    private PhoneInboxWatcher? _phone;
     private int _retention;
 
     /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
@@ -43,6 +51,9 @@ public sealed class AppHost
 
     public EngineSettings EngineSettings => _engineSettings;
 
+    /// <summary>Open at sign-in: the Settings row and the tray menu share it.</summary>
+    public SignInSetting SignIn { get; } = new(Environment.ProcessPath!);
+
     private AppHost()
     {
         _engineSettings = new EngineSettings(_store.Settings, AppPaths.EnvFile);
@@ -52,6 +63,9 @@ public sealed class AppHost
         _trayState = new TrayViewModel(_repository, _store.Settings);
         _tray = new TrayController(this, _trayState);
         _tray.Start();
+        _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
+        _server = new ServerSync(SavedServer, url => OwnServer.CheckHealthAsync(url), (url, password) => OwnServer.AcceptsAsync(url, password),
+            onLine => ServerSyncScript.RunAsync(_layout, _engineSettings.Options(), onLine));
     }
 
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
@@ -78,6 +92,14 @@ public sealed class AppHost
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         recording.StateChanged += (_, _) => _tray.Refresh();
         recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
+        // A finished transcription goes to the own server, if one is set up.
+        recording.Processor.RunFinished += run => _dispatcher.TryEnqueue(() =>
+        {
+            if (run.Outcome.IsOk)
+            {
+                _ = _server.SyncAsync();
+            }
+        });
         recording.RemindToSay = () => _store.Settings.RemindToSay;
         recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
@@ -96,6 +118,11 @@ public sealed class AppHost
         _cleanup.Removed += (_, _) => _ = _calls?.RefreshAsync();
         _retention = _store.Settings.AudioRetention;
         _cleanup.Start();
+        _phone = new PhoneInboxWatcher(_store.Settings, _layout, _engineSettings, recording);
+        _phone.Problem += (_, text) => _tray.Notify(text);
+        _phone.Imported += (_, _) => _ = _calls?.RefreshAsync();
+        _phone.Start();
+        _mcp.Start();
         ApplyCapsuleTheme();
         ApplyFloatingPanel();
         _tray.Refresh();
@@ -115,7 +142,13 @@ public sealed class AppHost
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+            var setup = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+            if (setup is not null)
+            {
+                // A finished install brings the shared MCP server up; an engine update brings the new server.py.
+                setup.EnableRaisingEvents = true;
+                setup.Exited += (_, _) => _dispatcher.TryEnqueue(() => _ = _mcp.RestartAsync());
+            }
         }
         catch (System.ComponentModel.Win32Exception error)
         {
@@ -157,6 +190,7 @@ public sealed class AppHost
         {
             Log(error);
         }
+        _mcp.Stop();
         _tray.Dispose();
         _window?.CloseForExit();
         Application.Current.Exit();
@@ -187,12 +221,39 @@ public sealed class AppHost
     private MainWindow CreateWindow()
     {
         var voices = new VoiceStore(new Sozvon.Core.Engine.EngineLayout(AppPaths.DataDir, AppPaths.CallsDir), _engineSettings.Options);
-        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording, voices));
-        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
+        var actions = new CallActions(AppPaths.DataDir, _engineSettings, () => _recording, voices);
+        // Edits, notes and deletions reach the own server too; a run asked for while one goes is folded into one more.
+        actions.Changed += selected => _ = _server.SyncAsync();
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, actions);
+        var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
+        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn,
+            new ServerViewModel(_server, AppPaths.EnvFile));
         var profiles = Path.Combine(AppPaths.DataDir, "profiles");
         var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);
         var projects = new ProjectsPage(profiles, _repository, voices, () => _ = _calls.RefreshAsync());
         return new MainWindow(_calls, settings, projects, new VoicesPage(myVoice, profiles), myVoice);
+    }
+
+    private static ServerConfig SavedServer()
+    {
+        var values = SettingsValues.Load(AppPaths.EnvFile, detect: () => Assistant.None);
+        return new ServerConfig(values.ServerUrl, values.ServerPassword);
+    }
+
+    /// <summary>The port from SOZVON_MCP_PORT (a test run keeps off the real one) and the password of this data folder.</summary>
+    private static McpEndpoint McpEndpoint()
+    {
+        var port = Mcp.Port(Environment.GetEnvironmentVariable(Mcp.PortVariable));
+        try
+        {
+            return new McpEndpoint(port, Mcp.Token(AppPaths.DataDir));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // An unwritable data folder: a password for this run only; the assistants connect again after the fix.
+            Log(error);
+            return new McpEndpoint(port, Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+        }
     }
 
     private void OnSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

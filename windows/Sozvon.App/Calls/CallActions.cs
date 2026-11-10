@@ -5,6 +5,8 @@ using Sozvon.App.Strings;
 using Sozvon.App.VoicePrints;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
+using Sozvon.Core.Server;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Calls;
 
@@ -187,8 +189,28 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         {
             return Loc.L("Не получилось удалить звонок") + ": " + e.Message;
         }
+        var problem = ForgetOnServer(call);
         Changed?.Invoke(selectNext);
-        return null;
+        return problem;
+    }
+
+    /// <summary>Own server: the next sync deletes the call there too. Only calls deleted here are ever deleted there.</summary>
+    private string? ForgetOnServer(CallRecord call)
+    {
+        var values = SettingsValues.Load(Path.Combine(dataDir, ".env"), detect: () => Assistant.None);
+        if (!OwnServer.IsConfigured(values.ServerUrl, values.ServerPassword))
+        {
+            return null;
+        }
+        try
+        {
+            ServerLists.Add(Path.Combine(dataDir, ServerLists.DeletedFile), call.Id, DateTimeOffset.UtcNow);
+            return null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return Loc.L("Звонок в Корзине, но на сервере он останется") + ": " + e.Message;
+        }
     }
 
     private string? Edit(CallRecord call, Action edit, string notFound)

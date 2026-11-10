@@ -17,8 +17,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
+        ServerViewModel server)
     {
+        Server = server;
+        Integrations = integrations;
+        SignIn = signIn;
         _store = store;
         _engine = engine;
         _startupLanguage = startupLanguage;
@@ -30,6 +34,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     public AppSettings Settings => _store.Settings;
 
     public IRelayCommand RelaunchCommand { get; }
+
+    /// <summary>Claude Code, Codex and Cursor connected to the shared MCP server.</summary>
+    public IntegrationsViewModel Integrations { get; }
+
+    /// <summary>Open at sign-in, read from Windows each time.</summary>
+    public SignInSetting SignIn { get; }
+
+    /// <summary>The own server and its sync (the Cloud tab).</summary>
+    public ServerViewModel Server { get; }
 
     public int ThemeIndex
     {
@@ -117,6 +130,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string CallsFolder => AppPaths.CallsDir;
 
+    public string PhoneFolderText => Settings.PhoneFolder.Length > 0 ? Settings.PhoneFolder : Loc.L("Не выбрана");
+
+    public bool HasPhoneFolder => Settings.PhoneFolder.Length > 0;
+
+    /// <summary>The docs on recording in one tap with the iPhone shortcut, in the interface language.</summary>
+    public Uri PhoneShortcutDocs => new($"https://able1991.github.io/sozvon/docs.html#{(Loc.IsRussian ? "" : "en-")}phone-shortcut");
+
     public string DataFolder => AppPaths.DataDir;
 
     public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
@@ -139,6 +159,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(LanguageIndex));
             OnPropertyChanged(nameof(NeedsRelaunch));
+        }
+        else if (e.PropertyName == nameof(AppSettings.PhoneFolder))
+        {
+            OnPropertyChanged(nameof(PhoneFolderText));
+            OnPropertyChanged(nameof(HasPhoneFolder));
         }
         else if (e.PropertyName == nameof(AppSettings.CallStartAction))
         {

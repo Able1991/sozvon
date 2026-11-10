@@ -35,8 +35,6 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public bool FloatingPanel => _settings.FloatingPanel;
 
-    public bool OpenAtSignIn => _settings.OpenAtSignIn;
-
     public int WaitingForDescription { get; private set; }
 
     public string? LatestCallId { get; private set; }
