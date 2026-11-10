@@ -705,3 +705,17 @@ def test_only_a_guessed_number_of_voices_may_shrink(tmp_path, capsys, fakes, mon
     assert run.main([str(d), *args]) == 0
     assert seen["same"] is same
 
+
+def test_remote_lines_are_checked_against_saved_voices(tmp_path, capsys, fakes, monkeypatch):
+    """Only the other side's lines go to the check, and what it returns is what the transcript says."""
+    seen = {}
+
+    def refine(path, items, records, log, **kw):
+        seen["texts"] = [x[2] for x in items]
+        return [(s, e, text, "Евгений") for s, e, text, _ in items]
+    monkeypatch.setattr(run.voices, "refine_by_print", refine)
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "status": "recorded", "names": ["Алексей", "Евгений"]})
+    assert run.main([str(d)]) == 0
+    assert seen["texts"] == ["Бюджет согласован."]
+    assert "Евгений: Бюджет согласован." in (d / "transcript.txt").read_text(encoding="utf-8")
+

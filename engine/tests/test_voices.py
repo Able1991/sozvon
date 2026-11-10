@@ -556,6 +556,50 @@ def test_a_voice_recognized_by_its_print_is_never_merged(monkeypatch, fake_track
     assert who[2] == "Собеседник 3"  # like Anna, but not recognized as her
 
 
+# --- each long remote paragraph checked against the saved voices ---
+
+def refine(items, logs=None, **kw):
+    return voices.refine_by_print("s", items, voices.load_all(), (logs if logs is not None else []).append, **kw)
+
+
+def test_long_remote_lines_get_the_voice_they_sound_like(fake_track):
+    """One cluster that holds two people (diarization split by kind of speech, not by voice)."""
+    voices.store("Евгений", "acme", False, one_hot(10), 30)
+    voices.store("Алексей", "acme", False, one_hot(20), 30)
+    items = [(10, 16, "долгий рассказ", "Собеседник 2"), (20, 27, "другой рассказ", "Собеседник 2")]
+    logs = []
+    assert [w for *_, w in refine(items, logs)] == ["Евгений", "Алексей"]
+    assert logs
+
+
+def test_a_line_alike_to_both_voices_keeps_its_label(fake_track):
+    voices.store("Евгений", "acme", False, mix(10, 11, 0.8), 30)
+    voices.store("Алексей", "acme", False, mix(10, 12, 0.75), 30)
+    items = [(10, 16, "кто-то", "Собеседник 2")]
+    assert refine(items) == items
+
+
+def test_one_saved_voice_is_not_enough_to_relabel(fake_track):
+    voices.store("Алексей", "acme", False, one_hot(20), 30)
+    items = [(20, 27, "рассказ", "Собеседник 2")]
+    assert refine(items) == items
+
+
+def test_a_short_line_follows_the_nearest_long_line_of_its_label(fake_track):
+    voices.store("Евгений", "acme", False, one_hot(10), 30)
+    voices.store("Алексей", "acme", False, one_hot(20), 30)
+    items = [(10, 16, "рассказ", "Собеседник 2"), (16, 17, "ага", "Собеседник 2"), (40, 41, "далеко", "Собеседник 2")]
+    assert [w for *_, w in refine(items)] == ["Евгений", "Евгений", "Собеседник 2"]
+
+
+def test_the_users_own_voice_is_never_a_candidate(fake_track):
+    voices.store("Борис", "", True, one_hot(10), 30)
+    voices.store("Алексей", "acme", False, one_hot(20), 30)
+    voices.store("Евгений", "acme", False, one_hot(30), 30)
+    items = [(10, 16, "похоже на меня", "Собеседник 2")]
+    assert refine(items) == items
+
+
 def merged_system(monkeypatch, vectors, diar, **kw):
     logs = []
     monkeypatch.setattr(voices, "cluster_vectors", lambda path, d, known=None: {

@@ -186,6 +186,22 @@ def _voices_heard(d: Path, me: str, tracks: dict | None = None) -> int:
     return len(labels)
 
 
+def _check_remote_voices(items: list, first: int, system, spec, typed: list, log, recognized: set) -> list:
+    """The other side's lines checked one by one against the saved voices of the people who can be on the call
+    (voices.refine_by_print). With typed names, only their voices. Any failure keeps the labels."""
+    try:
+        records = voices.candidates(spec.profile, False, log)
+        if typed:
+            wanted = {n.casefold() for n in typed}
+            records = [r for r in records if r["name"].casefold() in wanted]
+        remote = voices.refine_by_print(system, items[first:], records, log)
+    except Exception as ex:  # noqa: BLE001  labels from diarization are still a transcript
+        log(t("log_voice_refine_failed", err=ex))
+        return items
+    recognized.update(w for *_, w in remote if any(w == r["name"] for r in records))
+    return items[:first] + remote
+
+
 def _marks(v) -> list:
     if not isinstance(v, list):
         return []
@@ -373,6 +389,8 @@ def arrange(spec: CallSpec, prof: dict, tracks: dict, segs: dict, settings: conf
         single_name=spec.me if spec.reflection else typed[0] if len(typed) == 1 and not smart else None, log=log,
         name_voices=name_voices, mic_people=None if spec.reflection or "mic" not in tracks else mic_people,
         same_voice=None if spec.speakers_given else lambda diar: voices.merge_same_voice(tracks["system"], diar, log, embedded))
+    if spec.diarize and not spec.reflection and "system" in tracks:
+        items = _check_remote_voices(items, len(mic) + len(mic_dead), tracks["system"], spec, typed, log, recognized)
     paras = render.merge(items)
     unnamed = paras
     known = {n.casefold() for n in recognized}

@@ -641,6 +641,58 @@ def _merge_similar(labels: list, vecs: dict, speech: dict, threshold: float = TH
     return {k: longest_of[root(k)] for k in labels}
 
 
+REFINE_SECONDS = 3.0      # a line this long is checked against the saved voices on its own
+REFINE_MATCH = 0.5        # cosine to the best voice (one person's lines in real calls: 0.57 to 0.88)
+REFINE_MARGIN = 0.15      # ahead of the second best voice (the other person in real calls: 0.2 to 0.46)
+REFINE_REACH = 10.0       # seconds: a short line takes the name of a checked line of its label this close
+
+
+def refine_by_print(path, items: list, records: list, log, min_seconds: float = REFINE_SECONDS,
+                    threshold: float = REFINE_MATCH, margin: float = REFINE_MARGIN) -> list:
+    """Remote lines [(start, end, text, label)] with each long line given the saved voice it clearly sounds like.
+
+    Diarization can put two people in one cluster (it sometimes splits by kind of speech, long turns against short
+    replies, not by voice). When two or more saved voices could be on the call, every line of min_seconds or more is
+    embedded and compared with them; a short line takes the name given to the nearest checked line of the same label.
+    Lines that match no voice clearly keep their label. records: the voices to compare with (the user's never)."""
+    prints: dict = {}
+    for r in records:
+        if r.get("me") or not is_current(r):
+            continue
+        prints.setdefault(r["name"], []).append(unit(np.array(r["embedding"])))
+    if len(prints) < 2:
+        return items
+    named: dict = {}
+    for i, (s, e, _text, _label) in enumerate(items):
+        if e - s < min_seconds:
+            continue
+        pieces = speech_of_spans(path, [(s, e)])
+        if seconds_of(pieces) < MIN_MATCH_SPEECH:
+            continue
+        vec = embed(pieces)
+        if vec is None:
+            continue
+        v = unit(vec)
+        scores = sorted(((max(float(v @ p) for p in ps), name) for name, ps in prints.items()), reverse=True)
+        if scores[0][0] >= threshold and scores[0][0] - scores[1][0] >= margin:
+            named[i] = scores[0][1]
+    out = list(items)
+    for i, name in named.items():
+        s, e, text, _ = items[i]
+        out[i] = (s, e, text, name)
+    for i, (s, e, text, label) in enumerate(items):
+        if i in named or e - s >= min_seconds:
+            continue
+        near = [(min(abs(s - items[j][1]), abs(items[j][0] - e)), n) for j, n in named.items() if items[j][3] == label]
+        near = [x for x in near if x[0] <= REFINE_REACH]
+        if near:
+            out[i] = (s, e, text, min(near)[1])
+    changed = sum(1 for a, b in zip(items, out) if a[3] != b[3])
+    if changed:
+        log(t("log_voice_refine", n=changed))
+    return out
+
+
 def merge_same_voice(path, diar: list, log, known: dict | None = None, threshold: float = SAME_VOICE) -> list:
     """The other side's diarization with one voice that was split in two put back together.
 
