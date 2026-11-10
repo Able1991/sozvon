@@ -153,18 +153,22 @@ public sealed class Call
     /// </summary>
     private void FillFromFolderName(string name, bool projectKnown)
     {
-        var hasProject = Info.Profile.Length > 0;
-        if (Topic.Length > 0 && (projectKnown || !hasProject)) return;
-        var (project, topic) = FolderNameParts(name, hasProject, Participants ?? TextRules.SplitList(Info.Names));
+        if (Topic.Length > 0 && (projectKnown || Info.Profile.Length == 0)) return;
+        var (project, topic) = FolderNameParts(name, Info.Profile, Participants ?? TextRules.SplitList(Info.Names));
         if (Topic.Length == 0) Topic = topic;
-        if (hasProject && !projectKnown && project.Length > 0) Project = project;
+        if (!projectKnown && project.Length > 0) Project = project;
     }
 
-    /// <summary>Project and topic from a name <see cref="CallFolderName"/> built; empty where the name has none.</summary>
-    internal static (string Project, string Topic) FolderNameParts(string name, bool hasProject, IReadOnlyList<string> people)
+    /// <summary>
+    /// Project and topic from a name <see cref="CallFolderName"/> built; empty where the name has none. The first part
+    /// is the project only when it reads as the call's project slug ("Velo Rent" for "velorent").
+    /// </summary>
+    internal static (string Project, string Topic) FolderNameParts(string name, string slug, IReadOnlyList<string> people)
     {
+        static string Key(string s) => Calls.Project.Slugify(s).Replace("-", "", StringComparison.Ordinal);
         var parts = name.Split(Dot).Skip(1).ToList();
-        var project = hasProject && parts.Count > 0 ? parts[0] : "";
+        var hasProject = slug.Length > 0 && parts.Count > 0 && Key(slug).StartsWith(Key(parts[0]), StringComparison.Ordinal);
+        var project = hasProject ? parts[0] : "";
         var rest = parts.Skip(hasProject ? 1 : 0).ToList();
         var names = TextRules.ShortPeople(people.Where(n => n.Trim().Length > 0).ToList(), 3);
         if (rest.Count > 0 && names.Length > 0 && rest[^1] == names) rest.RemoveAt(rest.Count - 1);

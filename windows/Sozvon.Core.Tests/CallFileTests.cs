@@ -294,9 +294,12 @@ public class CallModelTests : TempFolders
     [Fact]
     public void FolderNamePartsSkipThePeople()
     {
-        Assert.Equal(("Acme", ""), Call.FolderNameParts("2026-11-07 22-14 · Acme · Анна, Иван", true, ["Анна", "Иван"]));
-        Assert.Equal(("", "запуск"), Call.FolderNameParts("2026-11-07 22-14 · запуск · Анна", false, ["Анна"]));
-        Assert.Equal(("", ""), Call.FolderNameParts("2026-11-07 22-14-2", false, []));
+        Assert.Equal(("Acme", ""), Call.FolderNameParts("2026-11-07 22-14 · Acme · Анна, Иван", "acme", ["Анна", "Иван"]));
+        Assert.Equal(("Velo Rent", "прокат"), Call.FolderNameParts("2026-11-07 22-14 · Velo Rent · прокат", "velorent-2", []));
+        Assert.Equal(("", "запуск"), Call.FolderNameParts("2026-11-07 22-14 · запуск · Анна", "", ["Анна"]));
+        // A project this computer didn't know when the folder was named is not in the name: the first part is the topic.
+        Assert.Equal(("", "запуск"), Call.FolderNameParts("2026-11-07 22-14 · запуск · Анна", "acme", ["Анна"]));
+        Assert.Equal(("", ""), Call.FolderNameParts("2026-11-07 22-14-2", "", []));
     }
 
     [Fact]
