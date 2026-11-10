@@ -182,6 +182,7 @@ public sealed class OwnServerTests : TempFolders
         RealEngine.RequirePython();
         foreach (var name in new[] { ".venv", "sozvon_engine", "bin" })
             RealEngine.Junction(Path.Combine(Data, name), Path.Combine(RealEngine.Install, name));
+        MarkInstalled();
         using var stub = new StubHttpServer(r => (r.Method, r.Path) switch
         {
             ("GET", "/api/health") => (200, Health),

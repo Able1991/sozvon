@@ -129,7 +129,7 @@ public sealed partial class ProjectsPage : UserControl
 
     private async Task EditAsync(Project project)
     {
-        var dialog = new ProjectEditorDialog(project, _profiles, _voices, ActualTheme) { XamlRoot = XamlRoot };
+        var dialog = new ProjectEditorDialog(project, _profiles, _voices, Dialogs.ThemeOf(XamlRoot)) { XamlRoot = XamlRoot };
         await dialog.ShowAsync();
         if (dialog.Saved is { } saved)
         {
