@@ -552,12 +552,15 @@ func capsuleFastDrag(_ app: TestApp) {
     let move = CGVector(dx: 400, dy: 200)
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)?.post(tap: .cghidEventTap)
     usleep(40_000)
-    for i in 1...3 {
-        let t = CGFloat(i) / 3
+    // Six steps 8 ms apart: the pointer is out of the capsule after the first one. Then the hand stops and
+    // holds before letting go, as a person does.
+    for i in 1...6 {
+        let t = CGFloat(i) / 6
         CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
                 mouseCursorPosition: CGPoint(x: start.x + move.dx * t, y: start.y + move.dy * t), mouseButton: .left)?.post(tap: .cghidEventTap)
         usleep(8_000)
     }
+    usleep(150_000)
     CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
             mouseCursorPosition: CGPoint(x: start.x + move.dx, y: start.y + move.dy), mouseButton: .left)?.post(tap: .cghidEventTap)
     wait(1.5)
