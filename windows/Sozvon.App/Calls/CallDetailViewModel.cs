@@ -51,7 +51,7 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         Banner = MakeBanner(call, actions, Rows.Count > 0, Blocks.Count > 0);
         TranscriptPath = Path.Combine(call.Folder, "transcript.md");
         LogPath = Path.Combine(call.Folder, "process.log");
-        DiskSize = call.IsDemo ? "" : Loc.L("На диске: %@", FormatSize(FolderBytes(call.Folder)));
+        DiskSize = call.IsDemo ? "" : Loc.L("На диске: %@", CallFormat.Size(FolderBytes(call.Folder)));
     }
 
     public CallRecord Call { get; }
@@ -229,6 +229,7 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         var summary = new FileInfo(Path.Combine(folder, "summary.md"));
         return transcript.Exists && summary.Exists && (transcript.LastWriteTimeUtc - summary.LastWriteTimeUtc).TotalSeconds > 2;
     }
+
     private static long FolderBytes(string folder)
     {
         try
@@ -239,13 +240,5 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         {
             return 0;
         }
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        var megabytes = bytes / 1_048_576.0;
-        return megabytes >= 1024
-            ? (megabytes / 1024).ToString("0.0", Loc.Culture) + (Loc.IsRussian ? " ГБ" : " GB")
-            : megabytes.ToString("0", Loc.Culture) + (Loc.IsRussian ? " МБ" : " MB");
     }
 }

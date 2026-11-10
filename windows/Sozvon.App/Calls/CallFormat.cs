@@ -19,6 +19,15 @@ public static class CallFormat
         return Loc.IsRussian ? $"{minutes / 60} ч {minutes % 60:00} мин" : $"{minutes / 60} h {minutes % 60:00} min";
     }
 
+    /// <summary>"37 МБ", "1,2 ГБ".</summary>
+    public static string Size(long bytes)
+    {
+        var megabytes = bytes / 1_048_576.0;
+        return megabytes >= 1024
+            ? (megabytes / 1024).ToString("0.0", Loc.Culture) + (Loc.IsRussian ? " ГБ" : " GB")
+            : megabytes.ToString("0", Loc.Culture) + (Loc.IsRussian ? " МБ" : " MB");
+    }
+
     public static string Clock(double seconds)
     {
         var time = TimeSpan.FromSeconds(Math.Max(0, seconds));

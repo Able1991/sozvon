@@ -88,6 +88,21 @@ public sealed partial class MainWindow : Window
         Activate();
     }
 
+    /// <summary>A question in this window: whether the destructive answer was chosen.</summary>
+    public async Task<bool> ConfirmAsync(string title, string text, string destructive)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot,
+            Title = title,
+            Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = destructive,
+            CloseButtonText = L("Отмена"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
     public void CloseForExit()
     {
         _allowClose = true;

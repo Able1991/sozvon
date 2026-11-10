@@ -25,10 +25,15 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         {
             return false;
         }
+        return call.IsQueued || IsBusyFolder(call.Folder);
+    }
+
+    /// <summary>Being recorded into, transcribed or waiting in the queue.</summary>
+    public bool IsBusyFolder(string folder)
+    {
         var controller = recording();
-        return call.IsQueued
-            || controller?.Processor.Contains(call.Folder) == true
-            || (controller?.RecordingDirectory is { } dir && SameFolder(dir, call.Folder));
+        return controller?.Processor.Contains(folder) == true
+            || (controller?.RecordingDirectory is { } dir && SameFolder(dir, folder));
     }
 
     /// <summary>Busy here, or call.json says processing (a run Sozvon didn't start): the engine would overwrite an edit.</summary>
