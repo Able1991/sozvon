@@ -86,6 +86,9 @@ def transcribe(file_path: str, language: str = "ru", model: str = models.DEFAULT
     finally:
         if cleanup is not None:
             cleanup.unlink(missing_ok=True)
+        # The server lives as long as the app: a model left here is held until the app quits.
+        whisper.release_model()
+        diarize.unload()
 
 
 def list_models() -> str:

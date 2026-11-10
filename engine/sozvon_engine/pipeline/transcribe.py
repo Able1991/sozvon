@@ -74,6 +74,8 @@ def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | N
             lang, share = langid.detect_track(audio, allowed, det.probs)
             log(t("log_track_lang", track=key, lang=lang, share=share,
                   allowed=",".join(allowed) if allowed else t("all_languages")))
+            if not (switch and allowed and len(allowed) > 1):
+                audio = None   # only relabel needs it again; Whisper decodes the file itself
         langs[key] = lang
         log(t("log_transcribing", track=key))
         segs[key] = whisper_track(wav, model_path, lang, prompts, log)
@@ -83,5 +85,4 @@ def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | N
                 audio, segs[key], lang, allowed, det.probs,
                 lambda chunk, lg: retranscribe(chunk, model_path, lg, prompts))
             log(t("log_switched", track=key, n=n))
-    whisper.release_backend()
     return segs, langs

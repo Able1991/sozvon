@@ -59,6 +59,7 @@ the ones marked "manual" below):
 | `SOZVON_SUMMARY_MODEL` | Claude model for summaries, speaker naming and project discovery (default `sonnet`). Manual |
 | `SOZVON_LANGUAGE` | call languages: `ru`, `ru,en`, `auto` |
 | `SOZVON_LANG_SWITCH` | `1`: detect the language of each phrase |
+| `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `HF_ENDPOINT`, `UV_DEFAULT_INDEX`, `PIP_INDEX_URL`, `UV_PYTHON`, `UV_PYTHON_INSTALL_MIRROR`, `SOZVON_SYSTEM_CERTS` | corporate network, see the docs section "Corporate network". Only these keys are taken from `.env` by `setup.sh` and exported by `runtime.prepare()`; the environment wins. By default `setup.sh` runs uv with `UV_SYSTEM_CERTS=1` and the engine injects `truststore` (macOS Keychain); a certificate file or `SOZVON_SYSTEM_CERTS=0` turns that off in the engine. With a package index (also `index-url` from `pip.conf`) `setup.sh` installs the locked versions from `uv export` with hashes instead of `uv sync --frozen`. Manual |
 | `SOZVON_MODEL` | key from `models.json`: `turbo`, `large-v3`, `small`, `gigaam`, `parakeet` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |

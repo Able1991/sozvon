@@ -8,6 +8,10 @@ are up to the caller.
 from . import accel, audio, config, embed_onnx, paths
 
 PIPELINE = "pyannote/speaker-diarization-3.1"
+# Windows per pass through the models. pyannote's own 32 keep 4 GB on the GPU for a 75-minute track; 8 give
+# the same turns out of 1.3 GB, about a tenth slower (the allocator's watermark and emptying its cache between
+# batches change nothing: the memory is the batch itself).
+BATCH = 8
 _pipeline = None
 _pipeline_device = None
 
@@ -32,6 +36,7 @@ def load_pipeline():
     accel.apply_thread_limit()
     from pyannote.audio import Pipeline
     pipeline = Pipeline.from_pretrained(PIPELINE, token=settings.hf_token or None)
+    pipeline.embedding_batch_size = pipeline.segmentation_batch_size = BATCH
     _pipeline_device = accel.torch_device("diarize")
     pipeline.to(torch.device(_pipeline_device))
     if _pipeline_device == "cpu":
@@ -41,8 +46,9 @@ def load_pipeline():
 
 
 def _drop_pipeline() -> None:
-    global _pipeline
+    global _pipeline, _pipeline_device
     _pipeline = None
+    _pipeline_device = None
 
 
 def load_waveform(path) -> dict:
@@ -53,7 +59,23 @@ def load_waveform(path) -> dict:
     """
     import torch
     x = audio.decode(path)
-    return {"waveform": torch.from_numpy(x.copy()).unsqueeze(0), "sample_rate": audio.SR}
+    if not x.flags.writeable:     # torch wants its own memory only for what ffmpeg returned
+        x = x.copy()
+    return {"waveform": torch.from_numpy(x).unsqueeze(0), "sample_rate": audio.SR}
+
+
+def release_memory() -> None:
+    """Give back what torch keeps on the GPU for reuse (several GB after a long call): MPS on the Mac, CUDA on Windows."""
+    accel.release()
+
+
+def unload() -> None:
+    """Drop the pipeline once the voices are told apart: it loads again in seconds if needed, and until then
+    the summary and the listening file (or the next request to the MCP server) do not carry it."""
+    if _pipeline is None:         # never loaded: torch is not imported for nothing
+        return
+    _drop_pipeline()
+    release_memory()
 
 
 def run(path, num_speakers=None) -> list:
@@ -74,7 +96,11 @@ def run(path, num_speakers=None) -> list:
             _drop_pipeline()
             return attempt()
 
-    output = accel.with_cpu_fallback("diarize", work, drop=_drop_pipeline)
+    try:
+        output = accel.with_cpu_fallback("diarize", work, drop=_drop_pipeline)
+    finally:
+        wave = None               # the track itself, before the cache is given back
+        release_memory()
     # pyannote>=4 wraps the result in DiarizeOutput, older versions return an Annotation.
     annotation = getattr(output, "speaker_diarization", output)
     return [(turn.start, turn.end, label) for turn, _, label in annotation.itertracks(yield_label=True)]

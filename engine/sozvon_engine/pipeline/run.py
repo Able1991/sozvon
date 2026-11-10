@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 
-from .. import calls, config, jsonfile, langid, llm, models, paths, profiles, remote, voices, whisper
+from .. import calls, config, diarize, jsonfile, langid, llm, models, paths, profiles, remote, voices, whisper
 from .. import prompt as prompts
 from .. import vocab as vocabs
 from ..audio import FfmpegError, FfmpegMissing
@@ -255,7 +255,9 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
         segs, langs = transcribe_stage.transcribe_tracks(
             tracks, data_dir=data, model=spec.model, model_path=model_path, allowed=allowed,
             switch=spec.switch, prompts=prompt_set, log=log)
+        whisper.release_model()   # 1.5 GB the voices, the summary and the listening file do not need
         paras = arrange(spec, prof, tracks, segs, settings)
+        diarize.unload()
         people = names_stage.participants(paras, spec.me, spec.names)
         (d / "transcript.txt").write_text(render.render_txt(paras), encoding="utf-8")
         write_md(spec, paras, prof)
