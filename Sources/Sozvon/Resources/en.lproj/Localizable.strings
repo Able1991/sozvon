@@ -442,6 +442,7 @@
 "Подключить вручную" = "Connect Manually";
 "Скопировано" = "Copied";
 "Скопировать" = "Copy";
+"Скопировать раздел «%@»" = "Copy the “%@” Section";
 "Не установлен" = "Not installed";
 "Установлен" = "Installed";
 "Скачана" = "Downloaded";

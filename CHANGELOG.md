@@ -2,6 +2,7 @@
 
 ## 0.1.5
 
+- **Select and copy in the summary and the transcript.** Drag across lines, sections or paragraphs, ⌘A selects it all, ⌘C copies plain text: bullets as "• ", tasks as "- [ ] ", transcript lines as "[1:12] Anna: text". Each summary section has its own Copy button. In the transcript a plain click still plays from that paragraph; a drag, a double or a triple click selects.
 - **Saved voices check every long line.** When the people on a call have saved voices, each long line of the other side is compared with them and gets the name it clearly sounds like, even where speaker separation put two people under one label.
 - **One voice, one label.** A remote voice cut into two parts by speaker separation is put back together, for example when someone in the room is listed among the participants.
 - **Find inside a transcript.** ⌘F on the Transcript tab finds words in this call: every match is highlighted, Return and Shift-Return move between them. On the Summary tab, or with ⌥⌘F, it searches across all calls as before.
