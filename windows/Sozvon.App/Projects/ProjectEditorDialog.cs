@@ -25,9 +25,9 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
         Visibility = Visibility.Collapsed,
     };
-    private readonly TextBox _context = Multiline(L("О чём созвоны"), L("Инфраструктура видеоплатформы"), 3);
-    private readonly TextBox _people = Multiline(L("Люди"), L("Анна Петрова, Иван"), 4);
-    private readonly TextBox _terms = Multiline(L("Термины"), L("Kubernetes, HPA, стримкодер"), 5);
+    private readonly TextBox _context = Multiline(L("О чём созвоны"), L("Инфраструктура видеоплатформы"), 6);
+    private readonly TextBox _people = Multiline(L("Люди"), L("Анна Петрова, Иван"), 6);
+    private readonly TextBox _terms = Multiline(L("Термины"), L("Kubernetes, HPA, стримкодер"), 8);
     private readonly StackPanel _voiceList = new() { Spacing = 4 };
     private readonly InfoBar _voiceProblem = new() { IsClosable = false, Severity = InfoBarSeverity.Warning };
     private readonly InfoBar _saveProblem = new() { IsClosable = false, Severity = InfoBarSeverity.Error, Title = L("Не получилось сохранить проект") };
@@ -88,15 +88,25 @@ public sealed partial class ProjectEditorDialog : ContentDialog
 
     private bool IsNew => _project.Slug.Length == 0;
 
-    private static TextBox Multiline(string header, string placeholder, int lines) => new()
+    /// <summary>
+    /// Grows with its text from two lines up to <paramref name="lines"/> lines, then scrolls. The heights include the
+    /// header above the box (about 28 DIP) and the box's padding and border (about 16 DIP).
+    /// </summary>
+    private static TextBox Multiline(string header, string placeholder, int lines)
     {
-        Header = header,
-        PlaceholderText = placeholder,
-        AcceptsReturn = true,
-        TextWrapping = TextWrapping.Wrap,
-        MinHeight = 52,
-        MaxHeight = 32 + 20 * lines,
-    };
+        const double Chrome = 44, Line = 20;
+        var box = new TextBox
+        {
+            Header = header,
+            PlaceholderText = placeholder,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = Chrome + 2 * Line,
+            MaxHeight = Chrome + lines * Line,
+        };
+        ScrollViewer.SetVerticalScrollBarVisibility(box, ScrollBarVisibility.Auto);
+        return box;
+    }
 
     private static void AutomationName(TextBox box) =>
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, (string)box.Header);
@@ -148,38 +158,8 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         _voiceList.Children.Clear();
         foreach (var voice in voices)
         {
-            _voiceList.Children.Add(VoiceRow(voice));
+            _voiceList.Children.Add(ProjectVoiceRow.Create(voice, !_voices.IsBusy, () => Delete(voice)));
         }
-    }
-
-    private Grid VoiceRow(VoiceRecord voice)
-    {
-        var row = new Grid { ColumnSpacing = 8 };
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition());
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var icon = new FontIcon { Glyph = "\uE720", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
-        var name = new TextBlock { Text = voice.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        ToolTipService.SetToolTip(name, L("Голос сохранён"));
-        var delete = new Button
-        {
-            Content = new FontIcon { Glyph = "\uE74D", FontSize = 14 },
-            Padding = new Thickness(8),
-            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            BorderThickness = new Thickness(0),
-            IsEnabled = !_voices.IsBusy,
-            Flyout = Dialogs.ConfirmFlyout(L("Удалить голос «%@»?", voice.Name),
-                L("Sozvon перестанет узнавать этого человека по голосу. Голос снова сохранится, когда ты подпишешь его в расшифровке."),
-                L("Удалить"), () => Delete(voice)),
-        };
-        ToolTipService.SetToolTip(delete, L("Удалить голос"));
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(delete, L("Удалить голос «%@»", voice.Name));
-        Grid.SetColumn(name, 1);
-        Grid.SetColumn(delete, 2);
-        row.Children.Add(icon);
-        row.Children.Add(name);
-        row.Children.Add(delete);
-        return row;
     }
 
     private async void Delete(VoiceRecord voice)

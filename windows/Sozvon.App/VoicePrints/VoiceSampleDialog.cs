@@ -13,6 +13,7 @@ using Sozvon.Audio;
 using Sozvon.Audio.Sample;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Settings;
+using Windows.UI;
 using static Sozvon.App.Strings.Loc;
 using Path = System.IO.Path;
 
@@ -25,7 +26,8 @@ namespace Sozvon.App.VoicePrints;
 /// </summary>
 public sealed partial class VoiceSampleDialog : ContentDialog
 {
-    private const int Bars = 32;
+    // The capsule's wave: 4 DIP bars every 8 DIP, from 4 to 24 DIP high on a 32 DIP line.
+    private const int Bars = 28, BarWidth = 4, BarGap = 4, MinBar = 4, MaxBar = 24, WaveHeight = 32;
     private readonly VoiceStore _store;
     private readonly string _dataDir;
     private readonly string _name;
@@ -139,11 +141,11 @@ public sealed partial class VoiceSampleDialog : ContentDialog
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var wave = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3, Height = 24, VerticalAlignment = VerticalAlignment.Center };
+        var wave = new StackPanel { Orientation = Orientation.Horizontal, Spacing = BarGap, Height = WaveHeight, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAccessibilityView(wave, AccessibilityView.Raw);
         for (var i = 0; i < Bars; i++)
         {
-            _bars[i] = new Rectangle { Width = 3, Height = 2, RadiusX = 1.5, RadiusY = 1.5, VerticalAlignment = VerticalAlignment.Center };
+            _bars[i] = new Rectangle { Width = BarWidth, Height = MinBar, RadiusX = BarWidth / 2.0, RadiusY = BarWidth / 2.0, VerticalAlignment = VerticalAlignment.Center };
             wave.Children.Add(_bars[i]);
         }
         var limit = new TextBlock
@@ -208,18 +210,21 @@ public sealed partial class VoiceSampleDialog : ContentDialog
     {
         var elapsed = _recorder?.Elapsed ?? TimeSpan.Zero;
         PrimaryButtonText = IsRecording ? L("Остановить") : _problem.IsOpen ? L("Записать заново") : L("Записать");
-        IsPrimaryButtonEnabled = !_enrolling && (!IsRecording || elapsed >= VoiceSample.MinDuration);
+        // Stop works at any time while recording: a sample under the minimum is dropped with a message, as on the Mac.
+        IsPrimaryButtonEnabled = !_enrolling;
         _languageBar.IsEnabled = !IsRecording && !_enrolling;
         _saving.Visibility = _enrolling ? Visibility.Visible : Visibility.Collapsed;
         _dot.Fill = IsRecording ? new SolidColorBrush(Colors.Red) : Themed("ControlStrongFillColorDisabledBrush");
         _clock.Text = VoiceSample.Clock(elapsed);
         _clock.Foreground = IsRecording ? Themed("TextFillColorPrimaryBrush") : Secondary;
         AutomationProperties.SetName(_clock, L("Записано %@ из %@", VoiceSample.Clock(elapsed), VoiceSample.Clock(VoiceSample.MaxDuration)));
-        var fill = IsRecording ? Themed("AccentFillColorDefaultBrush") : Themed("ControlStrongFillColorDisabledBrush");
+        // The user's own voice is blue in the capsule's wave too; the line is dim until the recording starts.
+        var fill = IsRecording ? new SolidColorBrush(_theme == ElementTheme.Dark ? Color.FromArgb(255, 0x6C, 0xB8, 0xFF) : Color.FromArgb(255, 0x00, 0x67, 0xD4))
+            : Themed("ControlStrongFillColorDisabledBrush");
         for (var i = 0; i < Bars; i++)
         {
             _bars[i].Fill = fill;
-            _bars[i].Height = 2 + 22 * Math.Pow(_levels[i], 1.4);
+            _bars[i].Height = MinBar + (MaxBar - MinBar) * Math.Pow(_levels[i], 1.4);
         }
     }
 

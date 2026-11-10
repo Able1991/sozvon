@@ -6,58 +6,141 @@
     xmlns:calls="using:Sozvon.App.Calls"
     xmlns:projects="using:Sozvon.App.Projects"
     xmlns:s="using:Sozvon.App.Strings">
+    <UserControl.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style x:Key="CardHeader" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="CardText" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+        </Style>
+    </UserControl.Resources>
 
-    <Grid Padding="36,24,36,0" RowSpacing="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <Grid MaxWidth="1000" ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="2">
-                <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="{s:L K='Проекты'}" />
-                <TextBlock x:Name="Summary" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            </StackPanel>
-            <Button x:Name="NewButton" Grid.Column="1" VerticalAlignment="Center" Style="{ThemeResource AccentButtonStyle}" Click="OnNew"
-                    AutomationProperties.Name="{s:L K='Новый проект'}" ToolTipService.ToolTip="{s:L K='Новый проект'}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon FontSize="14" Glyph="&#xE710;" />
-                    <TextBlock Text="{s:L K='Новый проект'}" />
+        <!-- The list, as the calls page: one left edge, 12 DIP for the header, 8 for the list plus the 4 its items keep. -->
+        <Grid x:Name="ListPane" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid Margin="16,16,12,8" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{s:L K='Проекты'}" />
+                    <TextBlock x:Name="Summary" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
-            </Button>
+                <Button x:Name="NewButton" Grid.Column="1" VerticalAlignment="Center" Style="{ThemeResource AccentButtonStyle}" Click="OnNew"
+                        AutomationProperties.Name="{s:L K='Новый проект'}" ToolTipService.ToolTip="{s:L K='Новый проект'}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="14" Glyph="&#xE710;" />
+                        <TextBlock Text="{s:L K='Новый проект'}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <ListView x:Name="ProjectList" Grid.Row="1" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
+                      AutomationProperties.Name="{s:L K='Проекты'}" ItemsSource="{x:Bind Rows}" SelectionChanged="OnSelectionChanged"
+                      DoubleTapped="OnListDoubleTapped" ContainerContentChanging="OnContainerContentChanging">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="projects:ProjectRow">
+                        <Grid Padding="0,8" ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Ellipse Width="8" Height="8" Margin="0,7,0,0" VerticalAlignment="Top" Fill="{x:Bind calls:CallsPage.ProjectBrush(Slug)}" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}" TextWrapping="Wrap" />
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Text="{x:Bind Details}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
         </Grid>
 
-        <ListView x:Name="ProjectList" Grid.Row="1" MaxWidth="1000" Margin="-12,0" Padding="0,0,0,24" SelectionMode="Single"
-                  AutomationProperties.Name="{s:L K='Проекты'}" ItemsSource="{x:Bind Rows}"
-                  DoubleTapped="OnListDoubleTapped" ContainerContentChanging="OnContainerContentChanging">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="projects:ProjectRow">
-                    <Grid Padding="0,8" ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{x:Bind calls:CallsPage.ProjectBrush(Slug)}" />
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       Text="{x:Bind Details}" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+        <!-- The selected project: everything the editor holds, readable at full length, and its voices. -->
+        <ScrollViewer x:Name="DetailScroller" Grid.Column="1" Visibility="Collapsed">
+            <StackPanel MaxWidth="820" Padding="32,20,32,24" Spacing="12">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse x:Name="DetailDot" Width="12" Height="12" Margin="0,12,0,0" VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Spacing="2">
+                        <TextBlock x:Name="DetailTitle" Style="{StaticResource TitleTextBlockStyle}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                        <TextBlock x:Name="DetailMeta" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Margin="0,6,0,0" VerticalAlignment="Top" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="EditButton" Content="{s:L K='Изменить…'}" Click="OnEdit" />
+                        <Button x:Name="DeleteButton" Click="OnDelete" AutomationProperties.Name="{s:L K='Удалить…'}" ToolTipService.ToolTip="{s:L K='Удалить…'}">
+                            <FontIcon FontSize="14" Glyph="&#xE74D;" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
 
-        <StackPanel x:Name="EmptyState" Grid.Row="1" MaxWidth="420" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12" Visibility="Collapsed">
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardHeader}" Text="{s:L K='О чём созвоны'}" />
+                        <TextBlock x:Name="DetailContext" Style="{StaticResource CardText}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardHeader}" Text="{s:L K='Люди'}" />
+                        <TextBlock x:Name="DetailPeople" Style="{StaticResource CardText}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource CardHeader}" Text="{s:L K='Термины'}" />
+                        <TextBlock x:Name="DetailTerms" Style="{StaticResource CardText}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel Spacing="4">
+                        <TextBlock Style="{StaticResource CardHeader}" Text="{s:L K='Голоса'}" />
+                        <StackPanel x:Name="DetailVoices" Spacing="2" />
+                        <InfoBar x:Name="VoiceProblem" IsClosable="True" Severity="Warning" Title="{s:L K='Не получилось удалить голос'}" />
+                        <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                                   Text="{s:L K='Sozvon узнаёт этих людей по голосу в звонках проекта. Голос сохраняется, когда ты точно называешь собеседника в расшифровке.'}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel x:Name="NoSelection" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
             <FontIcon HorizontalAlignment="Center" FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE8B7;" />
-            <TextBlock HorizontalAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{s:L K='Проектов пока нет'}" />
-            <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{s:L K='Проект это команда и её слова: имена, продукты, термины. С ними расшифровка точнее, а саммари знает, о ком речь.'}" />
-            <Button HorizontalAlignment="Center" Content="{s:L K='Новый проект…'}" Click="OnNew" />
+            <TextBlock Style="{ThemeResource BodyLargeTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Выбери проект'}" />
         </StackPanel>
+
+        <!-- No projects at all: the whole page explains what a project is. -->
+        <Grid x:Name="EmptyState" Grid.ColumnSpan="2" Visibility="Collapsed">
+            <StackPanel MaxWidth="420" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <FontIcon HorizontalAlignment="Center" FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE8B7;" />
+                <TextBlock HorizontalAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{s:L K='Проектов пока нет'}" />
+                <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="{s:L K='Проект это команда и её слова: имена, продукты, термины. С ними расшифровка точнее, а саммари знает, о ком речь.'}" />
+                <Button HorizontalAlignment="Center" Style="{ThemeResource AccentButtonStyle}" Content="{s:L K='Новый проект…'}" Click="OnNew" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </UserControl>

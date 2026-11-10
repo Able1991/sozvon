@@ -56,7 +56,11 @@ public sealed partial class ProjectsPage : UserControl
         ProjectList.AddHandler(KeyDownEvent, new KeyEventHandler(OnListKeyDown), handledEventsToo: true);
         ProjectList.ContextFlyout = ListMenu();
         Loaded += OnLoaded;
-        Unloaded += (_, _) => StopWatching();
+        Unloaded += (_, _) =>
+        {
+            StopWatching();
+            _voices.Changed -= OnVoicesChanged;
+        };
     }
 
     public ObservableCollection<ProjectRow> Rows { get; } = [];
@@ -66,6 +70,8 @@ public sealed partial class ProjectsPage : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         StartWatching();
+        _voices.Changed += OnVoicesChanged;
+        _voices.Refresh();
         Reload();
         ProjectList.Focus(FocusState.Programmatic);
         await CountCallsAsync();
@@ -81,9 +87,11 @@ public sealed partial class ProjectsPage : UserControl
         {
             Rows.Add(new ProjectRow(project, Details(project)));
         }
-        ProjectList.SelectedItem = Rows.FirstOrDefault(r => r.Slug == select);
+        // The selected project stays selected; otherwise the first one, so the card is never empty for no reason.
+        ProjectList.SelectedItem = Rows.FirstOrDefault(r => r.Slug == select) ?? Rows.FirstOrDefault();
         EmptyState.Visibility = Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        ProjectList.Visibility = Rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ListPane.Visibility = Rows.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        ShowDetail();
         Summary.Text = Rows.Count == 0 ? "" : Count(_projects.Count, ("проект", "проекта", "проектов"), ("project", "projects"))
             + " · " + Count(Project.PeopleCount(_projects), ("человек", "человека", "человек"), ("person", "people"));
     }
@@ -153,6 +161,74 @@ public sealed partial class ProjectsPage : UserControl
     }
 
     private void OnNew(object sender, RoutedEventArgs e) => _ = EditAsync(new Project("", ""));
+
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => ShowDetail();
+
+    private void OnEdit(object sender, RoutedEventArgs e)
+    {
+        if (Selected is { } row)
+        {
+            _ = EditAsync(row.Project);
+        }
+    }
+
+    private void OnDelete(object sender, RoutedEventArgs e)
+    {
+        if (Selected is { } row)
+        {
+            _ = DeleteAsync(row.Project);
+        }
+    }
+
+    private void OnVoicesChanged(object? sender, EventArgs e) => ShowVoices();
+
+    /// <summary>The card of the selected project: its full title, what its calls are about, people, terms and voices.</summary>
+    private void ShowDetail()
+    {
+        var row = Selected;
+        DetailScroller.Visibility = row is null ? Visibility.Collapsed : Visibility.Visible;
+        NoSelection.Visibility = row is null && Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (row is null)
+        {
+            return;
+        }
+        var project = row.Project;
+        DetailDot.Fill = CallsPage.ProjectBrush(project.Slug);
+        DetailTitle.Text = project.Title;
+        DetailMeta.Text = row.Details;
+        DetailContext.Text = Or(project.Context);
+        DetailPeople.Text = Or(string.Join(", ", project.People));
+        DetailTerms.Text = Or(string.Join(", ", project.Terms));
+        VoiceProblem.IsOpen = false;
+        ShowVoices();
+        DetailScroller.ChangeView(null, 0, null, disableAnimation: true);
+    }
+
+    private static string Or(string text) => text.Length > 0 ? text : "—";
+
+    private void ShowVoices()
+    {
+        DetailVoices.Children.Clear();
+        if (Selected is not { } row)
+        {
+            return;
+        }
+        foreach (var voice in Sozvon.Core.Calls.Voices.ForProfile(_voices.Records, row.Slug))
+        {
+            DetailVoices.Children.Add(ProjectVoiceRow.Create(voice, !_voices.IsBusy, () => _ = DeleteVoiceAsync(voice)));
+        }
+        if (DetailVoices.Children.Count == 0)
+        {
+            DetailVoices.Children.Add(new TextBlock { Text = "—" });
+        }
+    }
+
+    private async Task DeleteVoiceAsync(VoiceRecord voice)
+    {
+        var outcome = await _voices.DeleteAsync(voice);
+        VoiceProblem.Message = outcome.Message;
+        VoiceProblem.IsOpen = !outcome.IsOk;
+    }
 
     private void OnListDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {

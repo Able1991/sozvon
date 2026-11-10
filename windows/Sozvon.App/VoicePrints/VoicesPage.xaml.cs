@@ -76,7 +76,7 @@ public sealed partial class VoicesPage : UserControl
         }
         VoiceList.SelectedItem = Rows.FirstOrDefault(r => r.Record.Id == selected);
         VoiceList.Visibility = Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Visibility = Rows.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        EmptyState.Visibility = Store.Records.Any(r => !r.Me) ? Visibility.Collapsed : Visibility.Visible;
         DeleteAllButton.IsEnabled = Rows.Count > 0 && !Store.IsBusy;
         Busy.IsActive = Store.IsBusy;
     }

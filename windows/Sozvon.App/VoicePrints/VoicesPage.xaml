@@ -63,8 +63,22 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <TextBlock x:Name="EmptyText" Margin="0,8" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
-                           Text="{s:L K='Пока нет: имена подставятся, когда ты подпишешь спикеров'}" />
+                <!-- No one else's voice yet: what a voice print does and how one gets saved. -->
+                <Border x:Name="EmptyState" Margin="0,8,0,0" Padding="24,20" CornerRadius="4"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                    <Grid ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon VerticalAlignment="Top" FontSize="32" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE716;" />
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{s:L K='Голосов собеседников пока нет'}" />
+                            <TextBlock TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Text="{s:L K='По сохранённому голосу Sozvon сам подписывает человека в следующих звонках. Голос сохраняется, когда ты точно называешь собеседника в расшифровке: «Переименовать говорящего…» или «Запомнить голос» в меню реплики, либо «Запомнить голоса» над расшифровкой.'}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
                 <TextBlock Style="{StaticResource Foot}" Margin="0,16,0,0"
                            Text="{s:L K='Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках.'}" />
             </StackPanel>
