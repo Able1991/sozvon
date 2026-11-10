@@ -88,7 +88,13 @@
                 </DropDownButton>
                 <DropDownButton Content="{s:L K='Ещё'}">
                     <DropDownButton.Flyout>
-                        <MenuFlyout>
+                        <MenuFlyout Opening="OnMoreOpening">
+                            <MenuFlyoutItem x:Name="FindItem" Text="{s:L K='Найти в расшифровке'}" KeyboardAcceleratorTextOverride="Ctrl+F" Click="OnFindItem">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE721;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator />
                             <MenuFlyoutItem x:Name="TranscribeItem" Click="OnRetranscribe" />
                             <MenuFlyoutItem x:Name="RemoveFromQueueItem" Text="{s:L K='Убрать из очереди'}" Click="OnRemoveFromQueue" />
                             <MenuFlyoutItem x:Name="ResummarizeItem" Text="{s:L K='Обновить саммари'}" Click="OnResummarize" />

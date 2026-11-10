@@ -31,7 +31,6 @@ public sealed partial class CallDetailView : UserControl
     public CallDetailView()
     {
         InitializeComponent();
-        FindBox.Loaded += (_, _) => RemoveClearButton(FindBox);
     }
 
     /// <summary>
@@ -112,10 +111,18 @@ public sealed partial class CallDetailView : UserControl
             return false;
         }
         FindBar.Visibility = Visibility.Visible;
+        // The bar starts collapsed, so the box gets its template only now.
+        FindBox.ApplyTemplate();
+        RemoveClearButton(FindBox);
         FindBox.Focus(FocusState.Keyboard);
         FindBox.SelectAll();
         return true;
     }
+
+    /// <summary>The menu shows the shortcut too, as the Mac's Edit menu does; it finds only on the Transcript tab.</summary>
+    private void OnMoreOpening(object? sender, object e) => FindItem.IsEnabled = ShowsTranscript;
+
+    private void OnFindItem(object sender, RoutedEventArgs e) => OpenFind();
 
     private void ShowCall(CallDetailViewModel call)
     {
