@@ -101,6 +101,9 @@ public sealed partial class CallDetailView : UserControl
     /// <summary>"Move to Recycle Bin" in the More menu: the page deletes it and picks the next call.</summary>
     public event EventHandler? TrashRequested;
 
+    /// <summary>"Undo delete" in the More menu: the page brings the last deleted call back.</summary>
+    public event EventHandler? UndoTrashRequested;
+
     public static string TaskGlyph(bool done) => done ? "" : "";
 
     /// <summary>Ctrl+F: the find bar on the Transcript tab. False on the Summary tab, where Ctrl+F searches all calls.</summary>
@@ -119,8 +122,12 @@ public sealed partial class CallDetailView : UserControl
         return true;
     }
 
-    /// <summary>The menu shows the shortcut too, as the Mac's Edit menu does; it finds only on the Transcript tab.</summary>
-    private void OnMoreOpening(object? sender, object e) => FindItem.IsEnabled = ShowsTranscript;
+    /// <summary>The menu shows the shortcuts too, as the Mac's Edit menu does; it finds only on the Transcript tab.</summary>
+    private void OnMoreOpening(object? sender, object e)
+    {
+        FindItem.IsEnabled = ShowsTranscript;
+        UndoTrashItem.Visibility = ViewModel?.Actions.CanUndoTrash == true ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void OnFindItem(object sender, RoutedEventArgs e) => OpenFind();
 
@@ -679,7 +686,25 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
-    private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke(this, EventArgs.Empty);
+    private void OnTrash(object sender, RoutedEventArgs e) => AfterMoreMenuCloses(() => TrashRequested?.Invoke(this, EventArgs.Empty));
+
+    private void OnUndoTrash(object sender, RoutedEventArgs e) => AfterMoreMenuCloses(() => UndoTrashRequested?.Invoke(this, EventArgs.Empty));
+
+    /// <summary>The card changes or goes away after these commands: the menu finishes closing first.</summary>
+    private void AfterMoreMenuCloses(Action action)
+    {
+        if (!MoreMenu.IsOpen)
+        {
+            action();
+            return;
+        }
+        void Once(object? sender, object e)
+        {
+            MoreMenu.Closed -= Once;
+            DispatcherQueue.TryEnqueue(() => action());
+        }
+        MoreMenu.Closed += Once;
+    }
 
     private void OnCopySummary(object sender, RoutedEventArgs e) => CopyText(ViewModel?.Summary);
 

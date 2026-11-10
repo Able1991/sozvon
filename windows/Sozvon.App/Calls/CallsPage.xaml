@@ -9,7 +9,7 @@
         <CollectionViewSource x:Name="GroupedCalls" IsSourceGrouped="True" />
     </UserControl.Resources>
 
-    <Grid>
+    <Grid x:Name="Root" KeyboardAcceleratorPlacementMode="Hidden">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="320" />
             <ColumnDefinition Width="*" />
@@ -19,6 +19,7 @@
         <Grid BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Background="Transparent"
               AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -40,7 +41,15 @@
                 <ProgressBar x:Name="ImportProgress" Margin="0,0,0,12" Maximum="1" />
             </InfoBar>
 
-            <ListView x:Name="CallList" Grid.Row="3" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
+            <!-- After Delete, for a few seconds: the call is in the Recycle Bin, "Вернуть" (or Ctrl+Z) brings it back. -->
+            <InfoBar x:Name="TrashBar" Grid.Row="3" Margin="12,0,12,8" IsClosable="False" Severity="Informational"
+                     Title="{s:L K='Звонок в Корзине'}" Visibility="Collapsed" Closed="OnTrashBarClosed">
+                <InfoBar.ActionButton>
+                    <Button x:Name="UndoTrashButton" Content="{s:L K='Вернуть'}" Click="OnUndoTrash" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+
+            <ListView x:Name="CallList" Grid.Row="4" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
                       ItemsSource="{x:Bind GroupedCalls.View, Mode=OneWay}"
                       SelectionChanged="OnCallSelected" KeyDown="OnListKeyDown">
                 <ListView.ItemTemplate>
@@ -105,12 +114,12 @@
                 </ListView.GroupStyle>
             </ListView>
 
-            <TextBlock Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center"
+            <TextBlock Grid.Row="4" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Text="{s:L K='Ничего не найдено'}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
         </Grid>
 
-        <calls:CallDetailView x:Name="Detail" Grid.Column="1" TrashRequested="OnTrashRequested" />
+        <calls:CallDetailView x:Name="Detail" Grid.Column="1" TrashRequested="OnTrashRequested" UndoTrashRequested="OnUndoTrashRequested" />
         <StackPanel x:Name="NoSelection" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
             <FontIcon HorizontalAlignment="Center" FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE717;" />
             <TextBlock Style="{ThemeResource BodyLargeTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"

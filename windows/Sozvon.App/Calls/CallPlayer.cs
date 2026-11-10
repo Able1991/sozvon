@@ -103,6 +103,10 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         _clock.Pause();
         foreach (var player in _players)
         {
+            // The player's own Dispose leaves the source, and with it the file, open: the Recycle Bin would refuse it.
+            var source = player.Source as MediaSource;
+            player.Source = null;
+            source?.Dispose();
             player.Dispose();
         }
     }
