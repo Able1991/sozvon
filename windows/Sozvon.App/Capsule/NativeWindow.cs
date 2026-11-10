@@ -9,7 +9,9 @@ internal static partial class NativeWindow
     private const long WS_EX_TOOLWINDOW = 0x00000080;
     private const long WS_EX_NOACTIVATE = 0x08000000;
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
-    private const int DWMWCP_ROUND = 2;
+    private const int DWMWCP_DONOTROUND = 1;
+    private const int DWMWA_BORDER_COLOR = 34;
+    private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
     private const uint WM_MOUSEACTIVATE = 0x0021;
     private const nint MA_NOACTIVATE = 3;
@@ -74,9 +76,12 @@ internal static partial class NativeWindow
         return point;
     }
 
-    public static void RoundCorners(nint hwnd)
+    /// <summary>The window draws its own shape: no system rounding and no system border around the transparent area.</summary>
+    public static void RemoveFrame(nint hwnd)
     {
-        var preference = DWMWCP_ROUND;
+        var preference = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+        var none = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref none, sizeof(int));
     }
 }

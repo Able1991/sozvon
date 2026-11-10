@@ -5,7 +5,8 @@ namespace Sozvon.App.Capsule;
 /// <summary>The capsule's strings, the same wording as the Mac app.</summary>
 internal static class CapsuleText
 {
-    private static readonly bool Russian = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru";
+    // The app's language from Settings, not the system's: read on every call, it is set once at startup.
+    private static bool Russian => Strings.Loc.IsRussian;
 
     private static string T(string ru, string en) => Russian ? ru : en;
 

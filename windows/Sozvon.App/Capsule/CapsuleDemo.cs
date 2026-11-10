@@ -11,6 +11,7 @@ internal sealed class CapsuleDemo
         ["starting"] = new(CapsulePhase.Starting),
         ["recording"] = new(CapsulePhase.Recording) { Elapsed = TimeSpan.FromSeconds(767), Marks = 0 },
         ["marked"] = new(CapsulePhase.Recording) { Elapsed = TimeSpan.FromSeconds(1283), Marks = 3 },
+        ["long"] = new(CapsulePhase.Recording) { Elapsed = new TimeSpan(1, 23, 45), Marks = 12 },
         ["stop"] = new(CapsulePhase.Recording) { Elapsed = TimeSpan.FromSeconds(1283), Hint = CapsuleHint.StopCountdown, HintTime = TimeSpan.FromSeconds(24) },
         ["tell"] = new(CapsulePhase.Recording) { Elapsed = TimeSpan.FromSeconds(4), Hint = CapsuleHint.TellOthers },
         ["mic"] = new(CapsulePhase.Recording) { Elapsed = TimeSpan.FromSeconds(800), Hint = CapsuleHint.MicSilent, HintTime = TimeSpan.FromSeconds(72) },
@@ -19,6 +20,8 @@ internal sealed class CapsuleDemo
         ["processing"] = new(CapsulePhase.Processing),
         ["prompt"] = new(CapsulePhase.Prompt) { CallApp = "Zoom" },
         ["auto"] = new(CapsulePhase.Prompt) { CallApp = "Zoom", AutoStartSeconds = 8 },
+        ["prompt-long"] = new(CapsulePhase.Prompt) { CallApp = "Microsoft Teams (work or school)" },
+        ["auto-long"] = new(CapsulePhase.Prompt) { CallApp = "Microsoft Teams (work or school)", AutoStartSeconds = 10 },
     };
 
     private readonly CapsuleWindow _window;

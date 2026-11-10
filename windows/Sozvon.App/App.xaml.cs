@@ -23,13 +23,18 @@ public partial class App : Application
             return;
         }
         Shell.AppHost.Start();
-        _capsule = new CapsuleWindow();
+        // The shape is still being chosen; --capsule-style shows the other variants.
+        _capsule = new CapsuleWindow(CapsuleStyle.Named(Argument("--capsule-style")));
         _capsule.PlaceDefault();
         var demoState = Argument("--capsule-state");
         if (demoState.Length > 0 || Environment.GetCommandLineArgs().Contains("--capsule-demo"))
         {
             Shell.AppHost.Current!.AttachDemo(_capsule);
             _capsule.ShowWithoutFocus();
+            if (Environment.GetCommandLineArgs().Contains("--capsule-hover"))
+            {
+                _capsule.ShowAsHovered();
+            }
             _demo = new CapsuleDemo(_capsule);
             _demo.Start(demoState);
             return;
