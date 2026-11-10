@@ -5,6 +5,7 @@ using Sozvon.App.Strings;
 using Sozvon.App.VoicePrints;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
+using Sozvon.Core.Foundation;
 using Sozvon.Core.Server;
 using Sozvon.Core.Settings;
 
@@ -23,6 +24,12 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
 
     /// <summary>Remembers speakers' voices with the engine.</summary>
     public VoiceStore Voices { get; } = voices;
+
+    /// <summary>The calls moved to the Recycle Bin in this run, for Ctrl+Z; the own server's lists follow them.</summary>
+    public CallTrash TrashBin { get; } = new(dataDir, new ShellRecycler(), () => HasServer(dataDir));
+
+    /// <summary>Whether there is a deleted call Ctrl+Z would bring back.</summary>
+    public bool CanUndoTrash => TrashBin.CanUndo;
 
     /// <summary>Calls whose "Names right?" bar got "Not now", while the app runs.</summary>
     public HashSet<string> VoicesDismissed { get; } = [];
@@ -170,8 +177,11 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         return problems;
     }
 
-    /// <summary>Moves the call's folder to the Recycle Bin, as on the Mac without asking. The reason it didn't, or null.</summary>
-    public string? Trash(CallRecord call, string? selectNext)
+    /// <summary>
+    /// Moves the call's folder to the Recycle Bin, as on the Mac without asking. The reason it didn't, or null. The
+    /// shell does the moving on its own thread: it pumps messages while it works, which must not re-enter the UI.
+    /// </summary>
+    public async Task<string?> TrashAsync(CallRecord call, string? selectNext)
     {
         if (call.IsDemo || call.Folder.Length == 0)
         {
@@ -181,36 +191,48 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         {
             return Loc.L("Звонок сейчас записывается или расшифровывается");
         }
+        Exception? serverProblem;
         try
         {
-            RecycleBin.Move(call.Folder);
+            // Own server: the next sync deletes the call there too. Only calls deleted here are ever deleted there.
+            serverProblem = await Task.Run(() => TrashBin.Trash(call.Id, call.Folder));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return Loc.L("Не получилось удалить звонок") + ": " + e.Message;
         }
-        var problem = ForgetOnServer(call);
         Changed?.Invoke(selectNext);
-        return problem;
+        return serverProblem is null ? null : Loc.L("Звонок в Корзине, но на сервере он останется") + ": " + serverProblem.Message;
     }
 
-    /// <summary>Own server: the next sync deletes the call there too. Only calls deleted here are ever deleted there.</summary>
-    private string? ForgetOnServer(CallRecord call)
+    /// <summary>
+    /// Ctrl+Z: the last deleted call back from the Recycle Bin to where it was. The id of the call that is back, to
+    /// select it, and the reason it is not (or a warning about its copy on the server), or null.
+    /// </summary>
+    public async Task<(string? RestoredId, string? Problem)> UndoTrashAsync()
     {
-        var values = SettingsValues.Load(Path.Combine(dataDir, ".env"), detect: () => Assistant.None);
-        if (!OwnServer.IsConfigured(values.ServerUrl, values.ServerPassword))
+        if (!TrashBin.CanUndo)
         {
-            return null;
+            return (null, null);
         }
+        TrashedCall call;
+        Exception? serverProblem;
         try
         {
-            ServerLists.Add(Path.Combine(dataDir, ServerLists.DeletedFile), call.Id, DateTimeOffset.UtcNow);
-            return null;
+            (call, serverProblem) = await Task.Run(TrashBin.Undo);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return Loc.L("Звонок в Корзине, но на сервере он останется") + ": " + e.Message;
+            return (null, Loc.L("Не получилось вернуть звонок") + ": " + e.Message);
         }
+        Changed?.Invoke(call.Id);
+        return (call.Id, serverProblem is null ? null : Loc.L("Звонок вернулся, но сервер может удалить его копию") + ": " + serverProblem.Message);
+    }
+
+    private static bool HasServer(string dataDir)
+    {
+        var values = SettingsValues.Load(Path.Combine(dataDir, ".env"), detect: () => Assistant.None);
+        return OwnServer.IsConfigured(values.ServerUrl, values.ServerPassword);
     }
 
     private string? Edit(CallRecord call, Action edit, string notFound)

@@ -8,6 +8,10 @@
 "Как в системе" = "Use system setting";
 "Показать в проводнике" = "Show in File Explorer";
 "Удалить в корзину" = "Move to Recycle Bin";
+"Отменить удаление" = "Undo delete";
+"Звонок в Корзине" = "The call is in the Recycle Bin";
+"Не получилось вернуть звонок" = "Couldn’t bring the call back";
+"Звонок в Корзине, но на сервере он останется" = "The call is in the Recycle Bin, but it will stay on the server";
 "Решения" = "Decisions";
 "Открытые вопросы" = "Open questions";
 "%d из %d" = "%d of %d";

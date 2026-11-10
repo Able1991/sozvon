@@ -99,7 +99,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
     public void Dispose() => Detail?.Dispose();
 
     /// <summary>The opened call to the Recycle Bin; the next one in the list is selected, as in Mail.</summary>
-    public string? TrashSelected()
+    public async Task<string?> TrashSelectedAsync()
     {
         if (SelectedRow?.Call is not { } call)
         {
@@ -109,12 +109,23 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         var at = rows.FindIndex(r => r.Call.Id == call.Id);
         var next = at + 1 < rows.Count ? rows[at + 1] : at > 0 ? rows[at - 1] : null;
         Detail?.Player.Dispose();
-        var error = Actions.Trash(call, next?.Call.Id);
+        var error = await Actions.TrashAsync(call, next?.Call.Id);
         if (error is not null)
         {
             _ = RefreshAsync(); // the call is still there: its card, with a new player
         }
         return error;
+    }
+
+    /// <summary>Ctrl+Z after a deletion: the call comes back from the Recycle Bin and is selected. The problem, or null.</summary>
+    public async Task<string?> UndoTrashAsync()
+    {
+        var (restoredId, problem) = await Actions.UndoTrashAsync();
+        if (restoredId is not null)
+        {
+            SelectCall(restoredId); // whatever the filter and the search say: it is the call just asked for
+        }
+        return problem;
     }
 
     private void ClearFilters()

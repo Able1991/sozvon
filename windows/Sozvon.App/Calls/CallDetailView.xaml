@@ -88,7 +88,7 @@
                 </DropDownButton>
                 <DropDownButton Content="{s:L K='Ещё'}">
                     <DropDownButton.Flyout>
-                        <MenuFlyout Opening="OnMoreOpening">
+                        <MenuFlyout x:Name="MoreMenu" Opening="OnMoreOpening">
                             <MenuFlyoutItem x:Name="FindItem" Text="{s:L K='Найти в расшифровке'}" KeyboardAcceleratorTextOverride="Ctrl+F" Click="OnFindItem">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE721;" />
@@ -104,6 +104,13 @@
                             <MenuFlyoutItem x:Name="TrashItem" Text="{s:L K='Удалить в корзину'}" Click="OnTrash">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE74D;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <!-- Only while a call deleted in this run can come back from the Recycle Bin. -->
+                            <MenuFlyoutItem x:Name="UndoTrashItem" Text="{s:L K='Отменить удаление'}" KeyboardAcceleratorTextOverride="Ctrl+Z"
+                                            Visibility="Collapsed" Click="OnUndoTrash">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE7A7;" />
                                 </MenuFlyoutItem.Icon>
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator x:Name="DiskSizeSeparator" />

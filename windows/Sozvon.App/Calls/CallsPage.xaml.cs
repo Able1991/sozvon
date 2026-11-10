@@ -2,10 +2,12 @@ using System.ComponentModel;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Sozvon.App.Shell;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
+using Windows.System;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Calls;
@@ -13,6 +15,12 @@ namespace Sozvon.App.Calls;
 public sealed partial class CallsPage : UserControl
 {
     private bool _importing;
+
+    /// <summary>A "could not delete / bring back" dialog is up; another one over it would take the app down.</summary>
+    private bool _problemShowing;
+
+    /// <summary>Hides "Звонок в Корзине" a few seconds after a deletion; Ctrl+Z keeps working after that.</summary>
+    private readonly DispatcherTimer _trashBarTimer = new() { Interval = TimeSpan.FromSeconds(6) };
 
     private static readonly Windows.UI.Color[] ProjectColors =
     [
@@ -33,6 +41,11 @@ public sealed partial class CallsPage : UserControl
         GroupedCalls.Source = ViewModel.Groups;
         RebuildProjectMenu();
         ShowDetail();
+        _trashBarTimer.Tick += (_, _) => HideTrashBar();
+        // Ctrl+Z anywhere on the page but in a text field, which keeps its own undo.
+        var undo = new KeyboardAccelerator { Key = VirtualKey.Z, Modifiers = VirtualKeyModifiers.Control };
+        undo.Invoked += OnUndoAccelerator;
+        Root.KeyboardAccelerators.Add(undo);
     }
 
     public CallsViewModel ViewModel { get; }
@@ -59,13 +72,83 @@ public sealed partial class CallsPage : UserControl
 
     private void OnTrashRequested(object? sender, EventArgs e) => Trash();
 
+    /// <summary>No confirmation, as in Finder: the call goes to the Recycle Bin and the bar offers to bring it back.</summary>
     private async void Trash()
     {
-        if (ViewModel.TrashSelected() is { } problem)
+        if (_problemShowing)
+        {
+            return;
+        }
+        var problem = await ViewModel.TrashSelectedAsync();
+        if (ViewModel.Actions.CanUndoTrash)
+        {
+            ShowTrashBar();
+        }
+        await ShowProblemAsync(problem);
+    }
+
+    /// <summary>
+    /// The reason a call could not be deleted or brought back. One at a time: a second ContentDialog over the first
+    /// is refused by XAML with an exception that would take the app down.
+    /// </summary>
+    private async Task ShowProblemAsync(string? problem)
+    {
+        if (problem is null || _problemShowing)
+        {
+            return;
+        }
+        _problemShowing = true;
+        try
         {
             await new ContentDialog { XamlRoot = XamlRoot, RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot), Title = problem, CloseButtonText = "OK" }.ShowAsync();
         }
+        finally
+        {
+            _problemShowing = false;
+        }
     }
+
+    private void OnUndoTrashRequested(object? sender, EventArgs e) => UndoTrash();
+
+    private void OnUndoTrash(object sender, RoutedEventArgs e) => UndoTrash();
+
+    /// <summary>Ctrl+Z: the last deleted call comes back, unless a text field has the focus and undoes its own typing.</summary>
+    private void OnUndoAccelerator(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (FocusManager.GetFocusedElement(XamlRoot) is TextBox or RichEditBox or AutoSuggestBox or PasswordBox || !ViewModel.Actions.CanUndoTrash)
+        {
+            return;
+        }
+        args.Handled = true;
+        UndoTrash();
+    }
+
+    private async void UndoTrash()
+    {
+        if (_problemShowing)
+        {
+            return;
+        }
+        HideTrashBar();
+        await ShowProblemAsync(await ViewModel.UndoTrashAsync());
+    }
+
+    private void ShowTrashBar()
+    {
+        _trashBarTimer.Stop();
+        TrashBar.Visibility = Visibility.Visible;
+        TrashBar.IsOpen = true;
+        _trashBarTimer.Start();
+    }
+
+    private void HideTrashBar()
+    {
+        _trashBarTimer.Stop();
+        TrashBar.IsOpen = false;
+        TrashBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void OnTrashBarClosed(InfoBar sender, InfoBarClosedEventArgs args) => HideTrashBar();
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
