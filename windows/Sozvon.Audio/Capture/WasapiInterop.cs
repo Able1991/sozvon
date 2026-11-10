@@ -52,7 +52,7 @@ internal class MMDeviceEnumeratorComObject;
 [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IMMDeviceEnumerator
 {
-    void EnumAudioEndpoints(EDataFlow flow, uint stateMask, out IntPtr devices);
+    void EnumAudioEndpoints(EDataFlow flow, uint stateMask, out IMMDeviceCollection devices);
 
     void GetDefaultAudioEndpoint(EDataFlow flow, ERole role, out IMMDevice device);
 
@@ -143,4 +143,65 @@ internal interface IAudioCaptureClient
 
     [PreserveSig]
     int GetNextPacketSize(out uint frames);
+}
+
+[ComImport, Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IMMDeviceCollection
+{
+    void GetCount(out uint count);
+
+    void Item(uint index, out IMMDevice device);
+}
+
+[ComImport, Guid("77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionManager2
+{
+    void GetAudioSessionControl(IntPtr sessionGuid, uint flags, out IntPtr control);
+
+    void GetSimpleAudioVolume(IntPtr sessionGuid, uint flags, out IntPtr volume);
+
+    void GetSessionEnumerator(out IAudioSessionEnumerator sessions);
+}
+
+[ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionEnumerator
+{
+    void GetCount(out int count);
+
+    void GetSession(int index, [MarshalAs(UnmanagedType.IUnknown)] out object session);
+}
+
+/// <summary>IAudioSessionControl and its extension in one: COM interop needs the base methods listed first.</summary>
+[ComImport, Guid("BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IAudioSessionControl2
+{
+    void GetState(out int state);
+
+    void GetDisplayName(IntPtr name);
+
+    void SetDisplayName(IntPtr name, IntPtr context);
+
+    void GetIconPath(IntPtr path);
+
+    void SetIconPath(IntPtr path, IntPtr context);
+
+    void GetGroupingParam(IntPtr grouping);
+
+    void SetGroupingParam(IntPtr grouping, IntPtr context);
+
+    void RegisterAudioSessionNotification(IntPtr events);
+
+    void UnregisterAudioSessionNotification(IntPtr events);
+
+    void GetSessionIdentifier(IntPtr id);
+
+    void GetSessionInstanceIdentifier(IntPtr id);
+
+    /// <summary>AUDCLNT_S_NO_SINGLE_PROCESS (a success code) still gives the process that created the session.</summary>
+    [PreserveSig]
+    int GetProcessId(out uint processId);
+
+    /// <summary>S_OK for the system sounds session, S_FALSE otherwise.</summary>
+    [PreserveSig]
+    int IsSystemSoundsSession();
 }

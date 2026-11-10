@@ -92,3 +92,8 @@
 "Не расшифровывать" = "Don’t transcribe";
 "Не удалось сохранить данные звонка" = "Couldn’t save the call data";
 "не скачана" = "not downloaded";
+
+/* Warnings during a recording, as notifications. */
+"Микрофон молчит, и переподключение не помогло. Проверь, какой микрофон выбран в параметрах Windows: Система, Звук, и не отключились ли наушники." = "The microphone is silent and reconnecting didn’t help. Check which microphone is selected in Windows Settings: System, Sound, and that your headphones are still connected.";
+"Звук собеседников не приходит, и переподключение не помогло. Если они говорят, проверь, что звук звонка идёт через этот компьютер, а не через телефон или другое устройство." = "No sound is coming from the other side and reconnecting didn’t help. If they are talking, check that the call’s sound plays on this computer, not on a phone or another device.";
+"Три минуты твой голос почти не слышен в микрофоне. Подними громкость входа или сядь ближе к компьютеру." = "For three minutes your voice has barely reached the microphone. Raise the input volume or sit closer to the computer.";

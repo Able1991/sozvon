@@ -88,6 +88,57 @@ public sealed class TrackRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task ANoticeForTheSameDefaultDeviceKeepsTheStream()
+    {
+        var (track, spool, _) = Create();
+        track.Prepare();
+        track.Step();
+        FakeEndpoint first = _devices.Endpoint;
+
+        _devices.NotifyDefaultChanged();
+        _now += 0.1;
+        track.Step();
+        Assert.Equal(1, first.Opened);
+        Assert.False(first.Disposed);
+        track.Release();
+        await spool.CloseAsync();
+    }
+
+    [Fact]
+    public async Task ANewDefaultThatWillNotOpenYetKeepsTheOldStreamUntilItDoes()
+    {
+        var (track, spool, wav) = Create();
+        track.Prepare();
+        _devices.Endpoint.Enqueue(frames: Rate, start: 1000.0, value: 0.5f);
+        _now = 1001.0;
+        track.Step();
+        FakeEndpoint first = _devices.Endpoint;
+
+        // The new headset is the default now but refuses the stream for a moment (it is still starting up).
+        _devices.SwitchDefault();
+        _devices.Available = false;
+        first.Enqueue(frames: Rate / 2, start: 1001.0, value: 0.25f);
+        _now = 1001.5;
+        track.Step();
+        Assert.False(first.Disposed);
+
+        _devices.Available = true;
+        _now = 1002.0;
+        track.Step();
+        Assert.False(first.Disposed);
+        _now = 1002.6;
+        track.Step();
+        Assert.True(first.Disposed);
+        track.Finish(1002.6);
+        track.Release();
+        await spool.CloseAsync();
+
+        float[] samples = ReadSamples(wav);
+        Assert.Equal(0.25f, samples[Rate + 10]);
+        Assert.Equal(0f, samples[(int)(1.5 * Rate) + 10]);
+    }
+
+    [Fact]
     public async Task ALostDeviceIsReopenedAndTheHoleIsFilled()
     {
         var (track, spool, wav) = Create();
@@ -215,10 +266,17 @@ public sealed class TrackRecorderTests : IDisposable
             DefaultChanged?.Invoke();
         }
 
+        /// <summary>Windows says the default changed although it is the same device (a role or format change).</summary>
+        public void NotifyDefaultChanged() => DefaultChanged?.Invoke();
+
         public string? DefaultDeviceId() => Available ? Endpoint.DeviceId : null;
 
-        public ICaptureEndpoint Open() =>
-            Available ? Endpoint : throw new EndpointUnavailableException("no device", accessDenied: true);
+        public ICaptureEndpoint Open()
+        {
+            if (!Available) throw new EndpointUnavailableException("no device", accessDenied: true);
+            Endpoint.Opened++;
+            return Endpoint;
+        }
 
         public void Dispose() { }
     }
@@ -234,6 +292,8 @@ public sealed class TrackRecorderTests : IDisposable
         public bool Disposed { get; private set; }
 
         public bool Lose { get; set; }
+
+        public int Opened { get; set; }
 
         public void Enqueue(int frames, double start, float value) => _packets.Enqueue((frames, start, value));
 

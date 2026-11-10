@@ -4,6 +4,8 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
+using Sozvon.App.Strings;
+using Sozvon.Core.Automation;
 using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
@@ -95,6 +97,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => Settings.CallLanguagesChoice = SpeechLanguages.Serialize(value);
     }
 
+    public string CallStartDescription => RecordsByItself
+        ? Loc.L("Через %@ секунд, на панели можно отменить или начать сразу", CallAutomation.StartCountdown)
+        : "Zoom, Google Meet, Telegram";
+
+    public string StopAfterCallDescription => Loc.L("Через %@ секунд после конца звонка, на панели можно продолжить", CallAutomation.StopGrace);
+
+    public string RecordingFooter => RecordsByItself
+        ? Loc.L("Запись начинается сама, когда приложение для звонков включает микрофон. Согласие собеседников на запись на тебе.")
+        : Loc.L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе.");
+
     public bool NeedsRelaunch => Settings.Language != _startupLanguage;
 
     public string SaveError => _store.SaveError;
@@ -108,6 +120,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string DataFolder => AppPaths.DataDir;
 
     public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
+
+    private bool RecordsByItself => CallAutomation.Mode(Settings.CallStartAction) == CallStartMode.Record;
 
     private void OnStoreChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -125,6 +139,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(LanguageIndex));
             OnPropertyChanged(nameof(NeedsRelaunch));
+        }
+        else if (e.PropertyName == nameof(AppSettings.CallStartAction))
+        {
+            OnPropertyChanged(nameof(CallStartDescription));
+            OnPropertyChanged(nameof(RecordingFooter));
         }
     }
 }
