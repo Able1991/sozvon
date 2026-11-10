@@ -2,6 +2,7 @@
 
 ## 0.1.5
 
+- **A long call no longer takes all the memory.** Processing a 75-minute call peaked at 17 GB and now stays near 4 GB, at the same speed and with the same result: echo removal, recognition and speaker separation each work in smaller pieces and give their memory back as soon as their stage is over. The MCP server no longer keeps the models loaded after a transcription.
 - **The capsule keeps up with a fast drag.** A quick flick during a recording no longer makes it jerk and jump back: macOS itself now moves the window with the pointer.
 - **Works on corporate networks.** The install and model downloads trust the certificates in the macOS Keychain, so a company HTTPS certificate no longer stops them with "UnknownIssuer". A package mirror (also the one in `pip.conf`), your own Python, a Hugging Face mirror, a proxy or a certificate file can be set in the engine `.env`. See "Corporate network" in the docs.
 - **Select and copy in the summary and the transcript.** Drag across lines, sections or paragraphs, ⌘A selects it all, ⌘C copies plain text: bullets as "• ", tasks as "- [ ] ", transcript lines as "[1:12] Anna: text". Each summary section has its own Copy button. In the transcript a plain click still plays from that paragraph; a drag, a double or a triple click selects.

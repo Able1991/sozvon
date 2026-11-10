@@ -8,6 +8,10 @@ are up to the caller.
 from . import audio, config, paths
 
 PIPELINE = "pyannote/speaker-diarization-3.1"
+# Windows per pass through the models. pyannote's own 32 keep 4 GB on the GPU for a 75-minute track; 8 give
+# the same turns out of 1.3 GB, about a tenth slower (the allocator's watermark and emptying its cache between
+# batches change nothing: the memory is the batch itself).
+BATCH = 8
 _pipeline = None
 
 
@@ -32,6 +36,7 @@ def load_pipeline():
         torch.set_num_threads(settings.threads)
     from pyannote.audio import Pipeline
     pipeline = Pipeline.from_pretrained(PIPELINE, token=settings.hf_token or None)
+    pipeline.embedding_batch_size = pipeline.segmentation_batch_size = BATCH
     pipeline.to(torch.device("mps" if torch.backends.mps.is_available() else "cpu"))
     _pipeline = pipeline
     return pipeline
@@ -45,14 +50,44 @@ def load_waveform(path) -> dict:
     """
     import torch
     x = audio.decode(path)
-    return {"waveform": torch.from_numpy(x.copy()).unsqueeze(0), "sample_rate": audio.SR}
+    if not x.flags.writeable:     # torch wants its own memory only for what ffmpeg returned
+        x = x.copy()
+    return {"waveform": torch.from_numpy(x).unsqueeze(0), "sample_rate": audio.SR}
+
+
+def release_memory() -> None:
+    """Give back what torch keeps on the GPU for reuse (several GB after a long call)."""
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+    except Exception:  # noqa: BLE001 - only a cache: never fail the call over it
+        pass
+
+
+def unload() -> None:
+    """Drop the pipeline once the voices are told apart: it loads again in seconds if needed, and until then
+    the summary and the listening file (or the next request to the MCP server) do not carry it."""
+    global _pipeline
+    if _pipeline is None:         # never loaded: torch is not imported for nothing
+        return
+    _pipeline = None
+    release_memory()
 
 
 def run(path, num_speakers=None) -> list:
     """-> [(start, end, raw_label)] who spoke when."""
     pipeline = load_pipeline()
-    wave = load_waveform(path)
-    output = pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
+    try:
+        wave = load_waveform(path)
+        try:
+            output = pipeline(wave, num_speakers=num_speakers) if num_speakers else pipeline(wave)
+        finally:
+            del wave              # the track itself, before the cache is given back
+    finally:
+        release_memory()
     # pyannote>=4 wraps the result in DiarizeOutput, older versions return an Annotation.
     annotation = getattr(output, "speaker_diarization", output)
     return [(turn.start, turn.end, label) for turn, _, label in annotation.itertracks(yield_label=True)]

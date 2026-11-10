@@ -135,10 +135,81 @@ def clean_texts(texts, replacements: list) -> list:
     return [apply_replacements(t, replacements) for t in texts if not is_noise(t)]
 
 
+# MLX keeps freed buffers for reuse and by default never gives them back: after Whisper on a 75-minute
+# track the process held 9.7 GB of cache next to a 1.5 GB model, until the end of the call. A small cache
+# keeps reuse for the decoding loop; what is left is cleared after each track.
+MLX_CACHE_LIMIT = 512 * 2**20
+MEL_FRAMES = 6000          # one minute of audio per piece of the spectrogram
+
+
+def log_mel(audio, n_mels: int = 80, padding: int = 0):
+    """mlx_whisper.audio.log_mel_spectrogram, the same values, built a minute at a time.
+
+    The library transforms the whole track in one expression: every 10 ms frame laid out as 400 samples, its
+    spectrum, the magnitudes and the mel bands are all alive at once, about 12 times the audio (3.5 GB for a
+    75-minute track, at the start of every transcription). Only the result has to be whole.
+    """
+    import mlx.core as mx
+    from mlx_whisper import audio as wa
+    if isinstance(audio, str):
+        audio = wa.load_audio(audio)
+    elif not isinstance(audio, mx.array):
+        audio = mx.array(audio)
+    if padding > 0:
+        audio = mx.pad(audio, (0, padding))
+    half = wa.N_FFT // 2
+    x = mx.concatenate([audio[1:half + 1][::-1], audio, audio[-(half + 1):-1][::-1]])   # reflect, as the library pads
+    mx.eval(x)
+    del audio
+    frames = (x.size - wa.N_FFT + wa.HOP_LENGTH) // wa.HOP_LENGTH - 1                    # the library drops the last
+    window, filters = wa.hanning(wa.N_FFT), wa.mel_filters(n_mels)
+    pieces = []
+    for a in range(0, frames, MEL_FRAMES):
+        n = min(MEL_FRAMES, frames - a)
+        piece = x[a * wa.HOP_LENGTH:(a + n - 1) * wa.HOP_LENGTH + wa.N_FFT]
+        piece = mx.as_strided(piece, shape=[n, wa.N_FFT], strides=[wa.HOP_LENGTH, 1])
+        piece = mx.maximum(mx.fft.rfft(piece * window).abs().square() @ filters.T, 1e-10).log10()
+        mx.eval(piece)
+        pieces.append(piece)
+    del x
+    spec = mx.concatenate(pieces) if pieces else mx.zeros((0, n_mels))
+    del pieces
+    spec = (mx.maximum(spec, spec.max() - 8.0) + 4.0) / 4.0
+    mx.eval(spec)
+    return spec
+
+
 def _transcribe(audio, **kw) -> dict:
-    """Test seam: the real mlx_whisper.transcribe call."""
+    """Test seam: the real mlx_whisper.transcribe call, with the MLX cache kept small and cleared after."""
+    import sys
+
+    import mlx.core as mx
     import mlx_whisper
-    return mlx_whisper.transcribe(audio, **kw)
+    mx.set_cache_limit(MLX_CACHE_LIMIT)
+    # mlx_whisper.transcribe is the function; the module of that name holds the spectrogram it calls.
+    sys.modules["mlx_whisper.transcribe"].log_mel_spectrogram = log_mel
+    try:
+        return mlx_whisper.transcribe(audio, **kw)
+    finally:
+        mx.clear_cache()
+
+
+def release_model() -> None:
+    """Drop the Whisper model mlx-whisper keeps for the next call (1.5 GB): the rest of a call (diarization,
+    voice prints) does not need it, and a later transcription loads it again in a second or two."""
+    import gc
+    import sys
+    mod = sys.modules.get("mlx_whisper.transcribe")
+    if mod is None:                      # Whisper was never loaded in this process
+        return
+    try:
+        mod.ModelHolder.model = None
+        mod.ModelHolder.model_path = None
+        gc.collect()
+        import mlx.core as mx
+        mx.clear_cache()
+    except Exception:  # noqa: BLE001 - memory only: never fail the call over it
+        pass
 
 
 def ensure_backend() -> None:
