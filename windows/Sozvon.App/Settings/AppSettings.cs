@@ -30,6 +30,9 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial bool TranscribeWhenClear { get; set; } = true;
     [ObservableProperty] public partial int AudioRetention { get; set; }
 
+    /// <summary>The folder the phone's recordings arrive in; empty: none is watched.</summary>
+    [ObservableProperty] public partial string PhoneFolder { get; set; } = "";
+
     [ObservableProperty] public partial WhisperModel? SpeechModelChoice { get; set; }
     [ObservableProperty] public partial string? CallLanguagesChoice { get; set; }
     [ObservableProperty] public partial bool? LanguageSwitchingChoice { get; set; }

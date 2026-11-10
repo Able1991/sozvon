@@ -27,12 +27,14 @@ public sealed class AppHost
     private readonly AppLanguage _startupLanguage;
     private readonly TrayViewModel _trayState;
     private readonly TrayController _tray;
+    private readonly EngineLayout _layout = new(AppPaths.DataDir, AppPaths.CallsDir);
     private readonly McpServer _mcp;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
     private RecordingController? _recording;
     private AudioCleanup? _cleanup;
+    private PhoneInboxWatcher? _phone;
     private int _retention;
 
     /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
@@ -53,7 +55,7 @@ public sealed class AppHost
         _trayState = new TrayViewModel(_repository, _store.Settings);
         _tray = new TrayController(this, _trayState);
         _tray.Start();
-        _mcp = new McpServer(new EngineLayout(AppPaths.DataDir, AppPaths.CallsDir), _engineSettings.Options, McpEndpoint());
+        _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
     }
 
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
@@ -98,6 +100,10 @@ public sealed class AppHost
         _cleanup.Removed += (_, _) => _ = _calls?.RefreshAsync();
         _retention = _store.Settings.AudioRetention;
         _cleanup.Start();
+        _phone = new PhoneInboxWatcher(_store.Settings, _layout, _engineSettings, recording);
+        _phone.Problem += (_, text) => _tray.Notify(text);
+        _phone.Imported += (_, _) => _ = _calls?.RefreshAsync();
+        _phone.Start();
         _mcp.Start();
         ApplyCapsuleTheme();
         ApplyFloatingPanel();

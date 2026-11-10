@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Sozvon.Core.Settings;
+using Windows.Storage.Pickers;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Settings;
@@ -57,6 +59,21 @@ public sealed partial class SettingsPage : UserControl
             _ = ViewModel.Integrations.RefreshServerAsync();
         }
     }
+
+    /// <summary>The system's folder picker, owned by this window.</summary>
+    private async void OnChoosePhoneFolder(object sender, RoutedEventArgs e)
+    {
+        var picker = new FolderPicker { SuggestedStartLocation = PickerLocationId.ComputerFolder };
+        picker.FileTypeFilter.Add("*");
+        var window = Win32Interop.GetWindowFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, window);
+        if (await picker.PickSingleFolderAsync() is { Path.Length: > 0 } folder)
+        {
+            ViewModel.Settings.PhoneFolder = folder.Path;
+        }
+    }
+
+    private void OnClearPhoneFolder(object sender, RoutedEventArgs e) => ViewModel.Settings.PhoneFolder = "";
 
     private async void OnAssistantAction(object sender, RoutedEventArgs e)
     {

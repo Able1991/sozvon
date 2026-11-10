@@ -115,3 +115,6 @@
 "Codex и Cursor на Windows ещё не проверены с настоящими программами: подключаются только по кнопке." = "Codex and Cursor have not been tried with the real programs on Windows yet: they are connected only when you press the button.";
 "Не получилось разобрать %@. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn’t read %@. Add Sozvon by hand: the Copy button below.";
 "Программа ассистента не найдена" = "The assistant’s program wasn’t found";
+
+/* Settings, phone recordings folder. */
+"Новая запись в этой папке расшифруется сама, а файл перейдёт в подпапку Imported. Подойдёт папка, куда телефон сохраняет записи: iCloud Drive, OneDrive или Google Drive." = "A new recording in this folder is transcribed on its own, and the file moves to the Imported subfolder. Any folder your phone saves recordings to will do: iCloud Drive, OneDrive or Google Drive.";

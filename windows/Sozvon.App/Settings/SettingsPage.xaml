@@ -101,9 +101,14 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.RecordingFooter, Mode=OneWay}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Записи с телефона'}" />
-                    <local:SettingsRow Header="{s:L K='Папка для записей'}" NotConnected="True">
-                        <Button Content="{s:L K='Выбрать папку…'}" IsEnabled="False" />
+                    <local:SettingsRow Header="{s:L K='Папка для записей'}" Description="{x:Bind ViewModel.PhoneFolderText, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="{s:L K='Убрать'}" Visibility="{x:Bind ViewModel.HasPhoneFolder, Mode=OneWay}" Click="OnClearPhoneFolder" />
+                            <Button Content="{s:L K='Выбрать папку…'}" Click="OnChoosePhoneFolder" />
+                        </StackPanel>
                     </local:SettingsRow>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Новая запись в этой папке расшифруется сама, а файл перейдёт в подпапку Imported. Подойдёт папка, куда телефон сохраняет записи: iCloud Drive, OneDrive или Google Drive.'}" />
+                    <HyperlinkButton Margin="-12,0,0,0" Padding="12,2" Content="{s:L K='Запись одним нажатием на iPhone'}" NavigateUri="{x:Bind ViewModel.PhoneShortcutDocs}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Разрешения'}" />
                     <local:SettingsRow Header="{s:L K='Микрофон'}">

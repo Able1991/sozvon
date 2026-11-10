@@ -121,6 +121,13 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string CallsFolder => AppPaths.CallsDir;
 
+    public string PhoneFolderText => Settings.PhoneFolder.Length > 0 ? Settings.PhoneFolder : Loc.L("Не выбрана");
+
+    public bool HasPhoneFolder => Settings.PhoneFolder.Length > 0;
+
+    /// <summary>The docs on recording in one tap with the iPhone shortcut, in the interface language.</summary>
+    public Uri PhoneShortcutDocs => new($"https://able1991.github.io/sozvon/docs.html#{(Loc.IsRussian ? "" : "en-")}phone-shortcut");
+
     public string DataFolder => AppPaths.DataDir;
 
     public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
@@ -143,6 +150,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(LanguageIndex));
             OnPropertyChanged(nameof(NeedsRelaunch));
+        }
+        else if (e.PropertyName == nameof(AppSettings.PhoneFolder))
+        {
+            OnPropertyChanged(nameof(PhoneFolderText));
+            OnPropertyChanged(nameof(HasPhoneFolder));
         }
         else if (e.PropertyName == nameof(AppSettings.CallStartAction))
         {
