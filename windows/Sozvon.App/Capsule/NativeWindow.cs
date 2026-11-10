@@ -132,9 +132,28 @@ internal static partial class NativeWindow
         DwmExtendFrameIntoClientArea(hwnd, ref glass);
     }
 
+    private const long WS_EX_LAYERED = 0x00080000, WS_EX_TRANSPARENT = 0x00000020;
+    private const uint LWA_ALPHA = 0x2;
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetLayeredWindowAttributes(nint hwnd, uint colorKey, byte alpha, uint flags);
+
+    /// <summary>Lets mouse input fall through to the window underneath; a layered window is required for it.</summary>
+    public static void SetClickThrough(nint hwnd, bool through)
+    {
+        var style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        style = through ? style | (nint)WS_EX_TRANSPARENT : style & ~(nint)WS_EX_TRANSPARENT;
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, style);
+    }
+
     /// <summary>The window draws its own shape: no system rounding and no system border around the transparent area.</summary>
     public static void RemoveFrame(nint hwnd)
     {
+        // Layered so that the shadow's margin can let clicks through (see SetClickThrough).
+        var layered = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, layered | (nint)WS_EX_LAYERED);
+        SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
         var preference = DWMWCP_DONOTROUND;
         DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
         var none = DWMWA_COLOR_NONE;

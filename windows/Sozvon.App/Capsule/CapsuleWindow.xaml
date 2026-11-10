@@ -120,6 +120,8 @@
             </MenuFlyout>
         </Grid.ContextFlyout>
 
+        <!-- The soft shadow is a composition drop shadow under the shape, in the transparent margin of the window. -->
+        <Grid x:Name="ShadowHost" IsHitTestVisible="False" />
         <Border x:Name="Shape" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
                 BorderBrush="{ThemeResource CapsuleStrokeBrush}" BorderThickness="1">
             <Border.OpacityTransition>

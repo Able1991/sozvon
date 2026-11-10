@@ -6,7 +6,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Shapes;
+using System.Numerics;
 using Windows.Foundation;
 using Windows.UI;
 using WinRT.Interop;
@@ -18,7 +20,9 @@ public sealed partial class CapsuleWindow : Window
 {
     private const int MinimumWidth = 96, Edge = 16;
     private const int BarsPerSide = 9, BarWidth = 4, BarStep = 8, SideGap = 12, WaveHeight = 32, MinBar = 4, MaxBar = 24;
-    private const double RestOpacity = 0.9;
+    /// <summary>Transparent room around the shape for its shadow: 16 DIP blur, 3 DIP down.</summary>
+    private const int ShadowSide = 16, ShadowTop = 12, ShadowBottom = 20;
+    private const float ShadowBlur = 16, ShadowDrop = 3;
     private const double VisualCentre = 20, TextEdge = 16;
     private static readonly TimeSpan Motion = TimeSpan.FromMilliseconds(167);
 
@@ -36,6 +40,13 @@ public sealed partial class CapsuleWindow : Window
     private readonly DispatcherTimer _hideFade = new() { Interval = Motion };
     private CapsuleModel _model = new(CapsulePhase.Idle);
     private Storyboard? _widthAnimation;
+    private readonly DispatcherTimer _pointerWatch = new() { Interval = TimeSpan.FromMilliseconds(50) };
+    private Microsoft.UI.Composition.LayerVisual? _shadowLayer;
+    private Microsoft.UI.Composition.ShapeVisual? _shadowShape;
+    private Microsoft.UI.Composition.CompositionRoundedRectangleGeometry? _shadowGeometry;
+    private Microsoft.UI.Composition.CompositionColorBrush? _shadowFill;
+    private Microsoft.UI.Composition.DropShadow? _shadow;
+    private bool? _clickThrough;
     private double _width;
     private bool _hovered;
     private bool _dragging;
@@ -82,8 +93,21 @@ public sealed partial class CapsuleWindow : Window
             _hideFade.Stop();
             Render(_model);
         };
-        Root.ActualThemeChanged += (_, _) => ApplyWaveColors();
-        Root.Loaded += (_, _) => DrawWave();
+        Root.Margin = new Thickness(ShadowSide, ShadowTop, ShadowSide, ShadowBottom);
+        Root.ActualThemeChanged += (_, _) =>
+        {
+            ApplyWaveColors();
+            ApplyShadowColors();
+        };
+        Root.Loaded += (_, _) =>
+        {
+            DrawWave();
+            BuildShadow();
+        };
+        // Layout, not SizeChanged: the width animation changes the size every frame and SizeChanged lags behind it.
+        Shape.LayoutUpdated += (_, _) => SizeShadow();
+        _pointerWatch.Tick += (_, _) => PassClicksOutsideShape();
+        _pointerWatch.Start();
         // A button shown for the first time gets its template during layout, after the first measure: fit again then.
         foreach (FrameworkElement part in Bar.Children)
         {
@@ -98,7 +122,6 @@ public sealed partial class CapsuleWindow : Window
     {
         AppWindow.Show(false);
         NativeWindow.ComposeWithBackground(_hwnd);
-        Shape.Opacity = _hovered ? 1 : RestOpacity;
     }
 
     public void ApplyTheme(ElementTheme theme) => Root.RequestedTheme = theme;
@@ -107,7 +130,6 @@ public sealed partial class CapsuleWindow : Window
     public void ShowAsHovered()
     {
         _hovered = true;
-        Shape.Opacity = 1;
         Render(_model);
     }
 
@@ -182,7 +204,8 @@ public sealed partial class CapsuleWindow : Window
     {
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         var width = Math.Max(1, AppWindow.Size.Width);
-        AppWindow.Move(new(area.X + (area.Width - width) / 2, area.Y + Edge));
+        var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
+        AppWindow.Move(new(area.X + (area.Width - width) / 2, area.Y + (int)Math.Round((Edge - ShadowTop) * scale)));
     }
 
     private void ApplyStyle()
@@ -387,10 +410,10 @@ public sealed partial class CapsuleWindow : Window
     private void ResizeWindow(double width)
     {
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
-        var pixels = (int)Math.Round(width * scale);
+        var pixels = (int)Math.Round((width + 2 * ShadowSide) * scale);
         var position = AppWindow.Position;
         var centre = position.X + AppWindow.Size.Width / 2;
-        AppWindow.MoveAndResize(new(centre - pixels / 2, position.Y, pixels, (int)Math.Round(_style.Height * scale)));
+        AppWindow.MoveAndResize(new(centre - pixels / 2, position.Y, pixels, (int)Math.Round((_style.Height + ShadowTop + ShadowBottom) * scale)));
     }
 
     private void BuildWave()
@@ -450,7 +473,6 @@ public sealed partial class CapsuleWindow : Window
 
     private void OnEntered(object sender, PointerRoutedEventArgs e)
     {
-        Shape.Opacity = 1;
         _hovered = true;
         Render(_model);
     }
@@ -461,7 +483,6 @@ public sealed partial class CapsuleWindow : Window
         {
             return;
         }
-        Shape.Opacity = RestOpacity;
         _hovered = false;
         Render(_model);
     }
@@ -496,6 +517,87 @@ public sealed partial class CapsuleWindow : Window
         }
         _dragging = false;
         Root.ReleasePointerCaptures();
+    }
+
+    /// <summary>A shadow as on Windows 11 flyouts: a rounded shape of the capsule's own colour casting a soft drop shadow.</summary>
+    private void BuildShadow()
+    {
+        if (_shadowLayer is not null)
+        {
+            return;
+        }
+        var compositor = ElementCompositionPreview.GetElementVisual(ShadowHost).Compositor;
+        _shadowGeometry = compositor.CreateRoundedRectangleGeometry();
+        _shadowGeometry.CornerRadius = new Vector2(_style.Radius);
+        _shadowFill = compositor.CreateColorBrush();
+        var sprite = compositor.CreateSpriteShape(_shadowGeometry);
+        sprite.FillBrush = _shadowFill;
+        _shadowShape = compositor.CreateShapeVisual();
+        _shadowShape.Shapes.Add(sprite);
+        _shadow = compositor.CreateDropShadow();
+        _shadow.BlurRadius = ShadowBlur;
+        _shadow.Offset = new Vector3(0, ShadowDrop, 0);
+        _shadowLayer = compositor.CreateLayerVisual();
+        _shadowLayer.Children.InsertAtTop(_shadowShape);
+        _shadowLayer.Shadow = _shadow;
+        ElementCompositionPreview.SetElementChildVisual(ShadowHost, _shadowLayer);
+        ApplyShadowColors();
+        SizeShadow();
+    }
+
+    private void SizeShadow()
+    {
+        if (_shadowLayer is null)
+        {
+            return;
+        }
+        // The visual hung under a XAML element works in physical pixels, not in DIP.
+        var scale = (float)(Root.XamlRoot?.RasterizationScale ?? 1);
+        var size = new Vector2((float)Shape.ActualWidth, (float)Shape.ActualHeight) * scale;
+        if (_shadowLayer.Size == size)
+        {
+            return;
+        }
+        _shadowLayer.Size = size;
+        _shadowShape!.Size = size;
+        _shadowGeometry!.Size = size;
+        _shadowGeometry.CornerRadius = new Vector2(_style.Radius * scale);
+        _shadow!.BlurRadius = ShadowBlur * scale;
+        _shadow.Offset = new Vector3(0, ShadowDrop * scale, 0);
+    }
+
+    private void ApplyShadowColors()
+    {
+        if (_shadow is null)
+        {
+            return;
+        }
+        var strength = Root.ActualTheme == ElementTheme.Dark ? 0.32 : 0.15;
+        // The strength goes into the colour: a layer visual's shadow ignores DropShadow.Opacity.
+        _shadow.Color = Color.FromArgb((byte)Math.Round(strength * 255), 0, 0, 0);
+        _shadowFill!.Color = Shape.Background is SolidColorBrush fill ? fill.Color : Colors.Transparent;
+    }
+
+    /// <summary>
+    /// The window is larger than the shape by the shadow's margin; clicks there belong to the window underneath,
+    /// so the window lets the mouse through whenever the pointer is not over the shape.
+    /// </summary>
+    private void PassClicksOutsideShape()
+    {
+        var cursor = NativeWindow.CursorPosition();
+        var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
+        var position = AppWindow.Position;
+        var size = AppWindow.Size;
+        var shapeWidth = Shape.ActualWidth * scale;
+        var left = position.X + (size.Width - shapeWidth) / 2;
+        var top = position.Y + ShadowTop * scale;
+        var over = cursor.X >= left && cursor.X < left + shapeWidth && cursor.Y >= top && cursor.Y < top + _style.Height * scale;
+        var through = !over && !_dragging;
+        if (_clickThrough != through)
+        {
+            _clickThrough = through;
+            NativeWindow.SetClickThrough(_hwnd, through);
+        }
     }
 
     private void OnHide(object sender, RoutedEventArgs e) => HideRequested?.Invoke(this, EventArgs.Empty);
