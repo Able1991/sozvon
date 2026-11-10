@@ -31,6 +31,38 @@ public sealed partial class CallDetailView : UserControl
     public CallDetailView()
     {
         InitializeComponent();
+        FindBox.Loaded += (_, _) => RemoveClearButton(FindBox);
+    }
+
+    /// <summary>
+    /// The find bar has its own close button and Esc; the text box's built-in clear cross next to it would be a second
+    /// cross. The template shows it through a visual state, so it is held at zero width rather than collapsed.
+    /// </summary>
+    private static void RemoveClearButton(TextBox box)
+    {
+        if (FindChild(box, "DeleteButton") is Button clear)
+        {
+            clear.MaxWidth = 0;
+            clear.IsTabStop = false;
+            clear.IsHitTestVisible = false;
+        }
+    }
+
+    private static DependencyObject? FindChild(DependencyObject parent, string name)
+    {
+        for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is FrameworkElement { Name: var childName } && childName == name)
+            {
+                return child;
+            }
+            if (FindChild(child, name) is { } found)
+            {
+                return found;
+            }
+        }
+        return null;
     }
 
     public CallDetailViewModel? ViewModel
