@@ -174,6 +174,16 @@
                     </Grid>
                 </StackPanel>
 
+                <InfoBar x:Name="VoiceNotice" IsClosable="False" Visibility="Collapsed" />
+
+                <!-- The transcript named people right: one click teaches Sozvon their voices for the next calls. -->
+                <InfoBar x:Name="VoicesBar" Title="{s:L K='Подписи верные?'}" Severity="Informational" IsClosable="True"
+                         CloseButtonClick="OnVoicesNotNow">
+                    <InfoBar.ActionButton>
+                        <Button x:Name="RememberVoicesButton" Content="{s:L K='Запомнить голоса'}" Style="{ThemeResource AccentButtonStyle}" Click="OnRememberVoices" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
+
                 <InfoBar x:Name="StatusBar" IsClosable="False" />
 
                 <!-- Notes come first: what the user wrote down matters more than what the model made of the call. -->

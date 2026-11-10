@@ -18,6 +18,23 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
 
     public bool CanTranscribe => recording() is not null;
 
+    /// <summary>Remembers speakers' voices with the engine.</summary>
+    public VoiceEnroller Voices { get; } = new(new EngineLayout(dataDir, Shell.AppPaths.CallsDir), engine.Options);
+
+    /// <summary>Calls whose "Names right?" bar got "Not now", while the app runs.</summary>
+    public HashSet<string> VoicesDismissed { get; } = [];
+
+    /// <summary>Learns the voices from the call, then the list and the card read the voices again.</summary>
+    public async Task RememberVoicesAsync(CallRecord call, IEnumerable<string> names, IReadOnlyCollection<VoiceRecord> records)
+    {
+        if (!call.HasAudio || IsEditLocked(call))
+        {
+            return;
+        }
+        await Voices.EnrollAsync(names, call.ProjectSlug, call.Folder, engine.Name, records);
+        Changed?.Invoke(null);
+    }
+
     /// <summary>Being recorded, transcribed or waiting for it: not deleted, transcribed again or edited.</summary>
     public bool IsBusy(CallRecord call)
     {

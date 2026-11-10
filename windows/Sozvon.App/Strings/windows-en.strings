@@ -18,6 +18,8 @@
 "Найти в расшифровке" = "Find in transcript";
 "Закрыть поиск" = "Close find";
 "Заметка удалена" = "Note deleted";
+"подробности в voice.log" = "the details are in voice.log";
+"Движок не установлен" = "The engine isn’t installed";
 "Импортируется «%@»…" = "Importing “%@”…";
 "Не все записи импортированы" = "Not every recording was imported";
 "этот формат не поддерживается" = "this format isn’t supported";

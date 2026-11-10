@@ -38,6 +38,7 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         var me = myName.Trim();
         var speakers = Core.Calls.Transcript.Lines(content.Transcript).Select(l => l.Speaker).ToList();
         Unsaved = Voices.Unsaved(speakers, call.ProjectSlug, voices, me);
+        VoiceRecords = voices;
         Rows = TranscriptRow.Parse(content.Transcript, Unsaved, me);
         Participants = Chips(call, speakers, me, voices, Unsaved);
         Notes = new ObservableCollection<NoteRow>(call.Notes.Select(Row));
@@ -64,6 +65,12 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     public string Meta { get; }
     public string Title => Call.Title;
     public IReadOnlyList<ParticipantChip> Participants { get; }
+
+    public IReadOnlyCollection<VoiceRecord> VoiceRecords { get; }
+
+    /// <summary>"Names right?": the call has audio, a transcript that can be edited, and speakers to remember.</summary>
+    public bool OffersVoices => Call.HasAudio && HasTranscript && Unsaved.Count > 0 && !Actions.IsEditLocked(Call)
+                                && !Actions.VoicesDismissed.Contains(Call.Id);
 
     /// <summary>Named speakers whose voice is not saved yet.</summary>
     public IReadOnlyList<string> Unsaved { get; }

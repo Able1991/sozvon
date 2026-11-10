@@ -41,6 +41,7 @@ public sealed partial class CallDetailView : UserControl
             if (_viewModel is not null)
             {
                 _viewModel.Player.PropertyChanged -= OnPlayerChanged;
+                _viewModel.Actions.Voices.Changed -= OnVoicesChanged;
             }
             CloseFind();
             if (_viewModel is not null)
@@ -52,6 +53,7 @@ public sealed partial class CallDetailView : UserControl
             if (value is not null)
             {
                 value.Player.PropertyChanged += OnPlayerChanged;
+                value.Actions.Voices.Changed += OnVoicesChanged;
                 ShowCall(value);
                 // The same call read again after an edit keeps its place on the page.
                 if (_shown is { } shown && shown.Id == value.Call.Id)
@@ -86,6 +88,7 @@ public sealed partial class CallDetailView : UserControl
     private void ShowCall(CallDetailViewModel call)
     {
         ShowBanner(call);
+        ShowVoices(call);
         NoSummaryText.Visibility = call.HasSummary ? Visibility.Collapsed : Visibility.Visible;
         NoTranscriptText.Visibility = call.HasTranscript ? Visibility.Collapsed : Visibility.Visible;
         ShowFolderItem.IsEnabled = call.CanOpenFolder;
@@ -282,6 +285,12 @@ public sealed partial class CallDetailView : UserControl
             _ => actions.RenameSpeaker(call.Call, row.Speaker, action.Name),
         };
         await ShowProblem(error);
+        // The speaker was named precisely: learn the voice from this call (a single line is not enough to go on).
+        if (error is null && action is not RenameAction.Line)
+        {
+            var names = action is RenameAction.Swap ? new[] { action.Name, row.Speaker } : [action.Name];
+            await actions.RememberVoicesAsync(call.Call, names, call.VoiceRecords);
+        }
     }
 
     /// <summary>Fix the word; then, as on the Mac, offer to fix it in new transcripts of the project too.</summary>
@@ -549,6 +558,46 @@ public sealed partial class CallDetailView : UserControl
             CallBannerAction.Resummarize => BannerButton(L("Обновить саммари"), () => call.Actions.Resummarize(call.Call)),
             _ => null,
         };
+    }
+
+    /// <summary>"Names right?" with the speakers to remember, and what the last voice run did.</summary>
+    private void ShowVoices(CallDetailViewModel call)
+    {
+        VoicesBar.IsOpen = call.OffersVoices;
+        VoicesBar.Visibility = call.OffersVoices ? Visibility.Visible : Visibility.Collapsed;
+        VoicesBar.Message = L("Запомни голоса (%@), и в следующих звонках имена подставятся сами.", string.Join(", ", call.Unsaved));
+        var enroller = call.Actions.Voices;
+        RememberVoicesButton.IsEnabled = !enroller.IsBusy;
+        var notice = enroller.IsBusy ? (Ok: true, Text: L("Запоминаю голос…")) : enroller.Notice;
+        VoiceNotice.Visibility = notice is null ? Visibility.Collapsed : Visibility.Visible;
+        VoiceNotice.IsOpen = notice is not null;
+        VoiceNotice.Title = notice?.Text ?? "";
+        VoiceNotice.Severity = enroller.IsBusy ? InfoBarSeverity.Informational : notice is { Ok: false } ? InfoBarSeverity.Warning : InfoBarSeverity.Success;
+    }
+
+    private void OnVoicesChanged(object? sender, EventArgs e)
+    {
+        if (ViewModel is { } call)
+        {
+            ShowVoices(call);
+        }
+    }
+
+    private void OnVoicesNotNow(InfoBar sender, object args)
+    {
+        if (ViewModel is { } call)
+        {
+            call.Actions.VoicesDismissed.Add(call.Call.Id);
+            ShowVoices(call);
+        }
+    }
+
+    private async void OnRememberVoices(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } call)
+        {
+            await call.Actions.RememberVoicesAsync(call.Call, call.Unsaved, call.VoiceRecords);
+        }
     }
 
     private static Button BannerButton(string text, Action action)
