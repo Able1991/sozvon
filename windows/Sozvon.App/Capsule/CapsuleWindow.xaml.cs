@@ -53,6 +53,7 @@ public sealed partial class CapsuleWindow : Window
     private bool _anchorLeft;
     private bool _revealPending;
     private bool _pressed;
+    private bool _dragged;
     private bool _dragging;
     private NativeWindow.Point _dragCursor;
 
@@ -89,11 +90,11 @@ public sealed partial class CapsuleWindow : Window
         ToolTipService.SetToolTip(MarkButton, CapsuleText.Mark + " (Ctrl+Alt+I)");
         ToolTipService.SetToolTip(StopButton, CapsuleText.Stop);
         ToolTipService.SetToolTip(HideButton, CapsuleText.Hide);
-        RecordButton.Click += (_, _) => RecordClicked?.Invoke(this, EventArgs.Empty);
-        StopButton.Click += (_, _) => StopClicked?.Invoke(this, EventArgs.Empty);
-        MarkButton.Click += (_, _) => MarkClicked?.Invoke(this, EventArgs.Empty);
-        ActionButton.Click += (_, _) => PrimaryClicked?.Invoke(this, EventArgs.Empty);
-        SecondButton.Click += (_, _) => SecondaryClicked?.Invoke(this, EventArgs.Empty);
+        RecordButton.Click += (_, _) => Click(RecordClicked);
+        StopButton.Click += (_, _) => Click(StopClicked);
+        MarkButton.Click += (_, _) => Click(MarkClicked);
+        ActionButton.Click += (_, _) => Click(PrimaryClicked);
+        SecondButton.Click += (_, _) => Click(SecondaryClicked);
         _hideFade.Tick += (_, _) =>
         {
             _hideFade.Stop();
@@ -574,6 +575,7 @@ public sealed partial class CapsuleWindow : Window
             return;
         }
         _pressed = true;
+        _dragged = false;
         _dragCursor = NativeWindow.CursorPosition();
     }
 
@@ -588,11 +590,23 @@ public sealed partial class CapsuleWindow : Window
         {
             return;
         }
-        // From here on it is a drag, and the system does it: the press on a button underneath ends without a click.
+        // From here on it is a drag, and the system does it. The button underneath still sees the release as the end
+        // of its press, so its click is thrown away (see Click) until the next press.
         _pressed = false;
+        _dragged = true;
         _dragging = true;
         NativeWindow.DragWithSystem(_hwnd);
         _dragging = false;
+    }
+
+    /// <summary>A button's click counts only when the press that ended on it was not a drag of the capsule.</summary>
+    private void Click(EventHandler? handler)
+    {
+        if (_dragged)
+        {
+            return;
+        }
+        handler?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnReleased(object sender, PointerRoutedEventArgs e) => _pressed = false;
@@ -685,5 +699,5 @@ public sealed partial class CapsuleWindow : Window
         }
     }
 
-    private void OnHide(object sender, RoutedEventArgs e) => HideRequested?.Invoke(this, EventArgs.Empty);
+    private void OnHide(object sender, RoutedEventArgs e) => Click(HideRequested);
 }
