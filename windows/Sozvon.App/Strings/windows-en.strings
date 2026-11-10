@@ -137,3 +137,9 @@
 /* Settings, General: start-up and the recording tones. */
 "Запуск" = "Startup";
 "Во время звонка звука нет: его услышали бы собеседники" = "Silent during a call: the others would hear it";
+
+/* Settings, Assistants: the summary assistant on Windows; About: the build. */
+"Без саммари. Ничего не покидает компьютер." = "No summaries. Nothing leaves this computer.";
+"%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту." = "%@ has not been tried on Windows with the real program yet: the sandbox its maker describes may not work as on the Mac. The call’s text goes to this assistant.";
+"У Cursor на Windows может не быть файловой песочницы: тогда он сможет читать файлы и за пределами папки звонка." = "Cursor may have no file sandbox on Windows: then it can read files outside the call’s folder too.";
+"сборка Windows, предварительная" = "Windows build, preview";

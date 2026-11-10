@@ -92,22 +92,44 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>
-    /// Claude Code or no summaries: Codex and Cursor are not offered on Windows yet (not tried with the real programs). A
-    /// wizard that chose one of them leaves neither button checked.
-    /// </summary>
+    /// <summary>The dropdown's index is the assistant (Claude, Codex, Cursor, none), as on the Mac.</summary>
     public int SummaryAssistantIndex
     {
-        get => _engine.Assistant switch { Assistant.Claude => 0, Assistant.None => 1, _ => -1 };
+        get => (int)_engine.Assistant;
         set
         {
-            var chosen = value switch { 0 => Assistant.Claude, 1 => Assistant.None, _ => (Assistant?)null };
-            if (chosen is { } assistant && assistant != _engine.Assistant)
+            if (value >= 0 && value != (int)_engine.Assistant)
             {
-                Settings.SummaryAssistantChoice = assistant;
+                Settings.SummaryAssistantChoice = (Assistant)value;
+                OnPropertyChanged(nameof(SummaryFooter));
+                OnPropertyChanged(nameof(SummaryWarning));
+                OnPropertyChanged(nameof(HasSummaryWarning));
             }
         }
     }
+
+    /// <summary>Where the text goes, under the dropdown (the Mac's words; "this computer" for "this Mac").</summary>
+    public string SummaryFooter => _engine.Assistant switch
+    {
+        Assistant.Claude => Loc.L("Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic."),
+        Assistant.Codex => Loc.L("Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI."),
+        Assistant.Cursor => Loc.L("Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели."),
+        _ => Loc.L("Без саммари. Ничего не покидает компьютер."),
+    };
+
+    /// <summary>
+    /// Codex and Cursor run on Windows only when chosen here (the engine picks only Claude by itself) and were not tried
+    /// with the real programs; Cursor may also have no file sandbox there (docs/windows-port-checklist.md).
+    /// </summary>
+    public string SummaryWarning => _engine.Assistant switch
+    {
+        Assistant.Codex => Loc.L("%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту.", "Codex"),
+        Assistant.Cursor => Loc.L("%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту.", "Cursor")
+            + "\n" + Loc.L("У Cursor на Windows может не быть файловой песочницы: тогда он сможет читать файлы и за пределами папки звонка."),
+        _ => "",
+    };
+
+    public bool HasSummaryWarning => SummaryWarning.Length > 0;
 
     public IReadOnlyList<SpeechLanguage> CallLanguages
     {
@@ -144,7 +166,19 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string DataFolder => AppPaths.DataDir;
 
-    public string Version => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
+    /// <summary>
+    /// "0.1.4 · сборка Windows, предварительная · de35056": the Mac's version (the latest tag, as build.sh takes it) and the
+    /// commit, both written at build time. Windows has no releases yet, so this never reads like one.
+    /// </summary>
+    public string Version
+    {
+        get
+        {
+            var metadata = Assembly.GetExecutingAssembly().GetCustomAttributes<AssemblyMetadataAttribute>().ToDictionary(a => a.Key, a => a.Value ?? "");
+            var parts = new[] { metadata.GetValueOrDefault("SozvonVersion", ""), Loc.L("сборка Windows, предварительная"), metadata.GetValueOrDefault("SozvonCommit", "") };
+            return string.Join(" · ", parts.Where(p => p.Length > 0));
+        }
+    }
 
     private bool RecordsByItself => CallAutomation.Mode(Settings.CallStartAction) == CallStartMode.Record;
 

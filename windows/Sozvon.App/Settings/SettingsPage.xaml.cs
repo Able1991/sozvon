@@ -36,6 +36,7 @@ public sealed partial class SettingsPage : UserControl
         Unloaded += (_, _) => myVoice.Store.Changed -= OnVoicesChanged;
         PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
         AddModels();
+        AddAssistants();
         CallLanguagesBox.Languages = ViewModel.CallLanguages;
         CallLanguagesBox.LanguagesChanged += (_, _) => ViewModel.CallLanguages = CallLanguagesBox.Languages;
         ViewModel.Integrations.Confirm = ConfirmAsync;
@@ -51,6 +52,19 @@ public sealed partial class SettingsPage : UserControl
             var downloaded = model.IsDownloaded(ViewModel.DataFolder);
             ModelBox.Items.Add(new ComboBoxItem { Content = ModelTitle(model) + (downloaded ? "" : " · " + L("не скачана")), IsEnabled = downloaded });
         }
+    }
+
+    /// <summary>In enum order, as on the Mac: one whose command line tool is missing says so and can still be chosen.</summary>
+    private void AddAssistants()
+    {
+        var home = Sozvon.Core.Assistants.AssistantHome.FromEnvironment();
+        foreach (var assistant in Enum.GetValues<Assistant>())
+        {
+            var title = assistant == Assistant.None ? L("Без саммари") : Sozvon.Core.Assistants.AssistantCli.Title(assistant);
+            var missing = assistant != Assistant.None && Sozvon.Core.Assistants.AssistantCli.Find(assistant, home) is null;
+            AssistantBox.Items.Add(new ComboBoxItem { Content = title + (missing ? L(" (не найден)") : "") });
+        }
+        AssistantBox.SelectedIndex = ViewModel.SummaryAssistantIndex;
     }
 
     private static string ModelTitle(WhisperModel model) => model switch

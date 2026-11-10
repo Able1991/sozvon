@@ -80,7 +80,11 @@
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Запись'}" />
                     <local:SettingsRow Header="{s:L K='Плавающая панель'}" Description="{s:L K='Капсула поверх всех окон'}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.FloatingPanel, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.FloatingPanel, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Плавающая панель'}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Показывать панель и без записи'}" Description="{s:L K='Капсула видна, даже когда запись не идёт'}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.CapsuleWhenIdle, Mode=TwoWay}" IsEnabled="{x:Bind ViewModel.Settings.FloatingPanel, Mode=OneWay}"
+                                      AutomationProperties.Name="{s:L K='Показывать панель и без записи'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Когда начинается звонок'}" Description="{x:Bind ViewModel.CallStartDescription, Mode=OneWay}">
                         <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}">
@@ -177,12 +181,12 @@
                 <StackPanel x:Name="Assistants" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Саммари'}" />
                     <local:SettingsRow Header="{s:L K='Помощник для саммари'}">
-                        <RadioButtons SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}">
-                            <RadioButton Content="Claude Code" />
-                            <RadioButton Content="{s:L K='Без саммари'}" />
-                        </RadioButtons>
+                        <ComboBox x:Name="AssistantBox" Width="240" SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}"
+                                  AutomationProperties.Name="{s:L K='Помощник для саммари'}" />
                     </local:SettingsRow>
-                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic.'}" />
+                    <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.SummaryFooter, Mode=OneWay}" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryWarning, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             Message="{x:Bind ViewModel.SummaryWarning, Mode=OneWay}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключения'}" />
                     <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">
