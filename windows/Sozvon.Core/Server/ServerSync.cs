@@ -98,7 +98,7 @@ public sealed class ServerSync(
     public async Task RefreshAsync()
     {
         var saved = config();
-        if (ConnectorUrl is not null || !saved.IsConfigured || OwnServer.Normalize(saved.Url) is not { } url) return;
+        if (_checked == saved || !saved.IsConfigured || OwnServer.Normalize(saved.Url) is not { } url) return;
         switch (await health(url))
         {
             case ServerHealth.Ok ok:

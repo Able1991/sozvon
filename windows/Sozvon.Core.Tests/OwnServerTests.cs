@@ -31,6 +31,7 @@ public sealed class OwnServerTests : TempFolders
         Assert.False(OwnServer.IsConfigured("https://x.example", "  "));
         Assert.False(OwnServer.IsConfigured("http://x.example", "p"));
         Assert.Equal("https://x.example/mcp", OwnServer.ConnectorUrl("https://x.example"));
+        Assert.Null(OwnServer.ConnectorUrl("http://127.0.0.1:8787"));
     }
 
     [Fact]
