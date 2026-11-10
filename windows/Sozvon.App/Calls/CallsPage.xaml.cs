@@ -63,7 +63,7 @@ public sealed partial class CallsPage : UserControl
     {
         if (ViewModel.TrashSelected() is { } problem)
         {
-            await new ContentDialog { XamlRoot = XamlRoot, Title = problem, CloseButtonText = "OK" }.ShowAsync();
+            await new ContentDialog { XamlRoot = XamlRoot, RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot), Title = problem, CloseButtonText = "OK" }.ShowAsync();
         }
     }
 
@@ -106,6 +106,7 @@ public sealed partial class CallsPage : UserControl
                 await new ContentDialog
                 {
                     XamlRoot = XamlRoot,
+                    RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot),
                     Title = L("Не все записи импортированы"),
                     Content = new TextBlock { Text = string.Join("\n", problems), TextWrapping = TextWrapping.Wrap },
                     CloseButtonText = "OK",

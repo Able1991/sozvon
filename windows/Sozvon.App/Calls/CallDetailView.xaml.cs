@@ -311,7 +311,7 @@ public sealed partial class CallDetailView : UserControl
         {
             return;
         }
-        var dialog = new RenameSpeakerDialog(row, call.Rows, Suggestions(call, row.Speaker)) { XamlRoot = XamlRoot };
+        var dialog = new RenameSpeakerDialog(row, call.Rows, Suggestions(call, row.Speaker)) { XamlRoot = XamlRoot, RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot) };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Action is not { } action)
         {
             return;
@@ -347,7 +347,7 @@ public sealed partial class CallDetailView : UserControl
         {
             return;
         }
-        var dialog = new FixWordDialog(row) { XamlRoot = XamlRoot };
+        var dialog = new FixWordDialog(row) { XamlRoot = XamlRoot, RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot) };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {
             return;
@@ -362,6 +362,7 @@ public sealed partial class CallDetailView : UserControl
         var learn = new ContentDialog
         {
             XamlRoot = XamlRoot,
+            RequestedTheme = Shell.Dialogs.ThemeOf(XamlRoot),
             Title = project is null ? L("Запоминать для всех звонков?") : L("Запоминать для проекта «%@»?", project.ShortTitle),
             Content = new TextBlock { Text = L("В новых расшифровках «%@» будет сразу заменяться на «%@».", wrong, right), TextWrapping = TextWrapping.Wrap },
             PrimaryButtonText = L("Запоминать"),
@@ -378,7 +379,7 @@ public sealed partial class CallDetailView : UserControl
     {
         if (problem is not null && XamlRoot is { } root)
         {
-            await new ContentDialog { XamlRoot = root, Title = problem, CloseButtonText = "OK" }.ShowAsync();
+            await new ContentDialog { XamlRoot = root, RequestedTheme = Shell.Dialogs.ThemeOf(root), Title = problem, CloseButtonText = "OK" }.ShowAsync();
         }
     }
 
