@@ -95,7 +95,7 @@ public sealed partial class CapsuleWindow : Window
     public void ShowWithoutFocus()
     {
         AppWindow.Show(false);
-        Root.Opacity = _hovered ? 1 : RestOpacity;
+        Shape.Opacity = _hovered ? 1 : RestOpacity;
     }
 
     public void ApplyTheme(ElementTheme theme) => Root.RequestedTheme = theme;
@@ -104,7 +104,7 @@ public sealed partial class CapsuleWindow : Window
     public void ShowAsHovered()
     {
         _hovered = true;
-        Root.Opacity = 1;
+        Shape.Opacity = 1;
         Render(_model);
     }
 
@@ -124,7 +124,14 @@ public sealed partial class CapsuleWindow : Window
     {
         _model = model;
         _shown.Clear();
-        SpinnerRing.IsActive = model.Phase is CapsulePhase.Starting or CapsulePhase.Processing;
+        if (model.Phase is CapsulePhase.Starting or CapsulePhase.Processing)
+        {
+            SpinnerTurning.Begin();
+        }
+        else
+        {
+            SpinnerTurning.Stop();
+        }
         switch (model.Phase)
         {
             case CapsulePhase.Idle:
@@ -176,13 +183,12 @@ public sealed partial class CapsuleWindow : Window
 
     private void ApplyStyle()
     {
-        Root.Height = _style.Height;
-        Root.CornerRadius = new CornerRadius(_style.Radius);
+        Shape.Height = _style.Height;
+        Shape.CornerRadius = new CornerRadius(_style.Radius);
         Bar.Margin = new Thickness(_style.Padding, 0, _style.Padding, 0);
-        var inner = new CornerRadius(_style.InnerRadius);
         foreach (var button in new[] { RecordButton, MarkButton, StopButton, HideButton, ActionButton, SecondButton })
         {
-            button.CornerRadius = inner;
+            button.CornerRadius = new CornerRadius(_style.ButtonRadius);
         }
     }
 
@@ -284,14 +290,17 @@ public sealed partial class CapsuleWindow : Window
     private void Action(string primary, string? secondary)
     {
         Show(ActionButton);
-        ActionButton.Content = primary;
+        ActionButton.Content = Label(primary);
         if (secondary is null)
         {
             return;
         }
         Show(SecondButton);
-        SecondButton.Content = secondary;
+        SecondButton.Content = Label(secondary);
     }
+
+    /// <summary>Text centred by its letters, not by the font's line box, which sits low in a 32 DIP button.</summary>
+    private static TextBlock Label(string text) => new() { Text = text, TextLineBounds = TextLineBounds.Tight };
 
     private void Show(params UIElement[] elements) => _shown.UnionWith(elements);
 
@@ -301,7 +310,9 @@ public sealed partial class CapsuleWindow : Window
     /// </summary>
     private void FitToContent()
     {
-        var target = Math.Max(MinimumWidth, Math.Ceiling(ContentWidth()));
+        // The shape is exactly as wide as the window, in whole pixels: no sliver of the pill falls outside it.
+        var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
+        var target = Math.Ceiling(Math.Max(MinimumWidth, ContentWidth()) * scale) / scale;
         if (target == _width)
         {
             return;
@@ -358,13 +369,13 @@ public sealed partial class CapsuleWindow : Window
             width += part.DesiredSize.Width;
             parts++;
         }
-        return width + Bar.Spacing * Math.Max(0, parts - 1) + 2 * _style.Padding + Root.BorderThickness.Left + Root.BorderThickness.Right;
+        return width + Bar.Spacing * Math.Max(0, parts - 1) + 2 * _style.Padding + Shape.BorderThickness.Left + Shape.BorderThickness.Right;
     }
 
     private void ResizeWindow(double width)
     {
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
-        AppWindow.ResizeClient(new((int)Math.Ceiling(width * scale), (int)Math.Ceiling(_style.Height * scale)));
+        AppWindow.ResizeClient(new((int)Math.Round(width * scale), (int)Math.Round(_style.Height * scale)));
     }
 
     private void BuildWave()
@@ -424,7 +435,7 @@ public sealed partial class CapsuleWindow : Window
 
     private void OnEntered(object sender, PointerRoutedEventArgs e)
     {
-        Root.Opacity = 1;
+        Shape.Opacity = 1;
         _hovered = true;
         Render(_model);
     }
@@ -435,7 +446,7 @@ public sealed partial class CapsuleWindow : Window
         {
             return;
         }
-        Root.Opacity = RestOpacity;
+        Shape.Opacity = RestOpacity;
         _hovered = false;
         Render(_model);
     }

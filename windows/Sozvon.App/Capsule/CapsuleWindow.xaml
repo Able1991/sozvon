@@ -4,36 +4,114 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Sozvon">
-    <!-- The window itself is transparent: the shape, its rounding and its border are drawn here, so edges stay smooth. -->
-    <Grid x:Name="Root" HorizontalAlignment="Left" VerticalAlignment="Top"
-          Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
-          BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+    <!-- One shape only: the window and this root are transparent; Shape alone has a fill, a border and the rounding. -->
+    <Grid x:Name="Root" Background="Transparent" HorizontalAlignment="Left" VerticalAlignment="Top"
           PointerPressed="OnPressed" PointerMoved="OnMoved" PointerReleased="OnReleased"
           PointerEntered="OnEntered" PointerExited="OnExited">
-        <Grid.OpacityTransition>
-            <ScalarTransition Duration="0:0:0.167" />
-        </Grid.OpacityTransition>
         <Grid.Resources>
-            <!-- Buttons inside the capsule have no frame of their own: only a soft fill under the pointer. -->
             <ResourceDictionary>
-                <!-- One saturated red for the record dot in both themes: the theme's critical red is pale in the dark. -->
-                <SolidColorBrush x:Key="RecordRedBrush" Color="#E5252A" />
                 <ResourceDictionary.ThemeDictionaries>
-                    <ResourceDictionary x:Key="Default">
-                        <StaticResource x:Key="ButtonBackground" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="SubtleFillColorSecondaryBrush" />
-                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="SubtleFillColorTertiaryBrush" />
-                        <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="SubtleFillColorTransparentBrush" />
-                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="TextFillColorPrimaryBrush" />
+                    <!-- A hairline, never a dark ring: 10 % of the opposite colour. -->
+                    <ResourceDictionary x:Key="Light">
+                        <SolidColorBrush x:Key="CapsuleStrokeBrush" Color="#1A000000" />
+                    </ResourceDictionary>
+                    <ResourceDictionary x:Key="Dark">
+                        <SolidColorBrush x:Key="CapsuleStrokeBrush" Color="#1AFFFFFF" />
                     </ResourceDictionary>
                     <ResourceDictionary x:Key="HighContrast">
-                        <StaticResource x:Key="ButtonBackground" ResourceKey="SystemColorButtonFaceColorBrush" />
+                        <SolidColorBrush x:Key="CapsuleStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     </ResourceDictionary>
                 </ResourceDictionary.ThemeDictionaries>
+
+                <!-- One saturated red for the record dot in both themes: the theme's critical red is pale in the dark. -->
+                <SolidColorBrush x:Key="RecordRedBrush" Color="#E5252A" />
+
+                <!-- Icon buttons, and the record button: no frame, no minimum size, a soft round fill under the pointer. -->
+                <Style x:Key="CapsuleIconButton" TargetType="Button">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Width" Value="32" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="CornerRadius" Value="16" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="UseSystemFocusVisuals" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Grid x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Disabled" />
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                    <ContentPresenter Margin="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      TextLineBounds="Tight" Content="{TemplateBinding Content}" />
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
+                <!-- Text buttons: 28 high, fully rounded, 13 semibold, the text centred by its letters. -->
+                <Style x:Key="CapsuleTextButton" TargetType="Button">
+                    <Setter Property="Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                    <Setter Property="Padding" Value="12,0" />
+                    <Setter Property="MinWidth" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Height" Value="32" />
+                    <Setter Property="CornerRadius" Value="16" />
+                    <Setter Property="FontSize" Value="13" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="UseSystemFocusVisuals" Value="True" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Grid x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Back.Opacity" Value="0.9" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <VisualState.Setters>
+                                                    <Setter Target="Back.Opacity" Value="0.8" />
+                                                </VisualState.Setters>
+                                            </VisualState>
+                                            <VisualState x:Name="Disabled" />
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                    <ContentPresenter Margin="{TemplateBinding Padding}" Foreground="{TemplateBinding Foreground}"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      TextLineBounds="Tight" Content="{TemplateBinding Content}" />
+                                </Grid>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+                <Style x:Key="CapsuleAccentButton" TargetType="Button" BasedOn="{StaticResource CapsuleTextButton}">
+                    <Setter Property="Background" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+                    <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                </Style>
             </ResourceDictionary>
         </Grid.Resources>
         <Grid.ContextFlyout>
@@ -42,60 +120,82 @@
             </MenuFlyout>
         </Grid.ContextFlyout>
 
-        <!-- Every element sits in a slot of the same height on one centre line; sizes are multiples of 4 DIP,
-             so at 100, 125 and 150 % they land on whole pixels. -->
-        <StackPanel x:Name="Bar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Left">
-            <Grid x:Name="RecordDot" Width="32" Height="32" Visibility="Collapsed">
-                <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
-            </Grid>
-            <Grid x:Name="Spinner" Width="32" Height="32" Visibility="Collapsed">
-                <ProgressRing x:Name="SpinnerRing" Width="16" Height="16" IsActive="False" />
-            </Grid>
-            <Grid x:Name="Check" Width="32" Height="32" Visibility="Collapsed">
-                <Ellipse Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
-                <FontIcon Glyph="&#xE73E;" FontSize="8" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Grid>
-
-            <Button x:Name="RecordButton" Visibility="Collapsed" Height="32" Padding="8,0,16,0" VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                    <Grid Width="16" Height="16" VerticalAlignment="Center">
-                        <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
+        <Border x:Name="Shape" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+                BorderBrush="{ThemeResource CapsuleStrokeBrush}" BorderThickness="1">
+            <Border.OpacityTransition>
+                <ScalarTransition Duration="0:0:0.167" />
+            </Border.OpacityTransition>
+            <!-- Every element is centred on the same line; the bar's height is the shape's inner height. -->
+            <StackPanel x:Name="Bar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Left">
+                <Grid x:Name="RecordDot" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
+                      AutomationProperties.Name="RecordDot">
+                    <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
+                </Grid>
+                <Grid x:Name="Spinner" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
+                      AutomationProperties.Name="Spinner">
+                    <Grid.Resources>
+                        <Storyboard x:Name="SpinnerTurning" RepeatBehavior="Forever">
+                            <DoubleAnimation Storyboard.TargetName="SpinnerTurn" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:0.9" />
+                        </Storyboard>
+                    </Grid.Resources>
+                    <!-- A 2 DIP arc in the accent colour: the system ring has no thickness of its own and is a hairline at 16. -->
+                    <Grid Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <RotateTransform x:Name="SpinnerTurn" />
+                        </Grid.RenderTransform>
+                        <Ellipse Stroke="{ThemeResource ControlStrongStrokeColorDefaultBrush}" StrokeThickness="2" Opacity="0.35" />
+                        <Ellipse Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="2" StrokeDashArray="9.4 100" StrokeDashCap="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                     </Grid>
-                    <TextBlock x:Name="RecordLabel" VerticalAlignment="Center" FontSize="14" />
-                </StackPanel>
-            </Button>
+                </Grid>
+                <Grid x:Name="Check" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
+                      AutomationProperties.Name="Check">
+                    <Ellipse Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+                    <FontIcon Glyph="&#xE73E;" FontSize="8" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Grid>
 
-            <TextBlock x:Name="Timer" VerticalAlignment="Center" Visibility="Collapsed" Style="{StaticResource BodyStrongTextBlockStyle}" />
-            <TextBlock x:Name="Message" VerticalAlignment="Center" FontSize="14" Visibility="Collapsed"
-                       Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
-            <TextBlock x:Name="Warning" VerticalAlignment="Center" FontSize="14" Visibility="Collapsed"
-                       Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-            <Canvas x:Name="Wave" Height="32" VerticalAlignment="Center" Visibility="Collapsed">
-                <Rectangle x:Name="WaveDivider" Width="1" Height="16" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
-            </Canvas>
-
-            <Button x:Name="ActionButton" Height="32" Padding="12,0" Visibility="Collapsed" VerticalAlignment="Center" Style="{StaticResource AccentButtonStyle}" />
-            <Button x:Name="SecondButton" Height="32" Padding="12,0" Visibility="Collapsed" VerticalAlignment="Center" />
-
-            <Grid x:Name="MarkArea" Width="32" Height="32" Visibility="Collapsed">
-                <Button x:Name="MarkButton" Width="32" Height="32" Padding="0">
-                    <FontIcon x:Name="MarkIcon" Glyph="&#xE735;" FontSize="16" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Button x:Name="RecordButton" Style="{StaticResource CapsuleIconButton}" Width="NaN" Padding="8,0,12,0" Visibility="Collapsed"
+                        AutomationProperties.Name="RecordButton">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Grid Width="16" Height="16" VerticalAlignment="Center">
+                            <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
+                        </Grid>
+                        <TextBlock x:Name="RecordLabel" VerticalAlignment="Center" FontSize="14" TextLineBounds="Tight" />
+                    </StackPanel>
                 </Button>
-                <InfoBadge x:Name="MarkBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="Collapsed" IsHitTestVisible="False" />
-            </Grid>
-            <Button x:Name="StopButton" Width="32" Height="32" Padding="0" Visibility="Collapsed">
-                <Rectangle Width="12" Height="12" RadiusX="2" RadiusY="2" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
-            </Button>
-            <Button x:Name="HideButton" Width="32" Height="32" Padding="0" Visibility="Collapsed" Click="OnHide"
-                    Opacity="0" Scale="0.6,0.6,1" CenterPoint="16,16,0">
-                <Button.OpacityTransition>
-                    <ScalarTransition Duration="0:0:0.167" />
-                </Button.OpacityTransition>
-                <Button.ScaleTransition>
-                    <Vector3Transition Duration="0:0:0.167" />
-                </Button.ScaleTransition>
-                <FontIcon Glyph="&#xE711;" FontSize="12" />
-            </Button>
-        </StackPanel>
+
+                <TextBlock x:Name="Timer" VerticalAlignment="Center" FontSize="14" FontWeight="SemiBold" TextLineBounds="Tight"
+                           FontFamily="Segoe UI Variable Text" Visibility="Collapsed" />
+                <TextBlock x:Name="Message" VerticalAlignment="Center" FontSize="14" TextLineBounds="Tight" Visibility="Collapsed"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                <TextBlock x:Name="Warning" VerticalAlignment="Center" FontSize="14" TextLineBounds="Tight" Visibility="Collapsed"
+                           Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                <Canvas x:Name="Wave" Height="32" VerticalAlignment="Center" Visibility="Collapsed" AutomationProperties.Name="Wave">
+                    <Rectangle x:Name="WaveDivider" Width="1" Height="16" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                </Canvas>
+
+                <Button x:Name="ActionButton" Style="{StaticResource CapsuleAccentButton}" Visibility="Collapsed" AutomationProperties.AutomationId="ActionButton" />
+                <Button x:Name="SecondButton" Style="{StaticResource CapsuleTextButton}" Visibility="Collapsed" AutomationProperties.AutomationId="SecondButton" />
+
+                <Grid x:Name="MarkArea" Width="32" Height="32" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Button x:Name="MarkButton" Style="{StaticResource CapsuleIconButton}" AutomationProperties.AutomationId="MarkButton">
+                        <FontIcon x:Name="MarkIcon" Glyph="&#xE735;" FontSize="16" />
+                    </Button>
+                    <InfoBadge x:Name="MarkBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Visibility="Collapsed" IsHitTestVisible="False" />
+                </Grid>
+                <Button x:Name="StopButton" Style="{StaticResource CapsuleIconButton}" Visibility="Collapsed" AutomationProperties.AutomationId="StopButton">
+                    <Rectangle Width="12" Height="12" RadiusX="2" RadiusY="2" Fill="{ThemeResource TextFillColorSecondaryBrush}" />
+                </Button>
+                <Button x:Name="HideButton" Style="{StaticResource CapsuleIconButton}" Visibility="Collapsed" Click="OnHide"
+                        AutomationProperties.AutomationId="HideButton" Opacity="0" Scale="0.6,0.6,1" CenterPoint="16,16,0">
+                    <Button.OpacityTransition>
+                        <ScalarTransition Duration="0:0:0.167" />
+                    </Button.OpacityTransition>
+                    <Button.ScaleTransition>
+                        <Vector3Transition Duration="0:0:0.167" />
+                    </Button.ScaleTransition>
+                    <FontIcon Glyph="&#xE711;" FontSize="12" />
+                </Button>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
