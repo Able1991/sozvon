@@ -80,13 +80,14 @@ def label_mic(segs: list, diar: list, ref: list, me: str, names: list) -> tuple[
 
 def assign_speakers(*, mic: list, mic_dead: list, system: list, tracks: dict, me: str, names: list,
                     speakers, diarize_on: bool, single_name: str | None, log: Log,
-                    run_diarization=None, name_voices=None, mic_people=None) -> list:
+                    run_diarization=None, name_voices=None, mic_people=None, same_voice=None) -> list:
     """All utterances with labels. A splitting failure does not lose text: labels become generic.
 
     single_name: how to label the other side without splitting (the only known name or None).
     name_voices(track, diar) -> {raw label: (name, score)}: voices recognized by voice print. Any failure
     there is logged and the call goes on exactly as without voice prints.
     mic_people(diarize_mic, system_diar) -> (diar, {raw label: name or None}): others at the user's microphone.
+    same_voice(diar) -> diar: the other side's voices with a split one joined. Any failure keeps the split.
     """
     run_diarization = run_diarization or diarize.run
     can = diarize_on and diarize.available()
@@ -111,6 +112,11 @@ def assign_speakers(*, mic: list, mic_dead: list, system: list, tracks: dict, me
         if can:
             try:
                 diar = run_diarization(tracks["system"], speakers)
+                if same_voice:
+                    try:
+                        diar = same_voice(diar)
+                    except Exception as ex:  # noqa: BLE001  a label too many is better than none
+                        log(t("log_same_voice_failed", err=ex))
                 labeled, n = label_system(system, diar, names, recognize(name_voices, tracks["system"], diar, system, log))
                 items += labeled
                 log(t("log_diar_count", n=n))

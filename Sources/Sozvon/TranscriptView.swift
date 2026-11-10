@@ -67,15 +67,19 @@ struct TranscriptView: View {
     /// Speakers whose voice is saved, lowercased: a tooltip on their lines; the others' names are coral.
     var voiced: Set<String> = []
     var onFix: (FixTarget) -> Void = { _ in }
+    /// Find in the transcript: what to highlight, and which of it is the current match.
+    var found: [TranscriptFind.Match] = []
+    var currentFound: TranscriptFind.Match? = nil
 
     var body: some View {
         let current = playing.index(in: doc.starts)
+        let foundByLine = Dictionary(grouping: found, by: \.line)
         // Rows 6 apart.
         LazyVStack(alignment: .leading, spacing: 6) {
             ForEach(doc.items) { item in
                 switch item.kind {
                 case .line(let line, let n, let occurrence):
-                    row(line, occurrence: occurrence, current: current == n).id(item.id)
+                    row(line, occurrence: occurrence, current: current == n, found: foundByLine[n] ?? []).id(item.id)
                 case .other(let text):
                     other(text).id(item.id)
                 }
@@ -106,17 +110,28 @@ struct TranscriptView: View {
 
     /// "Name:" in semibold (coral for a name whose voice isn't saved yet, so it's clear whom to confirm),
     /// then the text (inserted verbatim, never parsed as Markdown), without the star.
-    private func label(_ l: TranscriptLine) -> Text {
+    private func label(_ l: TranscriptLine, found: [TranscriptFind.Match] = []) -> Text {
         let text = l.text.hasSuffix(Self.star) ? String(l.text.dropLast(Self.star.count)) : l.text
         let unconfirmed = unconfirmed(l.speaker)
         let name = Text(verbatim: l.speaker + ":").fontWeight(.semibold).foregroundStyle(unconfirmed ? SZ.coral : SZ.label)
-        return Text("\(name)\(text.isEmpty ? "" : " " + text)")
+        guard !found.isEmpty else { return Text("\(name)\(text.isEmpty ? "" : " " + text)") }
+        var marked = AttributedString(" " + text)
+        for m in found {
+            // Offsets in the paragraph, moved past the leading space of the marked copy.
+            let start = l.text.distance(from: l.text.startIndex, to: m.range.lowerBound) + 1
+            let length = l.text.distance(from: m.range.lowerBound, to: m.range.upperBound)
+            let from = marked.index(marked.startIndex, offsetByCharacters: start)
+            let to = marked.index(from, offsetByCharacters: length)
+            marked[from..<to].backgroundColor = m == currentFound ? SZ.accent : SZ.yellow.opacity(0.45)
+            if m == currentFound { marked[from..<to].foregroundColor = .white }
+        }
+        return Text("\(name)\(Text(marked))")
     }
 
     /// A row: time column (44, right-aligned, label3), the line; current: accent row with a 2px accent bar,
     /// starred: a yellow tint and a star.
     @ViewBuilder
-    private func row(_ l: TranscriptLine, occurrence: Int, current: Bool) -> some View {
+    private func row(_ l: TranscriptLine, occurrence: Int, current: Bool, found: [TranscriptFind.Match] = []) -> some View {
         let starred = l.text.hasSuffix(Self.star)
         let shape = RoundedRectangle(cornerRadius: SZ.radiusControl)
         let content = HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -124,7 +139,7 @@ struct TranscriptView: View {
                 .font(.system(size: 12).monospacedDigit())
                 .foregroundStyle(current ? SZ.accent : SZ.label3)
                 .frame(minWidth: 44, alignment: .trailing)
-            label(l).szFont(.transcript).foregroundStyle(SZ.label)
+            label(l, found: found).szFont(.transcript).foregroundStyle(SZ.label)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             if starred {
@@ -171,6 +186,55 @@ struct TranscriptView: View {
         } else {
             content.textSelection(.enabled)
         }
+    }
+}
+
+/// ⌘F on the Transcript tab: the field, "3 of 12", Previous, Next and Close. Return goes to the next match,
+/// Shift-Return to the previous one, Esc closes.
+struct TranscriptFindBar: View {
+    @Binding var query: String
+    let index: Int
+    let count: Int
+    /// Grows on every ⌘F: the field takes the focus again.
+    let focusRequest: Int
+    var onStep: (Int) -> Void
+    var onClose: () -> Void
+    @FocusState private var focused: Bool
+
+    private var status: String {
+        if query.trimmingCharacters(in: .whitespaces).isEmpty { return "" }
+        return count == 0 ? L("Ничего не найдено") : L("%@ из %@", String(index + 1), String(count))
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(SZ.label3).accessibilityHidden(true)
+            TextField(L("Найти в расшифровке"), text: $query)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit { onStep(1) }
+                .onExitCommand(perform: onClose)
+            Text(status).szFont(SZTextStyle(size: 12, lineHeight: 16, tabular: true)).foregroundStyle(SZ.label2).lineLimit(1)
+            Button { onStep(-1) } label: { Image(systemName: "chevron.up") }
+                .keyboardShortcut(.return, modifiers: .shift)
+                .disabled(count == 0)
+                .help(L("Предыдущее совпадение"))
+                .accessibilityLabel(L("Предыдущее совпадение"))
+            Button { onStep(1) } label: { Image(systemName: "chevron.down") }
+                .disabled(count == 0)
+                .help(L("Следующее совпадение"))
+                .accessibilityLabel(L("Следующее совпадение"))
+            Button(action: onClose) { Image(systemName: "xmark") }
+                .help(L("Закрыть поиск"))
+                .accessibilityLabel(L("Закрыть поиск"))
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(SZ.bar)
+        .overlay(alignment: .bottom) { Rectangle().fill(SZ.sep).frame(height: 1) }
+        .onAppear { focused = true }
+        .onChange(of: focusRequest) { _, _ in focused = true }
     }
 }
 
