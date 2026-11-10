@@ -111,9 +111,14 @@
                     </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Голоса'}" />
-                    <local:SettingsRow Header="{s:L K='Твой голос'}" Description="{s:L K='Образец остаётся на этом компьютере'}" NotConnected="True">
-                        <Button Content="{s:L K='Записать…'}" IsEnabled="False" />
+                    <local:SettingsRow x:Name="MyVoiceRow" Header="{s:L K='Твой голос'}" />
+                    <local:SettingsRow x:Name="OtherVoicesRow" Header="{s:L K='Голоса собеседников'}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock x:Name="OtherVoicesCount" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Button x:Name="ManageVoicesButton" Content="{s:L K='Управлять…'}" Click="OnManageVoices" />
+                        </StackPanel>
                     </local:SettingsRow>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках.'}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='После звонка'}" />
                     <local:SettingsRow Header="{s:L K='Открывать при входе'}" NotConnected="True">

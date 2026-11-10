@@ -9,7 +9,9 @@ using Windows.System;
 using Windows.Foundation;
 using Windows.Graphics;
 using Sozvon.App.Calls;
+using Sozvon.App.Projects;
 using Sozvon.App.Settings;
+using Sozvon.App.VoicePrints;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Shell;
@@ -24,17 +26,21 @@ public sealed partial class MainWindow : Window
     private readonly CallsViewModel _calls;
     private readonly CallsPage _callsPage;
     private readonly SettingsPage _settingsPage;
+    private readonly ProjectsPage _projectsPage;
+    private readonly VoicesPage _voicesPage;
     private bool _allowClose;
 
     [LibraryImport("user32.dll")]
     private static partial uint GetDpiForWindow(nint hwnd);
 
-    public MainWindow(CallsViewModel calls, SettingsViewModel settings)
+    public MainWindow(CallsViewModel calls, SettingsViewModel settings, ProjectsPage projects, VoicesPage voices, MyVoice myVoice)
     {
         _calls = calls;
         InitializeComponent();
         _callsPage = new CallsPage(calls);
-        _settingsPage = new SettingsPage(settings);
+        _settingsPage = new SettingsPage(settings, myVoice, () => Show(AppPage.Voices));
+        _projectsPage = projects;
+        _voicesPage = voices;
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -89,19 +95,8 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>A question in this window: whether the destructive answer was chosen.</summary>
-    public async Task<bool> ConfirmAsync(string title, string text, string destructive)
-    {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Root.XamlRoot,
-            Title = title,
-            Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
-            PrimaryButtonText = destructive,
-            CloseButtonText = L("Отмена"),
-            DefaultButton = ContentDialogButton.Close,
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
-    }
+    public Task<bool> ConfirmAsync(string title, string text, string destructive) =>
+        Dialogs.ConfirmAsync(Root.XamlRoot, title, text, destructive);
 
     public void CloseForExit()
     {
@@ -130,23 +125,11 @@ public sealed partial class MainWindow : Window
         {
             "calls" => _callsPage,
             "settings" => _settingsPage,
-            "projects" => Placeholder(L("Проекты")),
-            "voices" => Placeholder(L("Голоса")),
+            "projects" => _projectsPage,
+            "voices" => _voicesPage,
             _ => null,
         };
     }
-
-    private static StackPanel Placeholder(string title) => new()
-    {
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
-        Spacing = 8,
-        Children =
-        {
-            new TextBlock { Text = title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], HorizontalAlignment = HorizontalAlignment.Center },
-            new TextBlock { Text = L("Пока не подключено"), HorizontalAlignment = HorizontalAlignment.Center },
-        },
-    };
 
     private void OnTitleBarSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTitleBar();
 

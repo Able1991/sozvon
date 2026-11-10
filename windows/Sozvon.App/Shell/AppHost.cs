@@ -6,9 +6,11 @@ using Microsoft.Windows.AppLifecycle;
 using Sozvon.App.Calls;
 using Sozvon.App.Capsule;
 using Sozvon.App.Recording;
+using Sozvon.App.Projects;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
 using Sozvon.App.Tray;
+using Sozvon.App.VoicePrints;
 
 namespace Sozvon.App.Shell;
 
@@ -184,9 +186,13 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
+        var voices = new VoiceStore(new Sozvon.Core.Engine.EngineLayout(AppPaths.DataDir, AppPaths.CallsDir), _engineSettings.Options);
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording, voices));
         var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
-        return new MainWindow(_calls, settings);
+        var profiles = Path.Combine(AppPaths.DataDir, "profiles");
+        var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);
+        var projects = new ProjectsPage(profiles, _repository, voices, () => _ = _calls.RefreshAsync());
+        return new MainWindow(_calls, settings, projects, new VoicesPage(myVoice, profiles), myVoice);
     }
 
     private void OnSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

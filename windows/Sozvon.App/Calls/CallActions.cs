@@ -2,6 +2,7 @@ using System.IO;
 using Sozvon.App.Recording;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
+using Sozvon.App.VoicePrints;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
 
@@ -11,7 +12,7 @@ namespace Sozvon.App.Calls;
 /// What the card does to a call: transcript edits, the queue, the Recycle Bin. Every change ends in
 /// <see cref="Changed"/>, and the list and the card read the call again.
 /// </summary>
-public sealed class CallActions(string dataDir, EngineSettings engine, Func<RecordingController?> recording)
+public sealed class CallActions(string dataDir, EngineSettings engine, Func<RecordingController?> recording, VoiceStore voices)
 {
     /// <summary>A call changed on disk; the id of the call to select afterwards, or null to keep the selection.</summary>
     public event Action<string?>? Changed;
@@ -19,19 +20,19 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
     public bool CanTranscribe => recording() is not null;
 
     /// <summary>Remembers speakers' voices with the engine.</summary>
-    public VoiceEnroller Voices { get; } = new(new EngineLayout(dataDir, Shell.AppPaths.CallsDir), engine.Options);
+    public VoiceStore Voices { get; } = voices;
 
     /// <summary>Calls whose "Names right?" bar got "Not now", while the app runs.</summary>
     public HashSet<string> VoicesDismissed { get; } = [];
 
     /// <summary>Learns the voices from the call, then the list and the card read the voices again.</summary>
-    public async Task RememberVoicesAsync(CallRecord call, IEnumerable<string> names, IReadOnlyCollection<VoiceRecord> records)
+    public async Task RememberVoicesAsync(CallRecord call, IEnumerable<string> names)
     {
         if (!call.HasAudio || IsEditLocked(call))
         {
             return;
         }
-        await Voices.EnrollAsync(names, call.ProjectSlug, call.Folder, engine.Name, records);
+        await Voices.EnrollAsync(names, call.ProjectSlug, call.Folder, engine.Name);
         Changed?.Invoke(null);
     }
 

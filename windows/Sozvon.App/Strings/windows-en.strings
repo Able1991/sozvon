@@ -38,7 +38,6 @@
 "Образец остаётся на этом компьютере" = "The sample stays on this PC";
 "Открытые окна закроются, запись не прервётся." = "Open windows close, recording continues.";
 "Открыть параметры конфиденциальности" = "Open Windows privacy settings";
-"Пока не подключено" = "Not connected yet";
 "Пока не подключено: значение только сохраняется" = "Not connected yet: the value is only stored";
 "Пока недоступно на Windows" = "Not available on Windows yet";
 "Показан демо-звонок" = "Showing a demo call";
@@ -51,7 +50,6 @@
 "Через 60 дней" = "After 60 days";
 "Это демо-звонок: настоящих звонков пока нет" = "This is a demo call: there are no real calls yet";
 "Язык изменится после перезапуска" = "The language changes after a relaunch";
-"пока не подключено" = "not connected yet";
 "предпросмотр" = "preview";
 
 /* Sentence case and Windows words where the Mac file says otherwise. */
@@ -109,3 +107,8 @@
 "Микрофон молчит, и переподключение не помогло. Проверь, какой микрофон выбран в параметрах Windows: Система, Звук, и не отключились ли наушники." = "The microphone is silent and reconnecting didn’t help. Check which microphone is selected in Windows Settings: System, Sound, and that your headphones are still connected.";
 "Звук собеседников не приходит, и переподключение не помогло. Если они говорят, проверь, что звук звонка идёт через этот компьютер, а не через телефон или другое устройство." = "No sound is coming from the other side and reconnecting didn’t help. If they are talking, check that the call’s sound plays on this computer, not on a phone or another device.";
 "Три минуты твой голос почти не слышен в микрофоне. Подними громкость входа или сядь ближе к компьютеру." = "For three minutes your voice has barely reached the microphone. Raise the input volume or sit closer to the computer.";
+
+/* Projects and voices pages. */
+"OK" = "OK";
+"Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках." = "Voice prints are biometric data: they are stored on this computer. Sozvon uses them only to name the people in your calls.";
+"Sozvon перестанет узнавать собеседников и тебя по голосу. Свой голос можно будет записать заново." = "Sozvon will stop recognizing other people and you by voice. You can record your own voice again.";

@@ -36,6 +36,9 @@ public sealed partial class TranscriptRowView : UserControl
     /// <summary>"Rename speaker…" in the row's menu.</summary>
     public event EventHandler<TranscriptRow>? RenameRequested;
 
+    /// <summary>"Remember the voice of X" in the row's menu.</summary>
+    public event EventHandler<TranscriptRow>? RememberVoiceRequested;
+
     /// <summary>"Fix word…" in the row's menu.</summary>
     public event EventHandler<TranscriptRow>? FixRequested;
 
@@ -143,7 +146,10 @@ public sealed partial class TranscriptRowView : UserControl
         }
     }
 
-    /// <summary>Play from here, Copy, then the edits, which wait while the call is recorded or transcribed.</summary>
+    /// <summary>
+    /// Play from here, Copy, then the edits, which wait while the call is recorded or transcribed. A named speaker
+    /// whose voice is not saved yet can have it remembered from this call, as on the Mac.
+    /// </summary>
     private MenuFlyout Menu(TranscriptRow row)
     {
         var menu = new MenuFlyout();
@@ -165,6 +171,10 @@ public sealed partial class TranscriptRowView : UserControl
         });
         menu.Items.Add(new MenuFlyoutSeparator());
         Add(L("Переименовать говорящего…"), () => RenameRequested?.Invoke(this, row), row.CanEdit);
+        if (row.HasAudio && row.IsUnconfirmed)
+        {
+            Add(L("Запомнить голос «%@»", row.Speaker), () => RememberVoiceRequested?.Invoke(this, row), row.CanEdit);
+        }
         Add(L("Исправить слово…"), () => FixRequested?.Invoke(this, row), row.CanEdit);
         return menu;
     }

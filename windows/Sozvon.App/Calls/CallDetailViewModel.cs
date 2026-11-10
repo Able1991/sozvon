@@ -48,6 +48,7 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         {
             row.CanPlay = Player.IsAvailable;
             row.CanEdit = !actions.IsEditLocked(call);
+            row.HasAudio = call.HasAudio;
         }
         Banner = MakeBanner(call, actions, Rows.Count > 0, Blocks.Count > 0);
         TranscriptPath = Path.Combine(call.Folder, "transcript.md");

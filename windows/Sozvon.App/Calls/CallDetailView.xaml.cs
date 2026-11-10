@@ -328,7 +328,15 @@ public sealed partial class CallDetailView : UserControl
         if (error is null && action is not RenameAction.Line)
         {
             var names = action is RenameAction.Swap ? new[] { action.Name, row.Speaker } : [action.Name];
-            await actions.RememberVoicesAsync(call.Call, names, call.VoiceRecords);
+            await actions.RememberVoicesAsync(call.Call, names);
+        }
+    }
+
+    private async void OnRememberVoiceRequested(object? sender, TranscriptRow row)
+    {
+        if (ViewModel is { } call)
+        {
+            await call.Actions.RememberVoicesAsync(call.Call, [row.Speaker]);
         }
     }
 
@@ -635,7 +643,7 @@ public sealed partial class CallDetailView : UserControl
     {
         if (ViewModel is { } call)
         {
-            await call.Actions.RememberVoicesAsync(call.Call, call.Unsaved, call.VoiceRecords);
+            await call.Actions.RememberVoicesAsync(call.Call, call.Unsaved);
         }
     }
 

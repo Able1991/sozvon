@@ -282,7 +282,7 @@
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="calls:TranscriptRow">
-                                <calls:TranscriptRowView Row="{x:Bind}" Activated="OnRowActivated" RenameRequested="OnRenameRequested" FixRequested="OnFixRequested" />
+                                <calls:TranscriptRowView Row="{x:Bind}" Activated="OnRowActivated" RenameRequested="OnRenameRequested" RememberVoiceRequested="OnRememberVoiceRequested" FixRequested="OnFixRequested" />
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>

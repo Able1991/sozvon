@@ -32,13 +32,14 @@ public static partial class RecycleBin
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     private static extern int SHFileOperation(ref SHFILEOPSTRUCT operation);
 
-    /// <exception cref="IOException">The folder is still there: in use, gone already or refused.</exception>
-    public static void Move(string folder)
+    /// <summary>A call folder or a single file, such as a project's profile.</summary>
+    /// <exception cref="IOException">It is still there: in use, gone already or refused.</exception>
+    public static void Move(string path)
     {
-        var full = Path.GetFullPath(folder);
-        if (!Directory.Exists(full))
+        var full = Path.GetFullPath(path);
+        if (!Directory.Exists(full) && !File.Exists(full))
         {
-            throw new DirectoryNotFoundException(full);
+            throw new FileNotFoundException(full);
         }
         var operation = new SHFILEOPSTRUCT
         {
@@ -47,7 +48,7 @@ public static partial class RecycleBin
             fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT | FOF_WANTNUKEWARNING,
         };
         var result = SHFileOperation(ref operation);
-        if (result != 0 || operation.fAnyOperationsAborted != 0 || Directory.Exists(full))
+        if (result != 0 || operation.fAnyOperationsAborted != 0 || Directory.Exists(full) || File.Exists(full))
         {
             throw new IOException(result != 0 ? new Win32Exception(result).Message : full, result);
         }

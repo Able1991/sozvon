@@ -35,6 +35,9 @@ public sealed partial class TranscriptRow(TranscriptLine line, int ordinal, int 
     /// <summary>The call has audio: a click plays from this line.</summary>
     public bool CanPlay { get; set; }
 
+    /// <summary>The call has its audio: a speaker's voice can be learnt from it.</summary>
+    public bool HasAudio { get; set; }
+
     /// <summary>Not being recorded or transcribed: the line can be renamed or fixed.</summary>
     public bool CanEdit { get; set; }
 
