@@ -267,6 +267,10 @@ public sealed class AppHost
         {
             OnRetentionChanged();
         }
+        else if (e.PropertyName == nameof(AppSettings.PlaySounds) && _store.Settings.PlaySounds)
+        {
+            _ = Chimes.PlayAsync(Chime.Start); // as on the Mac: turning the sounds on lets them be heard
+        }
         else if (e.PropertyName == nameof(AppSettings.FloatingPanel))
         {
             ApplyFloatingPanel();

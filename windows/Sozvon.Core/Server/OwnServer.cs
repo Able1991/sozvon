@@ -68,8 +68,11 @@ public static class OwnServer
     /// <summary>Both the address and the password are set and the address is valid.</summary>
     public static bool IsConfigured(string url, string password) => Normalize(url) is not null && password.Trim().Length > 0;
 
-    /// <summary>The MCP address of the server, for a Claude or ChatGPT connector.</summary>
-    public static string ConnectorUrl(string server) => server + "/mcp";
+    /// <summary>
+    /// The own server's MCP address, for a Claude or ChatGPT connector. Null for a local http server (testing): Claude and
+    /// ChatGPT reach a connector from their own servers and from the phone, never this computer's 127.0.0.1.
+    /// </summary>
+    public static string? ConnectorUrl(string server) => server.StartsWith("https://", StringComparison.Ordinal) ? server + "/mcp" : null;
 
     /// <summary>The reply of <c>GET /api/health</c>: <c>{"ok": true, "version": "...", "schema": 1}</c>.</summary>
     public static ServerHealth Health(int status, string body)

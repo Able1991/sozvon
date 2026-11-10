@@ -256,6 +256,7 @@ public sealed class RecordingController
         }
         _changing = true;
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
+        await PlayChimeAsync(Chime.Start);
         var dir = CallFolder.Create(_layout.Calls);
         try
         {
@@ -304,6 +305,7 @@ public sealed class RecordingController
         StateChanged?.Invoke(this, EventArgs.Empty);
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var result = await _recorder.StopAsync();
+        _ = PlayChimeAsync(Chime.Stop);
         var minutes = (int)Math.Round((DateTimeOffset.Now - _startedAt).TotalMinutes);
         Save(dir, _startedAt, result, _info);
         CallFile.SetInfoPending(dir, true);
@@ -362,6 +364,9 @@ public sealed class RecordingController
         StateChanged?.Invoke(this, EventArgs.Empty);
         ShowProcessing();
     }
+
+    /// <summary>Settings: the tones at the start and the stop, never during a call (the microphone would carry them).</summary>
+    private Task PlayChimeAsync(Chime chime) => _settings.PlaySounds && !_call.InCall ? Chimes.PlayAsync(chime) : Task.CompletedTask;
 
     private static void Save(string dir, DateTimeOffset startedAt, RecordingResult result, CallInfo info)
     {

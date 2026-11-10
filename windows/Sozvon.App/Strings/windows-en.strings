@@ -133,3 +133,7 @@
 "Голосов собеседников пока нет" = "No voices of other people yet";
 "По сохранённому голосу Sozvon сам подписывает человека в следующих звонках. Голос сохраняется, когда ты точно называешь собеседника в расшифровке: «Переименовать говорящего…» или «Запомнить голос» в меню реплики, либо «Запомнить голоса» над расшифровкой." = "With a saved voice, Sozvon names the person by itself in your next calls. A voice is saved when you name a speaker precisely in a transcript: “Rename Speaker…” or “Remember the Voice” in a line’s menu, or “Remember Voices” above the transcript.";
 "Голосов пока нет" = "No voices yet";
+
+/* Settings, General: start-up and the recording tones. */
+"Запуск" = "Startup";
+"Во время звонка звука нет: его услышали бы собеседники" = "Silent during a call: the others would hear it";

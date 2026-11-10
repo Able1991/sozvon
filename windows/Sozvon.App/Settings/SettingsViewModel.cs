@@ -92,14 +92,19 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Claude Code or no summaries: Codex and Cursor are not offered on Windows yet (not tried with the real programs). A
+    /// wizard that chose one of them leaves neither button checked.
+    /// </summary>
     public int SummaryAssistantIndex
     {
-        get => (int)_engine.Assistant;
+        get => _engine.Assistant switch { Assistant.Claude => 0, Assistant.None => 1, _ => -1 };
         set
         {
-            if (value >= 0 && value != (int)_engine.Assistant)
+            var chosen = value switch { 0 => Assistant.Claude, 1 => Assistant.None, _ => (Assistant?)null };
+            if (chosen is { } assistant && assistant != _engine.Assistant)
             {
-                Settings.SummaryAssistantChoice = (Assistant)value;
+                Settings.SummaryAssistantChoice = assistant;
             }
         }
     }

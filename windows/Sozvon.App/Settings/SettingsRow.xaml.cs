@@ -38,13 +38,6 @@ public sealed partial class SettingsRow : UserControl
         set => ActionHost.Content = value;
     }
 
-    /// <summary>Marks a row whose value is stored but has no effect yet.</summary>
-    public bool NotConnected
-    {
-        get => NotConnectedText.Visibility == Visibility.Visible;
-        set => NotConnectedText.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
-    }
-
     private static void OnDescriptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var row = (SettingsRow)d;
