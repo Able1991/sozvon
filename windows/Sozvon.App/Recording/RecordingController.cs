@@ -29,6 +29,8 @@ public sealed class RecordingController
     private readonly IRecorder _recorder;
     private readonly CallProcessor _processor;
     private readonly CallAutomationController _call;
+    private readonly HotKey _markKeys;
+    private readonly MarkShortcut _markShortcut = new();
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private string? _dir;
@@ -65,11 +67,19 @@ public sealed class RecordingController
 
     public bool IsRecording => _recording;
 
+    /// <summary>
+    /// Work a restart would cut short: a recording, its start or stop, the form after a call, or the engine's queue.
+    /// </summary>
+    public bool IsBusy => _recording || _changing || _prompt.IsOpen || _processor.HasWork;
+
     /// <summary>The folder being recorded into, or null.</summary>
     public string? RecordingDirectory => _recording ? _dir : null;
 
     /// <summary>The engine's queue: what is transcribed, what waits.</summary>
     public CallProcessor Processor => _processor;
+
+    /// <summary>Whether Ctrl+Alt+I marks the moment right now, and whether another program has taken it.</summary>
+    public MarkShortcut MarkShortcut => _markShortcut;
 
     public TimeSpan Elapsed => DateTimeOffset.Now - _startedAt;
 
@@ -99,6 +109,8 @@ public sealed class RecordingController
             CallsChanged?.Invoke(this, EventArgs.Empty);
         });
         _processor.RunFinished += _ => _ui.TryEnqueue(() => CallsChanged?.Invoke(this, EventArgs.Empty));
+        // Registered for each recording only, as on the Mac: other programs keep the keys in between.
+        _markKeys = HotKey.Important(WinRT.Interop.WindowNative.GetWindowHandle(capsule), Mark);
         _call.Changed += (_, _) => OnCallChanged();
         _call.RecordRequested += (_, _) => Begin();
         _call.StopRequested += (_, _) => Stop();
@@ -187,6 +199,7 @@ public sealed class RecordingController
         {
             await StopAsync(askNow: false);
         }
+        _markKeys.Dispose();
         await _processor.AbortAllAsync();
     }
 
@@ -237,6 +250,7 @@ public sealed class RecordingController
             _recording = false;
             _changing = false;
             _clock.Stop();
+            ReleaseMarkKeys();
             StateChanged?.Invoke(this, EventArgs.Empty);
             Problem?.Invoke(this, Loc.L("Не получилось: подробности в журнале программы."));
             ShowProcessing();
@@ -281,6 +295,7 @@ public sealed class RecordingController
         _warning = null;
         _recording = true;
         _clock.Start();
+        _markShortcut.Registered(_markKeys.Register());
         _remind = RemindToSay();
         if (_remind && !PanelVisible())
         {
@@ -301,7 +316,10 @@ public sealed class RecordingController
             return;
         }
         _recording = false;
+        // Busy until the call is saved and its form is up: no new recording and no restart in between.
+        _changing = true;
         _clock.Stop();
+        ReleaseMarkKeys();
         StateChanged?.Invoke(this, EventArgs.Empty);
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var result = await _recorder.StopAsync();
@@ -309,9 +327,10 @@ public sealed class RecordingController
         var minutes = (int)Math.Round((DateTimeOffset.Now - _startedAt).TotalMinutes);
         Save(dir, _startedAt, result, _info);
         CallFile.SetInfoPending(dir, true);
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (!askNow)
         {
+            _changing = false;
+            StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
         _processor.StartNext();
@@ -323,6 +342,8 @@ public sealed class RecordingController
         }
         var countdown = sure && _settings.TranscribeWhenClear ? CallGuess.FormCountdown : (int?)null;
         Ask(DescribeRequest(info, countdown), answer => Apply(dir, answer));
+        _changing = false;
+        StateChanged?.Invoke(this, EventArgs.Empty);
         await Task.Delay(SavedShownFor);
         ShowProcessing();
     }
@@ -374,6 +395,7 @@ public sealed class RecordingController
         CallFile.SaveStopped(dir, startedAt, new Sozvon.Core.Calls.AudioTimes(audio.MicStart, audio.SystemStart, audio.MicSeconds, audio.SystemSeconds), info);
     }
 
+    /// <summary>The star on the capsule, the tray menu or Ctrl+Alt+I from any program: this moment matters.</summary>
     public void Mark()
     {
         if (_recorder.Mark())
@@ -381,6 +403,12 @@ public sealed class RecordingController
             _marks++;
             RenderRecording();
         }
+    }
+
+    private void ReleaseMarkKeys()
+    {
+        _markKeys.Unregister();
+        _markShortcut.Released();
     }
 
     private void OnLevels(RecorderLevels levels)
@@ -483,6 +511,7 @@ public sealed class RecordingController
         {
             Elapsed = DateTimeOffset.Now - _startedAt,
             Marks = _marks,
+            MarkShortcutHeld = _markShortcut.Held,
             Hint = hint,
             HintTime = TimeSpan.FromSeconds(seconds),
         });

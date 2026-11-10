@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -87,7 +88,6 @@ public sealed partial class CapsuleWindow : Window
         ApplyStyle();
 
         HideItem.Text = CapsuleText.Hide;
-        ToolTipService.SetToolTip(MarkButton, CapsuleText.Mark + " (Ctrl+Alt+I)");
         ToolTipService.SetToolTip(StopButton, CapsuleText.Stop);
         ToolTipService.SetToolTip(HideButton, CapsuleText.Hide);
         RecordButton.Click += (_, _) => Click(RecordClicked);
@@ -348,6 +348,10 @@ public sealed partial class CapsuleWindow : Window
         MarkIcon.Foreground = model.Marks > 0 ? _markedBrush : _unmarkedBrush;
         MarkBadge.Visibility = model.Marks > 0 ? Visibility.Visible : Visibility.Collapsed;
         MarkBadge.Value = model.Marks;
+        // The same words for the screen reader (and UI Automation): the shortcut is promised only while it works.
+        var mark = Sozvon.Core.Calls.MarkShortcut.Tooltip(CapsuleText.Mark, model.MarkShortcutHeld);
+        ToolTipService.SetToolTip(MarkButton, mark);
+        AutomationProperties.SetHelpText(MarkButton, mark);
         var time = model.HintTime.ToString(@"m\:ss");
         switch (model.Hint)
         {

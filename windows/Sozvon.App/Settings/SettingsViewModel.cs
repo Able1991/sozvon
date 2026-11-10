@@ -6,6 +6,7 @@ using Sozvon.App.Shell;
 using Sozvon.App.Strings;
 using Sozvon.Core.Automation;
 using Sozvon.Core.Engine;
+using Sozvon.Core.Calls;
 using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
@@ -17,9 +18,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly EngineSettings _engine;
     private readonly EngineLayout _layout;
     private readonly AppLanguage _startupLanguage;
+    private readonly MarkShortcut _markShortcut;
+    private readonly Relauncher _relaunch;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, EngineLayout layout, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations,
-        SignInSetting signIn, ServerViewModel server)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, EngineLayout layout, AppLanguage startupLanguage, Relauncher relaunch,
+        IntegrationsViewModel integrations, SignInSetting signIn, ServerViewModel server, MarkShortcut markShortcut)
     {
         Server = server;
         Integrations = integrations;
@@ -28,9 +31,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         _engine = engine;
         _layout = layout;
         _startupLanguage = startupLanguage;
-        RelaunchCommand = new RelayCommand(relaunch);
+        _markShortcut = markShortcut;
+        _relaunch = relaunch;
+        RelaunchCommand = new RelayCommand(relaunch.Request, () => !relaunch.Waiting);
         _store.PropertyChanged += OnStoreChanged;
         Settings.PropertyChanged += OnSettingsChanged;
+        markShortcut.Changed += () => OnPropertyChanged(nameof(MarkShortcutTaken));
+        relaunch.WaitingChanged += (_, _) =>
+        {
+            RelaunchCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(RelaunchButtonText));
+        };
     }
 
     public AppSettings Settings => _store.Settings;
@@ -153,6 +164,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         : Loc.L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе.");
 
     public bool NeedsRelaunch => Settings.Language != _startupLanguage;
+
+    /// <summary>The button says what pressing it did: pressed during work, the restart comes when the work ends.</summary>
+    public string RelaunchButtonText => _relaunch.Waiting
+        ? Loc.L("Перезапустится, когда закончатся запись и расшифровка")
+        : Loc.L("Перезапустить Sozvon");
+
+    /// <summary>Another program holds Ctrl+Alt+I: the press marks nothing, and this says why rather than let it fail quietly.</summary>
+    public bool MarkShortcutTaken => _markShortcut.Taken;
+
+    public string MarkShortcutWarning =>
+        Loc.L("Сочетание %@ занято другой программой. Отметить важное можно кнопкой на панели или в меню значка в трее.", MarkShortcut.Keys);
 
     public string SaveError => _store.SaveError;
 
