@@ -17,7 +17,7 @@ public sealed partial class WelcomePage : UserControl, ISetupPage
     public event Action? Changed { add { } remove { } }
     public string Glyph => "";
     public string Title => Strings.L("Добро пожаловать в Sozvon");
-    public string Subtitle => Strings.L("Нажал значок на панели задач, созвонился, остановил. Дальше расшифровка и саммари на этом компьютере.");
+    public string Subtitle => Strings.L("Нажал значок в области уведомлений, созвонился, остановил. Дальше расшифровка и саммари на этом компьютере.");
     public SetupFooter Footer => new(false, Strings.L("Продолжить"));
 
     public void OnShown()
