@@ -27,6 +27,9 @@ public sealed record CallRecord
     public bool IsReflection { get; init; }
     public bool InfoPending { get; init; }
     public bool AudioRemoved { get; init; }
+
+    /// <summary>mic.m4a or system.m4a is there: the call can be played and transcribed again.</summary>
+    public bool HasAudio { get; init; }
     public bool IsQueued { get; init; }
     public bool HasSummaryWarning { get; init; }
     public bool IsUnreadable { get; init; }

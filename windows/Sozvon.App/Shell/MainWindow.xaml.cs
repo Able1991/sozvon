@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -66,7 +66,7 @@ public sealed partial class MainWindow : Window
     /// <summary>Ctrl+F: inside the transcript on its tab, otherwise the search across calls.</summary>
     private void OnFind()
     {
-        if (PageHost.Content != _callsPage || !_callsPage.OpenTranscriptFind())
+        if (!ReferenceEquals(PageHost.Content, _callsPage) || !_callsPage.OpenTranscriptFind())
         {
             SearchCalls();
         }

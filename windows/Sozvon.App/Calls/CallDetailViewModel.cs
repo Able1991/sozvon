@@ -8,6 +8,12 @@ namespace Sozvon.App.Calls;
 
 public enum CallBannerKind { None, Informational, Critical, Caution }
 
+/// <summary>The button of the status banner.</summary>
+public enum CallBannerAction { None, RemoveFromQueue, Retranscribe, Resummarize }
+
+/// <summary>The line under the header: what is happening to the call, and what can be done about it.</summary>
+public sealed record CallBanner(CallBannerKind Kind, string Title, string Message = "", CallBannerAction Action = CallBannerAction.None, bool Progress = false);
+
 /// <summary>A note as the card lists it.</summary>
 public sealed record NoteRow(CallNote Note, string Stamp)
 {
@@ -35,13 +41,14 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         Rows = TranscriptRow.Parse(content.Transcript, Unsaved, me);
         Participants = Chips(call, speakers, me, voices, Unsaved);
         Notes = new ObservableCollection<NoteRow>(call.Notes.Select(Row));
-        Player = new CallPlayer(call);
+        // An open file would keep the engine from renaming the folder when it finishes.
+        Player = new CallPlayer(call, busy: actions.IsBusy(call) || actions.IsTranscribing(call));
         foreach (var row in Rows)
         {
             row.CanPlay = Player.IsAvailable;
             row.CanEdit = !actions.IsEditLocked(call);
         }
-        (BannerKind, BannerText) = Banner(call);
+        Banner = MakeBanner(call, actions, Rows.Count > 0, Blocks.Count > 0);
         TranscriptPath = Path.Combine(call.Folder, "transcript.md");
         LogPath = Path.Combine(call.Folder, "process.log");
         DiskSize = call.IsDemo ? "" : Loc.L("На диске: %@", FormatSize(FolderBytes(call.Folder)));
@@ -74,8 +81,17 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     public bool HasSummary => Blocks.Count > 0;
     public bool HasTranscript => Rows.Count > 0;
     public CallPlayer Player { get; }
-    public CallBannerKind BannerKind { get; }
-    public string BannerText { get; }
+    public CallBanner Banner { get; }
+
+    /// <summary>The More menu: Transcribe again, Describe or Transcribe, as the call's state says; empty when not offered.</summary>
+    public string TranscribeTitle =>
+        !Call.HasAudio || Call.IsDemo || !Actions.CanTranscribe || Actions.IsBusy(Call) ? ""
+        : Call.IsWaitingForDescription ? Loc.L("Описать…")
+        : HasTranscript ? Loc.L("Расшифровать заново…") : Loc.L("Расшифровать…");
+
+    public bool CanResummarize => HasTranscript && Actions.CanTranscribe && !Actions.IsEditLocked(Call) && !Actions.IsSummarizing(Call);
+
+    public bool CanRemoveFromQueue => Actions.IsWaiting(Call);
     public string TranscriptPath { get; }
     public string LogPath { get; }
     public string DiskSize { get; }
@@ -161,17 +177,58 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         }).ToList();
     }
 
-    private static (CallBannerKind, string) Banner(CallRecord call) => call switch
+    /// <summary>The Mac's status banners, then the Windows ones for a failed or summary-less run.</summary>
+    private static CallBanner MakeBanner(CallRecord call, CallActions actions, bool hasTranscript, bool hasSummary)
     {
-        { IsDemo: true } => (CallBannerKind.Informational, Loc.L("Это демо-звонок: настоящих звонков пока нет")),
-        { IsUnreadable: true } => (CallBannerKind.Critical, Loc.L("Не удалось прочитать call.json")),
-        { Status: CallStatus.Failed } => (CallBannerKind.Critical, Loc.L("Не получилось расшифровать")),
-        { Status: CallStatus.Processing } => (CallBannerKind.Informational, Loc.L("Расшифровывается…")),
-        { IsQueued: true } => (CallBannerKind.Informational, Loc.L("В очереди")),
-        { HasSummaryWarning: true } => (CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось")),
-        _ => (CallBannerKind.None, ""),
-    };
+        if (call.IsDemo)
+        {
+            return new(CallBannerKind.Informational, Loc.L("Это демо-звонок: настоящих звонков пока нет"));
+        }
+        if (call.IsUnreadable)
+        {
+            return new(CallBannerKind.Critical, Loc.L("Не удалось прочитать call.json"));
+        }
+        if (actions.IsTranscribing(call))
+        {
+            return new(CallBannerKind.Informational, Loc.L(hasTranscript ? "Расшифровываю заново…" : "Расшифровывается…"), Progress: true);
+        }
+        if (actions.IsSummarizing(call))
+        {
+            return new(CallBannerKind.Informational, Loc.L("Обновляю саммари…"), Progress: true);
+        }
+        if (actions.IsWaiting(call))
+        {
+            return new(CallBannerKind.Informational, Loc.L("В очереди."), Loc.L("Начнётся, когда освободится движок и закончится звонок."),
+                       CallBannerAction.RemoveFromQueue);
+        }
+        var canTranscribe = call.HasAudio && actions.CanTranscribe && !actions.IsBusy(call);
+        if (call.Status == CallStatus.Failed)
+        {
+            // The last run failed; a transcript on screen is from the run before it.
+            return new(CallBannerKind.Critical, Loc.L(hasTranscript ? "Не получилось расшифровать." : "Не получилось расшифровать"),
+                       hasTranscript ? Loc.L("Здесь расшифровка с прошлого раза.") : "",
+                       canTranscribe ? CallBannerAction.Retranscribe : CallBannerAction.None);
+        }
+        if (hasSummary && SummaryStale(call.Folder) && !actions.IsEditLocked(call))
+        {
+            // The transcript was edited after the summary was written (names fixed, lines moved).
+            return new(CallBannerKind.Caution, Loc.L("Саммари устарело."), Loc.L("Расшифровку изменили после того, как оно было написано."),
+                       actions.CanTranscribe ? CallBannerAction.Resummarize : CallBannerAction.None);
+        }
+        if (call.HasSummaryWarning)
+        {
+            return new(CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось"));
+        }
+        return new(CallBannerKind.None, "");
+    }
 
+    /// <summary>transcript.txt is newer than summary.md: the transcript was edited after the summary.</summary>
+    private static bool SummaryStale(string folder)
+    {
+        var transcript = new FileInfo(Path.Combine(folder, "transcript.txt"));
+        var summary = new FileInfo(Path.Combine(folder, "summary.md"));
+        return transcript.Exists && summary.Exists && (transcript.LastWriteTimeUtc - summary.LastWriteTimeUtc).TotalSeconds > 2;
+    }
     private static long FolderBytes(string folder)
     {
         try

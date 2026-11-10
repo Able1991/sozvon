@@ -85,19 +85,17 @@ public sealed partial class CallDetailView : UserControl
 
     private void ShowCall(CallDetailViewModel call)
     {
-        StatusBar.Title = call.BannerText;
-        StatusBar.IsOpen = call.BannerKind != CallBannerKind.None;
-        StatusBar.Severity = call.BannerKind switch
-        {
-            CallBannerKind.Critical => InfoBarSeverity.Error,
-            CallBannerKind.Caution => InfoBarSeverity.Warning,
-            _ => InfoBarSeverity.Informational,
-        };
+        ShowBanner(call);
         NoSummaryText.Visibility = call.HasSummary ? Visibility.Collapsed : Visibility.Visible;
         NoTranscriptText.Visibility = call.HasTranscript ? Visibility.Collapsed : Visibility.Visible;
         ShowFolderItem.IsEnabled = call.CanOpenFolder;
         LogItem.IsEnabled = call.HasLog;
         OpenTranscriptItem.IsEnabled = call.HasTranscriptFile;
+        TranscribeItem.Text = call.TranscribeTitle;
+        TranscribeItem.Visibility = call.TranscribeTitle.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RemoveFromQueueItem.Visibility = call.CanRemoveFromQueue ? Visibility.Visible : Visibility.Collapsed;
+        ResummarizeItem.Visibility = call.HasTranscript && call.Actions.CanTranscribe ? Visibility.Visible : Visibility.Collapsed;
+        ResummarizeItem.IsEnabled = call.CanResummarize;
         TrashItem.Visibility = TrashSeparator.Visibility = call.CanOpenFolder ? Visibility.Visible : Visibility.Collapsed;
         TrashItem.IsEnabled = !call.Actions.IsBusy(call.Call);
         DiskSizeItem.Text = call.DiskSize;
@@ -528,6 +526,60 @@ public sealed partial class CallDetailView : UserControl
         _deletedNote = null;
         NoteDeleted.Visibility = Visibility.Collapsed;
         ShowNoNotes();
+    }
+
+    /// <summary>The status banner: progress, the queue, a failed run, a summary older than the transcript.</summary>
+    private void ShowBanner(CallDetailViewModel call)
+    {
+        var banner = call.Banner;
+        StatusBar.IsOpen = banner.Kind != CallBannerKind.None;
+        StatusBar.Title = banner.Title;
+        StatusBar.Message = banner.Message;
+        StatusBar.Severity = banner.Kind switch
+        {
+            CallBannerKind.Critical => InfoBarSeverity.Error,
+            CallBannerKind.Caution => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Informational,
+        };
+        StatusBar.Content = banner.Progress ? new ProgressBar { IsIndeterminate = true, Margin = new Thickness(0, 0, 0, 12) } : null;
+        StatusBar.ActionButton = banner.Action switch
+        {
+            CallBannerAction.RemoveFromQueue => BannerButton(L("Убрать из очереди"), () => call.Actions.RemoveFromQueue(call.Call)),
+            CallBannerAction.Retranscribe => BannerButton(L("Расшифровать заново…"), () => call.Actions.Retranscribe(call.Call)),
+            CallBannerAction.Resummarize => BannerButton(L("Обновить саммари"), () => call.Actions.Resummarize(call.Call)),
+            _ => null,
+        };
+    }
+
+    private static Button BannerButton(string text, Action action)
+    {
+        var button = new Button { Content = text };
+        button.Click += (_, _) => action();
+        return button;
+    }
+
+    private void OnRetranscribe(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } call)
+        {
+            call.Actions.Retranscribe(call.Call);
+        }
+    }
+
+    private void OnRemoveFromQueue(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } call)
+        {
+            call.Actions.RemoveFromQueue(call.Call);
+        }
+    }
+
+    private void OnResummarize(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } call)
+        {
+            call.Actions.Resummarize(call.Call);
+        }
     }
 
     private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke(this, EventArgs.Empty);

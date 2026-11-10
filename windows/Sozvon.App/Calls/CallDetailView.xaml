@@ -89,6 +89,9 @@
                 <DropDownButton Content="{s:L K='Ещё'}">
                     <DropDownButton.Flyout>
                         <MenuFlyout>
+                            <MenuFlyoutItem x:Name="TranscribeItem" Click="OnRetranscribe" />
+                            <MenuFlyoutItem x:Name="RemoveFromQueueItem" Text="{s:L K='Убрать из очереди'}" Click="OnRemoveFromQueue" />
+                            <MenuFlyoutItem x:Name="ResummarizeItem" Text="{s:L K='Обновить саммари'}" Click="OnResummarize" />
                             <MenuFlyoutItem x:Name="ShowFolderItem" Text="{s:L K='Показать в проводнике'}" Click="OnShowFolder" />
                             <MenuFlyoutItem x:Name="LogItem" Text="{s:L K='Журнал обработки'}" Click="OnOpenLog" />
                             <MenuFlyoutSeparator x:Name="TrashSeparator" />

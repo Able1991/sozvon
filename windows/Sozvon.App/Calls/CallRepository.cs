@@ -94,6 +94,7 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
             IsReflection = Text(root, "kind") == "reflection",
             InfoPending = root.TryGetProperty("info_pending", out var pending) && pending.ValueKind == JsonValueKind.True,
             AudioRemoved = Text(root, "audio_removed_at").Length > 0,
+            HasAudio = call.HasAudio,
             IsQueued = Text(root, "queued_at").Length > 0,
             HasSummaryWarning = HasWarning(root, "summary"),
         };

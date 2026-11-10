@@ -129,7 +129,10 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         if (state.LatestCallId is { } id)
         {
             AddAction(menu, "Последняя расшифровка", () => host.OpenCall(id));
-            AddNotConnected(menu, "Расшифровать заново…");
+            if (state.LatestAudioFolder is { } folder)
+            {
+                AddAction(menu, "Расшифровать заново…", () => host.Recording?.Retranscribe(folder));
+            }
         }
     }
 
@@ -139,9 +142,6 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
 
     private static void AddAction(MenuFlyout menu, string key, Action action) =>
         Add(menu, new MenuFlyoutItem { Text = L(key), Command = new RelayCommand(action) });
-
-    private static void AddNotConnected(MenuFlyout menu, string key) =>
-        Add(menu, new MenuFlyoutItem { Text = L(key) + NotConnected, IsEnabled = false });
 
     private static void AddStored(MenuFlyout menu, string key, bool isChecked) =>
         Add(menu, new ToggleMenuFlyoutItem { Text = L(key) + NotConnected, IsChecked = isChecked, IsEnabled = false });

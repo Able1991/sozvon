@@ -34,6 +34,15 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
     /// <summary>Busy here, or call.json says processing (a run Sozvon didn't start): the engine would overwrite an edit.</summary>
     public bool IsEditLocked(CallRecord call) => call.IsDemo || IsBusy(call) || call.Status == CallStatus.Processing;
 
+    /// <summary>The engine is transcribing this call right now.</summary>
+    public bool IsTranscribing(CallRecord call) =>
+        call.Status == CallStatus.Processing
+        || (recording()?.Processor.Running is { Kind: ProcessingKind.Transcribe } job && SameFolder(job.Dir, call.Folder));
+
+    /// <summary>Waiting in the engine's queue.</summary>
+    public bool IsWaiting(CallRecord call) =>
+        call.IsQueued || recording()?.Processor.Waiting.Any(j => SameFolder(j.Dir, call.Folder)) == true;
+
     /// <summary>The summary is being made again right now.</summary>
     public bool IsSummarizing(CallRecord call) =>
         recording()?.Processor.Running is { Kind: ProcessingKind.SummaryOnly } job && SameFolder(job.Dir, call.Folder);

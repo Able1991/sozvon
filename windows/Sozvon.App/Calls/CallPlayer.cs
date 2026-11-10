@@ -19,10 +19,12 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     private readonly SynchronizationContext _ui = SynchronizationContext.Current!;
     private bool _disposed;
 
-    public CallPlayer(CallRecord call)
+    /// <param name="call">The call to play.</param>
+    /// <param name="busy">The engine is working on the call: no file is opened, so it can rename the folder.</param>
+    public CallPlayer(CallRecord call, bool busy = false)
     {
         Duration = call.DurationSeconds;
-        var tracks = call.IsDemo || call.AudioRemoved ? [] : FindTracks(call);
+        var tracks = call.IsDemo || call.AudioRemoved || busy ? [] : FindTracks(call);
         IsAvailable = tracks.Count > 0;
         Unavailable = IsAvailable ? "" : Loc.L(call.IsDemo ? "В демо-звонке нет записи" : "Запись недоступна");
         foreach (var (path, offset) in tracks)
