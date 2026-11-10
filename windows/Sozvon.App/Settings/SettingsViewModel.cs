@@ -18,8 +18,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
     private readonly MarkShortcut _markShortcut;
+    private readonly Relauncher _relaunch;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Relauncher relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
         ServerViewModel server, MarkShortcut markShortcut)
     {
         Server = server;
@@ -29,10 +30,16 @@ public sealed partial class SettingsViewModel : ObservableObject
         _engine = engine;
         _startupLanguage = startupLanguage;
         _markShortcut = markShortcut;
-        RelaunchCommand = new RelayCommand(relaunch);
+        _relaunch = relaunch;
+        RelaunchCommand = new RelayCommand(relaunch.Request, () => !relaunch.Waiting);
         _store.PropertyChanged += OnStoreChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         markShortcut.Changed += () => OnPropertyChanged(nameof(MarkShortcutTaken));
+        relaunch.WaitingChanged += (_, _) =>
+        {
+            RelaunchCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(RelaunchButtonText));
+        };
     }
 
     public AppSettings Settings => _store.Settings;
@@ -155,6 +162,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         : Loc.L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе.");
 
     public bool NeedsRelaunch => Settings.Language != _startupLanguage;
+
+    /// <summary>The button says what pressing it did: pressed during work, the restart comes when the work ends.</summary>
+    public string RelaunchButtonText => _relaunch.Waiting
+        ? Loc.L("Перезапустится, когда закончатся запись и расшифровка")
+        : Loc.L("Перезапустить Sozvon");
 
     /// <summary>Another program holds Ctrl+Alt+I: the press marks nothing, and this says why rather than let it fail quietly.</summary>
     public bool MarkShortcutTaken => _markShortcut.Taken;

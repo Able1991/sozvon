@@ -54,8 +54,12 @@ public sealed class AppHost
     /// <summary>Open at sign-in: the Settings row and the tray menu share it.</summary>
     public SignInSetting SignIn { get; } = new(Environment.ProcessPath!);
 
+    /// <summary>"Relaunch Sozvon" after a change of language: at once when idle, otherwise once the recording and the queue are done.</summary>
+    public Relauncher Relaunch { get; }
+
     private AppHost()
     {
+        Relaunch = new Relauncher(() => _recording?.IsBusy ?? false, RestartNow);
         _engineSettings = new EngineSettings(_store.Settings, AppPaths.EnvFile);
         _startupLanguage = _store.Settings.Language;
         Loc.Initialize(ResolvesToRussian(_startupLanguage));
@@ -91,8 +95,16 @@ public sealed class AppHost
         _trayState.Recording = recording;
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         capsule.Rendered += (_, _) => ApplyFloatingPanel();
-        recording.StateChanged += (_, _) => _tray.Refresh();
-        recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
+        recording.StateChanged += (_, _) =>
+        {
+            _tray.Refresh();
+            Relaunch.Poll();
+        };
+        recording.CallsChanged += (_, _) =>
+        {
+            _ = _calls?.RefreshAsync();
+            Relaunch.Poll();
+        };
         // A finished transcription goes to the own server, if one is set up.
         recording.Processor.RunFinished += run => _dispatcher.TryEnqueue(() =>
         {
@@ -199,7 +211,7 @@ public sealed class AppHost
         Application.Current.Exit();
     }
 
-    public void Relaunch()
+    private void RestartNow()
     {
         _tray.Dispose();
         var failure = AppInstance.Restart("");

@@ -50,6 +50,7 @@
 "Через 60 дней" = "After 60 days";
 "Это демо-звонок: настоящих звонков пока нет" = "This is a demo call: there are no real calls yet";
 "Язык изменится после перезапуска" = "The language changes after a relaunch";
+"Перезапустится, когда закончатся запись и расшифровка" = "Relaunches when the recording and the transcription end";
 "предпросмотр" = "preview";
 
 /* Sentence case and Windows words where the Mac file says otherwise. */

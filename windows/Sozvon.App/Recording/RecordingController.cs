@@ -67,6 +67,11 @@ public sealed class RecordingController
 
     public bool IsRecording => _recording;
 
+    /// <summary>
+    /// Work a restart would cut short: a recording, its start or stop, the form after a call, or the engine's queue.
+    /// </summary>
+    public bool IsBusy => _recording || _changing || _prompt.IsOpen || _processor.HasWork;
+
     /// <summary>The folder being recorded into, or null.</summary>
     public string? RecordingDirectory => _recording ? _dir : null;
 
@@ -311,6 +316,8 @@ public sealed class RecordingController
             return;
         }
         _recording = false;
+        // Busy until the call is saved and its form is up: no new recording and no restart in between.
+        _changing = true;
         _clock.Stop();
         ReleaseMarkKeys();
         StateChanged?.Invoke(this, EventArgs.Empty);
@@ -320,9 +327,10 @@ public sealed class RecordingController
         var minutes = (int)Math.Round((DateTimeOffset.Now - _startedAt).TotalMinutes);
         Save(dir, _startedAt, result, _info);
         CallFile.SetInfoPending(dir, true);
-        StateChanged?.Invoke(this, EventArgs.Empty);
         if (!askNow)
         {
+            _changing = false;
+            StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
         _processor.StartNext();
@@ -334,6 +342,8 @@ public sealed class RecordingController
         }
         var countdown = sure && _settings.TranscribeWhenClear ? CallGuess.FormCountdown : (int?)null;
         Ask(DescribeRequest(info, countdown), answer => Apply(dir, answer));
+        _changing = false;
+        StateChanged?.Invoke(this, EventArgs.Empty);
         await Task.Delay(SavedShownFor);
         ShowProcessing();
     }

@@ -69,7 +69,7 @@
                     <InfoBar IsOpen="{x:Bind ViewModel.NeedsRelaunch, Mode=OneWay}" IsClosable="False" Severity="Informational"
                              Title="{s:L K='Язык изменится после перезапуска'}" Message="{s:L K='Открытые окна закроются, запись не прервётся.'}">
                         <InfoBar.ActionButton>
-                            <Button Content="{s:L K='Перезапустить Sozvon'}" Command="{x:Bind ViewModel.RelaunchCommand}" />
+                            <Button Content="{x:Bind ViewModel.RelaunchButtonText, Mode=OneWay}" Command="{x:Bind ViewModel.RelaunchCommand}" />
                         </InfoBar.ActionButton>
                     </InfoBar>
 
