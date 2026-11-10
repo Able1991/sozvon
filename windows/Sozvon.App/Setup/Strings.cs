@@ -1,11 +1,23 @@
 using System.Globalization;
+using Sozvon.Core.Foundation;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Setup;
 
 /// <summary>The wizard's text. Keys are the Russian strings, as in Sources/Sozvon/Resources/en.lproj/Localizable.strings.</summary>
 internal static class Strings
 {
-    public static bool IsRussian { get; } = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru";
+    /// <summary>Windows' language until <see cref="Initialize"/> applies the app's "Язык интерфейса" setting.</summary>
+    public static bool IsRussian { get; private set; } = SystemIsRussian;
+
+    private static bool SystemIsRussian => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru";
+
+    /// <summary>
+    /// The wizard is its own process and follows the app's setting from settings.json in <paramref name="dataFolder"/>;
+    /// Windows' language only while the setting is "System" or the file does not exist yet, as on the first run.
+    /// </summary>
+    public static void Initialize(string dataFolder) =>
+        IsRussian = UiLanguage.IsRussian(SharedFile.ReadText(Path.Combine(dataFolder, "settings.json")), SystemIsRussian);
 
     /// <summary>The value of SOZVON_UI_LANG.</summary>
     public static string EngineLanguage => IsRussian ? "ru" : "en";
