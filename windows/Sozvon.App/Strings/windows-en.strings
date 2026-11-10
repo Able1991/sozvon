@@ -18,6 +18,9 @@
 "Найти в расшифровке" = "Find in transcript";
 "Закрыть поиск" = "Close find";
 "Заметка удалена" = "Note deleted";
+"Импортируется «%@»…" = "Importing “%@”…";
+"Не все записи импортированы" = "Not every recording was imported";
+"этот формат не поддерживается" = "this format isn’t supported";
 "Вернуть" = "Undo";
 "Не получилось удалить заметку" = "Couldn’t delete the note";
 "Действия с заметкой" = "Note actions";

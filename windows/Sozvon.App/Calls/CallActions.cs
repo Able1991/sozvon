@@ -109,6 +109,47 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         }
     }
 
+    /// <summary>
+    /// Dropped recordings become calls, one after another; the last one gets "What was the call about?", the others
+    /// wait in the list for their description. The problems, one line per file that was not imported.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> ImportAsync(IReadOnlyList<string> files, string callsDir, IProgress<(string Name, double Fraction)> progress)
+    {
+        var problems = new List<string>();
+        string? last = null;
+        var ffmpeg = Path.Combine(dataDir, ".venv", "Scripts", "ffmpeg.exe");
+        foreach (var file in files)
+        {
+            var name = Path.GetFileName(file);
+            if (!CallImport.IsSupported(file))
+            {
+                problems.Add(Loc.L("Не получилось импортировать «%@»", name) + ": " + Loc.L("этот формат не поддерживается"));
+                continue;
+            }
+            progress.Report((name, 0));
+            try
+            {
+                var dir = await Task.Run(() => CallImport.ImportAsync(file, callsDir, ffmpeg, new Progress<double>(f => progress.Report((name, f)))));
+                CallFile.SetInfoPending(dir, true);
+                last = dir;
+                Changed?.Invoke(CallFile.CallId(dir));
+            }
+            catch (NoAudioException)
+            {
+                problems.Add(Loc.L("Не получилось импортировать «%@»", name) + ": " + Loc.L("В файле нет звуковой дорожки"));
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                problems.Add(Loc.L("Не получилось импортировать «%@»", name) + ": " + e.Message);
+            }
+        }
+        if (last is not null)
+        {
+            recording()?.Retranscribe(last);
+        }
+        return problems;
+    }
+
     /// <summary>Moves the call's folder to the Recycle Bin, as on the Mac without asking. The reason it didn't, or null.</summary>
     public string? Trash(CallRecord call, string? selectNext)
     {

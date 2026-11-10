@@ -3,11 +3,17 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Sozvon.App.Shell;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage;
+using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Calls;
 
 public sealed partial class CallsPage : UserControl
 {
+    private bool _importing;
+
     private static readonly Windows.UI.Color[] ProjectColors =
     [
         ColorHelper.FromArgb(255, 0xE0, 0x8A, 0x3C),
@@ -58,6 +64,59 @@ public sealed partial class CallsPage : UserControl
         if (ViewModel.TrashSelected() is { } problem)
         {
             await new ContentDialog { XamlRoot = XamlRoot, Title = problem, CloseButtonText = "OK" }.ShowAsync();
+        }
+    }
+
+    private void OnDragOver(object sender, DragEventArgs e)
+    {
+        if (e.DataView.Contains(StandardDataFormats.StorageItems) && !_importing)
+        {
+            e.AcceptedOperation = DataPackageOperation.Copy;
+            e.DragUIOverride.Caption = L("Импортировать запись");
+        }
+    }
+
+    /// <summary>Dropped files: the recordings among them are imported one after another, the rest explained.</summary>
+    private async void OnDrop(object sender, DragEventArgs e)
+    {
+        if (_importing || !e.DataView.Contains(StandardDataFormats.StorageItems))
+        {
+            return;
+        }
+        var deferral = e.GetDeferral();
+        var files = (await e.DataView.GetStorageItemsAsync()).OfType<StorageFile>().Select(f => f.Path).Where(p => p.Length > 0).ToList();
+        deferral.Complete();
+        if (files.Count == 0)
+        {
+            return;
+        }
+        _importing = true;
+        ImportBar.Visibility = Visibility.Visible;
+        ImportBar.IsOpen = true;
+        var progress = new Progress<(string Name, double Fraction)>(p =>
+        {
+            ImportBar.Title = L("Импортируется «%@»…", p.Name);
+            ImportProgress.Value = p.Fraction;
+        });
+        try
+        {
+            var problems = await ViewModel.Actions.ImportAsync(files, AppPaths.CallsDir, progress);
+            if (problems.Count > 0)
+            {
+                await new ContentDialog
+                {
+                    XamlRoot = XamlRoot,
+                    Title = L("Не все записи импортированы"),
+                    Content = new TextBlock { Text = string.Join("\n", problems), TextWrapping = TextWrapping.Wrap },
+                    CloseButtonText = "OK",
+                }.ShowAsync();
+            }
+        }
+        finally
+        {
+            _importing = false;
+            ImportBar.IsOpen = false;
+            ImportBar.Visibility = Visibility.Collapsed;
         }
     }
 
