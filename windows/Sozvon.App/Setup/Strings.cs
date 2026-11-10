@@ -1,11 +1,23 @@
 using System.Globalization;
+using Sozvon.Core.Foundation;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Setup;
 
 /// <summary>The wizard's text. Keys are the Russian strings, as in Sources/Sozvon/Resources/en.lproj/Localizable.strings.</summary>
 internal static class Strings
 {
-    public static bool IsRussian { get; } = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru";
+    /// <summary>Windows' language until <see cref="Initialize"/> applies the app's "Язык интерфейса" setting.</summary>
+    public static bool IsRussian { get; private set; } = SystemIsRussian;
+
+    private static bool SystemIsRussian => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "ru";
+
+    /// <summary>
+    /// The wizard is its own process and follows the app's setting from settings.json in <paramref name="dataFolder"/>;
+    /// Windows' language only while the setting is "System" or the file does not exist yet, as on the first run.
+    /// </summary>
+    public static void Initialize(string dataFolder) =>
+        IsRussian = UiLanguage.IsRussian(SharedFile.ReadText(Path.Combine(dataFolder, "settings.json")), SystemIsRussian);
 
     /// <summary>The value of SOZVON_UI_LANG.</summary>
     public static string EngineLanguage => IsRussian ? "ru" : "en";
@@ -40,7 +52,7 @@ internal static class Strings
         ["Не нашёл файлы движка. Переустанови Sozvon."] = "The engine files were not found. Reinstall Sozvon.",
 
         ["Добро пожаловать в Sozvon"] = "Welcome to Sozvon",
-        ["Нажал значок на панели задач, созвонился, остановил. Дальше расшифровка и саммари на этом компьютере."] = "Click the icon on the taskbar, take the call, stop. Transcript and summary follow, on this PC.",
+        ["Нажал значок в области уведомлений, созвонился, остановил. Дальше расшифровка и саммари на этом компьютере."] = "Click the icon in the notification area, take the call, stop. Transcript and summary follow, on this PC.",
         ["Одна кнопка"] = "One button",
         ["Запись включается в плавающей капсуле или значком в области уведомлений. Когда приложение для звонков включает микрофон, Sozvon предлагает записать: по умолчанию он только спрашивает и сам ничего не пишет."] = "Start recording from the floating capsule or the notification area icon. When a call app turns on the microphone, Sozvon offers to record: by default it only asks and never records on its own.",
         ["Локально"] = "Private",
@@ -130,6 +142,6 @@ internal static class Strings
         ["Пока недоступно на Windows"] = "Not available on Windows yet",
         ["Проекты можно завести позже: страница «Проекты» в главном окне."] = "You can add projects later on the Projects page in the main window.",
         ["Значок может быть скрыт"] = "The icon may be hidden",
-        ["Windows 11 может спрятать новый значок. Нажми стрелку рядом с часами и перетащи Sozvon на панель задач."] = "Windows 11 may hide new icons. Click the arrow next to the clock and drag Sozvon onto the taskbar.",
+        ["Windows 11 может спрятать новый значок. Нажми стрелку рядом с часами и перетащи Sozvon в область уведомлений."] = "Windows 11 may hide new icons. Click the arrow next to the clock and drag Sozvon into the notification area.",
     };
 }

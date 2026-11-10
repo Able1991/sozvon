@@ -26,6 +26,9 @@ public static partial class SetupLauncher
             Environment.Exit(0);
         }
         instance.Activated += (_, _) => _window?.DispatcherQueue.TryEnqueue(() => _window.Activate());
+        // The data folder first: the wizard's language, even the error below, is the app's setting kept there.
+        var data = Path.GetFullPath(ArgumentAfter(args, "--data-dir") ?? SetupContext.DefaultDataFolder);
+        Strings.Initialize(data);
         var engine = ArgumentAfter(args, "--engine") ?? SetupContext.FindEngineFolder();
         if (engine is null || !File.Exists(Path.Combine(engine, "setup.ps1")))
         {
@@ -33,8 +36,7 @@ public static partial class SetupLauncher
             Application.Current.Exit();
             return true;
         }
-        var data = ArgumentAfter(args, "--data-dir") ?? SetupContext.DefaultDataFolder;
-        _window = new SetupWindow(new SetupContext(Path.GetFullPath(data), Path.GetFullPath(engine)));
+        _window = new SetupWindow(new SetupContext(data, Path.GetFullPath(engine)));
         _window.Activate();
         return true;
     }

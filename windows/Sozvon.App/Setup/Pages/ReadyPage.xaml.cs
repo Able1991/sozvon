@@ -11,7 +11,7 @@ public sealed partial class ReadyPage : UserControl, ISetupPage
         UnavailableText.Text = Strings.L("Пока недоступно на Windows");
         LaterText.Text = Strings.L("Проекты можно завести позже: страница «Проекты» в главном окне.");
         HintTitle.Text = Strings.L("Значок может быть скрыт");
-        HintText.Text = Strings.L("Windows 11 может спрятать новый значок. Нажми стрелку рядом с часами и перетащи Sozvon на панель задач.");
+        HintText.Text = Strings.L("Windows 11 может спрятать новый значок. Нажми стрелку рядом с часами и перетащи Sozvon в область уведомлений.");
     }
 
     public event Action? Changed { add { } remove { } }
