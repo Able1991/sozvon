@@ -17,6 +17,7 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     private readonly MediaTimelineController _clock = new();
     private readonly List<MediaPlayer> _players = [];
     private readonly SynchronizationContext _ui = SynchronizationContext.Current!;
+    private bool _disposed;
 
     public CallPlayer(CallRecord call)
     {
@@ -88,8 +89,14 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         Position = target;
     }
 
+    /// <summary>Lets the audio files go: the call can then be moved or deleted. Safe to call twice.</summary>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         _clock.PositionChanged -= OnPositionChanged;
         _clock.Pause();
         foreach (var player in _players)

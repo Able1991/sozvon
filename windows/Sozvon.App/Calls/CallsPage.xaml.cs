@@ -41,6 +41,26 @@ public sealed partial class CallsPage : UserControl
     /// <summary>Ctrl+F: the find bar of the opened call's transcript; false when that is not what is on screen.</summary>
     public bool OpenTranscriptFind() => ViewModel.Detail is not null && Detail.OpenFind();
 
+    /// <summary>Delete on the list, as in File Explorer: the selected call to the Recycle Bin.</summary>
+    private void OnListKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Delete && ViewModel.SelectedRow is not null)
+        {
+            e.Handled = true;
+            Trash();
+        }
+    }
+
+    private void OnTrashRequested(object? sender, EventArgs e) => Trash();
+
+    private async void Trash()
+    {
+        if (ViewModel.TrashSelected() is { } problem)
+        {
+            await new ContentDialog { XamlRoot = XamlRoot, Title = problem, CloseButtonText = "OK" }.ShowAsync();
+        }
+    }
+
     private void OnCallSelected(object sender, SelectionChangedEventArgs e) => ViewModel.SelectedRow = CallList.SelectedItem as CallRow;
 
     private static int StableHash(string text) => text.Aggregate(17, (hash, c) => unchecked(hash * 31 + c));

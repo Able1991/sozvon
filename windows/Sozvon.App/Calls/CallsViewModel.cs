@@ -98,6 +98,25 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
 
     public void Dispose() => Detail?.Dispose();
 
+    /// <summary>The opened call to the Recycle Bin; the next one in the list is selected, as in Mail.</summary>
+    public string? TrashSelected()
+    {
+        if (SelectedRow?.Call is not { } call)
+        {
+            return null;
+        }
+        var rows = Groups.SelectMany(g => g).ToList();
+        var at = rows.FindIndex(r => r.Call.Id == call.Id);
+        var next = at + 1 < rows.Count ? rows[at + 1] : at > 0 ? rows[at - 1] : null;
+        Detail?.Player.Dispose();
+        var error = Actions.Trash(call, next?.Call.Id);
+        if (error is not null)
+        {
+            _ = RefreshAsync(); // the call is still there: its card, with a new player
+        }
+        return error;
+    }
+
     private void ClearFilters()
     {
         SelectedProject = AllProjects;

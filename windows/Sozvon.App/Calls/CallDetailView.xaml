@@ -91,6 +91,12 @@
                         <MenuFlyout>
                             <MenuFlyoutItem x:Name="ShowFolderItem" Text="{s:L K='Показать в проводнике'}" Click="OnShowFolder" />
                             <MenuFlyoutItem x:Name="LogItem" Text="{s:L K='Журнал обработки'}" Click="OnOpenLog" />
+                            <MenuFlyoutSeparator x:Name="TrashSeparator" />
+                            <MenuFlyoutItem x:Name="TrashItem" Text="{s:L K='Удалить в корзину'}" Click="OnTrash">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE74D;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutSeparator x:Name="DiskSizeSeparator" />
                             <MenuFlyoutItem x:Name="DiskSizeItem" IsEnabled="False" />
                         </MenuFlyout>

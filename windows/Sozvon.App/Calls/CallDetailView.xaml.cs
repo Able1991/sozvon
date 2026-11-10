@@ -65,6 +65,9 @@ public sealed partial class CallDetailView : UserControl
 
     private bool ShowsTranscript => TranscriptContent.Visibility == Visibility.Visible;
 
+    /// <summary>"Move to Recycle Bin" in the More menu: the page deletes it and picks the next call.</summary>
+    public event EventHandler? TrashRequested;
+
     public static string TaskGlyph(bool done) => done ? "" : "";
 
     /// <summary>Ctrl+F: the find bar on the Transcript tab. False on the Summary tab, where Ctrl+F searches all calls.</summary>
@@ -95,6 +98,8 @@ public sealed partial class CallDetailView : UserControl
         ShowFolderItem.IsEnabled = call.CanOpenFolder;
         LogItem.IsEnabled = call.HasLog;
         OpenTranscriptItem.IsEnabled = call.HasTranscriptFile;
+        TrashItem.Visibility = TrashSeparator.Visibility = call.CanOpenFolder ? Visibility.Visible : Visibility.Collapsed;
+        TrashItem.IsEnabled = !call.Actions.IsBusy(call.Call);
         DiskSizeItem.Text = call.DiskSize;
         DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ParticipantsLine.Visibility = call.Participants.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -524,6 +529,8 @@ public sealed partial class CallDetailView : UserControl
         NoteDeleted.Visibility = Visibility.Collapsed;
         ShowNoNotes();
     }
+
+    private void OnTrash(object sender, RoutedEventArgs e) => TrashRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnCopySummary(object sender, RoutedEventArgs e) => CopyText(ViewModel?.Summary);
 

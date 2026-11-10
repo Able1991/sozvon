@@ -13,7 +13,7 @@ namespace Sozvon.App.Calls;
 /// </summary>
 public sealed class CallActions(string dataDir, EngineSettings engine, Func<RecordingController?> recording)
 {
-    /// <summary>A call changed on disk; the folder to select afterwards, or null to keep the selection.</summary>
+    /// <summary>A call changed on disk; the id of the call to select afterwards, or null to keep the selection.</summary>
     public event Action<string?>? Changed;
 
     public bool CanTranscribe => recording() is not null;
@@ -93,6 +93,29 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         {
             Changed?.Invoke(null);
         }
+    }
+
+    /// <summary>Moves the call's folder to the Recycle Bin, as on the Mac without asking. The reason it didn't, or null.</summary>
+    public string? Trash(CallRecord call, string? selectNext)
+    {
+        if (call.IsDemo || call.Folder.Length == 0)
+        {
+            return null;
+        }
+        if (IsBusy(call))
+        {
+            return Loc.L("Звонок сейчас записывается или расшифровывается");
+        }
+        try
+        {
+            RecycleBin.Move(call.Folder);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return Loc.L("Не получилось удалить звонок") + ": " + e.Message;
+        }
+        Changed?.Invoke(selectNext);
+        return null;
     }
 
     private string? Edit(CallRecord call, Action edit, string notFound)
