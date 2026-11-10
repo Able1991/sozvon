@@ -129,11 +129,15 @@ struct CallsView: View {
     }
 
     /// The chosen tab, or the other one when this call doesn't have it.
+    static func shown(_ tab: Int, for c: Call) -> Int {
+        if tab == 0 && !c.hasSummary { return 1 }
+        if tab == 1 && !c.hasTranscript { return 0 }
+        return tab
+    }
+
     private func shownTab(for c: Call) -> Binding<Int> {
         Binding(get: {
-            if tab == 0 && !c.hasSummary { return 1 }
-            if tab == 1 && !c.hasTranscript { return 0 }
-            return tab
+            Self.shown(tab, for: c)
         }, set: { tab = $0 })
     }
 
@@ -182,6 +186,7 @@ struct CallsSidebar: View {
     @ObservedObject var m: CallsModel
     @Environment(\.undoManager) private var undo
     @FocusState private var searching: Bool
+    @AppStorage("callsTab") private var callsTab = 0
 
     var body: some View {
         list
@@ -224,9 +229,15 @@ struct CallsSidebar: View {
             }
         }
         .background {
-            // ⌘F: to the search field.
-            Button(L("Поиск по звонкам")) { searching = true }
+            // ⌘F: inside the transcript on its tab, otherwise the search across calls. ⌥⌘F: always across calls.
+            Button(L("Найти в расшифровке")) {
+                if let c = m.selected, CallsView.shown(callsTab, for: c) == 1 { m.transcriptFindRequest += 1 } else { searching = true }
+            }
                 .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            Button(L("Поиск по звонкам")) { searching = true }
+                .keyboardShortcut("f", modifiers: [.command, .option])
                 .opacity(0)
                 .accessibilityHidden(true)
         }

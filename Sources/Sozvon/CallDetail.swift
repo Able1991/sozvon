@@ -72,6 +72,14 @@ struct CallDetail: View {
     }
 
     private var showsTranscript: Bool { call.hasTranscript && !(tab == 0 && call.hasSummary) }
+    @State private var findOpen = false
+    @State private var findQuery = ""
+    @State private var findIndex = 0
+    @State private var findFocus = 0
+    /// What the open find bar matches in this transcript.
+    private func found(in doc: TranscriptDoc) -> [TranscriptFind.Match] {
+        findOpen ? TranscriptFind.matches(findQuery, in: doc.lines.map(\.text)) : []
+    }
 
     /// The user's name as the transcript writes it (Settings), trimmed.
     private var me: String { Settings.shared.name.trimmingCharacters(in: .whitespaces) }
@@ -174,6 +182,8 @@ struct CallDetail: View {
 
     var body: some View {
         let doc = showsTranscript ? texts.doc : TranscriptDoc.empty
+        let matches = found(in: doc)
+        let currentMatch = matches.indices.contains(findIndex) ? matches[findIndex] : nil
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -189,7 +199,7 @@ struct CallDetail: View {
                     // Notes come first: what the user wrote down matters more than what the model made of the call.
                     if !call.isLegacy { NotesSection(call: call, m: m) }
                     statusBanner
-                    content(doc)
+                    content(doc, found: matches, current: currentMatch)
                 }
                 .frame(maxWidth: 720, alignment: .leading)
                 .padding(.horizontal, 36)
@@ -198,6 +208,31 @@ struct CallDetail: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .toolbar { toolbar }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if findOpen && showsTranscript {
+                    TranscriptFindBar(query: $findQuery, index: findIndex, count: matches.count, focusRequest: findFocus,
+                                      onStep: { d in
+                                          findIndex = TranscriptFind.step(from: findIndex, by: d, count: matches.count)
+                                          let i = findIndex
+                                          if matches.indices.contains(i), matches[i].line < doc.rowIDs.count {
+                                              withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(doc.rowIDs[matches[i].line], anchor: .center) }
+                                          }
+                                      },
+                                      onClose: { findOpen = false; findQuery = "" })
+                }
+            }
+            .onChange(of: findQuery) { _, _ in
+                findIndex = 0
+                if let first = found(in: doc).first, first.line < doc.rowIDs.count {
+                    withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(doc.rowIDs[first.line], anchor: .center) }
+                }
+            }
+            .onChange(of: m.transcriptFindRequest) { _, _ in
+                guard showsTranscript else { return }
+                findOpen = true
+                findFocus += 1
+            }
+            .onChange(of: showsTranscript) { _, on in if !on { findOpen = false; findQuery = "" } }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if playable { PlayerBar(player: player, hasTranscript: call.hasTranscript) }
             }
@@ -345,7 +380,7 @@ struct CallDetail: View {
         }
     }
 
-    @ViewBuilder private func content(_ doc: TranscriptDoc) -> some View {
+    @ViewBuilder private func content(_ doc: TranscriptDoc, found: [TranscriptFind.Match] = [], current: TranscriptFind.Match? = nil) -> some View {
         if showsTranscript {
             TranscriptView(doc: doc, playing: player.line, canPlay: playable, canEdit: !m.isEditLocked(call.url),
                            me: me,
@@ -353,7 +388,8 @@ struct CallDetail: View {
                            onRename: { renaming = $0 },
                            onRememberVoice: call.hasAudio ? { voices.enroll([$0], from: call) } : nil,
                            voiced: voiced,
-                           onFix: { fixing = $0 })
+                           onFix: { fixing = $0 },
+                           found: found, currentFound: current)
         } else if call.hasSummary {
             SummaryCards(text: texts.summary)
         } else {

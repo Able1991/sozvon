@@ -692,3 +692,33 @@ def test_people_at_the_microphone_do_not_raise_the_remote_voice_count(tmp_path):
     assert run._voices_heard(tmp_path, "Я") == 5
     assert run._voices_heard(tmp_path, "Я", tracks) == 3  # Влад, София ("both") and Олег, whom the map doesn't know
     assert run._voices_heard(tmp_path, "Я", "broken") == 5
+
+
+@pytest.mark.parametrize("call,args,same", [({"names": ["Анна", "Олег"]}, [], True), ({"speakers": 2}, [], False), ({}, ["--speakers", "2"], False)])
+def test_only_a_guessed_number_of_voices_may_shrink(tmp_path, capsys, fakes, monkeypatch, call, args, same):
+    """A number the user set is a promise; one worked out from the names or the last transcript is not."""
+    seen = {}
+    real = speakers.assign_speakers
+
+    def spy(*a, **kw):
+        seen["same"] = kw.get("same_voice") is not None
+        return real(*a, **kw)
+    monkeypatch.setattr(speakers, "assign_speakers", spy)
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "status": "recorded", **call})
+    assert run.main([str(d), *args]) == 0
+    assert seen["same"] is same
+
+
+def test_remote_lines_are_checked_against_saved_voices(tmp_path, capsys, fakes, monkeypatch):
+    """Only the other side's lines go to the check, and what it returns is what the transcript says."""
+    seen = {}
+
+    def refine(path, items, records, log, **kw):
+        seen["texts"] = [x[2] for x in items]
+        return [(s, e, text, "Евгений") for s, e, text, _ in items]
+    monkeypatch.setattr(run.voices, "refine_by_print", refine)
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "status": "recorded", "names": ["Алексей", "Евгений"]})
+    assert run.main([str(d)]) == 0
+    assert seen["texts"] == ["Бюджет согласован."]
+    assert "Евгений: Бюджет согласован." in (d / "transcript.txt").read_text(encoding="utf-8")
+
