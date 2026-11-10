@@ -108,12 +108,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Where the text goes, under the dropdown (the Mac's words; "this computer" for "this Mac").</summary>
+    /// <summary>
+    /// Where the text goes, under the dropdown: the Mac's words without project discovery, which is off on Windows,
+    /// and "this computer" for "this Mac".
+    /// </summary>
     public string SummaryFooter => _engine.Assistant switch
     {
-        Assistant.Claude => Loc.L("Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic."),
-        Assistant.Codex => Loc.L("Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI."),
-        Assistant.Cursor => Loc.L("Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели."),
+        Assistant.Claude => Loc.L("Саммари. Текст уходит в Anthropic."),
+        Assistant.Codex => Loc.L("Саммари. Текст уходит в OpenAI."),
+        Assistant.Cursor => Loc.L("Саммари. Текст уходит в Cursor и к выбранной там модели."),
         _ => Loc.L("Без саммари. Ничего не покидает компьютер."),
     };
 

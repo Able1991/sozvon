@@ -143,3 +143,8 @@
 "%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту." = "%@ has not been tried on Windows with the real program yet: the sandbox its maker describes may not work as on the Mac. The call’s text goes to this assistant.";
 "У Cursor на Windows может не быть файловой песочницы: тогда он сможет читать файлы и за пределами папки звонка." = "Cursor may have no file sandbox on Windows: then it can read files outside the call’s folder too.";
 "сборка Windows, предварительная" = "Windows build, preview";
+
+/* Settings, Assistants: summary only while project discovery is off on Windows. */
+"Саммари. Текст уходит в Anthropic." = "Summaries. The text goes to Anthropic.";
+"Саммари. Текст уходит в OpenAI." = "Summaries. The text goes to OpenAI.";
+"Саммари. Текст уходит в Cursor и к выбранной там модели." = "Summaries. The text goes to Cursor and the model chosen there.";
