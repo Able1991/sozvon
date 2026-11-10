@@ -101,6 +101,23 @@ public sealed class SessionTests : IDisposable
     }
 
     [FfmpegFact]
+    public async Task SilentCaptureRecordsSilenceWithoutTouchingTheDevices()
+    {
+        var recorder = new WasapiRecorder(new RecorderOptions(TestFfmpeg.Path!, null) { SilentCapture = true });
+        TrackWarning? warning = null;
+        recorder.LevelsChanged += (_, l) => warning ??= l.Warning;
+
+        await recorder.StartAsync(_call);
+        await Task.Delay(TimeSpan.FromSeconds(9));
+        RecordingResult result = await recorder.StopAsync();
+
+        Assert.InRange(result.Audio.MicSeconds, 8.5, 9.5);
+        Assert.InRange(result.Audio.SystemSeconds, 8.5, 9.5);
+        Assert.All(TestFfmpeg.DecodeMono(Path.Combine(_call, "mic.m4a")), s => Assert.Equal(0f, s));
+        Assert.Equal(RecordingTrack.Microphone, warning?.Track);
+    }
+
+    [FfmpegFact]
     public async Task TheStreamingWavDecodesToTheEndOfTheFile()
     {
         string wav = Path.Combine(_call, "t.wav");

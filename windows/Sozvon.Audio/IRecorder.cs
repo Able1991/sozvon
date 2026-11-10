@@ -55,6 +55,12 @@ public sealed class RecorderStartException(string message, bool accessDenied, Ex
 /// <param name="LogPath">Where capture events are appended, or null for no log.</param>
 public sealed record RecorderOptions(string FfmpegPath, string? LogPath)
 {
+    /// <summary>
+    /// Records silence instead of the devices: for test runs of the whole app, which must never capture a real room.
+    /// Both tracks get no packets, so the microphone also shows its "can't hear you" warning after a few seconds.
+    /// </summary>
+    public bool SilentCapture { get; init; }
+
     public static RecorderOptions ForDataDirectory(string dataDirectory) => new(
         Path.Combine(dataDirectory, ".venv", "Scripts", "ffmpeg.exe"),
         Path.Combine(dataDirectory, "Logs", "recorder.log"));

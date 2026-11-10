@@ -125,7 +125,8 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
     private TrackRecorder CreateTrack(string name, string wav, int channels, CaptureKind kind)
     {
         var spool = new TrackSpool(wav, RecordingFormat.SampleRate, channels, ReportFailure);
-        return new TrackRecorder(name, channels, () => new WasapiDevices(kind), spool, _log, ReportFailure, () => SharedClock.Now,
+        Func<ICaptureDevices> devices = options.SilentCapture ? () => new SilentDevices(kind) : () => new WasapiDevices(kind);
+        return new TrackRecorder(name, channels, devices, spool, _log, ReportFailure, () => SharedClock.Now,
             settlesAtStart: kind == CaptureKind.Microphone);
     }
 
