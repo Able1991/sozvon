@@ -77,6 +77,9 @@ public sealed partial class SetupWindow : Window
     /// Sizes the window to the tallest step at its first layout, so no step leaves an empty band above the
     /// buttons; what grows later, like the install log, scrolls.
     /// </summary>
+    /// <summary>Air between the wizard and the edges of the work area when the screen is short.</summary>
+    private const int WorkAreaMargin = 16;
+
     private void FitTallestStep()
     {
         var shown = _index;
@@ -89,7 +92,10 @@ public sealed partial class SetupWindow : Window
         }
         Present(shown);
         var scale = Root.XamlRoot.RasterizationScale;
-        AppWindow.ResizeClient(new((int)Math.Ceiling(LogicalWidth * scale), (int)Math.Ceiling(Math.Min(tallest, LogicalHeight) * scale)));
+        // Never taller than the work area: on a small screen the footer would sit under the taskbar; the step scrolls instead.
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        var height = Math.Min(Math.Min(tallest, LogicalHeight) * scale, area.Height - 2 * WorkAreaMargin * scale);
+        AppWindow.ResizeClient(new((int)Math.Ceiling(LogicalWidth * scale), (int)Math.Ceiling(height)));
         CenterOnScreen(AppWindow.Size.Width, AppWindow.Size.Height);
     }
 
