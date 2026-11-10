@@ -11,6 +11,8 @@ using Sozvon.App.Strings;
 using Sozvon.App.Tray;
 using Sozvon.Core.Assistants;
 using Sozvon.Core.Engine;
+using Sozvon.Core.Server;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Shell;
 
@@ -29,6 +31,7 @@ public sealed class AppHost
     private readonly TrayController _tray;
     private readonly EngineLayout _layout = new(AppPaths.DataDir, AppPaths.CallsDir);
     private readonly McpServer _mcp;
+    private readonly ServerSync _server;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
@@ -59,6 +62,8 @@ public sealed class AppHost
         _tray = new TrayController(this, _trayState);
         _tray.Start();
         _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
+        _server = new ServerSync(SavedServer, url => OwnServer.CheckHealthAsync(url), (url, password) => OwnServer.AcceptsAsync(url, password),
+            onLine => ServerSyncScript.RunAsync(_layout, _engineSettings.Options(), onLine));
     }
 
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
@@ -85,6 +90,14 @@ public sealed class AppHost
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         recording.StateChanged += (_, _) => _tray.Refresh();
         recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
+        // A finished transcription goes to the own server, if one is set up.
+        recording.Processor.RunFinished += run => _dispatcher.TryEnqueue(() =>
+        {
+            if (run.Outcome.IsOk)
+            {
+                _ = _server.SyncAsync();
+            }
+        });
         recording.RemindToSay = () => _store.Settings.RemindToSay;
         recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
@@ -205,10 +218,20 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
+        var actions = new CallActions(AppPaths.DataDir, _engineSettings, () => _recording);
+        // Edits, notes and deletions reach the own server too; a run asked for while one goes is folded into one more.
+        actions.Changed += selected => _ = _server.SyncAsync();
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, actions);
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
-        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn);
+        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn,
+            new ServerViewModel(_server, AppPaths.EnvFile));
         return new MainWindow(_calls, settings);
+    }
+
+    private static ServerConfig SavedServer()
+    {
+        var values = SettingsValues.Load(AppPaths.EnvFile, detect: () => Assistant.None);
+        return new ServerConfig(values.ServerUrl, values.ServerPassword);
     }
 
     /// <summary>The port from SOZVON_MCP_PORT (a test run keeps off the real one) and the password of this data folder.</summary>

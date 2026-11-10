@@ -61,6 +61,22 @@ public sealed record SettingsValues
     /// <summary>New .env text: the app's keys replaced, everything else kept.</summary>
     public string Render(string existing) => EnvFile.Merge(existing, Pairs(), ManagedKeys);
 
+    /// <summary>
+    /// Only the own server's keys, as Settings saves them: the wizard's answers stay as they are, and an empty address or
+    /// password leaves the file.
+    /// </summary>
+    public static void SaveServer(string envPath, string url, string password, bool syncAudio, bool syncVoices)
+    {
+        var pairs = new List<(string, string)>();
+        if (url.Trim() is { Length: > 0 } address) pairs.Add((ServerUrlKey, address));
+        if (password.Trim() is { Length: > 0 } secret) pairs.Add((ServerPasswordKey, secret));
+        pairs.Add((SyncAudioKey, syncAudio ? "1" : "0"));
+        pairs.Add((SyncVoicesKey, syncVoices ? "1" : "0"));
+        Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
+        var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", pairs, [ServerUrlKey, ServerPasswordKey]);
+        AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
+    }
+
     public static SettingsValues Load(string envPath, Func<Assistant>? detect = null) =>
         FromEnv(EnvFile.ToDictionary(SharedFile.ReadText(envPath) ?? ""), detect);
 

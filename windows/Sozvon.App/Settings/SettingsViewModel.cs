@@ -17,8 +17,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
+        ServerViewModel server)
     {
+        Server = server;
         Integrations = integrations;
         SignIn = signIn;
         _store = store;
@@ -38,6 +40,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>Open at sign-in, read from Windows each time.</summary>
     public SignInSetting SignIn { get; }
+
+    /// <summary>The own server and its sync (the Cloud tab).</summary>
+    public ServerViewModel Server { get; }
 
     public int ThemeIndex
     {
