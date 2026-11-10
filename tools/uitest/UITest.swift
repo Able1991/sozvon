@@ -529,6 +529,45 @@ func settingsTabSwitching(_ app: TestApp) {
     }
 }
 
+/// The capsule is a non-activating panel, not in the app's accessibility windows: find it on screen.
+func capsuleFrame(_ app: TestApp) -> CGRect? {
+    let list = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
+    return list.filter { ($0[kCGWindowOwnerPID as String] as? pid_t) == app.pid }
+        .compactMap { w -> CGRect? in
+            guard let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            return CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
+        }
+        .first { $0.height >= 36 && $0.height <= 60 && $0.width >= 80 && $0.width <= 500 }
+}
+
+/// The recording capsule, waveform redrawing: a fast flick, where the pointer leaves the capsule at once,
+/// still carries it all the way (a SwiftUI window drag lost the mouse and the capsule jumped back).
+func capsuleFastDrag(_ app: TestApp) {
+    screen = "Капсула · быстрый рывок"
+    print("• \(screen)")
+    app.launch(["--preview", "panel"])
+    wait(1.5)
+    guard let wf = capsuleFrame(app) else { fail("capsule", "no recording capsule on screen"); return }
+    let start = CGPoint(x: wf.minX + 30, y: wf.midY)
+    let move = CGVector(dx: 400, dy: 200)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: start, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(40_000)
+    for i in 1...3 {
+        let t = CGFloat(i) / 3
+        CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
+                mouseCursorPosition: CGPoint(x: start.x + move.dx * t, y: start.y + move.dy * t), mouseButton: .left)?.post(tap: .cghidEventTap)
+        usleep(8_000)
+    }
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
+            mouseCursorPosition: CGPoint(x: start.x + move.dx, y: start.y + move.dy), mouseButton: .left)?.post(tap: .cghidEventTap)
+    wait(1.5)
+    checked += 1
+    guard let nf = capsuleFrame(app) else { fail("drag", "the capsule is gone after a fast drag"); return }
+    if abs(nf.minX - wf.minX - move.dx) > 12 || abs(nf.minY - wf.minY - move.dy) > 12 {
+        fail("drag", "a fast drag moved the capsule by \(Int(nf.minX - wf.minX)), \(Int(nf.minY - wf.minY)) instead of \(Int(move.dx)), \(Int(move.dy))")
+    }
+}
+
 /// The idle capsule: a pointing hand anywhere on it, and a drag that starts on "Record" moves it (and doesn't
 /// start a recording). The label used to be a Button, which kept the mouse to itself.
 func capsuleDrag(_ app: TestApp) {
@@ -536,16 +575,7 @@ func capsuleDrag(_ app: TestApp) {
     print("• \(screen)")
     app.launch(["--preview", "panel-idle"])
     wait(1.5)
-    // The capsule is a non-activating panel, not in the app's accessibility windows: find it on screen.
-    func capsule() -> CGRect? {
-        let list = (CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]]) ?? []
-        return list.filter { ($0[kCGWindowOwnerPID as String] as? pid_t) == app.pid }
-            .compactMap { w -> CGRect? in
-                guard let b = w[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
-                return CGRect(x: b["X"] ?? 0, y: b["Y"] ?? 0, width: b["Width"] ?? 0, height: b["Height"] ?? 0)
-            }
-            .first { $0.height >= 36 && $0.height <= 60 && $0.width >= 80 && $0.width <= 400 }
-    }
+    func capsule() -> CGRect? { capsuleFrame(app) }
     let calls = app.data.appendingPathComponent("Calls")
     func recordings() -> Int { (try? FileManager.default.contentsOfDirectory(atPath: calls.path).count) ?? 0 }
     guard let wf = capsule() else { fail("capsule", "no idle capsule on screen"); return }
@@ -621,6 +651,7 @@ let screens: [(String, [String], [String])] = [
 for (t, a, st) in screens where only.isEmpty || t.localizedCaseInsensitiveContains(only) { run(app, t, a, steps: st) }
 if only.isEmpty || "Настройки · переключение вкладок".localizedCaseInsensitiveContains(only) { settingsTabSwitching(app) }
 if only.isEmpty || "Капсула · перетаскивание".localizedCaseInsensitiveContains(only) { capsuleDrag(app) }
+if only.isEmpty || "Капсула · быстрый рывок".localizedCaseInsensitiveContains(only) { capsuleFastDrag(app) }
 app.quit()
 
 print("\nCovered:"); coverage.forEach { print("  \($0)") }
