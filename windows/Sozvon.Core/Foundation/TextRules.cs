@@ -5,9 +5,9 @@ namespace Sozvon.Core.Foundation;
 /// <summary>Small text rules shared by the call and project code.</summary>
 public static class TextRules
 {
-    /// <summary>"Anna, Ivan\nOleg" becomes ["Anna", "Ivan", "Oleg"].</summary>
+    /// <summary>"Anna, Ivan\nOleg" becomes ["Anna", "Ivan", "Oleg"]. A WinUI text box breaks lines with "\r" alone.</summary>
     public static List<string> SplitList(string text) =>
-        text.Split([',', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+        text.Split([',', '\n', '\r'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
 
     /// <summary>"Anna, Oleg +4". When only one name would be hidden, everyone is shown.</summary>
     public static string ShortPeople(IReadOnlyList<string> names, int max = 2)

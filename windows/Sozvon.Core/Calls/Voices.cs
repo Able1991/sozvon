@@ -52,6 +52,31 @@ public static partial class Voices
     public static List<VoiceRecord> ForProfile(IEnumerable<VoiceRecord> records, string slug) =>
         records.Where(r => !r.Me && r.Profile == slug).ToList();
 
+    /// <summary>The list of saved voices: the user's own first, then by project title, then by name.</summary>
+    /// <param name="project">The title shown for a record's project ("Без проекта" for none).</param>
+    public static List<VoiceRecord> ListOrder(IEnumerable<VoiceRecord> records, Func<VoiceRecord, string> project) =>
+        records.OrderBy(r => r.Me ? 0 : 1)
+               .ThenBy(r => r.Me ? "" : project(r), StringComparer.CurrentCulture)
+               .ThenBy(r => r.Name, StringComparer.Create(CultureInfo.CurrentCulture, CompareOptions.NumericOrdering))
+               .ToList();
+
+    /// <summary>The other people's names, sorted, each once: the subtitle of "Голоса собеседников".</summary>
+    public static List<string> OtherNames(IEnumerable<VoiceRecord> records) =>
+        records.Where(r => !r.Me).Select(r => r.Name)
+               .Order(StringComparer.Create(CultureInfo.CurrentCulture, CompareOptions.NumericOrdering))
+               .Distinct().ToList();
+
+    /// <summary>
+    /// After the own sample replaced the voice print: the user's records that were there before and are not the
+    /// fresh one, left over from an older model. The app deletes them, as on the Mac.
+    /// </summary>
+    public static List<VoiceRecord> Superseded(IReadOnlySet<string> before, IEnumerable<VoiceRecord> records)
+    {
+        var list = records.ToList();
+        if (Me(list) is not { } fresh) return [];
+        return list.Where(r => r.Me && r.Id != fresh.Id && before.Contains(r.Id)).ToList();
+    }
+
     public static VoiceRecord? Voice(string name, string profile, IEnumerable<VoiceRecord> records)
     {
         var n = name.Trim();

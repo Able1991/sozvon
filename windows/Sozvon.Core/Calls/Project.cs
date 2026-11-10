@@ -32,6 +32,27 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
                         .OrderBy(p => p.Title.ToLowerInvariant(), StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// The editor's fields as they are saved: title and context trimmed (line breaks as "\n"), people and terms split on commas and line
+    /// breaks. A new project (empty slug) gets a free file name from its title.
+    /// </summary>
+    public Project WithForm(string title, string context, string people, string terms, string profilesFolder)
+    {
+        var t = title.Trim();
+        return this with
+        {
+            Slug = Slug.Length > 0 ? Slug : UniqueSlug(t, profilesFolder),
+            Title = t,
+            Context = context.Trim().ReplaceLineEndings("\n"),
+            PeopleList = TextRules.SplitList(people),
+            TermsList = TextRules.SplitList(terms),
+        };
+    }
+
+    /// <summary>Different people across the projects, ignoring case: the "10 человек" of the list's summary.</summary>
+    public static int PeopleCount(IEnumerable<Project> list) =>
+        list.SelectMany(p => p.People).Select(p => p.ToLowerInvariant()).Distinct().Count();
+
     public static Dictionary<string, string> Titles(IEnumerable<Project> list)
     {
         var titles = new Dictionary<string, string>();
