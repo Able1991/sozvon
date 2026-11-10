@@ -3573,6 +3573,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "scipy" },
     { name = "snowballstemmer" },
+    { name = "truststore" },
 ]
 
 [package.dev-dependencies]
@@ -3592,6 +3593,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "scipy", specifier = "==1.18.1" },
     { name = "snowballstemmer", specifier = ">=3.1.1" },
+    { name = "truststore", specifier = ">=0.10.5" },
 ]
 
 [package.metadata.requires-dev]

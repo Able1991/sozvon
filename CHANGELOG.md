@@ -2,6 +2,7 @@
 
 ## 0.1.5
 
+- **Works on corporate networks.** The install and model downloads trust the certificates in the macOS Keychain, so a company HTTPS certificate no longer stops them with "UnknownIssuer". A package mirror (also the one in `pip.conf`), your own Python, a Hugging Face mirror, a proxy or a certificate file can be set in the engine `.env`. See "Corporate network" in the docs.
 - **Select and copy in the summary and the transcript.** Drag across lines, sections or paragraphs, ⌘A selects it all, ⌘C copies plain text: bullets as "• ", tasks as "- [ ] ", transcript lines as "[1:12] Anna: text". Each summary section has its own Copy button. In the transcript a plain click still plays from that paragraph; a drag, a double or a triple click selects.
 - **Saved voices check every long line.** When the people on a call have saved voices, each long line of the other side is compared with them and gets the name it clearly sounds like, even where speaker separation put two people under one label.
 - **One voice, one label.** A remote voice cut into two parts by speaker separation is put back together, for example when someone in the room is listed among the participants.

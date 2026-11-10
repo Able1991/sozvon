@@ -360,6 +360,16 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Включи «Расшифровывать с низким приоритетом» на вкладке «Распознавание». Расшифровка станет чуть дольше, зато не будет мешать.</p>
       <h3>«Движок сломан» или «Модель не скачана»</h3>
       <p>«Настройки», вкладка «Распознавание», «Переустановить…»: выбери модель и нажми «Переустановить». Записи при этом не трогаются.</p>
+      <h3 id="corporate">Корпоративная сеть: «invalid peer certificate: UnknownIssuer»</h3>
+      <p>Компании часто проверяют HTTPS своим сертификатом. Sozvon и при установке, и при скачивании моделей доверяет сертификатам из Связки ключей macOS, поэтому сертификат, который поставил IT, подхватывается сам. Если сеть требует большего, впиши нужное в файл <code>~/Library/Application Support/Sozvon/.env</code>, по одной строке <code>КЛЮЧ=значение</code>, и нажми «Переустановить…»:</p>
+      <ul>
+        <li><code>SSL_CERT_FILE=/путь/к/corp-bundle.pem</code>: свой файл сертификатов вместо Связки ключей.</li>
+        <li><code>UV_DEFAULT_INDEX=https://nexus.example/pypi/simple</code>: зеркало пакетов Python. Если оно уже указано как <code>index-url</code> в <code>pip.conf</code>, Sozvon возьмёт его оттуда. Версии те же, что в релизе, и проверяются по SHA-256, так что зеркало должно отдавать те же файлы.</li>
+        <li><code>UV_PYTHON=/путь/к/python3.12</code>: свой Python 3.12 вместо скачивания с GitHub. Или <code>UV_PYTHON_INSTALL_MIRROR=</code> с зеркалом python-build-standalone.</li>
+        <li><code>HF_ENDPOINT=https://hf-mirror.example</code>: зеркало Hugging Face для моделей.</li>
+        <li><code>HTTPS_PROXY</code>, <code>HTTP_PROXY</code>, <code>NO_PROXY</code>: прокси.</li>
+      </ul>
+      <p>Переменные окружения, например через <code>launchctl setenv</code>, тоже работают и важнее файла. Остальные ключи из <code>.env</code> установщику не передаются.</p>
       <h3>«Этот формат macOS прочитать не может»</h3>
       <p>Импорт не принимает webm, ogg, opus, oga и mkv. Их сначала сконвертируй в m4a, mp3 или wav, например <code>ffmpeg -i call.webm call.m4a</code>, и импортируй снова.</p>
       <h3>«Нет доступа к Напоминаниям»</h3>
@@ -697,6 +707,16 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Turn on “Don’t slow down my Mac” in the Recognition tab. Transcription takes a bit longer but stays out of your way.</p>
       <h3>“Engine is broken” or “Model not downloaded”</h3>
       <p>Settings, Recognition, Reinstall…: pick the model and press Reinstall. Your recordings are not touched.</p>
+      <h3 id="en-corporate">Corporate network: “invalid peer certificate: UnknownIssuer”</h3>
+      <p>Companies often inspect HTTPS with their own certificate. Both the install and model downloads trust the certificates in the macOS Keychain, so a certificate your IT installed is picked up by itself. If your network needs more, put it in <code>~/Library/Application Support/Sozvon/.env</code>, one <code>KEY=value</code> per line, and press Reinstall…:</p>
+      <ul>
+        <li><code>SSL_CERT_FILE=/path/to/corp-bundle.pem</code>: your own certificate file instead of the Keychain.</li>
+        <li><code>UV_DEFAULT_INDEX=https://nexus.example/pypi/simple</code>: a Python package mirror. If it is already the <code>index-url</code> in <code>pip.conf</code>, Sozvon takes it from there. The versions are the release's own and are checked by SHA-256, so the mirror has to serve the same files.</li>
+        <li><code>UV_PYTHON=/path/to/python3.12</code>: your own Python 3.12 instead of a download from GitHub. Or <code>UV_PYTHON_INSTALL_MIRROR=</code> with a python-build-standalone mirror.</li>
+        <li><code>HF_ENDPOINT=https://hf-mirror.example</code>: a Hugging Face mirror for the models.</li>
+        <li><code>HTTPS_PROXY</code>, <code>HTTP_PROXY</code>, <code>NO_PROXY</code>: a proxy.</li>
+      </ul>
+      <p>Environment variables, for example set with <code>launchctl setenv</code>, work too and win over the file. No other key from <code>.env</code> is passed to the installer.</p>
       <h3>“macOS can’t read this format”</h3>
       <p>Import doesn’t take webm, ogg, opus, oga or mkv. Convert them to m4a, mp3 or wav first, for example <code>ffmpeg -i call.webm call.m4a</code>, and import again.</p>
       <h3>“No access to Reminders”</h3>
