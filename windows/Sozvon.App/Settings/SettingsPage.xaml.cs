@@ -16,6 +16,7 @@ public sealed partial class SettingsPage : UserControl
         AddModels();
         CallLanguagesBox.Languages = ViewModel.CallLanguages;
         CallLanguagesBox.LanguagesChanged += (_, _) => ViewModel.CallLanguages = CallLanguagesBox.Languages;
+        ViewModel.Integrations.Confirm = ConfirmAsync;
     }
 
     public SettingsViewModel ViewModel { get; }
@@ -46,6 +47,45 @@ public sealed partial class SettingsPage : UserControl
         {
             pane.Visibility = pane.Name == tag ? Visibility.Visible : Visibility.Collapsed;
         }
+        // Each look runs the assistants' tools again, as the Mac does when the pane appears.
+        if (tag == nameof(Assistants) && !ViewModel.Integrations.Busy)
+        {
+            _ = ViewModel.Integrations.RefreshAsync();
+        }
+        else if (tag == nameof(Recognition))
+        {
+            _ = ViewModel.Integrations.RefreshServerAsync();
+        }
+    }
+
+    private async void OnAssistantAction(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is AssistantRow row)
+        {
+            await ViewModel.Integrations.ActAsync(row);
+        }
+    }
+
+    private void OnCopyAssistantCommand(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is AssistantRow row)
+        {
+            ViewModel.Integrations.Copy(row);
+        }
+    }
+
+    private async Task<bool> ConfirmAsync(string title, string text, string destructive)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = destructive,
+            CloseButtonText = L("Отмена"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private void OnShowCallsFolder(object sender, RoutedEventArgs e) => ShowFolder(ViewModel.CallsFolder);

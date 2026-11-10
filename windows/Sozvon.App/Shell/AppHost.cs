@@ -9,6 +9,8 @@ using Sozvon.App.Recording;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
 using Sozvon.App.Tray;
+using Sozvon.Core.Assistants;
+using Sozvon.Core.Engine;
 
 namespace Sozvon.App.Shell;
 
@@ -25,6 +27,7 @@ public sealed class AppHost
     private readonly AppLanguage _startupLanguage;
     private readonly TrayViewModel _trayState;
     private readonly TrayController _tray;
+    private readonly McpServer _mcp;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
@@ -50,6 +53,7 @@ public sealed class AppHost
         _trayState = new TrayViewModel(_repository, _store.Settings);
         _tray = new TrayController(this, _trayState);
         _tray.Start();
+        _mcp = new McpServer(new EngineLayout(AppPaths.DataDir, AppPaths.CallsDir), _engineSettings.Options, McpEndpoint());
     }
 
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
@@ -94,6 +98,7 @@ public sealed class AppHost
         _cleanup.Removed += (_, _) => _ = _calls?.RefreshAsync();
         _retention = _store.Settings.AudioRetention;
         _cleanup.Start();
+        _mcp.Start();
         ApplyCapsuleTheme();
         ApplyFloatingPanel();
         _tray.Refresh();
@@ -113,7 +118,13 @@ public sealed class AppHost
     {
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+            var setup = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+            if (setup is not null)
+            {
+                // A finished install brings the shared MCP server up; an engine update brings the new server.py.
+                setup.EnableRaisingEvents = true;
+                setup.Exited += (_, _) => _dispatcher.TryEnqueue(() => _ = _mcp.RestartAsync());
+            }
         }
         catch (System.ComponentModel.Win32Exception error)
         {
@@ -155,6 +166,7 @@ public sealed class AppHost
         {
             Log(error);
         }
+        _mcp.Stop();
         _tray.Dispose();
         _window?.CloseForExit();
         Application.Current.Exit();
@@ -185,8 +197,25 @@ public sealed class AppHost
     private MainWindow CreateWindow()
     {
         _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
-        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
+        var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
+        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations);
         return new MainWindow(_calls, settings);
+    }
+
+    /// <summary>The port from SOZVON_MCP_PORT (a test run keeps off the real one) and the password of this data folder.</summary>
+    private static McpEndpoint McpEndpoint()
+    {
+        var port = Mcp.Port(Environment.GetEnvironmentVariable(Mcp.PortVariable));
+        try
+        {
+            return new McpEndpoint(port, Mcp.Token(AppPaths.DataDir));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // An unwritable data folder: a password for this run only; the assistants connect again after the fix.
+            Log(error);
+            return new McpEndpoint(port, Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+        }
     }
 
     private void OnSettingChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

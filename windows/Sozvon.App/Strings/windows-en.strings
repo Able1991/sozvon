@@ -109,3 +109,9 @@
 "Микрофон молчит, и переподключение не помогло. Проверь, какой микрофон выбран в параметрах Windows: Система, Звук, и не отключились ли наушники." = "The microphone is silent and reconnecting didn’t help. Check which microphone is selected in Windows Settings: System, Sound, and that your headphones are still connected.";
 "Звук собеседников не приходит, и переподключение не помогло. Если они говорят, проверь, что звук звонка идёт через этот компьютер, а не через телефон или другое устройство." = "No sound is coming from the other side and reconnecting didn’t help. If they are talking, check that the call’s sound plays on this computer, not on a phone or another device.";
 "Три минуты твой голос почти не слышен в микрофоне. Подними громкость входа или сядь ближе к компьютеру." = "For three minutes your voice has barely reached the microphone. Raise the input volume or sit closer to the computer.";
+
+/* Settings, Assistants: the shared MCP server for Claude Code, Codex and Cursor. */
+"Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого компьютера." = "The assistant can search your calls and read summaries and transcripts: “what did we agree with the client last week?”. One shared server for all sessions, running while Sozvon is open. Data is read from this computer.";
+"Codex и Cursor на Windows ещё не проверены с настоящими программами: подключаются только по кнопке." = "Codex and Cursor have not been tried with the real programs on Windows yet: they are connected only when you press the button.";
+"Не получилось разобрать %@. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn’t read %@. Add Sozvon by hand: the Copy button below.";
+"Программа ассистента не найдена" = "The assistant’s program wasn’t found";

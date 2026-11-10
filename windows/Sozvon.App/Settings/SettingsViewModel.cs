@@ -17,8 +17,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations)
     {
+        Integrations = integrations;
         _store = store;
         _engine = engine;
         _startupLanguage = startupLanguage;
@@ -30,6 +31,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     public AppSettings Settings => _store.Settings;
 
     public IRelayCommand RelaunchCommand { get; }
+
+    /// <summary>Claude Code, Codex and Cursor connected to the shared MCP server.</summary>
+    public IntegrationsViewModel Integrations { get; }
 
     public int ThemeIndex
     {

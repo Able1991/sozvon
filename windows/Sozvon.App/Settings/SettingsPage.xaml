@@ -155,6 +155,10 @@
                     <local:SettingsRow Header="Python">
                         <TextBlock x:Name="PythonStatus" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                     </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='MCP-сервер'}" Description="{x:Bind ViewModel.Integrations.ServerFailure, Mode=OneWay}">
+                        <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="{x:Bind ViewModel.Integrations.ServerStatus, Mode=OneWay}" />
+                    </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Файлы'}" />
                     <local:SettingsRow Header="{s:L K='Папка записей'}" Description="{x:Bind ViewModel.CallsFolder}">
@@ -178,15 +182,51 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic.'}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключения'}" />
-                    <local:SettingsRow Header="Claude Code" Description="{s:L K='Видит звонки, саммари и заметки'}" NotConnected="True">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="Codex" Description="{s:L K='Пока недоступно на Windows'}">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="Cursor" Description="{s:L K='Пока недоступно на Windows'}">
-                        <Button Content="{s:L K='Подключить'}" IsEnabled="False" />
-                    </local:SettingsRow>
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:AssistantRow">
+                                <local:SettingsRow Header="{x:Bind Title}" Description="{s:L K='Видит звонки, саммари и заметки'}">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <ProgressRing Width="16" Height="16" IsActive="{x:Bind Checking, Mode=OneWay}" Visibility="{x:Bind Checking, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind StatusVisible, Mode=OneWay}">
+                                            <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{x:Bind IsConnected, Mode=OneWay}" />
+                                            <FontIcon FontSize="14" Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind Outdated, Mode=OneWay}"
+                                                      ToolTipService.ToolTip="{s:L K='Sozvon подключён по-старому: без общего сервера или пароля. Подключи заново.'}" />
+                                            <TextBlock Text="{x:Bind Status, Mode=OneWay}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Button Content="{x:Bind ActionText, Mode=OneWay}" Visibility="{x:Bind ActionVisible, Mode=OneWay}"
+                                                IsEnabled="{x:Bind Enabled, Mode=OneWay}" Tag="{x:Bind}" Click="OnAssistantAction" />
+                                    </StackPanel>
+                                </local:SettingsRow>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <InfoBar IsOpen="{x:Bind ViewModel.Integrations.HasMessage, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             Message="{x:Bind ViewModel.Integrations.Message, Mode=OneWay}" />
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключить вручную'}" />
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="local:AssistantRow">
+                                <local:SettingsRow Header="{x:Bind Title}" Description="{x:Bind ShortCommand}">
+                                    <Button Content="{x:Bind CopyText, Mode=OneWay}" Tag="{x:Bind}" Click="OnCopyAssistantCommand"
+                                            ToolTipService.ToolTip="{s:L K='То же, что делает «Подключить», с паролем'}" />
+                                </local:SettingsRow>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Ассистент сможет искать по звонкам, читать саммари и расшифровки: «что решили с клиентом на прошлой неделе?». Один общий сервер на все сессии, работает, пока запущен Sozvon. Данные читаются с этого компьютера.'}" />
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Codex и Cursor на Windows ещё не проверены с настоящими программами: подключаются только по кнопке.'}" />
                 </StackPanel>
 
                 <StackPanel x:Name="Cloud" Spacing="4" Visibility="Collapsed">
