@@ -49,6 +49,7 @@ public sealed partial class CapsuleWindow : Window
     private bool? _clickThrough;
     private double _width;
     private bool _hovered;
+    private int? _centre;
     private bool _dragging;
     private NativeWindow.Point _dragCursor;
     private Windows.Graphics.PointInt32 _dragWindow;
@@ -63,7 +64,7 @@ public sealed partial class CapsuleWindow : Window
     /// <summary>A new state was drawn: whether the capsule is on screen may change with it.</summary>
     public event EventHandler? Rendered;
 
-    /// <summary>The user finished dragging the capsule to this position.</summary>
+    /// <summary>The user finished dragging the capsule: its centre and its window's top, in screen pixels.</summary>
     public event EventHandler<Windows.Graphics.PointInt32>? Moved;
 
     public CapsuleWindow(CapsuleStyle style)
@@ -136,16 +137,19 @@ public sealed partial class CapsuleWindow : Window
         Render(_model);
     }
 
-    public void MoveTo(int x, int y) => AppWindow.Move(new(x, y));
-
-    /// <summary>A remembered position is used only while a display still shows it: monitors come and go.</summary>
-    public void MoveToIfOnScreen(int x, int y)
+    /// <summary>
+    /// A remembered place: the capsule's centre and its window's top, in screen pixels. Used only while a display
+    /// still shows that point, because monitors come and go.
+    /// </summary>
+    public void MoveToIfOnScreen(int centre, int top)
     {
-        var area = DisplayArea.GetFromPoint(new(x, y), DisplayAreaFallback.None);
-        if (area is not null)
+        if (DisplayArea.GetFromPoint(new(centre, top), DisplayAreaFallback.None) is null)
         {
-            MoveTo(x, y);
+            return;
         }
+        // Kept on screen at the next resize, when the window has its real width.
+        _centre = centre;
+        AppWindow.Move(new(centre - AppWindow.Size.Width / 2, top));
     }
 
     public void Render(CapsuleModel model)
@@ -226,9 +230,9 @@ public sealed partial class CapsuleWindow : Window
     public void PlaceDefault()
     {
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        var width = Math.Max(1, AppWindow.Size.Width);
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
-        AppWindow.Move(new(area.X + (area.Width - width) / 2, area.Y + (int)Math.Round((Edge - ShadowTop) * scale)));
+        _centre = area.X + area.Width / 2;
+        AppWindow.Move(new(_centre.Value - AppWindow.Size.Width / 2, area.Y + (int)Math.Round((Edge - ShadowTop) * scale)));
     }
 
     private void ApplyStyle()
@@ -429,14 +433,31 @@ public sealed partial class CapsuleWindow : Window
         return width + Bar.Spacing * Math.Max(0, parts - 1) + Bar.Margin.Left + Bar.Margin.Right + Shape.BorderThickness.Left + Shape.BorderThickness.Right;
     }
 
-    /// <summary>The capsule keeps its centre: it grows and shrinks to both sides, like the shape drawn inside it.</summary>
+    /// <summary>
+    /// The capsule keeps its centre: it grows and shrinks to both sides, like the shape drawn inside it. The centre is
+    /// kept as a number rather than read back from the window, whose first size is WinUI's large default.
+    /// </summary>
     private void ResizeWindow(double width)
     {
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
         var pixels = (int)Math.Round((width + 2 * ShadowSide) * scale);
-        var position = AppWindow.Position;
-        var centre = position.X + AppWindow.Size.Width / 2;
-        AppWindow.MoveAndResize(new(centre - pixels / 2, position.Y, pixels, (int)Math.Round((_style.Height + ShadowTop + ShadowBottom) * scale)));
+        var centre = _centre ??= AppWindow.Position.X + AppWindow.Size.Width / 2;
+        AppWindow.MoveAndResize(new(centre - pixels / 2, AppWindow.Position.Y, pixels, (int)Math.Round((_style.Height + ShadowTop + ShadowBottom) * scale)));
+        KeepOnScreen();
+    }
+
+    /// <summary>The whole capsule stays inside the work area of its display, whatever was remembered or dragged.</summary>
+    private void KeepOnScreen()
+    {
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        var size = AppWindow.Size;
+        var x = Math.Clamp(AppWindow.Position.X, area.X, Math.Max(area.X, area.X + area.Width - size.Width));
+        var y = Math.Clamp(AppWindow.Position.Y, area.Y, Math.Max(area.Y, area.Y + area.Height - size.Height));
+        if (x != AppWindow.Position.X || y != AppWindow.Position.Y)
+        {
+            AppWindow.Move(new(x, y));
+        }
+        _centre = x + size.Width / 2;
     }
 
     private void BuildWave()
@@ -536,7 +557,8 @@ public sealed partial class CapsuleWindow : Window
     {
         if (_dragging)
         {
-            Moved?.Invoke(this, AppWindow.Position);
+            KeepOnScreen();
+            Moved?.Invoke(this, new(_centre!.Value, AppWindow.Position.Y));
         }
         _dragging = false;
         Root.ReleasePointerCaptures();

@@ -104,6 +104,7 @@ public sealed class AppHost
         recording.RemindToSay = () => _store.Settings.RemindToSay;
         recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
+        // CapsuleX is the capsule's centre: its width changes with what it shows.
         capsule.Moved += (_, position) =>
         {
             _store.Settings.CapsuleX = position.X;
