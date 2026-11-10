@@ -1,0 +1,322 @@
+# Sozvon for Windows: review checklist
+
+Source: branch `windows-app`, `windows/Sozvon.App`. Known gaps: `docs/windows-port-checklist.md`.
+Abbreviations: RU/EN = Russian and English UI; L/D = light and dark theme; 100/125 = display scaling.
+
+| Area | Window or state | Control or behaviour | What to check (the effect, not only that it renders) | Edge cases | Checked how | Result | Fix commit |
+|---|---|---|---|---|---|---|---|
+| Capsule | Idle | Кнопка «Записать» | Click starts a recording: the capsule goes to «Запуск…», then to the recording state; a folder appears under Calls | Engine not installed: opens the setup wizard instead of recording; mic denied: tray notification «Нет доступа к микрофону. Разреши его в параметрах Windows…»; no mic: «Микрофон не открылся. Проверь, что он подключён.»; RU/EN («Record») | | | |
+| Capsule | Idle | Hover | The cross (hide button) fades and grows in over about 167 ms; on leave it fades out first, then leaves the row; the capsule width animates both ways | Fast in and out does not leave a half-visible cross; 100/125 | | | |
+| Capsule | Idle, hovered | Hide button (cross) | Click hides the capsule, turns off Settings «Плавающая панель» and unchecks the tray item | Tooltip «Скрыть панель» / «Hide panel»; turning it back on from the tray shows the capsule at the same place | | | |
+| Capsule | Any | Context menu «Скрыть панель» | Right-click opens a menu with one item; it hides the panel the same way as the cross | Menu follows the theme L/D; RU/EN | | | |
+| Capsule | Starting | Spinner + «Запуск…» | Accent arc turns; text «Запуск…»; buttons are not clickable meanwhile | Also shown while stopping (between Stop and «Записано»); EN «Starting…» | | | |
+| Capsule | Recording | Red dot + timer | Timer counts once a second in m:ss from 0:00 | Over one hour it switches to h:mm:ss (demo `long` 1:23:45); digits don't make the width jitter | | | |
+| Capsule | Recording | Wave | 9 bars per side: me in blue on the left, them in red on the right; bars move with real levels; divider in the middle | No audio from the other side: red bars stay at minimum; dark theme uses the lighter shades; bars sit on the centre line at 125 | | | |
+| Capsule | Recording | Mark button (flag) | Click adds a mark: the icon turns gold and a badge shows the count; the line gets a star in the transcript | Tooltip promises «(Ctrl+Alt+I)» but no global hotkey is registered: check whether the shortcut works; 12 marks (demo `long`) badge fits | | | |
+| Capsule | Recording, `marked` | Badge «3» | Badge sits at the top right of the flag and does not take clicks | L/D contrast of the badge | | | |
+| Capsule | Recording | Stop button (square) | Click stops: «Запуск…», then «Записано · N мин» for about 3 s, then the call info form opens | Tooltip «Остановить»; double click doesn't start a second stop; recording under 1 min shows just «Записано» | | | |
+| Capsule | Recording, `stop` | «Стоп через 24 с» + «Продолжить» | The countdown ticks; «Продолжить» cancels the auto-stop and the wave returns | Only when «Останавливать после звонка» is on; the capsule appears for the countdown even if the panel is hidden; EN «Stop in 24 s» / «Continue» | | | |
+| Capsule | Recording, `tell` | «Скажи собеседникам, что идёт запись» | Shown for about 8 s at the start when «Напоминать сказать о записи» is on, then the wave | Panel hidden: comes as a tray notification instead; long EN text fits | | | |
+| Capsule | Recording, `mic` | «Тебя не слышно 1:12» | Caution-coloured text replaces the wave while the mic is silent; tray notification with advice when «Предупреждать о тишине» is on | Setting off: no notification; headphones unplugged mid-call | | | |
+| Capsule | Recording, `system` | «Их не слышно 1:12» | Same for the other side's track | Call audio on a phone or another device; L/D colour contrast | | | |
+| Capsule | Recording | Very quiet voice | Notification «Тебя очень тихо слышно» + advice after 3 min | Only when «Предупреждать о тишине» is on | | | |
+| Capsule | Saved | Check + «Записано · 42 мин» | Green check; text shown about 3 s, then Processing or Idle | EN «Recorded · 42 min» | | | |
+| Capsule | Processing | Spinner + «Расшифровка…» | Shown while the engine has work; returns to Idle when the queue is empty | Engine error: returns to Idle, the call row shows «Не получилось расшифровать»; transcription waits while a call is on | | | |
+| Capsule | Prompt | «Идёт звонок в Zoom. Записать?» | Appears when a call app turns the mic on and «Когда начинается звонок» = «Спрашивать» | Mode «Ничего не делать»: no prompt; panel hidden: tray notification once per call | | | |
+| Capsule | Prompt | «Записать» (accent) | Starts recording | Engine not installed: setup opens | | | |
+| Capsule | Prompt | «Не сейчас» | Prompt disappears and does not come back for this call | Call ends: prompt goes away by itself | | | |
+| Capsule | Prompt, `auto` | «Звонок в Zoom · запись через 8 с» | Countdown ticks to 0, then recording starts by itself | Mode «Записывать сам» only; visible even with the panel hidden (counting) | | | |
+| Capsule | Prompt, `auto` | «Записать сейчас» | Starts at once, countdown stops | | | | |
+| Capsule | Prompt, `auto` | «Не записывать» | Cancels the auto-start for this call | | | | |
+| Capsule | `prompt-long` / `auto-long` | Long app name «Microsoft Teams (work or school)» | The capsule grows, stays centred and stays inside the screen's work area; buttons not clipped | Capsule near a screen edge; EN text longer; 125 | | | |
+| Capsule | Any state change | Width animation | Shape grows and shrinks around its centre over about 167 ms; no sliver of the pill outside the window | Fast state changes (demo cycle) don't leave a wrong width | | | |
+| Capsule | Any | Drag | Left-button drag moves the capsule; the call app keeps focus | Drag starting on a button does not click it; touch and pen don't drag | | | |
+| Capsule | Any | Release after drag | The capsule snaps inside the work area if dragged off-screen | Dragged under the taskbar; second monitor | | | |
+| Capsule | Restart | Remembered position | After exit and relaunch it is at the dragged place (centre and top saved) | Monitor removed or resolution changed: falls back to top centre; different scaling on two monitors | | | |
+| Capsule | First run | Default position | Top middle of the primary work area, about 16 DIP from the top | 100/125; taskbar at the top | | | |
+| Capsule | Any | Click-through margin | Clicks in the transparent shadow margin around the pill reach the window below | Margin at 125; while dragging the capsule keeps the mouse | | | |
+| Capsule | Any | Never takes focus | Clicking capsule buttons doesn't take focus from Zoom or the browser; the capsule isn't in Alt+Tab or the taskbar | Typing in another app while clicking Mark | | | |
+| Capsule | Any | Always on top | Stays above full-screen and maximised windows | Full-screen video or screen share | | | |
+| Capsule | Any | Shadow and hairline | Soft drop shadow, 1 px stroke at 10 % of the opposite colour | Dark theme shadow stronger; no dark ring | | | |
+| Capsule | Light | Theme | Light pill, dark text, readable warning colours | Settings «Тема» = «Светлая» | | | |
+| Capsule | Dark | Theme | Dark pill, light text, lighter wave colours | Settings «Тема» = «Тёмная» | | | |
+| Capsule | Any | Theme change live | Changing «Тема» in Settings recolours the capsule at once | «Как в системе» and switching the Windows theme | | | |
+| Capsule | Any | 100 % scaling | Pill height, button sizes, text centring, crisp edges | | | | |
+| Capsule | Any | 125 % scaling | Same, plus whole-pixel width, no blurry edges, wave bars on the centre line | Also 150 %; moving between monitors with different scaling | | | |
+| Capsule | Idle | Visibility rule | «Плавающая панель» on + «Показывать панель и без записи» off: hidden at rest, shown when recording | Panel off: hidden except during countdowns; both on: always visible | | | |
+| Capsule | Panel hidden | Notifications instead | Prompt, reminder and silence warnings come as tray notifications | Windows Focus or Do Not Disturb on | | | |
+| Capsule | Any | Language | All capsule texts follow the app language (not the system's) after relaunch | EN: «Record», «Not now», «Don't record», «Record now» | | | |
+| Capsule | Recording | Recorder failure | Unplugging the only mic stops the recording and saves what was there | Bluetooth headset switching profiles | | | |
+| Capsule | Start or stop | Chimes | A tone at start and stop when «Звук при старте и остановке записи» is on | No tone during a call (mic would carry it); setting off | | | |
+| Capsule | Demo | `--capsule-demo` / `--capsule-state <name>` | The demo cycles every 3 s through all 15 states; one named state stays put | `--capsule-hover`, `--capsule-hover-cycle` show the hover transition | | | |
+| Tray | Icon | Ready icon | Normal Sozvon icon at the system small-icon size | 100/125: sharp, not scaled up; icon hidden in the overflow (arrow by the clock) | | | |
+| Tray | Icon | Recording icon | Switches to the recording icon when a recording starts, back when it stops | Recording started by auto-start or from the capsule | | | |
+| Tray | Icon | Tooltip | «Sozvon · Готов к записи» / «Sozvon · Идёт запись» / «Sozvon · Нужна настройка» | EN; `--tray-state=` preview adds «предпросмотр» | | | |
+| Tray | Icon | Left click | Opens the main window on Calls, brings it to the front | Window hidden by close; window minimised | | | |
+| Tray | Icon | Right click | Menu rebuilt with current state (counts, latest call) | Opening the menu during processing | | | |
+| Tray | Menu | Status line «Sozvon · …» | Disabled first line shows the state; while recording «Идёт запись 12:47» | Time correct after over an hour | | | |
+| Tray | Menu, setup needed | «Завершить настройку…» | Opens the setup wizard (separate process), only once | Second click brings the open wizard to front | | | |
+| Tray | Menu, setup needed | «Выход» | Quits; only status, setup and exit are shown | | | | |
+| Tray | Menu | «Открыть» | Opens the main window on Calls | | | | |
+| Tray | Menu, idle | «Начать запись» | Starts a recording as the capsule button does | Engine missing: wizard; panel hidden: recording still starts | | | |
+| Tray | Menu, recording | «Остановить и расшифровать» | Stops; the call info form opens | | | | |
+| Tray | Menu, recording | «Отметить важное» | Adds a mark; the capsule badge grows | | | | |
+| Tray | Menu, recording | «Проект и собеседники…» | Opens the form titled «Проект и собеседники» with «Сохранить» and «Отмена»; saved answers prefill the form after the stop | Second click brings the open form to front | | | |
+| Tray | Menu | «Ждут описания: N» | Shown only when calls wait; opens the form for the oldest one | N correct after «Позже» and after closing the form | | | |
+| Tray | Menu | «Последняя расшифровка» | Opens the latest finished, non-demo call in the Calls window | Hidden with no finished calls; clears search and project filter | | | |
+| Tray | Menu | «Расшифровать заново…» | Opens the form «О чём был звонок?» for the latest call; «Расшифровать» queues it | Hidden when that call's audio was deleted | | | |
+| Tray | Menu | «Звонки…» | Opens the window on Calls | | | | |
+| Tray | Menu | «Проекты…» | Opens the window on Projects | | | | |
+| Tray | Menu | «Плавающая панель» (toggle) | Check mark matches Settings; toggling shows or hides the capsule and updates the Settings switch | Change in Settings, then reopen the menu: in sync | | | |
+| Tray | Menu | «Открывать при входе» (toggle) | Registers or unregisters the sign-in start; Settings row in sync | Off in Task Manager: description in Settings; no rights: error text | | | |
+| Tray | Menu | «Настройки…» | Opens the window on Settings | | | | |
+| Tray | Menu | «Выход» | Quits: a recording in progress is saved first and waits for description; engine stops; icon disappears | See Recovery rows | | | |
+| Tray | Notifications | Toasts «Sozvon» | Problems (mic, silence, import, save failures) appear as notifications with readable text | Focus Assist on; long text; RU/EN | | | |
+| Tray | Menu | Theme and scaling | Native menu follows the Windows theme, readable at 125 | L/D | | | |
+| Calls window | Shell | Open size and position | 1100×720 DIP, Mica background, icon in title bar and taskbar | 125: same logical size; small screen | | | |
+| Calls window | Shell | Title bar | The whole bar drags the window; only the search box takes clicks; the search stays centred clear of the caption buttons | Narrow window: search shrinks, no overlap; 125 | | | |
+| Calls window | Shell | Close (X) | Hides the window, the app keeps running in the tray; reopening keeps the selected call | Close during playback: audio stops or continues? (decide) | | | |
+| Calls window | Shell | Navigation «Звонки», «Проекты», «Голоса», «Настройки» | Each switches the page; tooltips show the names in compact mode | RU/EN; keyboard arrows on the rail | | | |
+| Calls window | Shell | Theme | Whole window and dialogs follow «Тема» live | L/D; «Как в системе» | | | |
+| Calls window | List | Groups «Сегодня», «Вчера», date, «Без даты» | Calls grouped by local day, newest first; headers line up with items | Call across midnight; RU date «8 ноября 2026 г.», EN «November 8, 2026» | | | |
+| Calls window | List | Row title and time | Title on one line with ellipsis; time HH:mm at the right | Very long title; title in English and Cyrillic | | | |
+| Calls window | List | Project dot | Coloured dot from the project, same colour as on Projects | No project: no dot | | | |
+| Calls window | List | Subtitle | «Проект · Анна, Иван · 42 мин» | Many participants: only two shown; no duration | | | |
+| Calls window | List | Lead «Ждёт описания» | Caution chip for calls waiting for the form | Disappears after the form is answered | | | |
+| Calls window | List | Status subtitles | «Расшифровывается…», «В очереди», «Без расшифровки» update live | Several calls in the queue | | | |
+| Calls window | List | Critical subtitles | «Не получилось расшифровать», «Не удалось прочитать call.json» in red | Corrupted call.json; failed processing | | | |
+| Calls window | List | Badges «Демо», «Без саммари» | Grey chip on the demo call and on calls whose summary failed | No assistant chosen | | | |
+| Calls window | List | Selection | Click opens the call on the right; the selection survives a refresh | Selected call deleted from disk outside the app | | | |
+| Calls window | List | No selection | Right side «Выбери звонок» with an icon | | | | |
+| Calls window | List | Project filter dropdown | «Все проекты» plus projects found in calls, sorted; choosing one filters the list, the button shows the name | Project renamed: new title after refresh; very long project name | | | |
+| Calls window | List | Search box «Поиск по звонкам» | Filters by title, project and participant names as you type, case-insensitive | Cyrillic case, ё/е; spaces only; clears with its X | | | |
+| Calls window | List | Empty result «Ничего не найдено» | Shown when filter or search hides everything | Search plus project filter | | | |
+| Calls window | List | Demo state | No real calls: one demo call and the InfoBar «Настоящих звонков пока нет / Показан демо-звонок» | After the first real call the demo disappears | | | |
+| Calls window | List | Drop a recording | Dragging files shows «Импортировать запись»; drop shows «Импортируется «name»…» with progress; the call appears | Unsupported format «…этот формат не поддерживается»; file without audio «В файле нет звуковой дорожки»; several files; dropping during import is ignored; summary dialog «Не все записи импортированы» | | | |
+| Calls window | List | Live refresh | Rows change status as processing goes on, without reselecting | Engine error mid-run | | | |
+| Calls window | Keyboard | Delete on the list | Moves the selected call to the Recycle Bin, selects the next one, no question asked | Call busy: dialog «Звонок сейчас записывается или расшифровывается»; demo call; server copy stays «Звонок в Корзине, но на сервере он останется» | | | |
+| Calls window | Keyboard | Ctrl+F | On the Transcript tab opens the find bar; on the Summary tab, or with no call open, focuses the search across calls | Focus in the notes box | | | |
+| Calls window | Keyboard | Ctrl+Alt+F | Always focuses the search across calls and switches to Calls | From Settings or Projects | | | |
+| Calls window | Keyboard | Enter / Space on a transcript line | Plays from that line | No audio: nothing | | | |
+| Calls window | Detail header | Tabs «Саммари», «Расшифровка» | Switch content; the chosen tab is kept for the next call | Call without summary opens on Transcript; without either opens on Summary | | | |
+| Calls window | Summary tab | Title | Large, wraps, selectable | Very long title; no title | | | |
+| Calls window | Summary tab | Meta line | «Проект · 8 ноября в 16:02 · 42 мин» | No project; no date; EN «November 8 at 16:02» | | | |
+| Calls window | Summary tab | Participants | Names wrap; me first when I speak; green check for a saved voice; coral for an unsaved speaker; tooltip explains | Tooltips «Твой голос не записан: запиши его в Настройках», «Голос не сохранён»; many names wrap; hidden when no one | | | |
+| Calls window | Summary tab | Banner: demo | «Это демо-звонок: настоящих звонков пока нет» | | | | |
+| Calls window | Summary tab | Banner: unreadable | Red «Не удалось прочитать call.json» | | | | |
+| Calls window | Summary tab | Banner: transcribing | «Расшифровывается…» / «Расшифровываю заново…» with a moving bar; goes away when done | | | | |
+| Calls window | Summary tab | Banner: updating summary | «Обновляю саммари…» with a bar | | | | |
+| Calls window | Summary tab | Banner: queued | «В очереди.» «Начнётся, когда освободится движок и закончится звонок.» + «Убрать из очереди» removes it | | | | |
+| Calls window | Summary tab | Banner: failed | Red «Не получилось расшифровать» (+ «Здесь расшифровка с прошлого раза.») + «Расшифровать заново…» opens the form | No audio: no button; engine not installed | | | |
+| Calls window | Summary tab | Banner: stale summary | «Саммари устарело.» «Расшифровку изменили…» + «Обновить саммари» | Appears after a rename or fixed word; no assistant: no button | | | |
+| Calls window | Summary tab | Banner: summary failed | «Готово, но саммари не получилось» | Assistant missing or offline | | | |
+| Calls window | Summary tab | «Подписи верные?» bar | Lists the unsaved names; «Запомнить голоса» saves them, then a «Запоминаю голос…» notice and the result | No audio or busy: hidden; close (X) hides it for this call this session; reappears after restart? (check) | | | |
+| Calls window | Summary tab | Voice notice | Info while saving, green on success, warning on failure | Engine missing or failing | | | |
+| Calls window | Notes | «Добавить» | Shows the field «Заметка» with focus | Hidden on the demo call and for calls without call.json | | | |
+| Calls window | Notes | Enter in the note field | Adds the note with a stamp «8 ноября в 16:02»; field closes | Empty or spaces: just closes; over 4000 characters cannot be typed; «У звонка уже N заметок, больше нельзя»; corrupt call.json: «Не получилось сохранить заметку: call.json повреждён» | | | |
+| Calls window | Notes | Esc in the note field | Cancels without saving | | | | |
+| Calls window | Notes | Note «…» menu «Копировать» | Note text to the clipboard | Multiline and emoji text | | | |
+| Calls window | Notes | Note menu «Удалить заметку» | Deletes at once, shows «Заметка удалена» + «Вернуть» | File locked: «Не получилось удалить заметку» | | | |
+| Calls window | Notes | «Вернуть» | Puts the note back with its text, time and source, at its place | Undo after switching calls is not possible (bar resets) | | | |
+| Calls window | Notes | Empty | «Заметок пока нет: решения, договорённости, что проверить потом.» | | | | |
+| Calls window | Notes | Source | A note added by Claude shows «… · claude-code» | Added through MCP while the call is open: appears after refresh | | | |
+| Calls window | Summary cards | Section cards | Each summary heading is a card with paragraphs, bullets, sub-headings | Very long summary; Markdown oddities | | | |
+| Calls window | Summary cards | Tasks | Checkbox glyph done or open, owner under the task | Task without owner | | | |
+| Calls window | Summary cards | Text selection | Paragraphs, bullets and tasks are selectable and copyable | | | | |
+| Calls window | Summary cards | «Саммари нет» | Shown when the call has no summary | | | | |
+| Calls window | Transcript tab | Lines | Time, «Name:» in semibold, text; star on marked lines with tooltip «Отмечено как важное во время записи» | Very long line wraps; speaker name very long | | | |
+| Calls window | Transcript tab | Unsaved speaker | Name in coral; saved one has tooltip «Голос «X» сохранён…» | L/D coral contrast | | | |
+| Calls window | Transcript tab | Click a line | Plays from its start; the playing line gets an accent row and stays in view while playing | No audio: nothing happens | | | |
+| Calls window | Transcript tab | «Нет расшифровки» | Shown when the call has no transcript | Processing, failed | | | |
+| Calls window | Line menu | «Слушать отсюда» | Plays from that line | Hidden without audio | | | |
+| Calls window | Line menu | «Копировать» | Line «time Name: text» to the clipboard | | | | |
+| Calls window | Line menu | «Переименовать говорящего…» | Dialog «Кто это говорит?»: field «Имя», «Похоже, это:» suggestions, «Во всей расшифровке (реплик «X»: N)»; «Переименовать» renames every line and remembers the voice | Disabled while recording or transcribing; empty name or «:», «*», «[», «]»: error | | | |
+| Calls window | Line menu | Rename to an existing speaker | «…уже есть в звонке» with «Поменять местами» and «Объединить»; button text follows | Swap then check the summary banner «Саммари устарело.» | | | |
+| Calls window | Line menu | Only this line | Unticking «Во всей расшифровке» gives «Изменить реплику», only the clicked line moves | Voice is not learned from one line | | | |
+| Calls window | Line menu | «Запомнить голос «X»» | Saves the voice; the name stops being coral | Only for unsaved speakers with audio; engine error notice | | | |
+| Calls window | Line menu | «Исправить слово…» | Dialog «Исправить слово»: «Было» (select in the line), «Правильно»; «Исправить» changes the text; then «Запоминать для проекта «X»?» / «…для всех звонков?» with «Запоминать» / «Не надо» | Part of a word «Выдели слово целиком…»; save error «Не получилось запомнить замену» | | | |
+| Calls window | Find bar | Open | Ctrl+F or More, «Найти в расшифровке»: bar with field, focus and select-all | Not on the Summary tab | | | |
+| Calls window | Find bar | Typing | All matches yellow, current in the accent colour, counter «3 из 12», current line scrolled to the centre | No match «Ничего не найдено»; Cyrillic case; match inside the speaker name not counted | | | |
+| Calls window | Find bar | Enter / Shift+Enter, ↓ / ↑ buttons | Next and previous match, wrapping around | Buttons disabled with no matches; tooltips «Следующее совпадение», «Предыдущее совпадение» | | | |
+| Calls window | Find bar | Esc / «Закрыть поиск» | Closes, clears highlights | No second clear cross in the field | | | |
+| Calls window | Find bar | Tab or call change | Bar closes and highlights go | | | | |
+| Calls window | Player | Visibility | Floating bar only when the call's audio is there | Demo call, audio auto-deleted, call still transcribing: no player | | | |
+| Calls window | Player | «Назад на 15 секунд» / «Вперёд на 15 секунд» | Jumps 15 s, clamped to 0 and the end | | | | |
+| Calls window | Player | Play / Pause | Starts and pauses; icon and tooltip «Воспроизвести» / «Пауза» change | Switching calls stops the old player | | | |
+| Calls window | Player | Position, duration, slider | Times m:ss or h:mm:ss; dragging the slider seeks; the playing line follows | Over one hour | | | |
+| Calls window | Player | Error | «Запись недоступна: …» replaces the slider | Broken audio file; file held by another program | | | |
+| Calls window | Player | Speed «1x» menu | 1x, 1.5x, 2x; the button shows the choice; playback speed changes | Choice kept per call or reset? (check) | | | |
+| Calls window | Player | Bottom padding | The last line and last card scroll fully above the floating player | No player: normal padding; 125 | | | |
+| Calls window | Share menu | «Копировать саммари» | Summary text (Markdown) to the clipboard | No summary: nothing copied, no message | | | |
+| Calls window | Share menu | «Копировать расшифровку» | Full transcript to the clipboard | | | | |
+| Calls window | Share menu | «Открыть расшифровку» | Opens transcript.md in the default app | Disabled with no file | | | |
+| Calls window | More menu | «Найти в расшифровке» (Ctrl+F) | Opens the find bar | Disabled on the Summary tab | | | |
+| Calls window | More menu | «Расшифровать…» / «Расшифровать заново…» / «Описать…» | Opens the call info form for this call; answer queues it | Hidden with no audio, demo, no engine or busy | | | |
+| Calls window | More menu | «Убрать из очереди» | Removes a waiting call from the queue; banner goes | Only while queued | | | |
+| Calls window | More menu | «Обновить саммари» | Runs a new summary, banner «Обновляю саммари…» | Disabled while locked or summarizing; no assistant | | | |
+| Calls window | More menu | «Показать в проводнике» | Opens the call folder in File Explorer | Disabled for the demo; Cyrillic or space in the path | | | |
+| Calls window | More menu | «Журнал обработки» | Opens process.log | Disabled without the log | | | |
+| Calls window | More menu | «Удалить в корзину» | Moves the call to the Recycle Bin, selects the next call | Disabled while busy; hidden for the demo; file locked: dialog «Не получилось удалить звонок» | | | |
+| Calls window | More menu | «На диске: 512 МБ» | Disabled info line with the folder size | Hidden for the demo | | | |
+| Call info form | Window | Opening after stop | Separate window «О чём был звонок?», centred, not resizable, as tall as the form | Small screen: form scrolls; two monitors; 125 | | | |
+| Call info form | Window | Heading and hint | Title text + «Тема и имена помогут расшифровке и саммари.» | RU/EN | | | |
+| Call info form | Field | «Что это:» Звонок / Размышления | Choice saved with the call | | | | |
+| Call info form | Field | «Проект:» | Dropdown «Без проекта», projects with dots, «Новый проект…»; preselects the last project | Project in call.json whose file is gone is still listed by its slug | | | |
+| Call info form | Field | «Новый проект…» | Dialog «Новый проект» with «Сохранить» / «Отмена»; new project selected | Empty «Нужно название»; duplicate «Проект с таким названием уже есть»; disk error shown inside | | | |
+| Call info form | Field | «Тема:» | Free text, placeholder «О чём говорили, двумя словами»; becomes the call title | Very long topic; characters `?*"<>\|` in the folder name | | | |
+| Call info form | Field | «Собеседники:» | Comma list, placeholder «Анна, Иван», hint about order | Empty allowed | | | |
+| Call info form | Field | «Похоже, это:» chips | Known people of the project as toggle chips; clicking adds or removes the name in the field | Hidden when there are none; tooltips «Добавить в собеседники» / «Убрать из собеседников» | | | |
+| Call info form | Field | «Ключевые слова:» | Free text, placeholder «HMAC, invoice.paid, песочница» | | | | |
+| Call info form | Field | «Язык:» | Languages button with checkboxes and «Определять сам» | | | | |
+| Call info form | Field | «Саммари:» checkbox | «Через Claude Code, текст уйдёт в Anthropic»; unticked means no summary for this call | No assistant: disabled «Помощник не выбран в настройках» | | | |
+| Call info form | Countdown | InfoBar «Проект и участники определились сами. Расшифрую через N с…» | Shown when the guess is sure and «Сразу расшифровывать, если всё понятно» is on; OK shows «Расшифровать (N)»; at 0 it submits | Setting off: no countdown | | | |
+| Call info form | Countdown | «Подождать» | Stops the countdown, the form stays | Tooltip «Не расшифровывать сразу, сначала проверю» | | | |
+| Call info form | Countdown | Editing a field | Any real change stops the countdown | Clicking without changing does not | | | |
+| Call info form | Footer | «Расшифровать» | Queues the call with the answers; capsule shows «Расшифровка…»; last project remembered | Engine busy: call shows «В очереди» | | | |
+| Call info form | Footer | «Позже» | Closes; the call waits, tray shows «Ждут описания: 1», row «Ждёт описания» | Tooltip mentions the tray menu | | | |
+| Call info form | Footer | «Не расшифровывать» | Closes; the call stays «Без расшифровки», no longer waiting | Tooltip «Оставить запись без расшифровки» | | | |
+| Call info form | Window | Close (X) or Esc | Acts as «Позже» without saving the edits (or «Отмена» in edit mode); the recording is never lost | App exit with the form open: call waits | | | |
+| Call info form | Mode | «Проект и собеседники» (during recording) | Title «Проект и собеседники», buttons «Сохранить» / «Отмена», no «Позже»; answers prefill the form after stop | Opening it twice brings the window to front | | | |
+| Call info form | Mode | Describe pending (tray) | Opens for the oldest waiting call with its saved answers | Several waiting calls in a row | | | |
+| Call info form | Window | Two forms | A new question closes the open form (its call waits) | Stop a second recording while the first form is open | | | |
+| Call info form | Window | Theme | Follows «Тема» live while open | L/D | | | |
+| Call info form | Window | Save failure | Tray notification «Не удалось сохранить данные звонка» | call.json locked | | | |
+| Call info form | Window | Scaling | Labels right-aligned, fields line up | 100/125; EN labels longer | | | |
+| Settings | Page | Tabs «Основные», «Распознавание», «Ассистенты», «Облако», «О программе» | Each shows its pane, scrolls to the top; mouse leaves no focus rectangle; arrow keys move between tabs | RU/EN tab widths | | | |
+| Settings | Page | «Настройки не сохранились» bar | Red bar with the reason when settings.json can't be written | Read-only data folder | | | |
+| Settings | Page | Hairline under tabs | Appears only when the pane is scrolled | | | | |
+| Settings | Основные | «Как тебя подписывать» | Name written next to my lines in new transcripts; chips use it | Empty name; Cyrillic; very long | | | |
+| Settings | Основные | «Тема» Светлая / Тёмная / Как в системе | Window, capsule, form and dialogs recolour at once | Windows theme change with «Как в системе» | | | |
+| Settings | Основные | «Язык интерфейса» Как в системе / Русский / English | Bar «Язык изменится после перезапуска» / «Открытые окна закроются, запись не прервётся.» | Setting back to the start value hides the bar | | | |
+| Settings | Основные | «Перезапустить Sozvon» | Relaunches in the new language | Promise «запись не прервётся»: relaunch during a recording, check it is not lost | | | |
+| Settings | Основные | «Открывать при входе» | Toggle registers start at sign-in; tray item in sync | Off in Task Manager: «Выключено в диспетчере задач…»; error «Не получилось изменить автозапуск: …» | | | |
+| Settings | Основные | «Плавающая панель» «Капсула поверх всех окон» | Shows or hides the capsule | | | | |
+| Settings | Основные | «Показывать панель и без записи» | Capsule visible at rest when on | Disabled while the panel is off | | | |
+| Settings | Основные | «Когда начинается звонок» Спрашивать / Записывать сам / Ничего не делать | Prompt, auto-start or nothing; description changes («Через N секунд, на панели можно отменить…» or «Zoom, Google Meet, Telegram») | Each mode with a real Zoom, Meet and Telegram call | | | |
+| Settings | Основные | «Останавливать после звонка» | Auto-stop countdown «Через N секунд после конца звонка, на панели можно продолжить» | Other side still audible: no stop | | | |
+| Settings | Основные | «Напоминать сказать о записи» | Reminder in the capsule for a few seconds at start | Panel hidden: notification | | | |
+| Settings | Основные | «Предупреждать о тишине» | Silence and quiet-voice notifications on or off; promise «больше двух минут» | Check the real delay | | | |
+| Settings | Основные | «Звук при старте и остановке записи» | Turning on plays the start tone; tones at start and stop; none during a call | | | | |
+| Settings | Основные | Recording footer | «Запись начинается только по кнопке…» or «…сама, когда приложение для звонков включает микрофон…» follows the mode | | | | |
+| Settings | Основные | «Папка для записей» «Выбрать папку…» | Folder picker; description shows the path | Cyrillic path; OneDrive folder; cancel picker | | | |
+| Settings | Основные | «Убрать» | Clears the phone folder, description «Не выбрана» | Hidden when none | | | |
+| Settings | Основные | Phone folder promise | A new file there is transcribed by itself and moved to «Imported» | File still syncing; unsupported file; offline cloud drive | | | |
+| Settings | Основные | «Запись одним нажатием на iPhone» | Opens the docs anchor in the right language | EN anchor `en-phone-shortcut` | | | |
+| Settings | Основные | «Микрофон» «Открыть параметры конфиденциальности» | Opens Windows Settings, Privacy, Microphone | | | | |
+| Settings | Основные | «Твой голос» row | «Не записан» + «Записать…», or «Записан 5 ноября, 24 с речи» + «Добавить язык…» + «Записать заново…» | Buttons disabled while a voice is being saved | | | |
+| Settings | Основные | «Голоса собеседников» | Names list or «Пока нет: имена подставятся…», count, «Управлять…» opens Voices | «Управлять…» disabled with no voices | | | |
+| Settings | Основные | Biometric footnote | Text present and accurate (stored on this PC) | | | | |
+| Settings | Основные | «Сразу расшифровывать, если всё понятно» | Enables the countdown in the call info form | | | | |
+| Settings | Основные | «Автоудаление аудио» Никогда / Через неделю / 15 / 30 / 60 дней | Shorter choice with affected calls asks «Удалить аудио N звонков?» with size; «Удалить аудио» deletes, «Отмена» reverts the box | No affected calls: no question; players and «Расшифровать заново» disappear for those calls | | | |
+| Settings | Распознавание | «Модель распознавания» | Whisper Turbo, Large v3, Small, GigaAM v3, Parakeet v3; models not on disk shown «· не скачана» and disabled | Next transcription uses the chosen model | | | |
+| Settings | Распознавание | «Языки звонков» | Languages button; saved; used by new transcriptions | «Определять сам» exclusive | | | |
+| Settings | Распознавание | «Переключение языка посреди речи» | Saved; promise «медленнее на 20-30%» | Whisper Small drops English after Russian (known issue) | | | |
+| Settings | Распознавание | «Python» | «Установлен» / «Не установлен» matches reality | Checks only python.exe, while the tray also checks the install marker: half-installed engine | | | |
+| Settings | Распознавание | «MCP-сервер» | Status «работает» etc.; failure description «…подробности в mcp.log» | Port busy; wrong token | | | |
+| Settings | Распознавание | «Папка записей» «Показать в проводнике» | Opens the calls folder, creates it if missing | Cyrillic path | | | |
+| Settings | Распознавание | «Папка данных» «Показать в проводнике» | Opens the data folder | | | | |
+| Settings | Ассистенты | «Помощник для саммари» | Claude Code / Codex / Cursor / «Без саммари»; missing CLI shown «(не найден)» | Choosing a missing one is allowed: summary failure later | | | |
+| Settings | Ассистенты | Summary footer | «Саммари. Текст уходит в Anthropic.» etc., «Без саммари. Ничего не покидает компьютер.» | | | | |
+| Settings | Ассистенты | Codex / Cursor warning bar | «…на Windows ещё не проверен…», Cursor adds the sandbox sentence | | | | |
+| Settings | Ассистенты | Connection rows (per assistant) | Spinner while checking; «Подключён» with green check, «Старая настройка» with caution icon, «Не установлен» | Re-checked each time the tab opens | | | |
+| Settings | Ассистенты | «Подключить» / «Подключить заново» | Adds Sozvon to the assistant's MCP config; status becomes «Подключён» | Unreadable config «Не получилось разобрать…»; CLI missing «Программа ассистента не найдена» | | | |
+| Settings | Ассистенты | «Отключить…» | Question «Отключить Sozvon от X?» + «Отключить» / «Отмена»; removes it | Dialog theme may not follow the app (no RequestedTheme set): check in dark | | | |
+| Settings | Ассистенты | «Подключить вручную» «Скопировать» | Command with password to the clipboard; button says «Скопировано» briefly | Tooltip «То же, что делает «Подключить», с паролем» | | | |
+| Settings | Ассистенты | Footnotes | MCP promise (one shared server, works while Sozvon runs); Codex and Cursor «подключаются только по кнопке» | | | | |
+| Settings | Облако | Intro text | «Копии готовых звонков уходят на сервер…», «Поставить сервер в один клик пока можно только с Mac…» | | | | |
+| Settings | Облако | «Адрес сервера» | Draft; Enter saves | Not https: «Адрес должен начинаться с https://» | | | |
+| Settings | Облако | «Пароль» | Password box; Enter saves | Empty «Укажи пароль сервера» | | | |
+| Settings | Облако | «Сохранить» | «Проверяю сервер…», then «Сервер на связи, версия X» or the error | Wrong password «Сервер не принял пароль»; offline «Сервер недоступен: …»; wrong site «Это не сервер Sozvon: проверь адрес»; old server «Несовместимая версия сервера, обнови его» | | | |
+| Settings | Облако | «Синхронизация» status | «Синхронизировано …», counts «отправлено», «скачано», «удалено», «убрано в Корзину» | «Не отправились: …»; «Не настроена» | | | |
+| Settings | Облако | «Синхронизировать» | Runs a sync now, spinner while running | Disabled while running; offline | | | |
+| Settings | Облако | Connector section «Claude и ChatGPT» | Shown only with a server: «Адрес коннектора» «Скопировать» copies the URL | | | | |
+| Settings | Облако | Password show / «Скопировать» | Eye toggle shows the password; copy puts it on the clipboard | | | | |
+| Settings | Облако | «Открыть Claude» / «Открыть ChatGPT» | Claude: copies the URL and opens its connectors page; ChatGPT opens its page | No default browser | | | |
+| Settings | Облако | «Аудио звонков» toggle | Sends audio with new syncs | Disabled without a server; «Станет доступно после подключения сервера.» | | | |
+| Settings | Облако | «Отпечатки голосов» toggle | Sends voice prints | Disabled without a server | | | |
+| Settings | Облако | Consent and storage footnotes | Texts about Cloudflare, about 80 hours, consent | | | | |
+| Settings | Облако | «Как это устроено» link | Opens the docs | | | | |
+| Settings | Облако | Save error bar | «Настройки не сохранились» with the reason when .env can't be written | | | | |
+| Settings | О программе | Version | «0.x.y · сборка Windows, предварительная · <commit>» | No update rows; no Diagnostics row (known gap) | | | |
+| Settings | О программе | «Сайт», «Исходный код», «Лицензия» | Links open able1991.github.io/sozvon and GitHub; MIT | | | | |
+| Settings | Page | Scaling and theme | Rows line up at the right edge, switches end at the same edge as boxes | 100/125; L/D; EN longer headers | | | |
+| Setup wizard | Launch | First start without engine | Wizard opens by itself (separate process), tray shows «Нужна настройка» | | | | |
+| Setup wizard | Launch | Second start of the wizard | Brings the open wizard to front, no second installer | | | | |
+| Setup wizard | Launch | Engine files missing | Message box «Не нашёл файлы движка. Переустанови Sozvon.» and exit | | | | |
+| Setup wizard | Window | Size and controls | Title «Настройка Sozvon», 600 wide, as tall as the tallest step, no maximise or minimise, centred | 125; small screen | | | |
+| Setup wizard | Window | Language | Follows the Windows display language, not the app's «Язык интерфейса» | App set to English on a Russian Windows | | | |
+| Setup wizard | Header | «Шаг N из 7» + pips | Counter and pips advance; current pip wide | | | | |
+| Setup wizard | 1 Welcome | «Добро пожаловать в Sozvon» | Four features shown; «Продолжить»; no Back | Subtitle says «значок на панели задач» while the icon is in the notification area: wording | | | |
+| Setup wizard | 2 Assistant | «Помощник для саммари» radios | Installed ones selectable with «установлен», missing ones disabled «не найден»; «Без саммари» | No assistant installed | | | |
+| Setup wizard | 2 Assistant | «Не проверено на Windows» bar | Shown for Codex and Cursor with the right text | | | | |
+| Setup wizard | 3 Details | «Как тебя подписывать» | Name saved to Settings | Empty name | | | |
+| Setup wizard | 3 Details | «Языки звонков» checkboxes + «Определять сам» | Ticking a language unticks «Определять сам»; ticking it clears the others | Unticking «Определять сам» alone changes nothing | | | |
+| Setup wizard | 4 Model | Model radios | Notes «рекомендуем», size, «скачана» | | | | |
+| Setup wizard | 4 Model | «Ускорить на видеокарте NVIDIA» | Shown only with an NVIDIA card «Найдена X…» | AMD or no GPU: hidden | | | |
+| Setup wizard | 4 Model | Primary button | «Скачать и продолжить», or «Продолжить» when ready and no GPU | | | | |
+| Setup wizard | 5 Engine | Running | Phase text from the installer, moving bar, «Подробности» log; Back hidden; primary «Остановить» | Offline; disk full; Cyrillic data folder | | | |
+| Setup wizard | 5 Engine | «Остановить» | Stops; bar «Установка остановлена. Скачанное сохранится…»; Back appears; primary «Продолжить установку» | | | | |
+| Setup wizard | 5 Engine | Failure | Red «Что-то пошло не так.» «Лог лежит в setup.log…», log expanded, «Открыть журнал» | Broken download, wrong hash | | | |
+| Setup wizard | 5 Engine | «Продолжить установку» (retry) | Restarts the install, resumes downloads | | | | |
+| Setup wizard | 5 Engine | Done | «Движок установлен», rows Python, model «скачана и проверена», «Разбивка по голосам» | Diarization missing: «Модели не скачались, расшифровка будет без разбивки по голосам» | | | |
+| Setup wizard | 6 Microphone | Permission status | «Разрешено» / «Запрещено» updates every second; blocked bar | Allowing it in Windows Settings while open updates by itself | | | |
+| Setup wizard | 6 Microphone | «Открыть настройки» | Opens Privacy, Microphone | | | | |
+| Setup wizard | 6 Microphone | «Проверить» | «Пишу три секунды…» with a level meter, then «Получилось» | Silence: «…микрофон не прислал звук…»; error «Не удалось открыть микрофон (код N)…»; «Ещё раз» | | | |
+| Setup wizard | 6 Microphone | Primary | «Пропустить» until the test passes, then «Продолжить»; disabled while testing; no Back | | | | |
+| Setup wizard | 7 Projects | «Найти проекты через ассистента» | Disabled, «Пока недоступно на Windows»; «Проекты можно завести позже…» | | | | |
+| Setup wizard | 7 Projects | «Значок может быть скрыт» hint | Text present; instruction works on Windows 11 | | | | |
+| Setup wizard | 7 Projects | «Готово» | Closes the wizard; tray becomes «Готов к записи»; MCP server restarts | | | | |
+| Setup wizard | Footer | «Назад» | Returns one step with choices kept | | | | |
+| Setup wizard | Window | Close mid-install | Installer stops, no orphan processes | Reopen from tray: resumes | | | |
+| Setup wizard | Any | Error bar | IO error on «Продолжить» shows a red bar, stays on the step | | | | |
+| Projects page | Empty | «Проектов пока нет» | Whole page explanation + «Новый проект…» | | | | |
+| Projects page | List | Header and summary | «Проекты», «3 проекта · 7 человек» | RU plural forms 1 / 2 / 5; EN | | | |
+| Projects page | List | Row | Dot, title (wraps), «3 человека · 5 терминов · 12 звонков» | Call count appears after a moment; very long title | | | |
+| Projects page | List | Selection | First project selected by default; the card on the right fills | | | | |
+| Projects page | Card | Header | Dot, full title (selectable), meta, «Изменить…», trash button | | | | |
+| Projects page | Card | «О чём созвоны», «Люди», «Термины» | Full text; empty shown as «—» | Very long lists wrap | | | |
+| Projects page | Card | «Голоса» | Saved voices of the project with trash button; «Голосов пока нет» | | | | |
+| Projects page | Card | Voice delete | Flyout «Удалить голос «X»?» + «Удалить»; voice disappears | Error bar «Не получилось удалить голос» | | | |
+| Projects page | Editor | «Новый проект» button | Dialog «Новый проект» with «Название», «О чём созвоны», «Люди», «Термины» and a hint about about 25 words | | | | |
+| Projects page | Editor | Title validation | Empty: «Сохранить» disabled; duplicate: «Проект с таким названием уже есть» | Same name with a different case | | | |
+| Projects page | Editor | Multiline fields | Grow from two lines to the limit, then scroll | | | | |
+| Projects page | Editor | «Сохранить» | Writes the project; list selects it; call list shows new titles | File locked: «Не получилось сохранить проект» inside the dialog | | | |
+| Projects page | Editor | Rename (Изменить…) | Heading keeps the old name; saving shows the new one everywhere | Calls of the project keep their project | | | |
+| Projects page | Editor | Voices section | For a saved project: voices with delete flyout | Hidden for a new project | | | |
+| Projects page | Delete | Trash button, «Удалить…», Delete key | «Удалить проект «X»?» + text about the Recycle Bin; «Удалить» moves the file | Error «Не получилось удалить проект» | | | |
+| Projects page | Keyboard | Enter / double click | Opens the editor | | | | |
+| Projects page | Menus | Row menu «Изменить…», «Показать в проводнике», «Удалить…» | Act on that row; Explorer selects the .json | | | | |
+| Projects page | Menus | Empty-area menu «Новый проект…», «Показать в проводнике» | Opens the editor or the profiles folder | | | | |
+| Projects page | Live | Change from outside | Editing profiles\*.json elsewhere or from the call form updates the list | | | | |
+| Voices page | Own voice | «Твой голос» row | Same buttons as in Settings, in sync | | | | |
+| Voices page | Own voice dialog | Title and text | «Прочитай вслух текст ниже» or «Расскажи что-нибудь вслух»; subtitle; language bar | Language without text: «Для этого языка нет текста: говори свободно.» | | | |
+| Voices page | Own voice dialog | «Записать» | Records; the read part of the text lights up; clock «0:12»; blue bars | | | | |
+| Voices page | Own voice dialog | «Остановить» | Saves («Сохраняю голос…»); dialog closes on success | Too short «Слишком коротко: нужно хотя бы N секунд»; save failure «Не получилось сохранить голос. Подробности в voice.log» | | | |
+| Voices page | Own voice dialog | Mic denied | «Нет доступа к микрофону» with «Открыть параметры конфиденциальности» | | | | |
+| Voices page | Own voice dialog | Closing while saving | Refused until saving ends | | | | |
+| Voices page | Own voice dialog | «Добавить язык…» | Adds a sample, «Образец добавится к записанному голосу, а не заменит его.» | | | | |
+| Voices page | List | Rows | Own voice with person icon «Name (мой голос)»; others with project · seconds · date | Long names trimmed | | | |
+| Voices page | List | Trash button per row | Flyout «Удалить голос «X»?» + text; «Удалить» removes it | Own voice text differs | | | |
+| Voices page | List | Row menu «Удалить…» / Delete key | Dialog with the same question | Disabled while busy | | | |
+| Voices page | List | «Удалить все…» | «Удалить все сохранённые голоса?» + «Удалить»; list empties | Disabled with no voices or busy | | | |
+| Voices page | List | Problem bar | Warning with the reason on failure; closable | Engine missing | | | |
+| Voices page | List | Busy ring | Spins while a voice job runs | | | | |
+| Voices page | Empty | «Голосов собеседников пока нет» | Card explaining how voices are saved | Shown even when only my voice exists | | | |
+| Voices page | Page | Biometric footnote | Present | | | | |
+| Voices page | Navigation | From Settings «Управлять…» | Opens this page in the main window | | | | |
+| Recovery and lifecycle | Launch | Interrupted recording | A recording left by a crash or power loss is saved at launch and queued for transcription | Damaged tracks; recovery while a new recording starts | | | |
+| Recovery and lifecycle | Launch | Queue restored | Calls queued before exit continue after launch | | | | |
+| Recovery and lifecycle | Launch | vocab.json | Created from vocab.default.json on first launch | Known gap in docs | | | |
+| Recovery and lifecycle | Exit | «Выход» from tray during a recording | Recording saved, waits for description; engine stopped; no orphan python.exe | Exit during transcription: call returns to the queue | | | |
+| Recovery and lifecycle | Exit | Exit with the call info form open | Form closes; call waits for description | | | | |
+| Recovery and lifecycle | Single instance | Second launch | No second tray icon; the running app opens the Calls window | Launch from Start and from a shortcut | | | |
+| Recovery and lifecycle | Single instance | Two windows | Only one main window ever; call info form is a second window that does not block it | | | | |
+| Recovery and lifecycle | Window | Close hides | X hides the main window; tray click restores it at the same page | | | | |
+| Recovery and lifecycle | Sign-in | Start at sign-in | Starts quietly in the tray (no window) | | | | |
+| Recovery and lifecycle | Relaunch | Language relaunch | App restarts; recording, queue and capsule position survive | | | | |
+| Recovery and lifecycle | Errors | app-errors.log | Unexpected errors written to the data folder; tray notification «Не получилось: подробности в журнале программы.» | Window failure doesn't kill the tray | | | |
+| Recovery and lifecycle | Background | Audio auto-delete | Old audio removed per setting; list refreshes | Call being recorded or processed is skipped | | | |
+| Recovery and lifecycle | Background | Phone folder import | New files imported and moved to «Imported» | File appears while the app is closed | | | |
+| Recovery and lifecycle | Background | Own server sync | Runs after each transcription and edit | Offline: retries later | | | |
+| Recovery and lifecycle | System | Sleep and wake | Recording and capsule after wake | Not verified (stage 2) | | | |
+| Recovery and lifecycle | System | Cyrillic and spaces in user and folder names | Full run: record, transcribe, open, delete | | | | |
