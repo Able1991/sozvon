@@ -50,6 +50,9 @@ public sealed partial class CapsuleWindow : Window
     private double _width;
     private bool _hovered;
     private int? _centre;
+    private bool _anchorLeft;
+    private bool _revealPending;
+    private bool _pressed;
     private bool _dragging;
     private NativeWindow.Point _dragCursor;
     private Windows.Graphics.PointInt32 _dragWindow;
@@ -95,8 +98,14 @@ public sealed partial class CapsuleWindow : Window
         _hideFade.Tick += (_, _) =>
         {
             _hideFade.Stop();
-            Render(_model);
+            Render(_model, anchorLeft: true);
         };
+        // Handled events too: a press on a button still starts a drag once the pointer has moved far enough,
+        // and until then the button keeps its click.
+        Root.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(OnPressed), handledEventsToo: true);
+        Root.AddHandler(UIElement.PointerMovedEvent, new PointerEventHandler(OnMoved), handledEventsToo: true);
+        Root.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler(OnReleased), handledEventsToo: true);
+        Root.AddHandler(UIElement.PointerCaptureLostEvent, new PointerEventHandler(OnReleased), handledEventsToo: true);
         Root.Margin = new Thickness(ShadowSide, ShadowTop, ShadowSide, ShadowBottom);
         Root.ActualThemeChanged += (_, _) =>
         {
@@ -131,10 +140,13 @@ public sealed partial class CapsuleWindow : Window
     public void ApplyTheme(ElementTheme theme) => Root.RequestedTheme = theme;
 
     /// <summary>For screenshots of the demo states: draws the capsule as it looks under the pointer.</summary>
-    public void ShowAsHovered()
+    public void ShowAsHovered() => SetHovered(true);
+
+    /// <summary>What the pointer entering or leaving does; the demo also calls it to show the transition.</summary>
+    public void SetHovered(bool hovered)
     {
-        _hovered = true;
-        Render(_model);
+        _hovered = hovered;
+        Render(_model, anchorLeft: true);
     }
 
     /// <summary>
@@ -152,9 +164,16 @@ public sealed partial class CapsuleWindow : Window
         AppWindow.Move(new(centre - AppWindow.Size.Width / 2, top));
     }
 
-    public void Render(CapsuleModel model)
+    public void Render(CapsuleModel model) => Render(model, anchorLeft: false);
+
+    /// <param name="anchorLeft">
+    /// The cross coming and going on hover grows the capsule to the right, so what the pointer is over stays put;
+    /// a change of state grows it from its centre.
+    /// </param>
+    private void Render(CapsuleModel model, bool anchorLeft)
     {
         _model = model;
+        _anchorLeft = anchorLeft;
         _shown.Clear();
         if (model.Phase is CapsulePhase.Starting or CapsulePhase.Processing)
         {
@@ -282,15 +301,30 @@ public sealed partial class CapsuleWindow : Window
         if (visible)
         {
             _hideFade.Stop();
-            HideButton.Opacity = 1;
-            HideButton.Scale = new(1, 1, 1);
+            // Fades in once the shape has grown to hold it: earlier it would poke out of the pill's edge.
+            _revealPending = HideButton.Opacity < 1;
         }
-        else if (HideButton.Opacity > 0)
+        else
         {
-            HideButton.Opacity = 0;
-            HideButton.Scale = new(0.6f, 0.6f, 1);
-            _hideFade.Start();
+            _revealPending = false;
+            if (HideButton.Opacity > 0)
+            {
+                HideButton.Opacity = 0;
+                HideButton.Scale = new(0.6f, 0.6f, 1);
+                _hideFade.Start();
+            }
         }
+    }
+
+    private void RevealHideButtonIfPending()
+    {
+        if (!_revealPending)
+        {
+            return;
+        }
+        _revealPending = false;
+        HideButton.Opacity = 1;
+        HideButton.Scale = new(1, 1, 1);
     }
 
     private void RenderPrompt(CapsuleModel model)
@@ -376,15 +410,18 @@ public sealed partial class CapsuleWindow : Window
         var target = Math.Ceiling(Math.Max(MinimumWidth, ContentWidth()) * scale) / scale;
         if (target == _width)
         {
+            RevealHideButtonIfPending();
             return;
         }
         var from = _width;
         _width = target;
         _widthAnimation?.Stop();
+        Root.HorizontalAlignment = _anchorLeft ? HorizontalAlignment.Left : HorizontalAlignment.Center;
         ResizeWindow(Math.Max(from, target));
         if (from == 0 || !Root.IsLoaded)
         {
             Root.Width = target;
+            RevealHideButtonIfPending();
             return;
         }
         var animation = new DoubleAnimation
@@ -405,6 +442,7 @@ public sealed partial class CapsuleWindow : Window
             if (_width == target)
             {
                 ResizeWindow(target);
+                RevealHideButtonIfPending();
             }
         };
         _widthAnimation = storyboard;
@@ -442,7 +480,8 @@ public sealed partial class CapsuleWindow : Window
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
         var pixels = (int)Math.Round((width + 2 * ShadowSide) * scale);
         var centre = _centre ??= AppWindow.Position.X + AppWindow.Size.Width / 2;
-        AppWindow.MoveAndResize(new(centre - pixels / 2, AppWindow.Position.Y, pixels, (int)Math.Round((_style.Height + ShadowTop + ShadowBottom) * scale)));
+        var x = _anchorLeft ? AppWindow.Position.X : centre - pixels / 2;
+        AppWindow.MoveAndResize(new(x, AppWindow.Position.Y, pixels, (int)Math.Round((_style.Height + ShadowTop + ShadowBottom) * scale)));
         KeepOnScreen();
     }
 
@@ -515,11 +554,7 @@ public sealed partial class CapsuleWindow : Window
         }
     }
 
-    private void OnEntered(object sender, PointerRoutedEventArgs e)
-    {
-        _hovered = true;
-        Render(_model);
-    }
+    private void OnEntered(object sender, PointerRoutedEventArgs e) => SetHovered(true);
 
     private void OnExited(object sender, PointerRoutedEventArgs e)
     {
@@ -527,9 +562,11 @@ public sealed partial class CapsuleWindow : Window
         {
             return;
         }
-        _hovered = false;
-        Render(_model);
+        SetHovered(false);
     }
+
+    /// <summary>Pixels of movement that turn a press into a drag; less than that is a click on whatever was pressed.</summary>
+    private const int DragThreshold = 4;
 
     private void OnPressed(object sender, PointerRoutedEventArgs e)
     {
@@ -537,19 +574,28 @@ public sealed partial class CapsuleWindow : Window
         {
             return;
         }
-        _dragging = true;
+        _pressed = true;
         _dragCursor = NativeWindow.CursorPosition();
         _dragWindow = AppWindow.Position;
-        Root.CapturePointer(e.Pointer);
     }
 
     private void OnMoved(object sender, PointerRoutedEventArgs e)
     {
-        if (!_dragging)
+        if (!_pressed)
         {
             return;
         }
         var cursor = NativeWindow.CursorPosition();
+        if (!_dragging)
+        {
+            if (Math.Abs(cursor.X - _dragCursor.X) < DragThreshold && Math.Abs(cursor.Y - _dragCursor.Y) < DragThreshold)
+            {
+                return;
+            }
+            // From here on it is a drag: taking the capture ends the press on a button underneath, so it will not click.
+            _dragging = true;
+            Root.CapturePointer(e.Pointer);
+        }
         NativeWindow.MoveWithoutActivating(_hwnd, _dragWindow.X + cursor.X - _dragCursor.X, _dragWindow.Y + cursor.Y - _dragCursor.Y);
     }
 
@@ -559,9 +605,10 @@ public sealed partial class CapsuleWindow : Window
         {
             KeepOnScreen();
             Moved?.Invoke(this, new(_centre!.Value, AppWindow.Position.Y));
+            Root.ReleasePointerCaptures();
         }
         _dragging = false;
-        Root.ReleasePointerCaptures();
+        _pressed = false;
     }
 
     /// <summary>A shadow as on Windows 11 flyouts: a rounded shape of the capsule's own colour casting a soft drop shadow.</summary>

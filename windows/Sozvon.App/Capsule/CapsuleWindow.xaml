@@ -6,7 +6,6 @@
     Title="Sozvon">
     <!-- One shape only: the window and this root are transparent; Shape alone has a fill, a border and the rounding. -->
     <Grid x:Name="Root" Background="Transparent" HorizontalAlignment="Center" VerticalAlignment="Top"
-          PointerPressed="OnPressed" PointerMoved="OnMoved" PointerReleased="OnReleased"
           PointerEntered="OnEntered" PointerExited="OnExited">
         <Grid.Resources>
             <ResourceDictionary>

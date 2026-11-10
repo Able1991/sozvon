@@ -89,6 +89,9 @@ public sealed partial class CallInfoWindow : Window
         var presenter = OverlappedPresenter.Create();
         presenter.IsResizable = false;
         presenter.IsMaximizable = false;
+        // Sozvon has no active window of its own (the capsule never takes the focus), so Windows refuses to bring a new
+        // window to the front: the question would open behind the call app. On top it is seen; it is small and short-lived.
+        presenter.IsAlwaysOnTop = true;
         AppWindow.SetPresenter(presenter);
         WindowTheme.Apply(this, Root, _settings.Theme);
         var scale = Scale();

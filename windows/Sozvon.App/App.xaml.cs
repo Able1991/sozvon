@@ -31,7 +31,15 @@ public partial class App : Application
         {
             Shell.AppHost.Current!.AttachDemo(_capsule);
             _capsule.ShowWithoutFocus();
-            if (Environment.GetCommandLineArgs().Contains("--capsule-hover"))
+            if (Environment.GetCommandLineArgs().Contains("--capsule-hover-cycle"))
+            {
+                // For looking at the hover transition frame by frame: the pointer "enters" and "leaves" every 1.5 s.
+                var hovered = false;
+                var cycle = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+                cycle.Tick += (_, _) => _capsule.SetHovered(hovered = !hovered);
+                cycle.Start();
+            }
+            else if (Environment.GetCommandLineArgs().Contains("--capsule-hover"))
             {
                 _capsule.ShowAsHovered();
             }
