@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
@@ -27,6 +28,20 @@ public static partial class SetupLauncher
         if (!instance.IsCurrent)
         {
             Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();
+            // Windows lets only the process the user just started take the foreground: the first wizard's own Activate()
+            // merely flashes, so this process brings it up before it leaves (as in the App SDK's single-instance sample).
+            try
+            {
+                using var first = Process.GetProcessById((int)instance.ProcessId);
+                if (first.MainWindowHandle != 0)
+                {
+                    SetForegroundWindow(first.MainWindowHandle);
+                }
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException)
+            {
+                // The first wizard closed in the meantime.
+            }
             Environment.Exit(0);
         }
         instance.Activated += (_, _) => _window?.DispatcherQueue.TryEnqueue(() => _window.Activate());
@@ -53,4 +68,8 @@ public static partial class SetupLauncher
 
     [LibraryImport("user32.dll", EntryPoint = "MessageBoxW", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int MessageBox(nint owner, string text, string caption, uint type);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool SetForegroundWindow(nint window);
 }
