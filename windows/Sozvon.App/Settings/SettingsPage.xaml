@@ -122,8 +122,9 @@
                     <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Автоудаление аудио'}" NotConnected="True">
-                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.AudioRetention, Mode=TwoWay}">
+                    <local:SettingsRow Header="{s:L K='Автоудаление аудио'}">
+                        <ComboBox x:Name="AudioRetentionBox" Width="200" SelectedIndex="{x:Bind ViewModel.Settings.AudioRetention, Mode=TwoWay}"
+                                  AutomationProperties.Name="{s:L K='Автоудаление аудио'}">
                             <ComboBoxItem Content="{s:L K='Никогда'}" />
                             <ComboBoxItem Content="{s:L K='Через неделю'}" />
                             <ComboBoxItem Content="{s:L K='Через 15 дней'}" />

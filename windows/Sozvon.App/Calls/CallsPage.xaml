@@ -15,8 +15,11 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <Grid BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+        <!-- A recording dropped on the list becomes a call. -->
+        <Grid BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,1,0" Background="Transparent"
+              AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -33,9 +36,13 @@
                      Severity="Informational" Title="{s:L K='Настоящих звонков пока нет'}"
                      Message="{s:L K='Показан демо-звонок'}" />
 
-            <ListView x:Name="CallList" Grid.Row="2" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
+            <InfoBar x:Name="ImportBar" Grid.Row="2" Margin="12,0,12,8" IsClosable="False" Severity="Informational" Visibility="Collapsed">
+                <ProgressBar x:Name="ImportProgress" Margin="0,0,0,12" Maximum="1" />
+            </InfoBar>
+
+            <ListView x:Name="CallList" Grid.Row="3" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
                       ItemsSource="{x:Bind GroupedCalls.View, Mode=OneWay}"
-                      SelectionChanged="OnCallSelected">
+                      SelectionChanged="OnCallSelected" KeyDown="OnListKeyDown">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="calls:CallRow">
                         <Grid Padding="0,8" RowSpacing="4">
@@ -98,12 +105,12 @@
                 </ListView.GroupStyle>
             </ListView>
 
-            <TextBlock Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center"
+            <TextBlock Grid.Row="3" HorizontalAlignment="Center" VerticalAlignment="Center"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        Text="{s:L K='Ничего не найдено'}" Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}" />
         </Grid>
 
-        <calls:CallDetailView x:Name="Detail" Grid.Column="1" />
+        <calls:CallDetailView x:Name="Detail" Grid.Column="1" TrashRequested="OnTrashRequested" />
         <StackPanel x:Name="NoSelection" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
             <FontIcon HorizontalAlignment="Center" FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE717;" />
             <TextBlock Style="{ThemeResource BodyLargeTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"

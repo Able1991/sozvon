@@ -17,11 +17,14 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     private readonly MediaTimelineController _clock = new();
     private readonly List<MediaPlayer> _players = [];
     private readonly SynchronizationContext _ui = SynchronizationContext.Current!;
+    private bool _disposed;
 
-    public CallPlayer(CallRecord call)
+    /// <param name="call">The call to play.</param>
+    /// <param name="busy">The engine is working on the call: no file is opened, so it can rename the folder.</param>
+    public CallPlayer(CallRecord call, bool busy = false)
     {
         Duration = call.DurationSeconds;
-        var tracks = call.IsDemo || call.AudioRemoved ? [] : FindTracks(call);
+        var tracks = call.IsDemo || call.AudioRemoved || busy ? [] : FindTracks(call);
         IsAvailable = tracks.Count > 0;
         Unavailable = IsAvailable ? "" : Loc.L(call.IsDemo ? "В демо-звонке нет записи" : "Запись недоступна");
         foreach (var (path, offset) in tracks)
@@ -71,6 +74,16 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     [RelayCommand]
     private void Forward() => Seek(Position + 15);
 
+    /// <summary>A click on a transcript line: plays from its start.</summary>
+    public void PlayFrom(double seconds)
+    {
+        Seek(seconds);
+        if (!IsPlaying)
+        {
+            TogglePlay();
+        }
+    }
+
     public void Seek(double seconds)
     {
         var target = Math.Clamp(seconds, 0, Math.Max(Duration, 0));
@@ -78,8 +91,14 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         Position = target;
     }
 
+    /// <summary>Lets the audio files go: the call can then be moved or deleted. Safe to call twice.</summary>
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         _clock.PositionChanged -= OnPositionChanged;
         _clock.Pause();
         foreach (var player in _players)

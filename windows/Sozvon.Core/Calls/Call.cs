@@ -144,6 +144,35 @@ public sealed class Call
         }
         Participants = CallParticipants.Stored(c);
         People = string.Join(", ", Participants ?? TextRules.SplitList(Info.Names));
+        FillFromFolderName(Path.GetFileName(Dir), projects.ContainsKey(Info.Profile) || c.Text("project_title") is { Length: > 0 });
+    }
+
+    /// <summary>
+    /// A call.json without a topic, or with a project this computer doesn't have (calls copied from another one): the
+    /// folder name the engine built from them, "id · Project · Topic · People", still has them.
+    /// </summary>
+    private void FillFromFolderName(string name, bool projectKnown)
+    {
+        if (Topic.Length > 0 && (projectKnown || Info.Profile.Length == 0)) return;
+        var (project, topic) = FolderNameParts(name, Info.Profile, Participants ?? TextRules.SplitList(Info.Names));
+        if (Topic.Length == 0) Topic = topic;
+        if (!projectKnown && project.Length > 0) Project = project;
+    }
+
+    /// <summary>
+    /// Project and topic from a name <see cref="CallFolderName"/> built; empty where the name has none. The first part
+    /// is the project only when it reads as the call's project slug ("Velo Rent" for "velorent").
+    /// </summary>
+    internal static (string Project, string Topic) FolderNameParts(string name, string slug, IReadOnlyList<string> people)
+    {
+        static string Key(string s) => Calls.Project.Slugify(s).Replace("-", "", StringComparison.Ordinal);
+        var parts = name.Split(Dot).Skip(1).ToList();
+        var hasProject = slug.Length > 0 && parts.Count > 0 && Key(slug).StartsWith(Key(parts[0]), StringComparison.Ordinal);
+        var project = hasProject ? parts[0] : "";
+        var rest = parts.Skip(hasProject ? 1 : 0).ToList();
+        var names = TextRules.ShortPeople(people.Where(n => n.Trim().Length > 0).ToList(), 3);
+        if (rest.Count > 0 && names.Length > 0 && rest[^1] == names) rest.RemoveAt(rest.Count - 1);
+        return (project, rest.Count > 0 ? rest[0] : "");
     }
 
     private void LoadLegacy(string name)

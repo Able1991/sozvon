@@ -41,6 +41,9 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public string? LatestCallId { get; private set; }
 
+    /// <summary>The latest call's folder when its audio is there to transcribe again.</summary>
+    public string? LatestAudioFolder { get; private set; }
+
     [ObservableProperty] public partial TrayState State { get; private set; }
 
     public string StatusText => State switch
@@ -62,7 +65,9 @@ public sealed partial class TrayViewModel : ObservableObject
         State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : EngineInstalled() ? TrayState.Ready : TrayState.SetupNeeded);
         var calls = _repository.Scan();
         WaitingForDescription = calls.Count(c => c.IsWaitingForDescription);
-        LatestCallId = calls.FirstOrDefault(c => c.Status == CallStatus.Done && !c.IsDemo)?.Id;
+        var latest = calls.FirstOrDefault(c => c.Status == CallStatus.Done && !c.IsDemo);
+        LatestCallId = latest?.Id;
+        LatestAudioFolder = latest is { HasAudio: true } ? latest.Folder : null;
     }
 
     private static bool EngineInstalled() => File.Exists(AppPaths.EnginePython) && File.Exists(AppPaths.InstalledMarker);

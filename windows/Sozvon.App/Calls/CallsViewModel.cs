@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
@@ -27,8 +27,30 @@ public sealed class CallGroup(string title, IEnumerable<CallRow> rows) : List<Ca
 public sealed record ProjectFilter(string Slug, string Title);
 
 /// <summary>The Calls page: the list, its project filter and search, and the opened call.</summary>
-public sealed partial class CallsViewModel(CallRepository repository, AppSettings settings) : ObservableObject, IDisposable
+public sealed partial class CallsViewModel : ObservableObject, IDisposable
 {
+    private readonly CallRepository _repository;
+    private readonly AppSettings _settings;
+    private readonly EngineSettings _engine;
+
+    public CallsViewModel(CallRepository repository, AppSettings settings, EngineSettings engine, CallActions actions)
+    {
+        _repository = repository;
+        _settings = settings;
+        _engine = engine;
+        Actions = actions;
+        actions.Changed += dir =>
+        {
+            if (dir is not null)
+            {
+                _pendingCallId = dir;
+            }
+            _ = RefreshAsync();
+        };
+    }
+
+    public CallActions Actions { get; }
+
     public static readonly ProjectFilter AllProjects = new("", Loc.L("Все проекты"));
 
     private IReadOnlyList<CallRecord> _calls = [];
@@ -59,7 +81,7 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
 
     public async Task RefreshAsync()
     {
-        var calls = await Task.Run(repository.Scan);
+        var calls = await Task.Run(_repository.Scan);
         IsDemoOnly = calls.Count == 0;
         _calls = IsDemoOnly ? [DemoCall.Create()] : calls;
         RebuildProjects();
@@ -75,6 +97,25 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
     }
 
     public void Dispose() => Detail?.Dispose();
+
+    /// <summary>The opened call to the Recycle Bin; the next one in the list is selected, as in Mail.</summary>
+    public string? TrashSelected()
+    {
+        if (SelectedRow?.Call is not { } call)
+        {
+            return null;
+        }
+        var rows = Groups.SelectMany(g => g).ToList();
+        var at = rows.FindIndex(r => r.Call.Id == call.Id);
+        var next = at + 1 < rows.Count ? rows[at + 1] : at > 0 ? rows[at - 1] : null;
+        Detail?.Player.Dispose();
+        var error = Actions.Trash(call, next?.Call.Id);
+        if (error is not null)
+        {
+            _ = RefreshAsync(); // the call is still there: its card, with a new player
+        }
+        return error;
+    }
 
     private void ClearFilters()
     {
@@ -166,10 +207,10 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
         {
             return;
         }
-        var content = await Task.Run(() => repository.LoadContent(call));
+        var (content, voices) = await Task.Run(() => (_repository.LoadContent(call), _repository.Voices()));
         if (SelectedRow?.Call == call)
         {
-            Detail = new CallDetailViewModel(call, content, settings.DisplayName);
+            Detail = new CallDetailViewModel(call, content, _engine.Name, voices, Actions);
         }
     }
 }

@@ -60,7 +60,16 @@ public sealed class RecordingController
     /// <summary>Settings: the capsule is on screen. Without it the reminder comes as a notification.</summary>
     public Func<bool> PanelVisible { get; set; } = () => true;
 
+    /// <summary>A call was queued, started, finished or left the queue: the list shows it.</summary>
+    public event EventHandler? CallsChanged;
+
     public bool IsRecording => _recording;
+
+    /// <summary>The folder being recorded into, or null.</summary>
+    public string? RecordingDirectory => _recording ? _dir : null;
+
+    /// <summary>The engine's queue: what is transcribed, what waits.</summary>
+    public CallProcessor Processor => _processor;
 
     public TimeSpan Elapsed => DateTimeOffset.Now - _startedAt;
 
@@ -84,7 +93,12 @@ public sealed class RecordingController
             // As on the Mac, transcription waits while a call is on: the call app needs the processor more.
             HoldsQueue = () => _recording || _call.InCall,
         };
-        _processor.Changed += () => _ui.TryEnqueue(ShowProcessing);
+        _processor.Changed += () => _ui.TryEnqueue(() =>
+        {
+            ShowProcessing();
+            CallsChanged?.Invoke(this, EventArgs.Empty);
+        });
+        _processor.RunFinished += _ => _ui.TryEnqueue(() => CallsChanged?.Invoke(this, EventArgs.Empty));
         _call.Changed += (_, _) => OnCallChanged();
         _call.RecordRequested += (_, _) => Begin();
         _call.StopRequested += (_, _) => Stop();
@@ -134,6 +148,31 @@ public sealed class RecordingController
             var initial = CallFile.Info(CallFile.Read(pending.Dir), fallback: _engine.NewCall());
             Ask(DescribeRequest(initial), answer => Apply(pending.Dir, answer));
         }
+    }
+
+    /// <summary>"Transcribe again…" (or "Describe…" for a call that waits): the form with the call's answers, then the queue.</summary>
+    public void Retranscribe(string dir)
+    {
+        if (_prompt.IsOpen)
+        {
+            _prompt.BringToFront();
+            return;
+        }
+        var call = CallFile.Read(dir);
+        var initial = CallFile.Info(call, fallback: _engine.NewCall());
+        var pending = PendingInfo.IsPending(call);
+        Ask(new CallInfoRequest(initial, Loc.L("О чём был звонок?"), Loc.L("Расшифровать"), AllowLater: pending), answer => Apply(dir, answer));
+    }
+
+    /// <summary>"Update summary": a new summary from the transcript as it is now.</summary>
+    public bool Resummarize(string dir)
+    {
+        var saved = _processor.Resummarize(dir) != EnqueueResult.NotSaved;
+        if (!saved)
+        {
+            Problem?.Invoke(this, Loc.L("Не удалось сохранить данные звонка"));
+        }
+        return saved;
     }
 
     private static CallInfoRequest DescribeRequest(CallInfo initial, int? countdown = null) =>

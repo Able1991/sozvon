@@ -29,6 +29,8 @@ public sealed class AppHost
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
     private RecordingController? _recording;
+    private AudioCleanup? _cleanup;
+    private int _retention;
 
     /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
     public static AppHost? Current => _current;
@@ -73,6 +75,7 @@ public sealed class AppHost
         _trayState.Recording = recording;
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         recording.StateChanged += (_, _) => _tray.Refresh();
+        recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
         recording.RemindToSay = () => _store.Settings.RemindToSay;
         recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
@@ -86,6 +89,11 @@ public sealed class AppHost
             capsule.MoveToIfOnScreen(x, y);
         }
         recording.Problem += (_, text) => _tray.Notify(text);
+        _cleanup = new AudioCleanup(AppPaths.CallsDir, _store.Settings,
+            dir => recording.Processor.Contains(dir) || (recording.RecordingDirectory is { } live && CallActions.SameFolder(live, dir)));
+        _cleanup.Removed += (_, _) => _ = _calls?.RefreshAsync();
+        _retention = _store.Settings.AudioRetention;
+        _cleanup.Start();
         ApplyCapsuleTheme();
         ApplyFloatingPanel();
         _tray.Refresh();
@@ -176,7 +184,7 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        _calls = new CallsViewModel(_repository, _store.Settings);
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
         var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
         return new MainWindow(_calls, settings);
     }
@@ -188,10 +196,47 @@ public sealed class AppHost
             _window?.ApplyTheme(_store.Settings.Theme);
             ApplyCapsuleTheme();
         }
+        else if (e.PropertyName == nameof(AppSettings.AudioRetention))
+        {
+            OnRetentionChanged();
+        }
         else if (e.PropertyName == nameof(AppSettings.FloatingPanel))
         {
             ApplyFloatingPanel();
             _tray.Refresh();
+        }
+    }
+
+    /// <summary>A shorter "Delete audio automatically" that removes audio right now asks first, as on the Mac.</summary>
+    private async void OnRetentionChanged()
+    {
+        var choice = _store.Settings.AudioRetention;
+        if (choice == _retention || _cleanup is null)
+        {
+            return;
+        }
+        try
+        {
+            var (calls, bytes) = _cleanup.Preview(choice);
+            if (calls > 0 && _window is not null)
+            {
+                var sure = await _window.ConfirmAsync(
+                    Loc.L("Удалить аудио %@ звонков?", calls),
+                    Loc.L("У звонков старше %@ дн. удалится звук (%@). Расшифровки, итоги и заметки останутся, но плеер и «Расшифровать заново» для них пропадут. Вернуть звук будет нельзя.",
+                          Sozvon.Core.Calls.AudioRetention.Days(choice), CallFormat.Size(bytes)),
+                    Loc.L("Удалить аудио"));
+                if (!sure)
+                {
+                    _store.Settings.AudioRetention = _retention;
+                    return;
+                }
+            }
+            _retention = choice;
+            _cleanup.Run();
+        }
+        catch (Exception error)
+        {
+            Log(error);
         }
     }
 
