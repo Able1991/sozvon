@@ -19,6 +19,17 @@ public static class AppPaths
 
     public static string InstalledMarker => Path.Combine(DataDir, ".installed");
 
+    /// <summary>
+    /// One running app per data folder: a run with its own SOZVON_DATA_DIR (a test, a second profile)
+    /// must not hand its launch over to the Sozvon the user works in.
+    /// </summary>
+    public static string InstanceKey(string name)
+    {
+        var folder = Path.GetFullPath(DataDir).TrimEnd(Path.DirectorySeparatorChar).ToUpperInvariant();
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(folder)));
+        return $"{name}-{hash[..16]}";
+    }
+
     public static string Asset(string name) => Path.Combine(AppContext.BaseDirectory, "Shell", "Assets", name);
 
     private static string? FromEnvironment(string name)

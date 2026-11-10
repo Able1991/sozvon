@@ -19,7 +19,7 @@ public static partial class SetupLauncher
             return false;
         }
         // Two wizards would run two installers over the same folder: the second start brings the first to the front.
-        var instance = AppInstance.FindOrRegisterForKey(InstanceKey);
+        var instance = AppInstance.FindOrRegisterForKey(Shell.AppPaths.InstanceKey(InstanceKey));
         if (!instance.IsCurrent)
         {
             Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();

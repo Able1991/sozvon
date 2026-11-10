@@ -53,7 +53,7 @@ public sealed class AppHost
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
     public static void Start()
     {
-        var instance = AppInstance.FindOrRegisterForKey(InstanceKey);
+        var instance = AppInstance.FindOrRegisterForKey(AppPaths.InstanceKey(InstanceKey));
         if (!instance.IsCurrent)
         {
             Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();
