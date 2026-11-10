@@ -19,6 +19,7 @@ public sealed partial class CapsuleWindow : Window
     private const int MinimumWidth = 96, Edge = 16;
     private const int BarsPerSide = 9, BarWidth = 4, BarStep = 8, SideGap = 12, WaveHeight = 32, MinBar = 4, MaxBar = 24;
     private const double RestOpacity = 0.9;
+    private const double VisualCentre = 20, TextEdge = 16;
     private static readonly TimeSpan Motion = TimeSpan.FromMilliseconds(167);
 
     private readonly nint _hwnd;
@@ -58,6 +59,7 @@ public sealed partial class CapsuleWindow : Window
         _hwnd = WindowNative.GetWindowHandle(this);
         var presenter = OverlappedPresenter.CreateForContextMenu();
         presenter.IsAlwaysOnTop = true;
+        presenter.SetBorderAndTitleBar(hasBorder: false, hasTitleBar: false);
         AppWindow.SetPresenter(presenter);
         AppWindow.IsShownInSwitchers = false;
         SystemBackdrop = new TransparentBackdrop();
@@ -95,6 +97,7 @@ public sealed partial class CapsuleWindow : Window
     public void ShowWithoutFocus()
     {
         AppWindow.Show(false);
+        NativeWindow.ComposeWithBackground(_hwnd);
         Shape.Opacity = _hovered ? 1 : RestOpacity;
     }
 
@@ -178,14 +181,14 @@ public sealed partial class CapsuleWindow : Window
     public void PlaceDefault()
     {
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        AppWindow.Move(new(area.X + (area.Width - AppWindow.Size.Width) / 2, area.Y + Edge));
+        var width = Math.Max(1, AppWindow.Size.Width);
+        AppWindow.Move(new(area.X + (area.Width - width) / 2, area.Y + Edge));
     }
 
     private void ApplyStyle()
     {
         Shape.Height = _style.Height;
         Shape.CornerRadius = new CornerRadius(_style.Radius);
-        Bar.Margin = new Thickness(_style.Padding, 0, _style.Padding, 0);
         foreach (var button in new[] { RecordButton, MarkButton, StopButton, HideButton, ActionButton, SecondButton })
         {
             button.CornerRadius = new CornerRadius(_style.ButtonRadius);
@@ -206,14 +209,22 @@ public sealed partial class CapsuleWindow : Window
                 part.Visibility = wanted;
             }
         }
-        // Text has no slot of its own: when it opens or closes the row, it gets the same air as an icon in its slot.
         var first = Bar.Children.FirstOrDefault(c => c.Visibility == Visibility.Visible);
         var last = Bar.Children.LastOrDefault(c => c.Visibility == Visibility.Visible);
-        foreach (var text in new FrameworkElement[] { Message, Warning, Timer })
-        {
-            text.Margin = new Thickness(text == first ? 8 : 0, 0, text == last ? 8 : 0, 0);
-        }
+        Bar.Margin = new Thickness(EndAir(first), 0, EndAir(last), 0);
     }
+
+    /// <summary>
+    /// The air at an end of the row, chosen by what stands there so that the eye sees the same margin on both sides:
+    /// a dot, a ring or an icon has its visual centre 20 DIP from the edge, text starts 16 DIP from it.
+    /// </summary>
+    private double EndAir(UIElement? part) => part switch
+    {
+        null => _style.Padding,
+        _ when part == RecordDot || part == Spinner || part == Check => VisualCentre - 8,
+        _ when part == RecordButton || part == MarkArea || part == StopButton || part == HideButton => VisualCentre - 16,
+        _ => TextEdge,
+    };
 
     /// <summary>The cross fades and grows in; on the way out it fades first and leaves the row afterwards.</summary>
     private void ShowHideButton(bool visible)
@@ -369,13 +380,17 @@ public sealed partial class CapsuleWindow : Window
             width += part.DesiredSize.Width;
             parts++;
         }
-        return width + Bar.Spacing * Math.Max(0, parts - 1) + 2 * _style.Padding + Shape.BorderThickness.Left + Shape.BorderThickness.Right;
+        return width + Bar.Spacing * Math.Max(0, parts - 1) + Bar.Margin.Left + Bar.Margin.Right + Shape.BorderThickness.Left + Shape.BorderThickness.Right;
     }
 
+    /// <summary>The capsule keeps its centre: it grows and shrinks to both sides, like the shape drawn inside it.</summary>
     private void ResizeWindow(double width)
     {
         var scale = NativeWindow.GetDpiForWindow(_hwnd) / 96.0;
-        AppWindow.ResizeClient(new((int)Math.Round(width * scale), (int)Math.Round(_style.Height * scale)));
+        var pixels = (int)Math.Round(width * scale);
+        var position = AppWindow.Position;
+        var centre = position.X + AppWindow.Size.Width / 2;
+        AppWindow.MoveAndResize(new(centre - pixels / 2, position.Y, pixels, (int)Math.Round(_style.Height * scale)));
     }
 
     private void BuildWave()

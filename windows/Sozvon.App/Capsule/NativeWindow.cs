@@ -11,6 +11,7 @@ internal static partial class NativeWindow
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     private const int DWMWCP_DONOTROUND = 1;
     private const int DWMWA_BORDER_COLOR = 34;
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
     private const uint WM_MOUSEACTIVATE = 0x0021;
@@ -64,8 +65,40 @@ internal static partial class NativeWindow
     /// <summary>A click on the window must not take the focus from the app the user is typing in.</summary>
     public static void RefuseActivationOnClick(nint hwnd) => SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
 
-    private static nint OnSubclassMessage(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data) =>
-        message == WM_MOUSEACTIVATE ? MA_NOACTIVATE : DefSubclassProc(hwnd, message, wParam, lParam);
+    private static nint OnSubclassMessage(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data)
+    {
+        switch (message)
+        {
+            case WM_MOUSEACTIVATE:
+                return MA_NOACTIVATE;
+            case WM_ERASEBKGND:
+                // Black under DWM glass is clear; the class background (white in light mode) would show around the shape.
+                GetClientRect(hwnd, out var client);
+                FillRect(wParam, ref client, GetStockObject(BLACK_BRUSH));
+                return 1;
+            default:
+                return DefSubclassProc(hwnd, message, wParam, lParam);
+        }
+    }
+
+    private const uint WM_ERASEBKGND = 0x0014;
+    private const int BLACK_BRUSH = 4;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int Left, Top, Right, Bottom;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetClientRect(nint hwnd, out Rect rect);
+
+    [LibraryImport("user32.dll")]
+    private static partial int FillRect(nint hdc, ref Rect rect, nint brush);
+
+    [LibraryImport("gdi32.dll")]
+    private static partial nint GetStockObject(int index);
 
     public static void MoveWithoutActivating(nint hwnd, int x, int y) =>
         SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
@@ -74,6 +107,29 @@ internal static partial class NativeWindow
     {
         GetCursorPos(out var point);
         return point;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Margins
+    {
+        public int Left, Right, Top, Bottom;
+    }
+
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmExtendFrameIntoClientArea(nint hwnd, ref Margins margins);
+
+    /// <summary>
+    /// Without it DWM fills the client area with the theme's black or white under the content, so the transparent
+    /// pixels outside the drawn shape come out opaque. Applied once the window is on screen.
+    /// </summary>
+    public static void ComposeWithBackground(nint hwnd)
+    {
+        // In light mode DWM paints the glass with the light frame colour; the dark frame is the one that stays clear.
+        // The capsule has no frame, so this changes nothing else.
+        var dark = 1;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        var glass = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+        DwmExtendFrameIntoClientArea(hwnd, ref glass);
     }
 
     /// <summary>The window draws its own shape: no system rounding and no system border around the transparent area.</summary>
