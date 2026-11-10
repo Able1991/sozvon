@@ -88,7 +88,8 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
             SystemSeconds = Number(audio, "system_seconds") ?? 0,
             MicStart = Number(audio, "mic_start"),
             SystemStart = Number(audio, "system_start"),
-            Notes = Notes(root),
+            Notes = call.Notes,
+            HasParticipants = call.Participants is not null,
             IsDemo = root.TryGetProperty("demo", out var demo) && demo.ValueKind == JsonValueKind.True,
             IsReflection = Text(root, "kind") == "reflection",
             InfoPending = root.TryGetProperty("info_pending", out var pending) && pending.ValueKind == JsonValueKind.True,
@@ -110,18 +111,6 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
     private static bool HasWarning(JsonElement root, string step) =>
         root.TryGetProperty("warnings", out var list) && list.ValueKind == JsonValueKind.Array
         && list.EnumerateArray().Any(w => w.ValueKind == JsonValueKind.Object && Text(w, "step") == step);
-
-    private static List<CallNote> Notes(JsonElement root)
-    {
-        if (!root.TryGetProperty("notes", out var list) || list.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-        return list.EnumerateArray()
-            .Where(n => n.ValueKind == JsonValueKind.Object && Text(n, "text").Length > 0)
-            .Select(n => new CallNote(Text(n, "text"), DateTimeOffset.TryParse(Text(n, "at"), out var at) ? at : null, Text(n, "source")))
-            .ToList();
-    }
 
     private static string ReadText(string folder, string name)
     {

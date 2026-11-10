@@ -4,8 +4,6 @@ namespace Sozvon.App.Calls;
 
 public enum CallStatus { Unknown, Recorded, Processing, Done, Failed }
 
-public sealed record CallNote(string Text, DateTimeOffset? At, string Source);
-
 /// <summary>One call as listed: what call.json says, with no transcript or summary text yet.</summary>
 public sealed record CallRecord
 {
@@ -21,7 +19,10 @@ public sealed record CallRecord
     public double SystemSeconds { get; init; }
     public double? MicStart { get; init; }
     public double? SystemStart { get; init; }
-    public IReadOnlyList<CallNote> Notes { get; init; } = [];
+    public IReadOnlyList<Sozvon.Core.Calls.CallNote> Notes { get; init; } = [];
+
+    /// <summary>call.json has <c>participants</c>; otherwise <see cref="People"/> are only the typed names.</summary>
+    public bool HasParticipants { get; init; }
     public bool IsDemo { get; init; }
     public bool IsReflection { get; init; }
     public bool InfoPending { get; init; }

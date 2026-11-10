@@ -16,6 +16,12 @@
 "Капсула поверх всех окон" = "A capsule above all windows";
 "Найти в расшифровке" = "Find in transcript";
 "Закрыть поиск" = "Close find";
+"Заметка удалена" = "Note deleted";
+"Вернуть" = "Undo";
+"Не получилось удалить заметку" = "Couldn’t delete the note";
+"Действия с заметкой" = "Note actions";
+"Добавить заметку" = "Add note";
+"Удалить заметку" = "Delete note";
 "Отмечено как важное во время записи" = "Marked as important during the recording";
 "Голос «%@» сохранён: Sozvon узнаёт этого человека в следующих звонках" = "Voice of “%@” saved: Sozvon recognizes this person in the next calls";
 "Настоящих звонков пока нет" = "No real calls yet";

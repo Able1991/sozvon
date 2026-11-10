@@ -22,6 +22,7 @@ public sealed partial class CallDetailView : UserControl
     private int _foundIndex;
     private List<TranscriptRow> _marked = [];
     private TranscriptRow? _playing;
+    private CallNote? _deletedNote;
 
     /// <summary>The tab last chosen, kept from call to call as on the Mac.</summary>
     private bool _wantsTranscript;
@@ -85,6 +86,8 @@ public sealed partial class CallDetailView : UserControl
         OpenTranscriptItem.IsEnabled = call.HasTranscriptFile;
         DiskSizeItem.Text = call.DiskSize;
         DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ParticipantsLine.Visibility = call.Participants.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ShowNotes(call);
         // The chosen tab, or the other one when this call doesn't have it.
         var transcript = (_wantsTranscript || !call.HasSummary) && (call.HasTranscript || !call.HasSummary);
         var wanted = _wantsTranscript;
@@ -334,6 +337,98 @@ public sealed partial class CallDetailView : UserControl
             element.UpdateLayout();
             element.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = true });
         }
+    }
+
+    private void ShowNotes(CallDetailViewModel call)
+    {
+        call.Notes.CollectionChanged += (_, _) => ShowNoNotes();
+        NotesSection.Visibility = call.CanEditNotes || call.Notes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AddNoteButton.Visibility = call.CanEditNotes ? Visibility.Visible : Visibility.Collapsed;
+        NoteBox.Text = "";
+        NoteBox.Visibility = NoteError.Visibility = NoteDeleted.Visibility = Visibility.Collapsed;
+        _deletedNote = null;
+        ShowNoNotes();
+    }
+
+    private void ShowNoNotes() =>
+        NoNotesText.Visibility = ViewModel is { Notes.Count: 0 } && NoteBox.Visibility == Visibility.Collapsed && NoteDeleted.Visibility == Visibility.Collapsed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+    /// <summary>"Add": the field appears; Enter adds, Esc cancels.</summary>
+    private void OnAddNote(object sender, RoutedEventArgs e)
+    {
+        NoteDeleted.Visibility = Visibility.Collapsed;
+        NoteBox.Visibility = Visibility.Visible;
+        ShowNoNotes();
+        NoteBox.Focus(FocusState.Programmatic);
+    }
+
+    private void OnNoteKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            e.Handled = true;
+            if (NoteBox.Text.Trim().Length == 0)
+            {
+                CancelNote();
+            }
+            else if (ViewModel?.AddNote(NoteBox.Text) is { } error)
+            {
+                NoteError.Text = error;
+                NoteError.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CancelNote();
+            }
+        }
+        else if (e.Key == VirtualKey.Escape)
+        {
+            e.Handled = true;
+            CancelNote();
+        }
+    }
+
+    private void CancelNote()
+    {
+        NoteBox.Text = "";
+        NoteBox.Visibility = NoteError.Visibility = Visibility.Collapsed;
+        ShowNoNotes();
+    }
+
+    private void OnCopyNote(object sender, RoutedEventArgs e) => CopyText(((sender as FrameworkElement)?.Tag as NoteRow)?.Text);
+
+    /// <summary>Deletes at once, as on the Mac; "Вернуть" adds it back with its text, time and source.</summary>
+    private void OnDeleteNote(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is NoteRow row && ViewModel is { } call)
+        {
+            if (call.DeleteNote(row))
+            {
+                _deletedNote = row.Note;
+                NoteDeleted.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NoteError.Text = L("Не получилось удалить заметку");
+                NoteError.Visibility = Visibility.Visible;
+            }
+            ShowNoNotes();
+        }
+    }
+
+    private void OnUndoDeleteNote(object sender, RoutedEventArgs e)
+    {
+        if (_deletedNote is { } note && ViewModel is { } call)
+        {
+            var error = call.AddNote(note.Text, note.Source.Length > 0 ? note.Source : "app", note.Date);
+            NoteError.Text = error ?? "";
+            NoteError.Visibility = error is null ? Visibility.Collapsed : Visibility.Visible;
+        }
+        _deletedNote = null;
+        NoteDeleted.Visibility = Visibility.Collapsed;
+        ShowNoNotes();
     }
 
     private void OnCopySummary(object sender, RoutedEventArgs e) => CopyText(ViewModel?.Summary);
