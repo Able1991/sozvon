@@ -26,7 +26,6 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial bool RemindToSay { get; set; }
     [ObservableProperty] public partial bool WarnOnSilence { get; set; } = true;
     [ObservableProperty] public partial bool PlaySounds { get; set; } = true;
-    [ObservableProperty] public partial bool OpenAtSignIn { get; set; }
     [ObservableProperty] public partial bool TranscribeWhenClear { get; set; } = true;
     [ObservableProperty] public partial int AudioRetention { get; set; }
 

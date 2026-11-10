@@ -121,8 +121,8 @@
                     </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='После звонка'}" />
-                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.OpenAtSignIn, Mode=TwoWay}" />
+                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" Description="{x:Bind ViewModel.SignIn.Description, Mode=OneWay}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.SignIn.IsOn, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Открывать при входе'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />

@@ -46,6 +46,9 @@ public sealed class AppHost
 
     public EngineSettings EngineSettings => _engineSettings;
 
+    /// <summary>Open at sign-in: the Settings row and the tray menu share it.</summary>
+    public SignInSetting SignIn { get; } = new(Environment.ProcessPath!);
+
     private AppHost()
     {
         _engineSettings = new EngineSettings(_store.Settings, AppPaths.EnvFile);
@@ -204,7 +207,7 @@ public sealed class AppHost
     {
         _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
-        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations);
+        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn);
         return new MainWindow(_calls, settings);
     }
 

@@ -118,3 +118,7 @@
 
 /* Settings, phone recordings folder. */
 "Новая запись в этой папке расшифруется сама, а файл перейдёт в подпапку Imported. Подойдёт папка, куда телефон сохраняет записи: iCloud Drive, OneDrive или Google Drive." = "A new recording in this folder is transcribed on its own, and the file moves to the Imported subfolder. Any folder your phone saves recordings to will do: iCloud Drive, OneDrive or Google Drive.";
+
+/* Settings, open at sign-in. */
+"Выключено в диспетчере задач. Если включить здесь, Sozvon снова будет запускаться." = "Turned off in Task Manager. Turn it on here and Sozvon starts again at sign-in.";
+"Не получилось изменить автозапуск: %@" = "Couldn’t change opening at sign-in: %@";
