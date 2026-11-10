@@ -55,7 +55,6 @@ public sealed partial class CapsuleWindow : Window
     private bool _pressed;
     private bool _dragging;
     private NativeWindow.Point _dragCursor;
-    private Windows.Graphics.PointInt32 _dragWindow;
 
     public event EventHandler? RecordClicked;
     public event EventHandler? StopClicked;
@@ -83,7 +82,7 @@ public sealed partial class CapsuleWindow : Window
         SystemBackdrop = new TransparentBackdrop();
         NativeWindow.MakeNonActivating(_hwnd);
         NativeWindow.RemoveFrame(_hwnd);
-        NativeWindow.RefuseActivationOnClick(_hwnd);
+        NativeWindow.RefuseActivationOnClick(_hwnd, OnSystemMoveEnded);
         ApplyStyle();
 
         HideItem.Text = CapsuleText.Hide;
@@ -576,7 +575,6 @@ public sealed partial class CapsuleWindow : Window
         }
         _pressed = true;
         _dragCursor = NativeWindow.CursorPosition();
-        _dragWindow = AppWindow.Position;
     }
 
     private void OnMoved(object sender, PointerRoutedEventArgs e)
@@ -586,29 +584,24 @@ public sealed partial class CapsuleWindow : Window
             return;
         }
         var cursor = NativeWindow.CursorPosition();
-        if (!_dragging)
+        if (Math.Abs(cursor.X - _dragCursor.X) < DragThreshold && Math.Abs(cursor.Y - _dragCursor.Y) < DragThreshold)
         {
-            if (Math.Abs(cursor.X - _dragCursor.X) < DragThreshold && Math.Abs(cursor.Y - _dragCursor.Y) < DragThreshold)
-            {
-                return;
-            }
-            // From here on it is a drag: taking the capture ends the press on a button underneath, so it will not click.
-            _dragging = true;
-            Root.CapturePointer(e.Pointer);
+            return;
         }
-        NativeWindow.MoveWithoutActivating(_hwnd, _dragWindow.X + cursor.X - _dragCursor.X, _dragWindow.Y + cursor.Y - _dragCursor.Y);
+        // From here on it is a drag, and the system does it: the press on a button underneath ends without a click.
+        _pressed = false;
+        _dragging = true;
+        NativeWindow.DragWithSystem(_hwnd);
+        _dragging = false;
     }
 
-    private void OnReleased(object sender, PointerRoutedEventArgs e)
+    private void OnReleased(object sender, PointerRoutedEventArgs e) => _pressed = false;
+
+    /// <summary>The system move has ended: the capsule stays on screen and the place is remembered.</summary>
+    private void OnSystemMoveEnded()
     {
-        if (_dragging)
-        {
-            KeepOnScreen();
-            Moved?.Invoke(this, new(_centre!.Value, AppWindow.Position.Y));
-            Root.ReleasePointerCaptures();
-        }
-        _dragging = false;
-        _pressed = false;
+        KeepOnScreen();
+        Moved?.Invoke(this, new(_centre!.Value, AppWindow.Position.Y));
     }
 
     /// <summary>A shadow as on Windows 11 flyouts: a rounded shape of the capsule's own colour casting a soft drop shadow.</summary>

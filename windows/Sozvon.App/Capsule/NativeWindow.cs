@@ -14,7 +14,11 @@ internal static partial class NativeWindow
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
-    private const uint WM_MOUSEACTIVATE = 0x0021;
+    private const uint WM_MOUSEACTIVATE = 0x0021, WM_NCLBUTTONDOWN = 0x00A1, WM_EXITSIZEMOVE = 0x0232;
+    private const nint HTCAPTION = 2;
+
+    // What each subclassed window wants to know when a system move of it has ended.
+    private static readonly Dictionary<nint, Action> MoveEnded = [];
     private const nint MA_NOACTIVATE = 3;
     private const nuint SubclassId = 1;
 
@@ -63,7 +67,29 @@ internal static partial class NativeWindow
     }
 
     /// <summary>A click on the window must not take the focus from the app the user is typing in.</summary>
-    public static void RefuseActivationOnClick(nint hwnd) => SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
+    /// <param name="moveEnded">Called when a move started by <see cref="DragWithSystem"/> has ended.</param>
+    public static void RefuseActivationOnClick(nint hwnd, Action moveEnded)
+    {
+        MoveEnded[hwnd] = moveEnded;
+        SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
+    }
+
+    /// <summary>
+    /// The window manager moves the window with the mouse until the button goes up, as it does a title bar: a fast
+    /// flick or a busy UI thread cannot lose the drag. Called with the left button down; returns when the move has ended.
+    /// </summary>
+    public static void DragWithSystem(nint hwnd)
+    {
+        ReleaseCapture();
+        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool ReleaseCapture();
+
+    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
+    private static partial nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
     private static nint OnSubclassMessage(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data)
     {
@@ -71,6 +97,12 @@ internal static partial class NativeWindow
         {
             case WM_MOUSEACTIVATE:
                 return MA_NOACTIVATE;
+            case WM_EXITSIZEMOVE:
+                if (MoveEnded.TryGetValue(hwnd, out var moveEnded))
+                {
+                    moveEnded();
+                }
+                return DefSubclassProc(hwnd, message, wParam, lParam);
             case WM_ERASEBKGND:
                 // Black under DWM glass is clear; the class background (white in light mode) would show around the shape.
                 GetClientRect(hwnd, out var client);
