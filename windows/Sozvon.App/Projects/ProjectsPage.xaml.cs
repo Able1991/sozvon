@@ -43,6 +43,7 @@ public sealed partial class ProjectsPage : UserControl
     private IReadOnlyDictionary<string, int> _callCounts = new Dictionary<string, int>();
     private List<Project> _projects = [];
     private bool _reloadQueued;
+    private bool _deleting;
 
     /// <param name="projectsChanged">A project was saved or deleted here: the call list shows the new titles.</param>
     public ProjectsPage(string profilesFolder, CallRepository repository, VoiceStore voices, Action projectsChanged)
@@ -139,8 +140,13 @@ public sealed partial class ProjectsPage : UserControl
         ProjectList.Focus(FocusState.Programmatic);
     }
 
+    /// <summary>Asks, then removes the file under its lock off the UI thread: the lock may be held for a while.</summary>
     private async Task DeleteAsync(Project project)
     {
+        if (_deleting)
+        {
+            return;
+        }
         var sure = await Dialogs.ConfirmAsync(XamlRoot, L("Удалить проект «%@»?", project.Title),
             L("Звонки сохранят свои расшифровки. Уйдут только люди, термины и замены этого проекта. Файл попадёт в Корзину, его можно вернуть."),
             L("Удалить"));
@@ -148,13 +154,18 @@ public sealed partial class ProjectsPage : UserControl
         {
             return;
         }
+        _deleting = true;
         try
         {
-            Project.Delete(project.Slug, _profiles, RecycleBin.Move);
+            await Task.Run(() => Project.Delete(project.Slug, _profiles, RecycleBin.Move));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or FileLockTimeoutException)
         {
             await Dialogs.ShowProblemAsync(XamlRoot, L("Не получилось удалить проект"), e.Message);
+        }
+        finally
+        {
+            _deleting = false;
         }
         Reload();
         _projectsChanged();

@@ -33,6 +33,7 @@ public sealed partial class ProjectEditorDialog : ContentDialog
     private readonly InfoBar _saveProblem = new() { IsClosable = false, Severity = InfoBarSeverity.Error, Title = L("Не получилось сохранить проект") };
     private readonly StackPanel _voicesSection = new() { Spacing = 8 };
     private readonly ElementTheme _theme;
+    private bool _saving;
 
     /// <param name="project">The project to change, or one with an empty slug for a new project.</param>
     /// <param name="theme">The window's theme: a dialog does not take it on by itself.</param>
@@ -76,6 +77,7 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         Content = new ScrollViewer { Content = content, Padding = new Thickness(0, 0, 16, 0) };
 
         PrimaryButtonClick += OnSave;
+        Closing += (_, args) => args.Cancel = _saving;
         voices.Changed += OnVoicesChanged;
         Closed += (_, _) => voices.Changed -= OnVoicesChanged;
         voices.Refresh();
@@ -123,20 +125,27 @@ public sealed partial class ProjectEditorDialog : ContentDialog
     {
         var problem = Project.TitleProblem(_title.Text, _project.Slug, _others);
         _duplicate.Visibility = problem == ProjectTitleProblem.Duplicate ? Visibility.Visible : Visibility.Collapsed;
-        IsPrimaryButtonEnabled = problem is null;
+        IsPrimaryButtonEnabled = problem is null && !_saving;
     }
 
-    private void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
+    /// <summary>
+    /// Saving waits for the file's lock, which the engine holds for a moment and something else may hold for long: the
+    /// wait is off the UI thread, and the dialog stays open and busy until it ends.
+    /// </summary>
+    private async void OnSave(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         if (Project.TitleProblem(_title.Text, _project.Slug, _others) is not null)
         {
             args.Cancel = true;
             return;
         }
+        var deferral = args.GetDeferral();
+        _saving = true;
+        Update();
         try
         {
             var project = _project.WithForm(_title.Text, _context.Text, _people.Text, _terms.Text, _profiles);
-            project.Save(_profiles);
+            await Task.Run(() => project.Save(_profiles));
             Saved = project;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or Sozvon.Core.Foundation.FileLockTimeoutException)
@@ -145,6 +154,12 @@ public sealed partial class ProjectEditorDialog : ContentDialog
             args.Cancel = true;
             _saveProblem.Message = e.Message;
             _saveProblem.IsOpen = true;
+        }
+        finally
+        {
+            _saving = false;
+            Update();
+            deferral.Complete();
         }
     }
 
