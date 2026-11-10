@@ -60,6 +60,9 @@ public sealed partial class CapsuleWindow : Window
     public event EventHandler? SecondaryClicked;
     public event EventHandler? HideRequested;
 
+    /// <summary>A new state was drawn: whether the capsule is on screen may change with it.</summary>
+    public event EventHandler? Rendered;
+
     /// <summary>The user finished dragging the capsule to this position.</summary>
     public event EventHandler<Windows.Graphics.PointInt32>? Moved;
 
@@ -189,6 +192,26 @@ public sealed partial class CapsuleWindow : Window
         ApplyVisibility();
         ShowHideButton(_hovered && model.Phase == CapsulePhase.Idle);
         DispatcherQueue.TryEnqueue(FitToContent);
+        Rendered?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>What the capsule shows now.</summary>
+    public CapsuleModel Model => _model;
+
+    /// <summary>
+    /// The capsule shows the panel's rule (<see cref="Sozvon.Core.Settings.PanelVisibility"/>) on screen: shown when it
+    /// should be and not yet visible, hidden the other way round. Showing never takes the focus.
+    /// </summary>
+    public void SetOnScreen(bool visible)
+    {
+        if (visible && !AppWindow.IsVisible)
+        {
+            ShowWithoutFocus();
+        }
+        else if (!visible && AppWindow.IsVisible)
+        {
+            AppWindow.Hide();
+        }
     }
 
     /// <summary>The newest level of each voice, 0 to 1. The wave moves away from the start of each side.</summary>

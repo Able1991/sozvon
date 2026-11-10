@@ -20,7 +20,11 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial bool FloatingPanel { get; set; } = true;
     [ObservableProperty] public partial int? CapsuleX { get; set; }
     [ObservableProperty] public partial int? CapsuleY { get; set; }
-    [ObservableProperty] public partial bool PanelWhenIdle { get; set; }
+    /// <summary>
+    /// "Show the panel when not recording", on by default as on the Mac. A new name: the old PanelWhenIdle was only stored,
+    /// off, in every settings.json, and must not hide the capsule now that the row works.
+    /// </summary>
+    [ObservableProperty] public partial bool CapsuleWhenIdle { get; set; } = true;
     [ObservableProperty] public partial int CallStartAction { get; set; }
     [ObservableProperty] public partial bool StopAfterCall { get; set; }
     [ObservableProperty] public partial bool RemindToSay { get; set; }

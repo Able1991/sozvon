@@ -90,6 +90,7 @@ public sealed class AppHost
         _recording = recording;
         _trayState.Recording = recording;
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
+        capsule.Rendered += (_, _) => ApplyFloatingPanel();
         recording.StateChanged += (_, _) => _tray.Refresh();
         recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
         // A finished transcription goes to the own server, if one is set up.
@@ -132,6 +133,7 @@ public sealed class AppHost
     public void AttachDemo(CapsuleWindow capsule)
     {
         _capsule = capsule;
+        capsule.Rendered += (_, _) => ApplyFloatingPanel();
         ApplyCapsuleTheme();
     }
 
@@ -271,7 +273,7 @@ public sealed class AppHost
         {
             _ = Chimes.PlayAsync(Chime.Start); // as on the Mac: turning the sounds on lets them be heard
         }
-        else if (e.PropertyName == nameof(AppSettings.FloatingPanel))
+        else if (e.PropertyName is nameof(AppSettings.FloatingPanel) or nameof(AppSettings.CapsuleWhenIdle))
         {
             ApplyFloatingPanel();
             _tray.Refresh();
@@ -318,16 +320,17 @@ public sealed class AppHost
         _ => ElementTheme.Default,
     });
 
+    /// <summary>The capsule on screen or not, by the Mac's rule, after every state it draws and every change of the settings.</summary>
     private void ApplyFloatingPanel()
     {
-        if (_store.Settings.FloatingPanel)
+        if (_capsule is not { } capsule)
         {
-            _capsule?.ShowWithoutFocus();
+            return;
         }
-        else
-        {
-            _capsule?.AppWindow.Hide();
-        }
+        var model = capsule.Model;
+        var counting = model is { Phase: CapsulePhase.Prompt, AutoStartSeconds: not null } or { Phase: CapsulePhase.Recording, Hint: CapsuleHint.StopCountdown };
+        capsule.SetOnScreen(Sozvon.Core.Settings.PanelVisibility.Shows(
+            active: model.Phase != CapsulePhase.Idle, counting, _store.Settings.FloatingPanel, _store.Settings.CapsuleWhenIdle));
     }
 
     private static bool ResolvesToRussian(AppLanguage language) => language switch
