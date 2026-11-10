@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
 using Sozvon.Core.Automation;
+using Sozvon.Core.Calls;
 using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
@@ -16,9 +17,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly SettingsStore _store;
     private readonly EngineSettings _engine;
     private readonly AppLanguage _startupLanguage;
+    private readonly MarkShortcut _markShortcut;
 
     public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
-        ServerViewModel server)
+        ServerViewModel server, MarkShortcut markShortcut)
     {
         Server = server;
         Integrations = integrations;
@@ -26,9 +28,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _store = store;
         _engine = engine;
         _startupLanguage = startupLanguage;
+        _markShortcut = markShortcut;
         RelaunchCommand = new RelayCommand(relaunch);
         _store.PropertyChanged += OnStoreChanged;
         Settings.PropertyChanged += OnSettingsChanged;
+        markShortcut.Changed += () => OnPropertyChanged(nameof(MarkShortcutTaken));
     }
 
     public AppSettings Settings => _store.Settings;
@@ -151,6 +155,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         : Loc.L("Запись начинается только по кнопке «Записать». Согласие собеседников на запись на тебе.");
 
     public bool NeedsRelaunch => Settings.Language != _startupLanguage;
+
+    /// <summary>Another program holds Ctrl+Alt+I: the press marks nothing, and this says why rather than let it fail quietly.</summary>
+    public bool MarkShortcutTaken => _markShortcut.Taken;
+
+    public string MarkShortcutWarning =>
+        Loc.L("Сочетание %@ занято другой программой. Отметить важное можно кнопкой на панели или в меню значка в трее.", MarkShortcut.Keys);
 
     public string SaveError => _store.SaveError;
 

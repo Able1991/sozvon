@@ -137,6 +137,7 @@
 /* Settings, General: start-up and the recording tones. */
 "Запуск" = "Startup";
 "Во время звонка звука нет: его услышали бы собеседники" = "Silent during a call: the others would hear it";
+"Сочетание %@ занято другой программой. Отметить важное можно кнопкой на панели или в меню значка в трее." = "The %@ shortcut is taken by another program. Mark the moment with the button on the panel or from the tray icon's menu.";
 
 /* Settings, Assistants: the summary assistant on Windows; About: the build. */
 "Без саммари. Ничего не покидает компьютер." = "No summaries. Nothing leaves this computer.";

@@ -14,11 +14,13 @@ internal static partial class NativeWindow
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
-    private const uint WM_MOUSEACTIVATE = 0x0021, WM_NCLBUTTONDOWN = 0x00A1, WM_EXITSIZEMOVE = 0x0232;
+    private const uint WM_MOUSEACTIVATE = 0x0021, WM_NCLBUTTONDOWN = 0x00A1, WM_EXITSIZEMOVE = 0x0232, WM_HOTKEY = 0x0312;
     private const nint HTCAPTION = 2;
 
     // What each subclassed window wants to know when a system move of it has ended.
     private static readonly Dictionary<nint, Action> MoveEnded = [];
+    // What each subclassed window does with a system-wide shortcut registered on it, by the shortcut's id.
+    private static readonly Dictionary<nint, Action<int>> HotKeyPressed = [];
     private const nint MA_NOACTIVATE = 3;
     private const nuint SubclassId = 1;
 
@@ -74,6 +76,13 @@ internal static partial class NativeWindow
         SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
     }
 
+    /// <summary>WM_HOTKEY for a shortcut registered on this window (RegisterHotKey) goes to <paramref name="pressed"/>.</summary>
+    public static void OnHotKey(nint hwnd, Action<int> pressed)
+    {
+        HotKeyPressed[hwnd] = pressed;
+        SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
+    }
+
     /// <summary>
     /// The window manager moves the window with the mouse until the button goes up, as it does a title bar: a fast
     /// flick or a busy UI thread cannot lose the drag. Called with the left button down; returns when the move has ended.
@@ -103,6 +112,12 @@ internal static partial class NativeWindow
                     moveEnded();
                 }
                 return DefSubclassProc(hwnd, message, wParam, lParam);
+            case WM_HOTKEY:
+                if (HotKeyPressed.TryGetValue(hwnd, out var pressed))
+                {
+                    pressed((int)wParam);
+                }
+                return 0;
             case WM_ERASEBKGND:
                 // Black under DWM glass is clear; the class background (white in light mode) would show around the shape.
                 GetClientRect(hwnd, out var client);

@@ -105,6 +105,8 @@
                     <local:SettingsRow Header="{s:L K='Звук при старте и остановке записи'}" Description="{s:L K='Во время звонка звука нет: его услышали бы собеседники'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PlaySounds, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Звук при старте и остановке записи'}" />
                     </local:SettingsRow>
+                    <InfoBar IsOpen="{x:Bind ViewModel.MarkShortcutTaken, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             Message="{x:Bind ViewModel.MarkShortcutWarning}" />
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.RecordingFooter, Mode=OneWay}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Записи с телефона'}" />

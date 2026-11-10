@@ -229,8 +229,9 @@ public sealed class AppHost
         actions.Changed += selected => _ = _server.SyncAsync();
         _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, actions);
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
+        // The demo runs no recorder: its Settings get a shortcut nobody has registered or taken.
         var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn,
-            new ServerViewModel(_server, AppPaths.EnvFile));
+            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut());
         var profiles = Path.Combine(AppPaths.DataDir, "profiles");
         var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);
         var projects = new ProjectsPage(profiles, _repository, voices, () => _ = _calls.RefreshAsync());
