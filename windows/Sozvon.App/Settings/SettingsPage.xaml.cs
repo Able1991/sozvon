@@ -171,19 +171,9 @@ public sealed partial class SettingsPage : UserControl
         }
     }
 
-    private async Task<bool> ConfirmAsync(string title, string text, string destructive)
-    {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = title,
-            Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
-            PrimaryButtonText = destructive,
-            CloseButtonText = L("Отмена"),
-            DefaultButton = ContentDialogButton.Close,
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
-    }
+    /// <summary>"Disconnect Sozvon from …?": the shared question, which follows the window's theme.</summary>
+    private Task<bool> ConfirmAsync(string title, string text, string destructive) =>
+        Shell.Dialogs.ConfirmAsync(XamlRoot, title, text, destructive);
 
     private void OnVoicesChanged(object? sender, EventArgs e) => ShowOtherVoices();
 
