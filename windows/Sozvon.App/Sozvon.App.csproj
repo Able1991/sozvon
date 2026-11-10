@@ -34,4 +34,20 @@
     <EmbeddedResource Include="..\..\Sources\Sozvon\Resources\en.lproj\Localizable.strings" LogicalName="mac.en.strings" />
     <EmbeddedResource Include="Strings\windows-en.strings" LogicalName="windows-en.strings" />
   </ItemGroup>
+  <!-- The version as the Mac takes it (build.sh: the latest tag, without its v) and the short commit, written into the
+       assembly at build time; About shows them as a preview build until Windows has releases of its own. No git: empty. -->
+  <Target Name="SozvonBuildVersion" BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
+    <Exec Command="git describe --tags --abbrev=0" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SozvonTag" />
+      <Output TaskParameter="ExitCode" PropertyName="SozvonTagExit" />
+    </Exec>
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" WorkingDirectory="$(MSBuildProjectDirectory)">
+      <Output TaskParameter="ConsoleOutput" PropertyName="SozvonCommit" />
+      <Output TaskParameter="ExitCode" PropertyName="SozvonCommitExit" />
+    </Exec>
+    <ItemGroup>
+      <AssemblyMetadata Include="SozvonVersion" Value="$(SozvonTag.TrimStart('v'))" Condition="'$(SozvonTagExit)' == '0'" />
+      <AssemblyMetadata Include="SozvonCommit" Value="$(SozvonCommit)" Condition="'$(SozvonCommitExit)' == '0'" />
+    </ItemGroup>
+  </Target>
 </Project>
