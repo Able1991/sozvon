@@ -71,6 +71,16 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     [RelayCommand]
     private void Forward() => Seek(Position + 15);
 
+    /// <summary>A click on a transcript line: plays from its start.</summary>
+    public void PlayFrom(double seconds)
+    {
+        Seek(seconds);
+        if (!IsPlaying)
+        {
+            TogglePlay();
+        }
+    }
+
     public void Seek(double seconds)
     {
         var target = Math.Clamp(seconds, 0, Math.Max(Duration, 0));

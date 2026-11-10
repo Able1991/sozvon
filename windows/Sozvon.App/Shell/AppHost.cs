@@ -176,7 +176,7 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        _calls = new CallsViewModel(_repository, _store.Settings);
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings);
         var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
         return new MainWindow(_calls, settings);
     }

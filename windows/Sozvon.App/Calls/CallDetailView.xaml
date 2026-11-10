@@ -184,9 +184,10 @@
             </StackPanel>
         </ScrollViewer>
 
-        <Grid x:Name="PlayerBar" Grid.Row="2" Height="56" Margin="16,0,16,16" Padding="16,0" VerticalAlignment="Bottom" ColumnSpacing="8"
-              CornerRadius="8" Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
-              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+        <!-- The player floats over the bottom of the page, as on the Mac; the page keeps room for it below. -->
+        <Grid x:Name="PlayerBar" Grid.Row="2" Height="56" Margin="16,0,16,16" Padding="12,0,10,0" VerticalAlignment="Bottom" ColumnSpacing="6"
+              CornerRadius="8" Background="{ThemeResource SolidBackgroundFillColorTertiaryBrush}"
+              BorderBrush="{ThemeResource SurfaceStrokeColorDefaultBrush}" BorderThickness="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -196,27 +197,43 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button x:Name="BackButton" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
+            <Button x:Name="BackButton" Style="{StaticResource BarButtonStyle}"
                     ToolTipService.ToolTip="{s:L K='Назад на 15 секунд'}" AutomationProperties.Name="{s:L K='Назад на 15 секунд'}" Command="{x:Bind ViewModel.Player.BackCommand, Mode=OneWay}">
-                <FontIcon FontSize="16" Glyph="&#xE892;" />
+                <Grid>
+                    <FontIcon FontSize="20" Glyph="&#xE72C;" RenderTransformOrigin="0.5,0.5">
+                        <FontIcon.RenderTransform>
+                            <ScaleTransform ScaleX="-1" />
+                        </FontIcon.RenderTransform>
+                    </FontIcon>
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="7" FontWeight="SemiBold" Text="15" />
+                </Grid>
             </Button>
-            <Button x:Name="PlayButton" Grid.Column="1" Width="32" Height="32" Padding="0" Style="{ThemeResource AccentButtonStyle}"
+            <Button x:Name="PlayButton" Grid.Column="1" Width="36" Height="36" Padding="0" CornerRadius="18" Style="{ThemeResource AccentButtonStyle}"
                     ToolTipService.ToolTip="{s:L K='Воспроизвести'}" AutomationProperties.Name="{s:L K='Воспроизвести'}" Command="{x:Bind ViewModel.Player.TogglePlayCommand, Mode=OneWay}">
-                <FontIcon x:Name="PlayIcon" FontSize="16" Glyph="&#xE768;" />
+                <FontIcon x:Name="PlayIcon" FontSize="14" Glyph="&#xF5B0;" />
             </Button>
-            <Button x:Name="ForwardButton" Grid.Column="2" Width="32" Height="32" Padding="0" Background="Transparent" BorderThickness="0"
+            <Button x:Name="ForwardButton" Grid.Column="2" Style="{StaticResource BarButtonStyle}"
                     ToolTipService.ToolTip="{s:L K='Вперёд на 15 секунд'}" AutomationProperties.Name="{s:L K='Вперёд на 15 секунд'}" Command="{x:Bind ViewModel.Player.ForwardCommand, Mode=OneWay}">
-                <FontIcon FontSize="16" Glyph="&#xE893;" />
+                <Grid>
+                    <FontIcon FontSize="20" Glyph="&#xE72C;" />
+                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="7" FontWeight="SemiBold" Text="15" />
+                </Grid>
             </Button>
-            <TextBlock x:Name="PositionText" Grid.Column="3" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <Slider x:Name="PositionSlider" Grid.Column="4" VerticalAlignment="Center" Minimum="0" StepFrequency="1" IsThumbToolTipEnabled="False" ValueChanged="OnSliderChanged" />
-            <TextBlock x:Name="UnavailableText" Grid.Column="4" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="PositionText" Grid.Column="3" Margin="6,0,0,0" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Slider x:Name="PositionSlider" Grid.Column="4" Margin="6,0" VerticalAlignment="Center" Minimum="0" StepFrequency="1" IsThumbToolTipEnabled="False"
+                    AutomationProperties.Name="{s:L K='Позиция'}" ValueChanged="OnSliderChanged" />
+            <TextBlock x:Name="UnavailableText" Grid.Column="4" Margin="6,0" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock x:Name="DurationText" Grid.Column="5" VerticalAlignment="Center" Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-            <StackPanel x:Name="SpeedPanel" Grid.Column="6" Orientation="Horizontal" Spacing="2">
-                <ToggleButton x:Name="Speed1" Padding="8,0" Height="32" Content="1x" IsChecked="True" Click="OnSpeedClick" />
-                <ToggleButton x:Name="Speed15" Padding="8,0" Height="32" Content="1.5x" Click="OnSpeedClick" />
-                <ToggleButton x:Name="Speed2" Padding="8,0" Height="32" Content="2x" Click="OnSpeedClick" />
-            </StackPanel>
+            <DropDownButton x:Name="SpeedButton" Grid.Column="6" Height="32" MinWidth="64" Margin="6,0,0,0" Content="1x"
+                            ToolTipService.ToolTip="{s:L K='Скорость'}" AutomationProperties.Name="{s:L K='Скорость'}">
+                <DropDownButton.Flyout>
+                    <MenuFlyout Placement="Top">
+                        <RadioMenuFlyoutItem x:Name="Speed1" Text="1x" GroupName="Speed" IsChecked="True" Click="OnSpeedClick" />
+                        <RadioMenuFlyoutItem x:Name="Speed15" Text="1.5x" GroupName="Speed" Click="OnSpeedClick" />
+                        <RadioMenuFlyoutItem x:Name="Speed2" Text="2x" GroupName="Speed" Click="OnSpeedClick" />
+                    </MenuFlyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
         </Grid>
     </Grid>
 </UserControl>

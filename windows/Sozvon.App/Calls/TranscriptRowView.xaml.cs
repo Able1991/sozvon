@@ -3,6 +3,8 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Input;
@@ -136,11 +138,26 @@ public sealed partial class TranscriptRowView : UserControl
 
     private static Color Accent(string key) => (Color)Application.Current.Resources[key];
 
-    private void OnTapped(object sender, TappedRoutedEventArgs e)
+    private void OnTapped(object sender, TappedRoutedEventArgs e) => Activate();
+
+    private void Activate()
     {
         if (Row is { } row)
         {
             Activated?.Invoke(this, row);
         }
+    }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new RowPeer(this);
+
+    /// <summary>A screen reader hears the line and can play from it, as a click does.</summary>
+    private sealed partial class RowPeer(TranscriptRowView owner) : FrameworkElementAutomationPeer(owner), IInvokeProvider
+    {
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.ListItem;
+
+        protected override object GetPatternCore(PatternInterface patternInterface) =>
+            patternInterface == PatternInterface.Invoke ? this : base.GetPatternCore(patternInterface);
+
+        public void Invoke() => owner.Activate();
     }
 }

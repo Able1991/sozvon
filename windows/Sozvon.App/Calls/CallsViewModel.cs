@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sozvon.App.Settings;
 using Sozvon.App.Strings;
@@ -27,7 +27,7 @@ public sealed class CallGroup(string title, IEnumerable<CallRow> rows) : List<Ca
 public sealed record ProjectFilter(string Slug, string Title);
 
 /// <summary>The Calls page: the list, its project filter and search, and the opened call.</summary>
-public sealed partial class CallsViewModel(CallRepository repository, AppSettings settings) : ObservableObject, IDisposable
+public sealed partial class CallsViewModel(CallRepository repository, AppSettings settings, EngineSettings engine) : ObservableObject, IDisposable
 {
     public static readonly ProjectFilter AllProjects = new("", Loc.L("Все проекты"));
 
@@ -169,7 +169,7 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
         var (content, voices) = await Task.Run(() => (repository.LoadContent(call), repository.Voices()));
         if (SelectedRow?.Call == call)
         {
-            Detail = new CallDetailViewModel(call, content, settings.DisplayName, voices);
+            Detail = new CallDetailViewModel(call, content, engine.Name, voices);
         }
     }
 }

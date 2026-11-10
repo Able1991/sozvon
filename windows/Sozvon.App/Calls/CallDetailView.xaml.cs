@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using Microsoft.UI.Input;
@@ -16,11 +16,12 @@ namespace Sozvon.App.Calls;
 
 public sealed partial class CallDetailView : UserControl
 {
-    private const string PlayGlyph = "", PauseGlyph = "";
+    private const string PlayGlyph = "\uF5B0", PauseGlyph = "\uF8AE";
     private CallDetailViewModel? _viewModel;
     private List<TranscriptFind.Match> _found = [];
     private int _foundIndex;
     private List<TranscriptRow> _marked = [];
+    private TranscriptRow? _playing;
 
     /// <summary>The tab last chosen, kept from call to call as on the Mac.</summary>
     private bool _wantsTranscript;
@@ -92,15 +93,16 @@ public sealed partial class CallDetailView : UserControl
         _wantsTranscript = wanted;
         Scroller.ChangeView(null, 0, null, disableAnimation: true);
 
+        // The player only for a call whose audio is there, as on the Mac; the page keeps room for it.
         var player = call.Player;
-        BackButton.IsEnabled = PlayButton.IsEnabled = ForwardButton.IsEnabled = player.IsAvailable;
-        PositionSlider.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
-        UnavailableText.Visibility = player.IsAvailable ? Visibility.Collapsed : Visibility.Visible;
-        UnavailableText.Text = player.Unavailable;
+        PlayerBar.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
+        Page.Padding = new Thickness(24, 16, 24, player.IsAvailable ? PlayerBar.Height + PlayerBar.Margin.Bottom + 24 : 24);
+        PositionSlider.Visibility = Visibility.Visible;
+        UnavailableText.Visibility = Visibility.Collapsed;
         ShowPlayState(false);
         ShowSpeed(player.RateIndex);
-        SpeedPanel.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
         UpdatePosition(player);
+        _playing = null;
     }
 
     private void OnPlayerChanged(object? sender, PropertyChangedEventArgs e)
@@ -113,11 +115,16 @@ public sealed partial class CallDetailView : UserControl
         {
             case nameof(CallPlayer.IsPlaying):
                 ShowPlayState(player.IsPlaying);
+                FollowPlayingLine(player);
                 break;
             case nameof(CallPlayer.Error) when player.Error.Length > 0:
                 UnavailableText.Text = L("Запись недоступна") + ": " + player.Error;
                 UnavailableText.Visibility = Visibility.Visible;
                 PositionSlider.Visibility = Visibility.Collapsed;
+                break;
+            case nameof(CallPlayer.Position):
+                UpdatePosition(player);
+                ShowPlayingLine(player);
                 break;
             default:
                 UpdatePosition(player);
@@ -160,10 +167,59 @@ public sealed partial class CallDetailView : UserControl
 
     private void ShowSpeed(int rateIndex)
     {
-        ToggleButton[] buttons = [Speed1, Speed15, Speed2];
-        for (var i = 0; i < buttons.Length; i++)
+        RadioMenuFlyoutItem[] items = [Speed1, Speed15, Speed2];
+        for (var i = 0; i < items.Length; i++)
         {
-            buttons[i].IsChecked = i == rateIndex;
+            items[i].IsChecked = i == rateIndex;
+        }
+        SpeedButton.Content = items[rateIndex].Text;
+    }
+
+    /// <summary>The paragraph being played gets the accent row; while playing, the page keeps it in view.</summary>
+    private void ShowPlayingLine(CallPlayer player)
+    {
+        if (ViewModel is not { } call || call.Rows.Count == 0)
+        {
+            return;
+        }
+        var index = Transcript.LineIndex(player.Position, call.Starts);
+        var row = index is { } i ? call.Rows[i] : null;
+        if (row == _playing)
+        {
+            return;
+        }
+        if (_playing is not null)
+        {
+            _playing.IsPlaying = false;
+        }
+        _playing = row;
+        if (row is null)
+        {
+            return;
+        }
+        row.IsPlaying = true;
+        FollowPlayingLine(player);
+    }
+
+    private void FollowPlayingLine(CallPlayer player)
+    {
+        if (!player.IsPlaying || !ShowsTranscript || _playing is not { } row)
+        {
+            return;
+        }
+        if (TranscriptRepeater.TryGetElement(row.Ordinal) is FrameworkElement element)
+        {
+            // Scrolls only as much as needed, keeping the line clear of the player floating below.
+            var below = PlayerBar.Height + PlayerBar.Margin.Bottom + 16;
+            element.StartBringIntoView(new BringIntoViewOptions
+            {
+                AnimationDesired = true,
+                TargetRect = new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight + below),
+            });
+        }
+        else
+        {
+            BringRowToCentre(row.Ordinal);
         }
     }
 
@@ -186,7 +242,7 @@ public sealed partial class CallDetailView : UserControl
     {
         if (ViewModel?.Player is { IsAvailable: true } player)
         {
-            player.Seek(row.Line.Start);
+            player.PlayFrom(row.Line.Start);
         }
     }
 

@@ -39,6 +39,11 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     public bool HasPeople => Call.People.Count > 0;
     public IReadOnlyList<SummaryBlock> Blocks { get; }
     public IReadOnlyList<TranscriptRow> Rows { get; }
+
+    /// <summary>Paragraph start times, for the line being played.</summary>
+    public IReadOnlyList<double> Starts => _starts ??= Rows.Select(r => r.Line.Start).ToList();
+
+    private List<double>? _starts;
     public IReadOnlyList<NoteRow> Notes { get; }
     public bool HasNotes => Notes.Count > 0;
     public bool HasSummary => Blocks.Count > 0;
