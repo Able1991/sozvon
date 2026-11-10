@@ -38,6 +38,9 @@ public sealed partial class CallsPage : UserControl
 
     public static Visibility ShownIf(bool value, bool expected) => value == expected ? Visibility.Visible : Visibility.Collapsed;
 
+    /// <summary>Ctrl+F: the find bar of the opened call's transcript; false when that is not what is on screen.</summary>
+    public bool OpenTranscriptFind() => ViewModel.Detail is not null && Detail.OpenFind();
+
     private void OnCallSelected(object sender, SelectionChangedEventArgs e) => ViewModel.SelectedRow = CallList.SelectedItem as CallRow;
 
     private static int StableHash(string text) => text.Aggregate(17, (hash, c) => unchecked(hash * 31 + c));

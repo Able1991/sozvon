@@ -27,6 +27,9 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
             .ToList();
     }
 
+    /// <summary>The saved voice prints: speakers without one are offered for confirmation.</summary>
+    public IReadOnlyList<Sozvon.Core.Calls.VoiceRecord> Voices() => Sozvon.Core.Calls.Voices.All(Path.Combine(dataDir, "voices"));
+
     public CallContent LoadContent(CallRecord call) =>
         call.InlineContent ?? new CallContent(ReadText(call.Folder, "transcript.txt"), ReadText(call.Folder, "summary.md"));
 

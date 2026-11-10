@@ -166,10 +166,10 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
         {
             return;
         }
-        var content = await Task.Run(() => repository.LoadContent(call));
+        var (content, voices) = await Task.Run(() => (repository.LoadContent(call), repository.Voices()));
         if (SelectedRow?.Call == call)
         {
-            Detail = new CallDetailViewModel(call, content, settings.DisplayName);
+            Detail = new CallDetailViewModel(call, content, settings.DisplayName, voices);
         }
     }
 }

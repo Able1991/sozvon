@@ -3,7 +3,9 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.System;
 using Windows.Foundation;
 using Windows.Graphics;
 using Sozvon.App.Calls;
@@ -45,7 +47,36 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnClosing;
 
         ApplyTheme(settings.Settings.Theme);
+        Root.KeyboardAccelerators.Add(Accelerator(VirtualKeyModifiers.Control, OnFind));
+        Root.KeyboardAccelerators.Add(Accelerator(VirtualKeyModifiers.Control | VirtualKeyModifiers.Menu, SearchCalls));
         Show(AppPage.Calls);
+    }
+
+    private static KeyboardAccelerator Accelerator(VirtualKeyModifiers modifiers, Action action)
+    {
+        var accelerator = new KeyboardAccelerator { Key = VirtualKey.F, Modifiers = modifiers };
+        accelerator.Invoked += (_, args) =>
+        {
+            action();
+            args.Handled = true;
+        };
+        return accelerator;
+    }
+
+    /// <summary>Ctrl+F: inside the transcript on its tab, otherwise the search across calls.</summary>
+    private void OnFind()
+    {
+        if (PageHost.Content != _callsPage || !_callsPage.OpenTranscriptFind())
+        {
+            SearchCalls();
+        }
+    }
+
+    /// <summary>Ctrl+Alt+F, and Ctrl+F away from a transcript: the search across calls.</summary>
+    private void SearchCalls()
+    {
+        Navigation.SelectedItem = ItemFor(AppPage.Calls);
+        SearchBox.Focus(FocusState.Keyboard);
     }
 
     public void ApplyTheme(AppTheme theme) => WindowTheme.Apply(this, Root, theme);

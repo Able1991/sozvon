@@ -7,21 +7,6 @@
     xmlns:s="using:Sozvon.App.Strings">
     <UserControl.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.ThemeDictionaries>
-                <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="VoiceMeBrush" Color="#0F6CBD" />
-                    <SolidColorBrush x:Key="VoiceThemBrush" Color="#C4501B" />
-                </ResourceDictionary>
-                <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="VoiceMeBrush" Color="#60CDFF" />
-                    <SolidColorBrush x:Key="VoiceThemBrush" Color="#FF9B6A" />
-                </ResourceDictionary>
-                <ResourceDictionary x:Key="HighContrast">
-                    <SolidColorBrush x:Key="VoiceMeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-                    <SolidColorBrush x:Key="VoiceThemBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-                </ResourceDictionary>
-            </ResourceDictionary.ThemeDictionaries>
-
             <DataTemplate x:Key="ParagraphTemplate" x:DataType="calls:SummaryPiece">
                 <TextBlock Text="{x:Bind Text}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </DataTemplate>
@@ -52,46 +37,26 @@
                     </StackPanel>
                 </Grid>
             </DataTemplate>
-            <DataTemplate x:Key="MyLineTemplate" x:DataType="calls:TranscriptLine">
-                <Grid Padding="0,4" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="48" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,2,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Time}" />
-                    <TextBlock Grid.Column="1" TextWrapping="Wrap">
-                        <Run FontWeight="SemiBold" Foreground="{ThemeResource VoiceMeBrush}" Text="{x:Bind SpeakerLabel}" />
-                        <Run Text="{x:Bind Text}" />
-                    </TextBlock>
-                </Grid>
-            </DataTemplate>
-            <DataTemplate x:Key="TheirLineTemplate" x:DataType="calls:TranscriptLine">
-                <Grid Padding="0,4" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="48" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Margin="0,2,0,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Time}" />
-                    <TextBlock Grid.Column="1" TextWrapping="Wrap">
-                        <Run FontWeight="SemiBold" Foreground="{ThemeResource VoiceThemBrush}" Text="{x:Bind SpeakerLabel}" />
-                        <Run Text="{x:Bind Text}" />
-                    </TextBlock>
-                </Grid>
-            </DataTemplate>
-            <calls:TranscriptLineSelector x:Key="LineSelector" Mine="{StaticResource MyLineTemplate}" Theirs="{StaticResource TheirLineTemplate}" />
             <calls:SummaryPieceSelector x:Key="PieceSelector"
                                         Paragraph="{StaticResource ParagraphTemplate}"
                                         Heading="{StaticResource HeadingTemplate}"
                                         Bullet="{StaticResource BulletTemplate}"
                                         Task="{StaticResource TaskTemplate}" />
+            <Style x:Key="BarButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Width" Value="32" />
+                <Setter Property="Height" Value="32" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="56" />
         </Grid.RowDefinitions>
 
         <Grid Padding="12,0,24,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
@@ -122,10 +87,40 @@
             </StackPanel>
         </Grid>
 
-        <ScrollViewer x:Name="SummaryPane" Grid.Row="1">
-            <StackPanel Padding="24,16,24,24" Spacing="12">
+        <!-- Ctrl+F on the Transcript tab: the field, "3 из 12", previous, next and close, one height. -->
+        <Grid x:Name="FindBar" Grid.Row="1" Padding="24,6,16,6" ColumnSpacing="4" Visibility="Collapsed"
+              Background="{ThemeResource LayerFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FindBox" Height="32" VerticalContentAlignment="Center"
+                     PlaceholderText="{s:L K='Найти в расшифровке'}" AutomationProperties.Name="{s:L K='Найти в расшифровке'}"
+                     TextChanged="OnFindChanged" PreviewKeyDown="OnFindKeyDown" />
+            <TextBlock x:Name="FindCount" Grid.Column="1" Margin="8,0" VerticalAlignment="Center"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Name="FindPrevious" Grid.Column="2" Style="{StaticResource BarButtonStyle}" IsEnabled="False"
+                    ToolTipService.ToolTip="{s:L K='Предыдущее совпадение'}" AutomationProperties.Name="{s:L K='Предыдущее совпадение'}" Click="OnFindPrevious">
+                <FontIcon FontSize="14" Glyph="&#xE70E;" />
+            </Button>
+            <Button x:Name="FindNext" Grid.Column="3" Style="{StaticResource BarButtonStyle}" IsEnabled="False"
+                    ToolTipService.ToolTip="{s:L K='Следующее совпадение'}" AutomationProperties.Name="{s:L K='Следующее совпадение'}" Click="OnFindNext">
+                <FontIcon FontSize="14" Glyph="&#xE70D;" />
+            </Button>
+            <Button x:Name="FindClose" Grid.Column="4" Style="{StaticResource BarButtonStyle}"
+                    ToolTipService.ToolTip="{s:L K='Закрыть поиск'}" AutomationProperties.Name="{s:L K='Закрыть поиск'}" Click="OnFindClose">
+                <FontIcon FontSize="12" Glyph="&#xE711;" />
+            </Button>
+        </Grid>
+
+        <ScrollViewer x:Name="Scroller" Grid.Row="2">
+            <StackPanel x:Name="Page" MaxWidth="800" Padding="24,16,24,96" HorizontalAlignment="Left" Spacing="16">
                 <StackPanel Spacing="4">
-                    <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextWrapping="Wrap" />
+                    <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Meta, Mode=OneWay}" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.People, Mode=OneWay}"
                                Visibility="{x:Bind ViewModel.HasPeople, Mode=OneWay}" />
@@ -133,24 +128,24 @@
 
                 <InfoBar x:Name="StatusBar" IsClosable="False" />
 
-                <StackPanel Spacing="16">
-                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasNotes, Mode=OneWay}">
-                        <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{s:L K='Заметки'}" />
-                        <Border Padding="16,12" CornerRadius="4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                            <ItemsControl ItemsSource="{x:Bind ViewModel.Notes, Mode=OneWay}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate x:DataType="calls:NoteRow">
-                                        <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="{x:Bind Text}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                                            <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Stamp}" />
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </Border>
-                    </StackPanel>
+                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasNotes, Mode=OneWay}">
+                    <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{s:L K='Заметки'}" />
+                    <Border Padding="16,12" CornerRadius="4" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <ItemsControl ItemsSource="{x:Bind ViewModel.Notes, Mode=OneWay}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="calls:NoteRow">
+                                    <StackPanel Margin="0,0,0,8">
+                                        <TextBlock Text="{x:Bind Text}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Stamp}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </StackPanel>
 
+                <StackPanel x:Name="SummaryContent" Spacing="16">
                     <ItemsControl ItemsSource="{x:Bind ViewModel.Blocks, Mode=OneWay}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="calls:SummaryBlock">
@@ -170,36 +165,28 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-
                     <TextBlock x:Name="NoSummaryText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Саммари нет'}" />
+                </StackPanel>
+
+                <StackPanel x:Name="TranscriptContent" Visibility="Collapsed">
+                    <ItemsRepeater x:Name="TranscriptRepeater" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="2" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="calls:TranscriptRow">
+                                <calls:TranscriptRowView Row="{x:Bind}" Activated="OnRowActivated" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                    <TextBlock x:Name="NoTranscriptText" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Нет расшифровки'}" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
 
-        <Grid x:Name="TranscriptPane" Grid.Row="1" Visibility="Collapsed">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <StackPanel Padding="24,8" Orientation="Horizontal" Spacing="4">
-                <TextBox x:Name="FindBox" Width="280" PlaceholderText="{s:L K='Найти в расшифровке (Ctrl+F)'}" TextChanged="OnFindChanged" />
-                <TextBlock x:Name="FindCount" Margin="8,0" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <Button ToolTipService.ToolTip="{s:L K='Предыдущее совпадение'}" AutomationProperties.Name="{s:L K='Предыдущее совпадение'}" Click="OnFindPrevious">
-                    <FontIcon FontSize="14" Glyph="&#xE70E;" />
-                </Button>
-                <Button ToolTipService.ToolTip="{s:L K='Следующее совпадение'}" AutomationProperties.Name="{s:L K='Следующее совпадение'}" Click="OnFindNext">
-                    <FontIcon FontSize="14" Glyph="&#xE70D;" />
-                </Button>
-            </StackPanel>
-            <ListView x:Name="TranscriptList" Grid.Row="1" Padding="8,0" SelectionMode="Single" IsItemClickEnabled="True"
-                      ItemsSource="{x:Bind ViewModel.Lines, Mode=OneWay}" ItemClick="OnLineClick"
-                      ItemTemplateSelector="{StaticResource LineSelector}" />
-            <TextBlock x:Name="NoTranscriptText" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Нет расшифровки'}" />
-        </Grid>
-
-        <Grid x:Name="PlayerBar" Grid.Row="2" Padding="24,0" ColumnSpacing="8"
-              BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+        <Grid x:Name="PlayerBar" Grid.Row="2" Height="56" Margin="16,0,16,16" Padding="16,0" VerticalAlignment="Bottom" ColumnSpacing="8"
+              CornerRadius="8" Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />

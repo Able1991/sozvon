@@ -14,7 +14,10 @@
 "Воспроизвести" = "Play";
 "Запись недоступна" = "Audio unavailable";
 "Капсула поверх всех окон" = "A capsule above all windows";
-"Найти в расшифровке (Ctrl+F)" = "Find in transcript (Ctrl+F)";
+"Найти в расшифровке" = "Find in transcript";
+"Закрыть поиск" = "Close find";
+"Отмечено как важное во время записи" = "Marked as important during the recording";
+"Голос «%@» сохранён: Sozvon узнаёт этого человека в следующих звонках" = "Voice of “%@” saved: Sozvon recognizes this person in the next calls";
 "Настоящих звонков пока нет" = "No real calls yet";
 "Настройки не сохранились" = "Settings were not saved";
 "Не удалось прочитать call.json" = "Could not read call.json";

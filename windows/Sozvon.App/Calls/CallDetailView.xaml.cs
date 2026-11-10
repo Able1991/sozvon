@@ -1,25 +1,33 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Sozvon.Core.Calls;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.System;
+using Windows.UI.Core;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Calls;
 
 public sealed partial class CallDetailView : UserControl
 {
-    private const string PlayGlyph = "", PauseGlyph = "";
+    private const string PlayGlyph = "", PauseGlyph = "";
     private CallDetailViewModel? _viewModel;
-    private List<TranscriptLine> _matches = [];
-    private int _matchIndex;
+    private List<TranscriptFind.Match> _found = [];
+    private int _foundIndex;
+    private List<TranscriptRow> _marked = [];
+
+    /// <summary>The tab last chosen, kept from call to call as on the Mac.</summary>
+    private bool _wantsTranscript;
 
     public CallDetailView()
     {
         InitializeComponent();
-        KeyboardAccelerators.Add(FindAccelerator());
     }
 
     public CallDetailViewModel? ViewModel
@@ -31,6 +39,7 @@ public sealed partial class CallDetailView : UserControl
             {
                 _viewModel.Player.PropertyChanged -= OnPlayerChanged;
             }
+            CloseFind();
             _viewModel = value;
             Bindings.Update();
             if (value is not null)
@@ -41,7 +50,22 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
-    public static string TaskGlyph(bool done) => done ? "" : "";
+    private bool ShowsTranscript => TranscriptContent.Visibility == Visibility.Visible;
+
+    public static string TaskGlyph(bool done) => done ? "" : "";
+
+    /// <summary>Ctrl+F: the find bar on the Transcript tab. False on the Summary tab, where Ctrl+F searches all calls.</summary>
+    public bool OpenFind()
+    {
+        if (ViewModel is null || !ShowsTranscript)
+        {
+            return false;
+        }
+        FindBar.Visibility = Visibility.Visible;
+        FindBox.Focus(FocusState.Keyboard);
+        FindBox.SelectAll();
+        return true;
+    }
 
     private void ShowCall(CallDetailViewModel call)
     {
@@ -60,8 +84,13 @@ public sealed partial class CallDetailView : UserControl
         OpenTranscriptItem.IsEnabled = call.HasTranscriptFile;
         DiskSizeItem.Text = call.DiskSize;
         DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        FindBox.Text = "";
-        Tabs.SelectedItem = SummaryTab;
+        // The chosen tab, or the other one when this call doesn't have it.
+        var transcript = (_wantsTranscript || !call.HasSummary) && (call.HasTranscript || !call.HasSummary);
+        var wanted = _wantsTranscript;
+        Tabs.SelectedItem = transcript ? TranscriptTab : SummaryTab;
+        ShowTab(transcript);
+        _wantsTranscript = wanted;
+        Scroller.ChangeView(null, 0, null, disableAnimation: true);
 
         var player = call.Player;
         BackButton.IsEnabled = PlayButton.IsEnabled = ForwardButton.IsEnabled = player.IsAvailable;
@@ -140,66 +169,115 @@ public sealed partial class CallDetailView : UserControl
 
     private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
-        var showSummary = sender.SelectedItem == SummaryTab;
-        SummaryPane.Visibility = showSummary ? Visibility.Visible : Visibility.Collapsed;
-        TranscriptPane.Visibility = showSummary ? Visibility.Collapsed : Visibility.Visible;
+        var transcript = sender.SelectedItem == TranscriptTab;
+        _wantsTranscript = transcript;
+        ShowTab(transcript);
     }
 
-    private void OnLineClick(object sender, ItemClickEventArgs e)
+    /// <summary>Changing the tab closes the find bar, as changing the call does.</summary>
+    private void ShowTab(bool transcript)
     {
-        if (ViewModel?.Player is { IsAvailable: true } player && e.ClickedItem is TranscriptLine line)
+        CloseFind();
+        SummaryContent.Visibility = transcript ? Visibility.Collapsed : Visibility.Visible;
+        TranscriptContent.Visibility = transcript ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void OnRowActivated(object? sender, TranscriptRow row)
+    {
+        if (ViewModel?.Player is { IsAvailable: true } player)
         {
-            player.Seek(line.Start);
+            player.Seek(row.Line.Start);
         }
     }
 
     private void OnFindChanged(object sender, TextChangedEventArgs e)
     {
-        var query = FindBox.Text.Trim();
-        _matches = query.Length == 0 || ViewModel is null
-            ? []
-            : ViewModel.Lines.Where(l => l.Text.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToList();
-        _matchIndex = 0;
-        ShowMatch();
+        _found = ViewModel is null ? [] : TranscriptFind.Matches(FindBox.Text, ViewModel.Rows.Select(r => r.Line.Text).ToList());
+        _foundIndex = 0;
+        ShowFound(scroll: true);
     }
 
-    private void OnFindNext(object sender, RoutedEventArgs e) => MoveMatch(1);
-
-    private void OnFindPrevious(object sender, RoutedEventArgs e) => MoveMatch(-1);
-
-    private void MoveMatch(int step)
+    /// <summary>Enter: the next match, Shift+Enter: the previous one, Esc: close.</summary>
+    private void OnFindKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (_matches.Count > 0)
+        switch (e.Key)
         {
-            _matchIndex = (_matchIndex + step + _matches.Count) % _matches.Count;
-            ShowMatch();
+            case VirtualKey.Enter:
+                var shift = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift).HasFlag(CoreVirtualKeyStates.Down);
+                Step(shift ? -1 : 1);
+                e.Handled = true;
+                break;
+            case VirtualKey.Escape:
+                CloseFind();
+                e.Handled = true;
+                break;
         }
     }
 
-    private void ShowMatch()
+    private void OnFindNext(object sender, RoutedEventArgs e) => Step(1);
+
+    private void OnFindPrevious(object sender, RoutedEventArgs e) => Step(-1);
+
+    private void OnFindClose(object sender, RoutedEventArgs e) => CloseFind();
+
+    private void Step(int delta)
     {
-        FindCount.Text = _matches.Count > 0 ? L("%d из %d", _matchIndex + 1, _matches.Count) : "";
-        if (_matches.Count > 0)
+        if (_found.Count > 0)
         {
-            TranscriptList.SelectedItem = _matches[_matchIndex];
-            TranscriptList.ScrollIntoView(_matches[_matchIndex]);
+            _foundIndex = TranscriptFind.Step(_foundIndex, delta, _found.Count);
+            ShowFound(scroll: true);
         }
     }
 
-    private Microsoft.UI.Xaml.Input.KeyboardAccelerator FindAccelerator()
+    private void CloseFind()
     {
-        var accelerator = new Microsoft.UI.Xaml.Input.KeyboardAccelerator
+        if (FindBar.Visibility == Visibility.Collapsed && _found.Count == 0)
         {
-            Key = Windows.System.VirtualKey.F,
-            Modifiers = Windows.System.VirtualKeyModifiers.Control,
-        };
-        accelerator.Invoked += (_, args) =>
+            return;
+        }
+        FindBar.Visibility = Visibility.Collapsed;
+        FindBox.Text = "";
+        _found = [];
+        ShowFound(scroll: false);
+    }
+
+    /// <summary>Marks the matches on their rows, the counter "3 из 12", and scrolls the current one to the centre.</summary>
+    private void ShowFound(bool scroll)
+    {
+        foreach (var row in _marked)
         {
-            Tabs.SelectedItem = TranscriptTab;
-            FindBox.Focus(FocusState.Programmatic);
-            args.Handled = true;
-        };
-        return accelerator;
+            row.Found = [];
+            row.CurrentFound = null;
+        }
+        _marked = [];
+        var current = _found.Count > 0 ? _found[_foundIndex] : null;
+        if (ViewModel is { } call)
+        {
+            foreach (var line in _found.GroupBy(m => m.Line))
+            {
+                var row = call.Rows[line.Key];
+                row.CurrentFound = current?.Line == line.Key ? current : null;
+                row.Found = line.ToList();
+                _marked.Add(row);
+            }
+        }
+        FindCount.Text = FindBox.Text.Trim().Length == 0 ? ""
+            : _found.Count == 0 ? L("Ничего не найдено")
+            : L("%d из %d", _foundIndex + 1, _found.Count);
+        FindPrevious.IsEnabled = FindNext.IsEnabled = _found.Count > 0;
+        if (scroll && current is not null)
+        {
+            BringRowToCentre(current.Line);
+        }
+    }
+
+    private void BringRowToCentre(int index)
+    {
+        if (TranscriptRepeater.GetOrCreateElement(index) is { } element)
+        {
+            element.UpdateLayout();
+            element.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = true });
+        }
     }
 
     private void OnCopySummary(object sender, RoutedEventArgs e) => CopyText(ViewModel?.Summary);

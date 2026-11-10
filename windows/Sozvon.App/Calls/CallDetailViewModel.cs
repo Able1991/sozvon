@@ -1,6 +1,7 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sozvon.App.Strings;
+using Sozvon.Core.Calls;
 
 namespace Sozvon.App.Calls;
 
@@ -11,14 +12,16 @@ public sealed record NoteRow(string Text, string Stamp);
 /// <summary>An opened call: header, status, the summary feed, the transcript and the player.</summary>
 public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
 {
-    public CallDetailViewModel(CallRecord call, CallContent content, string myName)
+    public CallDetailViewModel(CallRecord call, CallContent content, string myName, IReadOnlyCollection<VoiceRecord> voices)
     {
         Call = call;
         Transcript = content.Transcript;
         Summary = content.Summary;
         Meta = CallFormat.Meta(call);
         Blocks = SummaryParser.Parse(content.Summary);
-        Lines = TranscriptParser.Parse(content.Transcript, myName);
+        var me = myName.Trim();
+        var speakers = Core.Calls.Transcript.Lines(content.Transcript).Select(l => l.Speaker);
+        Rows = TranscriptRow.Parse(content.Transcript, Voices.Unsaved(speakers, call.ProjectSlug, voices, me), me);
         Notes = call.Notes.Select(n => new NoteRow(n.Text, Stamp(n))).ToList();
         Player = new CallPlayer(call);
         (BannerKind, BannerText) = Banner(call);
@@ -35,11 +38,11 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     public string People => string.Join(", ", Call.People);
     public bool HasPeople => Call.People.Count > 0;
     public IReadOnlyList<SummaryBlock> Blocks { get; }
-    public IReadOnlyList<TranscriptLine> Lines { get; }
+    public IReadOnlyList<TranscriptRow> Rows { get; }
     public IReadOnlyList<NoteRow> Notes { get; }
     public bool HasNotes => Notes.Count > 0;
     public bool HasSummary => Blocks.Count > 0;
-    public bool HasTranscript => Lines.Count > 0;
+    public bool HasTranscript => Rows.Count > 0;
     public CallPlayer Player { get; }
     public CallBannerKind BannerKind { get; }
     public string BannerText { get; }
