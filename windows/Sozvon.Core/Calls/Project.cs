@@ -49,6 +49,13 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
         };
     }
 
+    /// <summary>
+    /// The same project as the pages show it, field by field: a record holding lists compares the lists by reference.
+    /// </summary>
+    public bool SameAs(Project other) =>
+        Slug == other.Slug && Title == other.Title && Context == other.Context
+        && People.SequenceEqual(other.People) && Terms.SequenceEqual(other.Terms);
+
     /// <summary>Different people across the projects, ignoring case: the "10 человек" of the list's summary.</summary>
     public static int PeopleCount(IEnumerable<Project> list) =>
         list.SelectMany(p => p.People).Select(p => p.ToLowerInvariant()).Distinct().Count();

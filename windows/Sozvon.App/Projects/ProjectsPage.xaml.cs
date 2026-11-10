@@ -340,20 +340,10 @@ public sealed partial class ProjectsPage : UserControl
         _reloadQueued = true;
         await Task.Delay(300);
         _reloadQueued = false;
-        if (!Project.All(_profiles).SequenceEqual(_projects, ProjectComparer.Instance))
+        var fresh = Project.All(_profiles);
+        if (fresh.Count != _projects.Count || fresh.Zip(_projects).Any(pair => !pair.First.SameAs(pair.Second)))
         {
             Reload();
         }
     });
-
-    /// <summary>Records holding lists compare the lists by reference: this compares what the list shows.</summary>
-    private sealed class ProjectComparer : IEqualityComparer<Project>
-    {
-        public static readonly ProjectComparer Instance = new();
-
-        public bool Equals(Project? a, Project? b) =>
-            a is not null && b is not null && a.Slug == b.Slug && a.Title == b.Title && a.People.SequenceEqual(b.People) && a.Terms.SequenceEqual(b.Terms);
-
-        public int GetHashCode(Project p) => p.Slug.GetHashCode();
-    }
 }

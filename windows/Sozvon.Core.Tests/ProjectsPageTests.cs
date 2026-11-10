@@ -64,6 +64,18 @@ public class ProjectEditingTests : TempFolders
     }
 
     [Fact]
+    public void AChangeInAnyShownFieldCountsAsAChange()
+    {
+        var acme = new Project("acme", "Acme", "infra", ["Анна"], ["HPA"]);
+        Assert.True(acme.SameAs(new Project("acme", "Acme", "infra", ["Анна"], ["HPA"])));
+        Assert.False(acme.SameAs(acme with { Context = "video" }));
+        Assert.False(acme.SameAs(acme with { Title = "ACME" }));
+        Assert.False(acme.SameAs(acme with { PeopleList = ["Иван"] }));
+        Assert.False(acme.SameAs(acme with { TermsList = [] }));
+        Assert.False(acme.SameAs(acme with { Slug = "acme-2" }));
+    }
+
+    [Fact]
     public void PeopleAreCountedOnceAcrossProjects()
     {
         Assert.Equal(3, Project.PeopleCount([new Project("a", "A", PeopleList: ["Анна", "Иван"]), new Project("b", "B", PeopleList: ["анна", "Олег"])]));
