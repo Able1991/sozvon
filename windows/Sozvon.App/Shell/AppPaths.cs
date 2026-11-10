@@ -1,15 +1,16 @@
 using System.IO;
+using Sozvon.Core.Engine;
 
 namespace Sozvon.App.Shell;
 
 /// <summary>The app's folders. The engine's own variables take precedence, as in docs/CONTRACT.md.</summary>
 public static class AppPaths
 {
-    public static string DataDir { get; } = FromEnvironment("SOZVON_DATA_DIR")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sozvon");
+    private static readonly EngineLayout Layout = EngineLayout.FromEnvironment(Environment.GetEnvironmentVariable);
 
-    public static string CallsDir { get; } = FromEnvironment("SOZVON_CALLS_DIR")
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Sozvon Calls");
+    public static string DataDir { get; } = Layout.Data;
+
+    public static string CallsDir { get; } = Layout.Calls;
 
     public static string SettingsFile => Path.Combine(DataDir, "settings.json");
 
@@ -27,10 +28,4 @@ public static class AppPaths
     }
 
     public static string Asset(string name) => Path.Combine(AppContext.BaseDirectory, "Shell", "Assets", name);
-
-    private static string? FromEnvironment(string name)
-    {
-        var value = Environment.GetEnvironmentVariable(name);
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
 }

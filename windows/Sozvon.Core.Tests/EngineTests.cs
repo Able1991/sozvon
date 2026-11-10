@@ -46,6 +46,24 @@ public class EngineEnvironmentTests : TempFolders
         Assert.Equal("auto", EngineEnvironment.Build(Layout, new EngineOptions(Languages: []), [])["SOZVON_LANGUAGE"]);
     }
 
+    /// <summary>
+    /// A run with its own SOZVON_DATA_DIR (a test, a second profile) keeps every part of the app in that folder: the
+    /// setup wizard it opens included, which used to fall back to the user's real folder when no --data-dir was given.
+    /// </summary>
+    [Fact]
+    public void TheFoldersComeFromTheEnginesVariables()
+    {
+        var variables = new Dictionary<string, string?> { ["SOZVON_DATA_DIR"] = Data, ["SOZVON_CALLS_DIR"] = Calls };
+        var layout = EngineLayout.FromEnvironment(name => variables.GetValueOrDefault(name));
+        Assert.Equal(Data, layout.Data);
+        Assert.Equal(Calls, layout.Calls);
+
+        var defaults = EngineLayout.Default();
+        Assert.Equal(defaults, EngineLayout.FromEnvironment(_ => null));
+        Assert.Equal(defaults, EngineLayout.FromEnvironment(_ => " "));
+        Assert.Equal(defaults with { Data = Data }, EngineLayout.FromEnvironment(name => name == "SOZVON_DATA_DIR" ? Data : ""));
+    }
+
     [Fact]
     public void WithoutAChoiceTheEnvFileDecides()
     {

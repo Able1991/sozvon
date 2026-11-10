@@ -4,7 +4,11 @@ using Microsoft.Windows.AppLifecycle;
 
 namespace Sozvon.App.Setup;
 
-/// <summary>Opens the wizard when the app was started with --setup [--data-dir folder] [--engine folder].</summary>
+/// <summary>
+/// Opens the wizard when the app was started with --setup [--data-dir folder] [--engine folder]. Without --data-dir it
+/// works on the app's own folder, SOZVON_DATA_DIR included: the app opens it with --setup alone and the wizard of a
+/// test run or a second profile must not install into the user's real folder.
+/// </summary>
 public static partial class SetupLauncher
 {
     private const string InstanceKey = "sozvon-setup";
@@ -27,7 +31,7 @@ public static partial class SetupLauncher
         }
         instance.Activated += (_, _) => _window?.DispatcherQueue.TryEnqueue(() => _window.Activate());
         // The data folder first: the wizard's language, even the error below, is the app's setting kept there.
-        var data = Path.GetFullPath(ArgumentAfter(args, "--data-dir") ?? SetupContext.DefaultDataFolder);
+        var data = Path.GetFullPath(ArgumentAfter(args, "--data-dir") ?? Shell.AppPaths.DataDir);
         Strings.Initialize(data);
         var engine = ArgumentAfter(args, "--engine") ?? SetupContext.FindEngineFolder();
         if (engine is null || !File.Exists(Path.Combine(engine, "setup.ps1")))

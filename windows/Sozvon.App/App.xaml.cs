@@ -58,13 +58,7 @@ public partial class App : Application
     }
 
     /// <summary>The default folders, or the ones given for a run outside the normal install.</summary>
-    private static EngineLayout Layout()
-    {
-        var layout = EngineLayout.Default();
-        return new EngineLayout(
-            Environment.GetEnvironmentVariable("SOZVON_DATA_DIR") ?? layout.Data,
-            Environment.GetEnvironmentVariable("SOZVON_CALLS_DIR") ?? layout.Calls);
-    }
+    private static EngineLayout Layout() => new(Shell.AppPaths.DataDir, Shell.AppPaths.CallsDir);
 
     private static string Argument(string name)
     {

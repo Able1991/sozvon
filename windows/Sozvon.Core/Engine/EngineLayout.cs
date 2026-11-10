@@ -10,6 +10,18 @@ public sealed record EngineLayout(string Data, string Calls)
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sozvon"),
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Sozvon Calls"));
 
+    /// <summary>
+    /// The folders of this run: the engine's own variables SOZVON_DATA_DIR and SOZVON_CALLS_DIR when set
+    /// (docs/CONTRACT.md), the defaults otherwise. Every part of the app, the setup wizard included, works on these.
+    /// </summary>
+    public static EngineLayout FromEnvironment(Func<string, string?> variable)
+    {
+        var defaults = Default();
+        return new(Given(variable("SOZVON_DATA_DIR")) ?? defaults.Data, Given(variable("SOZVON_CALLS_DIR")) ?? defaults.Calls);
+    }
+
+    private static string? Given(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
     public string Python => Path.Combine(Data, ".venv", "Scripts", "python.exe");
     public string ScriptsFolder => Path.GetDirectoryName(Python)!;
     public string Profiles => Path.Combine(Data, "profiles");
