@@ -279,6 +279,27 @@ public class CallModelTests : TempFolders
     }
 
     [Fact]
+    public void CallJsonWithoutDateOrTopicFallsBackToTheFolderName()
+    {
+        var dir = Path.Combine(Calls, "2026-11-07 22-14 · Acme · запуск · Анна, Иван");
+        WriteText(CallFile.PathIn(dir), """{"profile": "acme", "names": ["Анна", "Иван"], "terms": ""}""");
+        var c = Call.Load(dir)!;
+        Assert.Equal(new DateTimeOffset(new DateTime(2026, 11, 7, 22, 14, 0, DateTimeKind.Local)), c.Date);
+        Assert.Equal("запуск", c.Title);
+        Assert.Equal("Acme", c.Project);
+        // A project this computer has keeps its own title.
+        Assert.Equal("Acme Inc", Call.Load(dir, new Dictionary<string, string> { ["acme"] = "Acme Inc" })!.Project);
+    }
+
+    [Fact]
+    public void FolderNamePartsSkipThePeople()
+    {
+        Assert.Equal(("Acme", ""), Call.FolderNameParts("2026-11-07 22-14 · Acme · Анна, Иван", true, ["Анна", "Иван"]));
+        Assert.Equal(("", "запуск"), Call.FolderNameParts("2026-11-07 22-14 · запуск · Анна", false, ["Анна"]));
+        Assert.Equal(("", ""), Call.FolderNameParts("2026-11-07 22-14-2", false, []));
+    }
+
+    [Fact]
     public void ForeignFoldersSkippedAndNewestFirst()
     {
         Directory.CreateDirectory(Path.Combine(Calls, "Разное"));

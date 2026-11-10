@@ -2,6 +2,9 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Call = Sozvon.Core.Calls.Call;
+using Project = Sozvon.Core.Calls.Project;
+using TextRules = Sozvon.Core.Foundation.TextRules;
 
 namespace Sozvon.App.Calls;
 
@@ -15,7 +18,7 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
         {
             return [];
         }
-        var titles = ProjectTitles();
+        var titles = Project.Titles(Project.All(Path.Combine(dataDir, "profiles")));
         return new DirectoryInfo(callsDir).EnumerateDirectories()
             .Where(d => !d.Name.StartsWith('.'))
             .Select(d => ReadCall(d.FullName, titles))
@@ -33,47 +36,51 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
         var file = Path.Combine(folder, "call.json");
         if (!File.Exists(file))
         {
-            var id = IdPattern().Match(name);
-            return id.Success ? FromFolderName(folder, id.Value) : null;
+            return IdPattern().IsMatch(name) && Call.Load(folder, titles) is { } legacy ? FromFolderName(folder, legacy) : null;
         }
         try
         {
             using var document = JsonDocument.Parse(ReadSharedFile(file));
-            return Build(folder, name, document.RootElement, titles);
+            return document.RootElement.ValueKind == JsonValueKind.Object && Call.Load(folder, titles) is { } call
+                ? Build(folder, call, document.RootElement)
+                : Unreadable(folder, name);
         }
         catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
         {
-            return new CallRecord { Folder = folder, Id = name, Topic = name, IsUnreadable = true };
+            return Unreadable(folder, name);
         }
     }
 
-    private static CallRecord FromFolderName(string folder, string id)
-    {
-        var hasTranscript = File.Exists(Path.Combine(folder, "transcript.txt"));
-        return new CallRecord
-        {
-            Folder = folder,
-            Id = id,
-            CreatedAt = DateTimeOffset.TryParseExact(id[..16], "yyyy-MM-dd HH-mm", null, System.Globalization.DateTimeStyles.AssumeLocal, out var at) ? at : null,
-            Status = hasTranscript ? CallStatus.Done : CallStatus.Unknown,
-        };
-    }
+    private static CallRecord Unreadable(string folder, string name) =>
+        new() { Folder = folder, Id = name, Topic = name, IsUnreadable = true };
 
-    private static CallRecord Build(string folder, string name, JsonElement root, IReadOnlyDictionary<string, string> titles)
+    /// <summary>An old call without call.json: what the folder name and meta.json say.</summary>
+    private static CallRecord FromFolderName(string folder, Call call) => new()
     {
-        var slug = Text(root, "profile");
+        Folder = folder,
+        Id = call.CallId,
+        CreatedAt = call.Date,
+        Status = call.HasTranscript || File.Exists(Path.Combine(folder, "transcript.txt")) ? CallStatus.Done : CallStatus.Unknown,
+        Topic = call.Title,
+        ProjectTitle = call.Project,
+        People = TextRules.SplitList(call.People),
+        MicSeconds = call.Duration,
+    };
+
+    /// <summary>Title, project, date and people as the Mac shows them (Core's <see cref="Call"/>); the rest from call.json.</summary>
+    private static CallRecord Build(string folder, Call call, JsonElement root)
+    {
         var audio = root.TryGetProperty("audio", out var a) && a.ValueKind == JsonValueKind.Object ? a : default;
-        var people = Strings(root, "participants");
         return new CallRecord
         {
             Folder = folder,
-            Id = Text(root, "id") is { Length: > 0 } id ? id : name,
-            CreatedAt = DateTimeOffset.TryParse(Text(root, "created_at"), out var created) ? created : null,
+            Id = call.CallId,
+            CreatedAt = call.Date,
             Status = ParseStatus(Text(root, "status")),
-            Topic = Text(root, "topic"),
-            ProjectSlug = slug,
-            ProjectTitle = titles.TryGetValue(slug, out var title) ? title : Text(root, "project_title") is { Length: > 0 } restored ? restored : slug,
-            People = people.Count > 0 ? people : Strings(root, "names"),
+            Topic = call.Title,
+            ProjectSlug = call.Info.Profile,
+            ProjectTitle = call.Project,
+            People = TextRules.SplitList(call.People),
             MicSeconds = Number(audio, "mic_seconds") ?? 0,
             SystemSeconds = Number(audio, "system_seconds") ?? 0,
             MicStart = Number(audio, "mic_start"),
@@ -113,32 +120,6 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
             .ToList();
     }
 
-    private Dictionary<string, string> ProjectTitles()
-    {
-        var titles = new Dictionary<string, string>();
-        var folder = Path.Combine(dataDir, "profiles");
-        if (!Directory.Exists(folder))
-        {
-            return titles;
-        }
-        foreach (var file in Directory.EnumerateFiles(folder, "*.json"))
-        {
-            try
-            {
-                using var document = JsonDocument.Parse(ReadSharedFile(file));
-                if (document.RootElement.ValueKind == JsonValueKind.Object && Text(document.RootElement, "title") is { Length: > 0 } title)
-                {
-                    titles[Path.GetFileNameWithoutExtension(file)] = title;
-                }
-            }
-            catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
-            {
-                // An unreadable project shows under its slug.
-            }
-        }
-        return titles;
-    }
-
     private static string ReadText(string folder, string name)
     {
         var path = Path.Combine(folder, name);
@@ -168,11 +149,6 @@ public sealed partial class CallRepository(string callsDir, string dataDir)
         parent.ValueKind == JsonValueKind.Object && parent.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number
             ? value.GetDouble()
             : null;
-
-    private static List<string> Strings(JsonElement parent, string key) =>
-        parent.TryGetProperty(key, out var list) && list.ValueKind == JsonValueKind.Array
-            ? list.EnumerateArray().Where(v => v.ValueKind == JsonValueKind.String).Select(v => v.GetString()!).ToList()
-            : [];
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2} \d{2}-\d{2}(-\d+)?(?= |$)")]
     private static partial Regex IdPattern();
