@@ -42,7 +42,7 @@ internal static class Strings
         ["Добро пожаловать в Sozvon"] = "Welcome to Sozvon",
         ["Нажал значок на панели задач, созвонился, остановил. Дальше расшифровка и саммари на этом компьютере."] = "Click the icon on the taskbar, take the call, stop. Transcript and summary follow, on this PC.",
         ["Одна кнопка"] = "One button",
-        ["Запись включается в плавающей капсуле или значком в области уведомлений. Звонки Sozvon не отслеживает: запись начинается только по кнопке."] = "Start recording from the floating capsule or the notification area icon. Sozvon does not watch for calls: recording starts only when you press the button.",
+        ["Запись включается в плавающей капсуле или значком в области уведомлений. Когда приложение для звонков включает микрофон, Sozvon предлагает записать: по умолчанию он только спрашивает и сам ничего не пишет."] = "Start recording from the floating capsule or the notification area icon. When a call app turns on the microphone, Sozvon offers to record: by default it only asks and never records on its own.",
         ["Локально"] = "Private",
         ["Расшифровка идёт на компьютере. Ничего не покидает его, пока ты не включишь саммари через ассистента."] = "Transcription runs on your PC. Nothing leaves it until you turn on summaries by an assistant.",
         ["Кто что сказал"] = "Who said what",
