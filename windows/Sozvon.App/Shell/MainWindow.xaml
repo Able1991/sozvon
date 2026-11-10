@@ -10,36 +10,45 @@
     </Window.SystemBackdrop>
     <Grid x:Name="Root">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="48" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TitleBar x:Name="AppTitleBar" Title="Sozvon" IsBackButtonVisible="False" IsPaneToggleButtonVisible="False">
-            <TitleBar.Content>
-                <AutoSuggestBox x:Name="SearchBox" Width="400" VerticalAlignment="Center"
-                                PlaceholderText="{s:L K='Поиск по звонкам'}" QueryIcon="Find"
-                                TextChanged="OnSearchChanged" />
-            </TitleBar.Content>
-        </TitleBar>
+        <!-- The whole row is the drag area; only the search box takes clicks (see UpdateTitleBar). -->
+        <Grid x:Name="AppTitleBar" SizeChanged="OnTitleBarSizeChanged">
+            <StackPanel x:Name="TitleBarHeader" Margin="16,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                        Orientation="Horizontal" Spacing="16">
+                <Image x:Name="TitleBarIcon" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" VerticalAlignment="Center" Text="Sozvon" />
+            </StackPanel>
+            <AutoSuggestBox x:Name="SearchBox" MaxWidth="400" VerticalAlignment="Center"
+                            PlaceholderText="{s:L K='Поиск по звонкам'}" QueryIcon="Find"
+                            AutomationProperties.Name="{s:L K='Поиск по звонкам'}"
+                            TextChanged="OnSearchChanged" />
+        </Grid>
 
         <NavigationView x:Name="Navigation" Grid.Row="1" PaneDisplayMode="LeftCompact"
                         IsBackButtonVisible="Collapsed" IsPaneToggleButtonVisible="False" IsSettingsVisible="False"
                         SelectionChanged="OnNavigationChanged">
             <NavigationView.MenuItems>
-                <NavigationViewItem Content="{s:L K='Звонки'}" Tag="calls" Icon="Phone" />
-                <NavigationViewItem Content="{s:L K='Проекты'}" Tag="projects">
+                <NavigationViewItem Content="{s:L K='Звонки'}" Tag="calls" Icon="Phone"
+                                    ToolTipService.ToolTip="{s:L K='Звонки'}" AutomationProperties.Name="{s:L K='Звонки'}" />
+                <NavigationViewItem Content="{s:L K='Проекты'}" Tag="projects"
+                                    ToolTipService.ToolTip="{s:L K='Проекты'}" AutomationProperties.Name="{s:L K='Проекты'}">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE8B7;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItem Content="{s:L K='Голоса'}" Tag="voices">
+                <NavigationViewItem Content="{s:L K='Голоса'}" Tag="voices"
+                                    ToolTipService.ToolTip="{s:L K='Голоса'}" AutomationProperties.Name="{s:L K='Голоса'}">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE720;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="{s:L K='Настройки'}" Tag="settings" Icon="Setting" />
+                <NavigationViewItem Content="{s:L K='Настройки'}" Tag="settings" Icon="Setting"
+                                    ToolTipService.ToolTip="{s:L K='Настройки'}" AutomationProperties.Name="{s:L K='Настройки'}" />
             </NavigationView.FooterMenuItems>
             <ContentPresenter x:Name="PageHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
         </NavigationView>

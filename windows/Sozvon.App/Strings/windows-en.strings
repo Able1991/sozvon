@@ -46,7 +46,6 @@
 "Выбрать папку…" = "Choose folder…";
 "Журнал обработки" = "Processing log";
 "Завершить настройку…" = "Finish setup…";
-"Импортировать запись…" = "Import recording…";
 "Копировать расшифровку" = "Copy transcript";
 "Копировать саммари" = "Copy summary";
 "Модель распознавания" = "Speech model";
@@ -55,7 +54,6 @@
 "Не получилось расшифровать" = "Transcription failed";
 "Нет расшифровки" = "No transcript";
 "Низкий приоритет" = "Low priority";
-"Обновить саммари" = "Update summary";
 "Остановить и расшифровать" = "Stop and transcribe";
 "Открывать при входе" = "Open at sign-in";
 "Открыть расшифровку" = "Open transcript";
@@ -70,7 +68,6 @@
 "Расшифровать заново…" = "Transcribe again…";
 "Свой сервер, свои данные" = "Your server, your data";
 "Твой голос" = "Your voice";
-"Удалить в корзину" = "Move to Recycle Bin";
 "Не получилось: подробности в журнале программы." = "That did not work. The details are in the app log.";
 "Нет доступа к микрофону. Разреши его в параметрах Windows: Конфиденциальность и защита, Микрофон." = "No access to the microphone. Allow it in Windows Settings: Privacy & security, Microphone.";
 "Микрофон не открылся. Проверь, что он подключён." = "The microphone did not open. Check that it is connected.";

@@ -2,12 +2,15 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Sozvon.App.Capsule;
+using Sozvon.App.Settings;
 using Sozvon.App.Setup.Pages;
+using Sozvon.App.Shell;
+using Windows.Foundation;
 using WinRT.Interop;
 
 namespace Sozvon.App.Setup;
 
-/// <summary>The first-run wizard: seven steps in one fixed 600 x 680 window.</summary>
+/// <summary>The first-run wizard: seven steps in one fixed window 600 wide and as tall as the tallest step.</summary>
 public sealed partial class SetupWindow : Window
 {
     private const int LogicalWidth = 600, LogicalHeight = 680;
@@ -21,6 +24,7 @@ public sealed partial class SetupWindow : Window
         Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///Setup/SetupStyles.xaml") });
         InitializeComponent();
         ConfigureWindow();
+        WindowTheme.Apply(this, Root, new SettingsStore(context.SettingsFile).Settings.Theme);
 
         var state = new SetupState(context, ModelCatalog.Load(context.ModelsManifest), MachineTools.FindAssistants());
         _pages =
@@ -50,6 +54,7 @@ public sealed partial class SetupWindow : Window
             }
         };
         Show(0);
+        Root.Loaded += (_, _) => FitTallestStep();
     }
 
     private void ConfigureWindow()
@@ -57,24 +62,55 @@ public sealed partial class SetupWindow : Window
         Title = WindowTitle.Text = Strings.L("Настройка Sozvon");
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBarArea);
+        // A fixed wizard: Windows drops the maximize button only when minimize is off as well.
         var presenter = OverlappedPresenter.Create();
         presenter.IsResizable = false;
         presenter.IsMaximizable = false;
+        presenter.IsMinimizable = false;
         AppWindow.SetPresenter(presenter);
 
         var scale = NativeWindow.GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96.0;
-        var width = (int)(LogicalWidth * scale);
-        var height = (int)(LogicalHeight * scale);
+        CenterOnScreen((int)(LogicalWidth * scale), (int)(LogicalHeight * scale));
+    }
+
+    /// <summary>
+    /// Sizes the window to the tallest step at its first layout, so no step leaves an empty band above the
+    /// buttons; what grows later, like the install log, scrolls.
+    /// </summary>
+    private void FitTallestStep()
+    {
+        var shown = _index;
+        var tallest = 0.0;
+        for (var i = 0; i < _pages.Length; i++)
+        {
+            Present(i);
+            Root.Measure(new Size(LogicalWidth, double.PositiveInfinity));
+            tallest = Math.Max(tallest, Root.DesiredSize.Height);
+        }
+        Present(shown);
+        var scale = Root.XamlRoot.RasterizationScale;
+        AppWindow.ResizeClient(new((int)Math.Ceiling(LogicalWidth * scale), (int)Math.Ceiling(Math.Min(tallest, LogicalHeight) * scale)));
+        CenterOnScreen(AppWindow.Size.Width, AppWindow.Size.Height);
+    }
+
+    private void CenterOnScreen(int width, int height)
+    {
         var screen = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         AppWindow.MoveAndResize(new(screen.X + (screen.Width - width) / 2, screen.Y + (screen.Height - height) / 2, width, height));
     }
 
     private void Show(int index)
     {
+        Present(index);
+        _pages[index].OnShown();
+        Refresh();
+    }
+
+    private void Present(int index)
+    {
         _index = index;
         ErrorBar.IsOpen = false;
         Host.Content = _pages[index];
-        _pages[index].OnShown();
         Refresh();
     }
 

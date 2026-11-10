@@ -22,31 +22,23 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel Padding="8,8,8,4" Spacing="8">
-                <DropDownButton x:Name="ProjectButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
-                    <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="ProjectMenu" />
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" IsEnabled="False"
-                        ToolTipService.ToolTip="{s:L K='Пока не подключено'}">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="16" Glyph="&#xE896;" />
-                        <TextBlock Text="{s:L K='Импортировать запись…'}" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
+            <!-- One left edge for the column: 12 DIP for the dropdown and the card, 8 for the list plus the 4 its items keep. -->
+            <DropDownButton x:Name="ProjectButton" Margin="12,12,12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                <DropDownButton.Flyout>
+                    <MenuFlyout x:Name="ProjectMenu" />
+                </DropDownButton.Flyout>
+            </DropDownButton>
 
-            <InfoBar Grid.Row="1" Margin="8,0,8,4" IsOpen="{x:Bind ViewModel.IsDemoOnly, Mode=OneWay}" IsClosable="False"
+            <InfoBar Grid.Row="1" Margin="12,0,12,8" IsOpen="{x:Bind ViewModel.IsDemoOnly, Mode=OneWay}" IsClosable="False"
                      Severity="Informational" Title="{s:L K='Настоящих звонков пока нет'}"
                      Message="{s:L K='Показан демо-звонок'}" />
 
-            <ListView x:Name="CallList" Grid.Row="2" Padding="0,0,0,8" SelectionMode="Single"
+            <ListView x:Name="CallList" Grid.Row="2" Margin="8,0" Padding="0,0,0,8" SelectionMode="Single"
                       ItemsSource="{x:Bind GroupedCalls.View, Mode=OneWay}"
                       SelectionChanged="OnCallSelected">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="calls:CallRow">
-                        <Grid Padding="0,6" RowSpacing="2">
+                        <Grid Padding="0,8" RowSpacing="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
@@ -59,10 +51,10 @@
                             <TextBlock Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
                                        Style="{ThemeResource CaptionTextBlockStyle}"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Time}" />
-                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6">
+                            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{x:Bind calls:CallsPage.ProjectBrush(ProjectSlug)}"
                                          Visibility="{x:Bind calls:CallsPage.Shown(ProjectSlug)}" />
-                                <Border Padding="6,0" CornerRadius="4" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                                <Border Padding="8,0" CornerRadius="4" Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
                                         Visibility="{x:Bind calls:CallsPage.Shown(Lead)}">
                                     <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{x:Bind Lead}" />
                                 </Border>
@@ -70,7 +62,7 @@
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind calls:CallsPage.ShownIf(IsCritical, x:False)}" />
                                 <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="{x:Bind Subtitle}" TextTrimming="CharacterEllipsis"
                                            Foreground="{ThemeResource SystemFillColorCriticalBrush}" Visibility="{x:Bind calls:CallsPage.ShownIf(IsCritical, x:True)}" />
-                                <Border Padding="6,0" CornerRadius="4" Background="{ThemeResource ControlAltFillColorQuarternaryBrush}"
+                                <Border Padding="8,0" CornerRadius="4" Background="{ThemeResource ControlAltFillColorQuarternaryBrush}"
                                         Visibility="{x:Bind calls:CallsPage.Shown(Badge)}">
                                     <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind Badge}" />
                                 </Border>
@@ -80,6 +72,22 @@
                 </ListView.ItemTemplate>
                 <ListView.GroupStyle>
                     <GroupStyle>
+                        <!-- The stock header draws a heavy rule at its own inset; this one lines up with the items. -->
+                        <GroupStyle.HeaderContainerStyle>
+                            <Style TargetType="ListViewHeaderItem">
+                                <Setter Property="MinHeight" Value="0" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewHeaderItem">
+                                            <Border Margin="4,0" Padding="12,16,12,4"
+                                                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                                                <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </GroupStyle.HeaderContainerStyle>
                         <GroupStyle.HeaderTemplate>
                             <DataTemplate x:DataType="calls:CallGroup">
                                 <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" FontWeight="SemiBold"

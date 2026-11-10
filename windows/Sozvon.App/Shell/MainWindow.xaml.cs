@@ -1,8 +1,11 @@
 ﻿using System.Runtime.InteropServices;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Foundation;
+using Windows.Graphics;
 using Sozvon.App.Calls;
 using Sozvon.App.Settings;
 using static Sozvon.App.Strings.Loc;
@@ -15,6 +18,7 @@ public enum AppPage { Calls, Projects, Voices, Settings }
 public sealed partial class MainWindow : Window
 {
     private const int LogicalWidth = 1100, LogicalHeight = 720;
+    private const double TitleBarGap = 16;
     private readonly CallsViewModel _calls;
     private readonly CallsPage _callsPage;
     private readonly SettingsPage _settingsPage;
@@ -34,7 +38,8 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         AppWindow.SetIcon(AppPaths.Asset("Sozvon.ico"));
-        AppTitleBar.IconSource = new ImageIconSource { ImageSource = new BitmapImage(new Uri(AppPaths.Asset("Sozvon.ico"))) };
+        TitleBarIcon.Source = new BitmapImage(new Uri(AppPaths.Asset("Sozvon.ico")));
+        Root.Loaded += (_, _) => Root.XamlRoot.Changed += (_, _) => UpdateTitleBar();
         var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
         AppWindow.Resize(new((int)(LogicalWidth * scale), (int)(LogicalHeight * scale)));
         AppWindow.Closing += OnClosing;
@@ -96,6 +101,33 @@ public sealed partial class MainWindow : Window
             new TextBlock { Text = L("Пока не подключено"), HorizontalAlignment = HorizontalAlignment.Center },
         },
     };
+
+    private void OnTitleBarSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTitleBar();
+
+    /// <summary>
+    /// Centres the search on the whole window, as File Explorer and Settings do: equal side margins wide enough to
+    /// clear both the icon and title on the left and the caption buttons on the right. The box is the one place in
+    /// the title bar that takes clicks; the rest drags the window.
+    /// </summary>
+    private void UpdateTitleBar()
+    {
+        if (AppTitleBar.XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+        var scale = xamlRoot.RasterizationScale;
+        var header = TitleBarHeader.Margin.Left + TitleBarHeader.ActualWidth;
+        var side = Math.Max(header, AppWindow.TitleBar.RightInset / scale) + TitleBarGap;
+        SearchBox.Margin = new Thickness(side, 0, side, 0);
+
+        var width = Math.Max(0, Math.Min(SearchBox.MaxWidth, AppTitleBar.ActualWidth - 2 * side));
+        var bounds = new Rect((AppTitleBar.ActualWidth - width) / 2, (AppTitleBar.ActualHeight - SearchBox.ActualHeight) / 2, width, SearchBox.ActualHeight);
+        InputNonClientPointerSource.GetForWindowId(AppWindow.Id).SetRegionRects(NonClientRegionKind.Passthrough,
+        [
+            new RectInt32((int)Math.Round(bounds.X * scale), (int)Math.Round(bounds.Y * scale),
+                (int)Math.Round(bounds.Width * scale), (int)Math.Round(bounds.Height * scale)),
+        ]);
+    }
 
     private void OnSearchChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args) => _calls.SearchText = sender.Text;
 }

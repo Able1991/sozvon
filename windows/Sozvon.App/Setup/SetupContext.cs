@@ -8,6 +8,7 @@ internal sealed record SetupContext(string DataFolder, string EngineFolder)
     public string Python => Path.Combine(DataFolder, ".venv", "Scripts", "python.exe");
     public string EnvFile => Path.Combine(DataFolder, ".env");
     public string LogFile => Path.Combine(DataFolder, "setup.log");
+    public string SettingsFile => Path.Combine(DataFolder, "settings.json");
 
     public static string DefaultDataFolder =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sozvon");

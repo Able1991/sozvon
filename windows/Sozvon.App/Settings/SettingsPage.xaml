@@ -7,7 +7,15 @@
     xmlns:s="using:Sozvon.App.Strings">
     <UserControl.Resources>
         <Style x:Key="SectionHeader" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
-            <Setter Property="Margin" Value="0,12,0,4" />
+            <Setter Property="Margin" Value="0,28,0,4" />
+        </Style>
+        <!-- The switch alone, so it ends on the same right edge as the boxes and buttons in other rows;
+             the template keeps a fixed 12 DIP column for the text even when there is none. -->
+        <Style TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
+            <Setter Property="OnContent" Value="{x:Null}" />
+            <Setter Property="OffContent" Value="{x:Null}" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Margin" Value="0,0,-12,0" />
         </Style>
         <Style x:Key="Foot" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
             <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -15,16 +23,20 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid Padding="24,16,24,0" RowSpacing="8">
+    <Grid Padding="36,24,20,0" RowSpacing="8">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <InfoBar IsOpen="{x:Bind ViewModel.HasSaveError, Mode=OneWay}" Severity="Error" IsClosable="False"
+        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="{s:L K='Настройки'}" />
+
+        <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSaveError, Mode=OneWay}" Severity="Error" IsClosable="False"
                  Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.SaveError, Mode=OneWay}" />
 
-        <SelectorBar x:Name="Tabs" SelectionChanged="OnTabChanged" MaxWidth="1000" HorizontalAlignment="Stretch">
+        <SelectorBar x:Name="Tabs" Grid.Row="2" Margin="-12,0,0,0" SelectionChanged="OnTabChanged" HorizontalAlignment="Left">
             <SelectorBarItem Text="{s:L K='Основные'}" IsSelected="True" Tag="General" />
             <SelectorBarItem Text="{s:L K='Распознавание'}" Tag="Recognition" />
             <SelectorBarItem Text="{s:L K='Ассистенты'}" Tag="Assistants" />
@@ -32,26 +44,26 @@
             <SelectorBarItem Text="{s:L K='О программе'}" Tag="About" />
         </SelectorBar>
 
-        <ScrollViewer Grid.Row="1">
-            <Grid MaxWidth="1000" Padding="0,0,16,16">
+        <ScrollViewer Grid.Row="3">
+            <Grid MaxWidth="1000" Padding="0,0,16,24">
                 <StackPanel x:Name="General" Spacing="4">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Профиль'}" />
                     <local:SettingsRow Header="{s:L K='Как тебя подписывать'}" Description="{s:L K='Имя пишется в расшифровке рядом с твоими репликами'}">
                         <TextBox Width="260" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Тема'}">
-                        <RadioButtons MaxColumns="3" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}">
-                            <RadioButton Content="{s:L K='Светлая'}" />
-                            <RadioButton Content="{s:L K='Тёмная'}" />
-                            <RadioButton Content="{s:L K='Как в системе'}" />
-                        </RadioButtons>
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="{s:L K='Светлая'}" />
+                            <ComboBoxItem Content="{s:L K='Тёмная'}" />
+                            <ComboBoxItem Content="{s:L K='Как в системе'}" />
+                        </ComboBox>
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Язык интерфейса'}">
-                        <RadioButtons MaxColumns="3" SelectedIndex="{x:Bind ViewModel.LanguageIndex, Mode=TwoWay}">
-                            <RadioButton Content="{s:L K='Как в системе'}" />
-                            <RadioButton Content="Русский" />
-                            <RadioButton Content="English" />
-                        </RadioButtons>
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.LanguageIndex, Mode=TwoWay}">
+                            <ComboBoxItem Content="{s:L K='Как в системе'}" />
+                            <ComboBoxItem Content="Русский" />
+                            <ComboBoxItem Content="English" />
+                        </ComboBox>
                     </local:SettingsRow>
                     <InfoBar IsOpen="{x:Bind ViewModel.NeedsRelaunch, Mode=OneWay}" IsClosable="False" Severity="Informational"
                              Title="{s:L K='Язык изменится после перезапуска'}" Message="{s:L K='Открытые окна закроются, запись не прервётся.'}">
@@ -61,23 +73,23 @@
                     </InfoBar>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Запись'}" />
-                    <local:SettingsRow Header="{s:L K='Плавающая панель'}" Description="{s:L K='Капсула поверх всех окон'}" NotConnected="True">
+                    <local:SettingsRow Header="{s:L K='Плавающая панель'}" Description="{s:L K='Капсула поверх всех окон'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.FloatingPanel, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Показывать панель и без записи'}" Description="{s:L K='Капсула видна, даже когда запись не идёт'}" NotConnected="True">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PanelWhenIdle, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Когда начинается звонок'}" Description="Zoom, Google Meet, Telegram" NotConnected="True">
-                        <RadioButtons MaxColumns="3" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}">
-                            <RadioButton Content="{s:L K='Спрашивать'}" />
-                            <RadioButton Content="{s:L K='Записывать сам'}" />
-                            <RadioButton Content="{s:L K='Ничего не делать'}" />
-                        </RadioButtons>
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}">
+                            <ComboBoxItem Content="{s:L K='Спрашивать'}" />
+                            <ComboBoxItem Content="{s:L K='Записывать сам'}" />
+                            <ComboBoxItem Content="{s:L K='Ничего не делать'}" />
+                        </ComboBox>
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Останавливать после звонка'}" NotConnected="True">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.StopAfterCall, Mode=TwoWay}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Напоминать сказать о записи'}" NotConnected="True">
+                    <local:SettingsRow Header="{s:L K='Напоминать сказать о записи'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.RemindToSay, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Предупреждать о тишине'}" NotConnected="True">

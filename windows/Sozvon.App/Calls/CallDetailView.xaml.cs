@@ -59,7 +59,7 @@ public sealed partial class CallDetailView : UserControl
         LogItem.IsEnabled = call.HasLog;
         OpenTranscriptItem.IsEnabled = call.HasTranscriptFile;
         DiskSizeItem.Text = call.DiskSize;
-        DiskSizeItem.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         FindBox.Text = "";
         Tabs.SelectedItem = SummaryTab;
 
