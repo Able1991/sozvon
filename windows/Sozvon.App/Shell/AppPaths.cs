@@ -15,10 +15,6 @@ public static class AppPaths
 
     public static string EnvFile => Path.Combine(DataDir, ".env");
 
-    public static string EnginePython => Path.Combine(DataDir, ".venv", "Scripts", "python.exe");
-
-    public static string InstalledMarker => Path.Combine(DataDir, ".installed");
-
     /// <summary>
     /// One running app per data folder: a run with its own SOZVON_DATA_DIR (a test, a second profile)
     /// must not hand its launch over to the Sozvon the user works in.

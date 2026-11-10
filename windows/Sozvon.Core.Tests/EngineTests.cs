@@ -54,12 +54,21 @@ public class EngineEnvironmentTests : TempFolders
         Assert.False(env.ContainsKey("SOZVON_LLM"));
     }
 
+    /// <summary>
+    /// install.py writes .installed last, once everything is in place: python.exe alone is an install that stopped halfway,
+    /// and the marker alone is a venv that was removed.
+    /// </summary>
     [Fact]
-    public void LayoutFindsTheEngine()
+    public void LayoutFindsTheEngineOnlyWhenTheInstallFinished()
     {
         Assert.False(Layout.IsInstalled);
         WriteText(Path.Combine(Data, ".venv", "Scripts", "python.exe"), "x");
+        Assert.False(Layout.IsInstalled);
+        WriteText(Path.Combine(Data, ".installed"), "1762780000\n");
         Assert.True(Layout.IsInstalled);
+        Assert.Equal(Path.Combine(Data, ".installed"), Layout.InstalledMarker);
+        File.Delete(Layout.Python);
+        Assert.False(Layout.IsInstalled);
         Assert.Equal(Path.Combine(Data, "bin", "process_call.py"), Layout.Script("process_call.py"));
     }
 
@@ -68,6 +77,8 @@ public class EngineEnvironmentTests : TempFolders
     {
         Assert.Equal(EngineStateKind.NotInstalled, EngineState.Evaluate(Layout, WhisperModel.Turbo));
         WriteText(Layout.Python, "x");
+        Assert.Equal(EngineStateKind.NotInstalled, EngineState.Evaluate(Layout, WhisperModel.Turbo));
+        MarkInstalled();
         Assert.Equal(EngineStateKind.ModelMissing, EngineState.Evaluate(Layout, WhisperModel.Turbo));
         WriteText(Path.Combine(Data, "models", "whisper-large-v3-turbo", ".complete"), "");
         Assert.Equal(EngineStateKind.Ready, EngineState.Evaluate(Layout, WhisperModel.Turbo));
@@ -83,6 +94,7 @@ public class EngineEnvironmentTests : TempFolders
     public void AGpuInstallHashIsAccepted()
     {
         WriteText(Layout.Python, "x");
+        MarkInstalled();
         WriteText(Path.Combine(Data, "models", "whisper-large-v3-turbo", ".complete"), "");
         WriteText(Path.Combine(Data, "uv.lock"), "lock");
         WriteText(Path.Combine(Data, "gpu", "cu130.txt"), "torch");
@@ -94,6 +106,7 @@ public class EngineEnvironmentTests : TempFolders
     public void OnnxModelNeedsVad()
     {
         WriteText(Layout.Python, "x");
+        MarkInstalled();
         WriteText(Path.Combine(Data, "models", "parakeet-tdt-0.6b-v3-onnx", ".complete"), "");
         Assert.Equal(EngineStateKind.ModelMissing, EngineState.Evaluate(Layout, WhisperModel.Parakeet));
         WriteText(Path.Combine(Data, "models", "silero-vad-onnx", ".complete"), "");
@@ -210,6 +223,7 @@ public class SupervisorStubTests : TempFolders
     {
         RealEngine.RequirePython();
         RealEngine.Junction(Path.Combine(Data, ".venv"), Path.Combine(RealEngine.Install, ".venv"));
+        MarkInstalled();
         WriteText(Path.Combine(Data, "bin", EngineSupervisor.Script), script);
         return new EngineLayout(Data, Calls);
     }
@@ -411,7 +425,7 @@ public class LockInteropTests : TempFolders
 public class RealEngineTests : TempFolders
 {
     private static readonly string[] Linked = [".venv", "bin", "sozvon_engine", "models", "hf-cache", "gpu"];
-    private static readonly string[] Copied = ["models.json", ".gpu.json", "uv.lock", "pyproject.toml", ".python-version", "vocab.default.json"];
+    private static readonly string[] Copied = ["models.json", ".gpu.json", "uv.lock", "pyproject.toml", ".python-version", "vocab.default.json", ".installed"];
 
     private static void Run(string exe, params string[] args)
     {

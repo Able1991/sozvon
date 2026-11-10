@@ -1,11 +1,11 @@
 using System.ComponentModel;
-using System.IO;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
 using Sozvon.Core.Automation;
+using Sozvon.Core.Engine;
 using Sozvon.Core.Settings;
 
 namespace Sozvon.App.Settings;
@@ -15,16 +15,18 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly SettingsStore _store;
     private readonly EngineSettings _engine;
+    private readonly EngineLayout _layout;
     private readonly AppLanguage _startupLanguage;
 
-    public SettingsViewModel(SettingsStore store, EngineSettings engine, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations, SignInSetting signIn,
-        ServerViewModel server)
+    public SettingsViewModel(SettingsStore store, EngineSettings engine, EngineLayout layout, AppLanguage startupLanguage, Action relaunch, IntegrationsViewModel integrations,
+        SignInSetting signIn, ServerViewModel server)
     {
         Server = server;
         Integrations = integrations;
         SignIn = signIn;
         _store = store;
         _engine = engine;
+        _layout = layout;
         _startupLanguage = startupLanguage;
         RelaunchCommand = new RelayCommand(relaunch);
         _store.PropertyChanged += OnStoreChanged;
@@ -156,9 +158,10 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasSaveError => _store.SaveError.Length > 0;
 
-    public bool EngineInstalled => File.Exists(AppPaths.EnginePython);
+    /// <summary>The same answer the tray and the recorder give: the venv and the marker of a finished install.</summary>
+    public bool EngineInstalled => _layout.IsInstalled;
 
-    public string CallsFolder => AppPaths.CallsDir;
+    public string CallsFolder => _layout.Calls;
 
     public string PhoneFolderText => Settings.PhoneFolder.Length > 0 ? Settings.PhoneFolder : Loc.L("Не выбрана");
 
@@ -167,7 +170,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The docs on recording in one tap with the iPhone shortcut, in the interface language.</summary>
     public Uri PhoneShortcutDocs => new($"https://able1991.github.io/sozvon/docs.html#{(Loc.IsRussian ? "" : "en-")}phone-shortcut");
 
-    public string DataFolder => AppPaths.DataDir;
+    public string DataFolder => _layout.Data;
 
     /// <summary>
     /// "0.1.4 · сборка Windows, предварительная · de35056": the Mac's version (the latest tag, as build.sh takes it) and the

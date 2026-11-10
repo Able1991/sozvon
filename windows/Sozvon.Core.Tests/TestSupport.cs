@@ -25,6 +25,9 @@ public abstract class TempFolders : IDisposable
         File.WriteAllText(path, text, new UTF8Encoding(false));
     }
 
+    /// <summary>The marker install.py writes once the whole install succeeded; without it a venv is a half-finished install.</summary>
+    protected void MarkInstalled() => WriteText(Path.Combine(Data, ".installed"), "1762780000\n");
+
     /// <summary>A call folder with the given call.json fields, named and identified by <paramref name="id"/>.</summary>
     protected string MakeCall(string id, JsonObject? fields = null, string? folder = null)
     {

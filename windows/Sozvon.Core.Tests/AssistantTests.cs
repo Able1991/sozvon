@@ -308,6 +308,7 @@ public sealed class McpServerTests : TempFolders
         RealEngine.RequirePython();
         foreach (var name in new[] { ".venv", "sozvon_engine" })
             RealEngine.Junction(Path.Combine(Data, name), Path.Combine(RealEngine.Install, name));
+        MarkInstalled();
         File.Copy(Path.Combine(RealEngine.Install, McpServer.Script), Path.Combine(Data, McpServer.Script));
         var endpoint = new McpEndpoint(47931, Mcp.Token(Data));
         var server = new McpServer(new EngineLayout(Data, Calls), () => new EngineOptions("en"), endpoint);

@@ -1,10 +1,9 @@
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Sozvon.App.Calls;
 using Sozvon.App.Recording;
 using Sozvon.App.Settings;
-using Sozvon.App.Shell;
 using Sozvon.App.Strings;
+using Sozvon.Core.Engine;
 
 namespace Sozvon.App.Tray;
 
@@ -16,13 +15,15 @@ public sealed partial class TrayViewModel : ObservableObject
     private const string StateArgument = "--tray-state=";
     private readonly CallRepository _repository;
     private readonly AppSettings _settings;
+    private readonly EngineLayout _layout;
     private readonly TrayState? _previewState;
     private readonly DateTime _startedAt = DateTime.Now;
 
-    public TrayViewModel(CallRepository repository, AppSettings settings)
+    public TrayViewModel(CallRepository repository, AppSettings settings, EngineLayout layout)
     {
         _repository = repository;
         _settings = settings;
+        _layout = layout;
         _previewState = ParsePreview();
         Refresh();
     }
@@ -60,15 +61,14 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public void Refresh()
     {
-        State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : EngineInstalled() ? TrayState.Ready : TrayState.SetupNeeded);
+        // The same check as Settings' "Python" row and the recorder: the venv and the marker of a finished install.
+        State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : _layout.IsInstalled ? TrayState.Ready : TrayState.SetupNeeded);
         var calls = _repository.Scan();
         WaitingForDescription = calls.Count(c => c.IsWaitingForDescription);
         var latest = calls.FirstOrDefault(c => c.Status == CallStatus.Done && !c.IsDemo);
         LatestCallId = latest?.Id;
         LatestAudioFolder = latest is { HasAudio: true } ? latest.Folder : null;
     }
-
-    private static bool EngineInstalled() => File.Exists(AppPaths.EnginePython) && File.Exists(AppPaths.InstalledMarker);
 
     private static TrayState? ParsePreview()
     {

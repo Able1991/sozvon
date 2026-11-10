@@ -60,7 +60,7 @@ public sealed class AppHost
         _startupLanguage = _store.Settings.Language;
         Loc.Initialize(ResolvesToRussian(_startupLanguage));
         _store.Settings.PropertyChanged += OnSettingChanged;
-        _trayState = new TrayViewModel(_repository, _store.Settings);
+        _trayState = new TrayViewModel(_repository, _store.Settings, _layout);
         _tray = new TrayController(this, _trayState);
         _tray.Start();
         _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
@@ -223,13 +223,13 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        var voices = new VoiceStore(new Sozvon.Core.Engine.EngineLayout(AppPaths.DataDir, AppPaths.CallsDir), _engineSettings.Options);
+        var voices = new VoiceStore(_layout, _engineSettings.Options);
         var actions = new CallActions(AppPaths.DataDir, _engineSettings, () => _recording, voices);
         // Edits, notes and deletions reach the own server too; a run asked for while one goes is folded into one more.
         actions.Changed += selected => _ = _server.SyncAsync();
         _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, actions);
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
-        var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch, integrations, SignIn,
+        var settings = new SettingsViewModel(_store, _engineSettings, _layout, _startupLanguage, Relaunch, integrations, SignIn,
             new ServerViewModel(_server, AppPaths.EnvFile));
         var profiles = Path.Combine(AppPaths.DataDir, "profiles");
         var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);

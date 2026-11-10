@@ -15,7 +15,15 @@ public sealed record EngineLayout(string Data, string Calls)
     public string Profiles => Path.Combine(Data, "profiles");
     public string Voices => Path.Combine(Data, "voices");
     public string Env => Path.Combine(Data, ".env");
-    public bool IsInstalled => File.Exists(Python);
+
+    /// <summary>Written by the engine's install.py (paths.py: <c>installed</c>) as its last step, once everything is in place.</summary>
+    public string InstalledMarker => Path.Combine(Data, ".installed");
+
+    /// <summary>
+    /// The one answer to "is the engine installed" for the whole app: the venv's python.exe and the marker that says the
+    /// install got to its end. python.exe alone is an install that stopped halfway, which the engine would refuse to run.
+    /// </summary>
+    public bool IsInstalled => File.Exists(Python) && File.Exists(InstalledMarker);
 
     public string Script(string name) => Path.Combine(Data, "bin", name);
 }
