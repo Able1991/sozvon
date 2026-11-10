@@ -30,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Shell\Assets\*.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\Sources\Sozvon\Resources\record-*.wav" Link="Shell\Assets\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="..\..\Sources\Sozvon\Resources\en.lproj\Localizable.strings" LogicalName="mac.en.strings" />
     <EmbeddedResource Include="Strings\windows-en.strings" LogicalName="windows-en.strings" />
   </ItemGroup>
