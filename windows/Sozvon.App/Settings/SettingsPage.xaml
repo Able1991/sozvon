@@ -36,7 +36,7 @@
         <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.HasSaveError, Mode=OneWay}" Severity="Error" IsClosable="False"
                  Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.SaveError, Mode=OneWay}" />
 
-        <SelectorBar x:Name="Tabs" Grid.Row="2" Margin="-12,0,0,0" SelectionChanged="OnTabChanged" HorizontalAlignment="Left">
+        <SelectorBar x:Name="Tabs" Grid.Row="2" Margin="-12,0,0,0" SelectionChanged="OnTabChanged" PreviewKeyDown="OnTabsKey" HorizontalAlignment="Left">
             <SelectorBarItem Text="{s:L K='Основные'}" IsSelected="True" Tag="General" />
             <SelectorBarItem Text="{s:L K='Распознавание'}" Tag="Recognition" />
             <SelectorBarItem Text="{s:L K='Ассистенты'}" Tag="Assistants" />
@@ -44,7 +44,8 @@
             <SelectorBarItem Text="{s:L K='О программе'}" Tag="About" />
         </SelectorBar>
 
-        <ScrollViewer Grid.Row="3">
+        <!-- A tab stop of its own, as scrollable regions should be; a tab chosen with the mouse puts the focus here, quietly. -->
+        <ScrollViewer x:Name="Pane" Grid.Row="3" ViewChanged="OnPaneScrolled" IsTabStop="True" AutomationProperties.Name="{s:L K='Настройки'}">
             <Grid MaxWidth="1000" Padding="0,0,16,24">
                 <StackPanel x:Name="General" Spacing="4">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Профиль'}" />
@@ -72,12 +73,14 @@
                         </InfoBar.ActionButton>
                     </InfoBar>
 
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Запуск'}" />
+                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" Description="{x:Bind ViewModel.SignIn.Description, Mode=OneWay}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.SignIn.IsOn, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Открывать при входе'}" />
+                    </local:SettingsRow>
+
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Запись'}" />
                     <local:SettingsRow Header="{s:L K='Плавающая панель'}" Description="{s:L K='Капсула поверх всех окон'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.FloatingPanel, Mode=TwoWay}" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Показывать панель и без записи'}" Description="{s:L K='Капсула видна, даже когда запись не идёт'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PanelWhenIdle, Mode=TwoWay}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Когда начинается звонок'}" Description="{x:Bind ViewModel.CallStartDescription, Mode=OneWay}">
                         <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}">
@@ -95,8 +98,8 @@
                     <local:SettingsRow Header="{s:L K='Предупреждать о тишине'}" Description="{s:L K='Если тебя или собеседников не слышно больше двух минут или тебя очень тихо слышно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.WarnOnSilence, Mode=TwoWay}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Звук при старте и остановке записи'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PlaySounds, Mode=TwoWay}" />
+                    <local:SettingsRow Header="{s:L K='Звук при старте и остановке записи'}" Description="{s:L K='Во время звонка звука нет: его услышали бы собеседники'}">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PlaySounds, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Звук при старте и остановке записи'}" />
                     </local:SettingsRow>
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.RecordingFooter, Mode=OneWay}" />
 
@@ -126,9 +129,6 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках.'}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='После звонка'}" />
-                    <local:SettingsRow Header="{s:L K='Открывать при входе'}" Description="{x:Bind ViewModel.SignIn.Description, Mode=OneWay}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.SignIn.IsOn, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Открывать при входе'}" />
-                    </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />
                     </local:SettingsRow>
@@ -156,11 +156,6 @@
                         <ToggleSwitch IsOn="{x:Bind ViewModel.LanguageSwitching, Mode=TwoWay}" />
                     </local:SettingsRow>
 
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Производительность'}" />
-                    <local:SettingsRow Header="{s:L K='Низкий приоритет'}" Description="{s:L K='Вентиляторы тише, расшифровка дольше'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.LowPriority, Mode=TwoWay}" />
-                    </local:SettingsRow>
-
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Движок'}" />
                     <local:SettingsRow Header="Python">
                         <TextBlock x:Name="PythonStatus" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -184,8 +179,6 @@
                     <local:SettingsRow Header="{s:L K='Помощник для саммари'}">
                         <RadioButtons SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}">
                             <RadioButton Content="Claude Code" />
-                            <RadioButton Content="Codex" IsEnabled="False" />
-                            <RadioButton Content="Cursor" IsEnabled="False" />
                             <RadioButton Content="{s:L K='Без саммари'}" />
                         </RadioButtons>
                     </local:SettingsRow>
@@ -244,9 +237,7 @@
                              Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.Server.SaveError, Mode=OneWay}" />
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Свой сервер, свои данные'}" />
                     <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Копии готовых звонков уходят на сервер в твоём аккаунте Cloudflare: так Claude и ChatGPT видят их и с телефона. У нас ничего не хранится.'}" />
-                    <local:SettingsRow Header="Cloudflare" Description="{s:L K='Поставить сервер в один клик пока можно только с Mac. Здесь укажи адрес и пароль сервера, который уже есть.'}">
-                        <Button Content="{s:L K='Подключить Cloudflare'}" IsEnabled="False" />
-                    </local:SettingsRow>
+                    <TextBlock Style="{StaticResource Foot}" Text="{s:L K='Поставить сервер в один клик пока можно только с Mac. Здесь укажи адрес и пароль сервера, который уже есть.'}" />
 
                     <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.Server.HasConnector, Mode=OneWay}">
                         <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Claude и ChatGPT'}" />
@@ -312,19 +303,6 @@
                 <StackPanel x:Name="About" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Sozvon" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Version}" />
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Обновления'}" />
-                    <local:SettingsRow Header="{s:L K='Обновлять автоматически'}" NotConnected="True">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.AutoUpdate, Mode=TwoWay}" />
-                    </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Проверить обновления'}" NotConnected="True">
-                        <Button Content="{s:L K='Проверить'}" IsEnabled="False" />
-                    </local:SettingsRow>
-
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Поддержка'}" />
-                    <local:SettingsRow Header="{s:L K='Если что-то не работает'}" NotConnected="True">
-                        <Button Content="{s:L K='Диагностика…'}" IsEnabled="False" />
-                    </local:SettingsRow>
-
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Ссылки'}" />
                     <local:SettingsRow Header="{s:L K='Сайт'}">
                         <HyperlinkButton Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />
@@ -338,5 +316,8 @@
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+        <!-- The tabs stay put while the pane scrolls under them: a hairline marks the edge once anything is hidden there. -->
+        <Border x:Name="PaneDivider" Grid.Row="3" Height="1" Margin="-36,0,-20,0" VerticalAlignment="Top" Visibility="Collapsed"
+                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
     </Grid>
 </UserControl>

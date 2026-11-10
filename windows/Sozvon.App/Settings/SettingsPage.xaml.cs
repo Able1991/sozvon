@@ -15,6 +15,9 @@ namespace Sozvon.App.Settings;
 public sealed partial class SettingsPage : UserControl
 {
     private readonly MyVoice _myVoice;
+
+    /// <summary>The last tab change came from a key on the tabs, not the mouse.</summary>
+    private bool _tabsByKeyboard;
     private readonly Action _showVoices;
 
     /// <param name="showVoices">"Manage…": the Voices page with every saved voice.</param>
@@ -66,6 +69,16 @@ public sealed partial class SettingsPage : UserControl
         {
             pane.Visibility = pane.Name == tag ? Visibility.Visible : Visibility.Collapsed;
         }
+        Pane.ChangeView(null, 0, null, disableAnimation: true);
+        // A tab chosen with the mouse (or through UI Automation) leaves no focus rectangle: the pane takes the focus as a
+        // click would give it (Programmatic would still draw one after keyboard-like input such as UI Automation). Arrow
+        // keys on the tabs are left alone, so keyboard users go on from where they are.
+        if (!_tabsByKeyboard)
+        {
+            // After the click (or the automation call) has placed its own focus.
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => Pane.Focus(FocusState.Pointer));
+        }
+        _tabsByKeyboard = false;
         // Each look runs the assistants' tools again, as the Mac does when the pane appears.
         if (tag == nameof(Assistants) && !ViewModel.Integrations.Busy)
         {
@@ -80,6 +93,12 @@ public sealed partial class SettingsPage : UserControl
             ViewModel.Server.Appeared();
         }
     }
+
+    private void OnTabsKey(object sender, KeyRoutedEventArgs e) => _tabsByKeyboard = true;
+
+    /// <summary>The hairline under the tabs shows only while some of the pane is scrolled under them.</summary>
+    private void OnPaneScrolled(object? sender, ScrollViewerViewChangedEventArgs e) =>
+        PaneDivider.Visibility = Pane.VerticalOffset > 0.5 ? Visibility.Visible : Visibility.Collapsed;
 
     private void OnServerFieldKeyDown(object sender, KeyRoutedEventArgs e)
     {
