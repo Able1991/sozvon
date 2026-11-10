@@ -280,11 +280,19 @@ MESSAGES = {
     "install_done": ("Готово", "Done"),
 }
 
+# Texts that name an OS setting differ by platform; macOS keeps the texts above.
+WINDOWS = {
+    "err_no_audio": ("в записи нет звука ни на одной дорожке (проверь доступ к микрофону в Параметрах Windows)",
+                     "the recording has no sound on any track (check microphone access in Windows Settings)"),
+}
+
+
 def lang() -> str:
     """ru if the app is in Russian; otherwise en."""
     return "ru" if (os.environ.get("SOZVON_UI_LANG") or "ru").lower().startswith("ru") else "en"
 
 
 def t(key: str, **kw) -> str:
-    ru, en = MESSAGES[key]
+    from . import platform_support
+    ru, en = (WINDOWS if platform_support.SYSTEM == "win32" else {}).get(key) or MESSAGES[key]
     return (ru if lang() == "ru" else en).format(**kw)
