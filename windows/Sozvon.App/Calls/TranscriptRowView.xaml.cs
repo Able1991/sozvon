@@ -33,6 +33,12 @@ public sealed partial class TranscriptRowView : UserControl
     /// <summary>A click on the row: the card plays from there.</summary>
     public event EventHandler<TranscriptRow>? Activated;
 
+    /// <summary>"Rename speaker…" in the row's menu.</summary>
+    public event EventHandler<TranscriptRow>? RenameRequested;
+
+    /// <summary>"Fix word…" in the row's menu.</summary>
+    public event EventHandler<TranscriptRow>? FixRequested;
+
     public TranscriptRow? Row
     {
         get => (TranscriptRow?)GetValue(RowProperty);
@@ -89,6 +95,7 @@ public sealed partial class TranscriptRowView : UserControl
         ToolTipService.SetToolTip(StarIcon, star);
         ToolTipService.SetToolTip(Root, row.IsVoiced ? L("Голос «%@» сохранён: Sozvon узнаёт этого человека в следующих звонках", row.Speaker) : null);
         AutomationProperties.SetName(this, $"{row.Time} {row.Speaker}: {row.Text}");
+        ContextFlyout = Menu(row);
         ShowPlaying();
         ShowMatches();
     }
@@ -136,9 +143,45 @@ public sealed partial class TranscriptRowView : UserControl
         }
     }
 
+    /// <summary>Play from here, Copy, then the edits, which wait while the call is recorded or transcribed.</summary>
+    private MenuFlyout Menu(TranscriptRow row)
+    {
+        var menu = new MenuFlyout();
+        void Add(string text, Action action, bool enabled = true)
+        {
+            var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+        if (row.CanPlay)
+        {
+            Add(L("Слушать отсюда"), Activate);
+        }
+        Add(L("Копировать"), () =>
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(row.ToString());
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        });
+        menu.Items.Add(new MenuFlyoutSeparator());
+        Add(L("Переименовать говорящего…"), () => RenameRequested?.Invoke(this, row), row.CanEdit);
+        Add(L("Исправить слово…"), () => FixRequested?.Invoke(this, row), row.CanEdit);
+        return menu;
+    }
+
     private static Color Accent(string key) => (Color)Application.Current.Resources[key];
 
     private void OnTapped(object sender, TappedRoutedEventArgs e) => Activate();
+
+    /// <summary>Enter or Space on a focused line plays from there; the menu key opens its menu.</summary>
+    private void OnKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key is Windows.System.VirtualKey.Enter or Windows.System.VirtualKey.Space && Row is { CanPlay: true })
+        {
+            Activate();
+            e.Handled = true;
+        }
+    }
 
     private void Activate()
     {

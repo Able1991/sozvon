@@ -20,9 +20,11 @@ public sealed record ParticipantChip(string Name, bool Saved, bool Unconfirmed, 
 /// <summary>An opened call: header, status, the summary feed, the transcript and the player.</summary>
 public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
 {
-    public CallDetailViewModel(CallRecord call, CallContent content, string myName, IReadOnlyCollection<VoiceRecord> voices)
+    public CallDetailViewModel(CallRecord call, CallContent content, string myName, IReadOnlyCollection<VoiceRecord> voices, CallActions actions)
     {
         Call = call;
+        Actions = actions;
+        Me = myName.Trim();
         Transcript = content.Transcript;
         Summary = content.Summary;
         Meta = CallFormat.Meta(call);
@@ -34,6 +36,11 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         Participants = Chips(call, speakers, me, voices, Unsaved);
         Notes = new ObservableCollection<NoteRow>(call.Notes.Select(Row));
         Player = new CallPlayer(call);
+        foreach (var row in Rows)
+        {
+            row.CanPlay = Player.IsAvailable;
+            row.CanEdit = !actions.IsEditLocked(call);
+        }
         (BannerKind, BannerText) = Banner(call);
         TranscriptPath = Path.Combine(call.Folder, "transcript.md");
         LogPath = Path.Combine(call.Folder, "process.log");
@@ -41,6 +48,10 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     }
 
     public CallRecord Call { get; }
+    public CallActions Actions { get; }
+
+    /// <summary>The user's name as the transcript writes it.</summary>
+    public string Me { get; }
     public string Transcript { get; }
     public string Summary { get; }
     public string Meta { get; }

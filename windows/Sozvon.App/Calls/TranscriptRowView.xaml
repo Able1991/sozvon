@@ -2,7 +2,8 @@
 <UserControl
     x:Class="Sozvon.App.Calls.TranscriptRowView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="True" UseSystemFocusVisuals="True" KeyDown="OnKeyDown">
     <Grid x:Name="Root" CornerRadius="4" Background="Transparent" Tapped="OnTapped">
         <Border x:Name="StarredFill" Background="#1FF5B400" Visibility="Collapsed" />
         <Border x:Name="PlayingFill" Background="{ThemeResource AccentFillColorDefaultBrush}" Opacity="0.14" Visibility="Collapsed" />

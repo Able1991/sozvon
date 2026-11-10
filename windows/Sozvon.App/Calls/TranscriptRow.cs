@@ -32,6 +32,12 @@ public sealed partial class TranscriptRow(TranscriptLine line, int ordinal, int 
     /// <summary>The speaker's voice is saved: Sozvon recognises them in the next calls.</summary>
     public bool IsVoiced { get; } = voiced;
 
+    /// <summary>The call has audio: a click plays from this line.</summary>
+    public bool CanPlay { get; set; }
+
+    /// <summary>Not being recorded or transcribed: the line can be renamed or fixed.</summary>
+    public bool CanEdit { get; set; }
+
     /// <summary>Matches of the open find bar in this paragraph.</summary>
     [ObservableProperty] public partial IReadOnlyList<TranscriptFind.Match> Found { get; set; } = [];
 

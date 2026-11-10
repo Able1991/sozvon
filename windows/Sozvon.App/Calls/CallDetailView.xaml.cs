@@ -23,6 +23,7 @@ public sealed partial class CallDetailView : UserControl
     private List<TranscriptRow> _marked = [];
     private TranscriptRow? _playing;
     private CallNote? _deletedNote;
+    private (string Id, double Offset)? _shown;
 
     /// <summary>The tab last chosen, kept from call to call as on the Mac.</summary>
     private bool _wantsTranscript;
@@ -42,12 +43,22 @@ public sealed partial class CallDetailView : UserControl
                 _viewModel.Player.PropertyChanged -= OnPlayerChanged;
             }
             CloseFind();
+            if (_viewModel is not null)
+            {
+                _shown = (_viewModel.Call.Id, Scroller.VerticalOffset);
+            }
             _viewModel = value;
             Bindings.Update();
             if (value is not null)
             {
                 value.Player.PropertyChanged += OnPlayerChanged;
                 ShowCall(value);
+                // The same call read again after an edit keeps its place on the page.
+                if (_shown is { } shown && shown.Id == value.Call.Id)
+                {
+                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                        () => Scroller.ChangeView(null, shown.Offset, null, disableAnimation: true));
+                }
             }
         }
     }
@@ -249,6 +260,85 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
+    private async void OnRenameRequested(object? sender, TranscriptRow row)
+    {
+        if (ViewModel is not { } call)
+        {
+            return;
+        }
+        var dialog = new RenameSpeakerDialog(row, call.Rows, Suggestions(call, row.Speaker)) { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Action is not { } action)
+        {
+            return;
+        }
+        var actions = call.Actions;
+        var error = action switch
+        {
+            RenameAction.Swap swap => actions.SwapSpeakers(call.Call, row.Speaker, swap.With),
+            RenameAction.Line line => actions.ReassignLine(call.Call, row, line.To),
+            _ => actions.RenameSpeaker(call.Call, row.Speaker, action.Name),
+        };
+        await ShowProblem(error);
+    }
+
+    /// <summary>Fix the word; then, as on the Mac, offer to fix it in new transcripts of the project too.</summary>
+    private async void OnFixRequested(object? sender, TranscriptRow row)
+    {
+        if (ViewModel is not { } call)
+        {
+            return;
+        }
+        var dialog = new FixWordDialog(row) { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+        var (wrong, right) = (dialog.Wrong, dialog.Right);
+        if (call.Actions.FixWord(call.Call, row, wrong, right) is { } error)
+        {
+            await ShowProblem(error);
+            return;
+        }
+        var project = call.Actions.ProjectOf(call.Call);
+        var learn = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = project is null ? L("Запоминать для всех звонков?") : L("Запоминать для проекта «%@»?", project.ShortTitle),
+            Content = new TextBlock { Text = L("В новых расшифровках «%@» будет сразу заменяться на «%@».", wrong, right), TextWrapping = TextWrapping.Wrap },
+            PrimaryButtonText = L("Запоминать"),
+            CloseButtonText = L("Не надо"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await learn.ShowAsync() == ContentDialogResult.Primary)
+        {
+            await ShowProblem(call.Actions.Remember(wrong, right, project));
+        }
+    }
+
+    private async Task ShowProblem(string? problem)
+    {
+        if (problem is not null && XamlRoot is { } root)
+        {
+            await new ContentDialog { XamlRoot = root, Title = problem, CloseButtonText = "OK" }.ShowAsync();
+        }
+    }
+
+    /// <summary>
+    /// Names to offer: the other people speaking in this transcript, the user, the call's participants, then the
+    /// people of its project; each once, without generic labels and without the speaker itself.
+    /// </summary>
+    private static List<string> Suggestions(CallDetailViewModel call, string speaker)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { speaker };
+        var named = call.Rows.Select(r => r.Speaker).Where(s => !Voices.IsGenericLabel(s, call.Me));
+        var people = call.Call.People.Concat(call.Actions.ProjectOf(call.Call)?.People ?? []);
+        return named.Append(call.Me).Concat(people)
+            .Select(Transcript.CleanSpeaker).OfType<string>()
+            .Where(seen.Add)
+            .Take(16)
+            .ToList();
+    }
+
     private void OnFindChanged(object sender, TextChangedEventArgs e)
     {
         _found = ViewModel is null ? [] : TranscriptFind.Matches(FindBox.Text, ViewModel.Rows.Select(r => r.Line.Text).ToList());
@@ -350,10 +440,14 @@ public sealed partial class CallDetailView : UserControl
         ShowNoNotes();
     }
 
-    private void ShowNoNotes() =>
-        NoNotesText.Visibility = ViewModel is { Notes.Count: 0 } && NoteBox.Visibility == Visibility.Collapsed && NoteDeleted.Visibility == Visibility.Collapsed
+    private void ShowNoNotes()
+    {
+        var empty = ViewModel is { Notes.Count: 0 };
+        NotesList.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+        NoNotesText.Visibility = empty && NoteBox.Visibility == Visibility.Collapsed && NoteDeleted.Visibility == Visibility.Collapsed
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
 
     /// <summary>"Add": the field appears; Enter adds, Esc cancels.</summary>
     private void OnAddNote(object sender, RoutedEventArgs e)

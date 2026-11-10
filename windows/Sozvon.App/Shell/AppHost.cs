@@ -73,6 +73,7 @@ public sealed class AppHost
         _trayState.Recording = recording;
         capsule.HideRequested += (_, _) => _store.Settings.FloatingPanel = false;
         recording.StateChanged += (_, _) => _tray.Refresh();
+        recording.CallsChanged += (_, _) => _ = _calls?.RefreshAsync();
         recording.RemindToSay = () => _store.Settings.RemindToSay;
         recording.PanelVisible = () => _store.Settings.FloatingPanel;
         recording.SetupNeeded += (_, _) => OpenSetup();
@@ -176,7 +177,7 @@ public sealed class AppHost
 
     private MainWindow CreateWindow()
     {
-        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings);
+        _calls = new CallsViewModel(_repository, _store.Settings, _engineSettings, new CallActions(AppPaths.DataDir, _engineSettings, () => _recording));
         var settings = new SettingsViewModel(_store, _engineSettings, _startupLanguage, Relaunch);
         return new MainWindow(_calls, settings);
     }

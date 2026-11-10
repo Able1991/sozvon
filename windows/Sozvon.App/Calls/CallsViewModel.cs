@@ -27,8 +27,30 @@ public sealed class CallGroup(string title, IEnumerable<CallRow> rows) : List<Ca
 public sealed record ProjectFilter(string Slug, string Title);
 
 /// <summary>The Calls page: the list, its project filter and search, and the opened call.</summary>
-public sealed partial class CallsViewModel(CallRepository repository, AppSettings settings, EngineSettings engine) : ObservableObject, IDisposable
+public sealed partial class CallsViewModel : ObservableObject, IDisposable
 {
+    private readonly CallRepository _repository;
+    private readonly AppSettings _settings;
+    private readonly EngineSettings _engine;
+
+    public CallsViewModel(CallRepository repository, AppSettings settings, EngineSettings engine, CallActions actions)
+    {
+        _repository = repository;
+        _settings = settings;
+        _engine = engine;
+        Actions = actions;
+        actions.Changed += dir =>
+        {
+            if (dir is not null)
+            {
+                _pendingCallId = dir;
+            }
+            _ = RefreshAsync();
+        };
+    }
+
+    public CallActions Actions { get; }
+
     public static readonly ProjectFilter AllProjects = new("", Loc.L("Все проекты"));
 
     private IReadOnlyList<CallRecord> _calls = [];
@@ -59,7 +81,7 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
 
     public async Task RefreshAsync()
     {
-        var calls = await Task.Run(repository.Scan);
+        var calls = await Task.Run(_repository.Scan);
         IsDemoOnly = calls.Count == 0;
         _calls = IsDemoOnly ? [DemoCall.Create()] : calls;
         RebuildProjects();
@@ -166,10 +188,10 @@ public sealed partial class CallsViewModel(CallRepository repository, AppSetting
         {
             return;
         }
-        var (content, voices) = await Task.Run(() => (repository.LoadContent(call), repository.Voices()));
+        var (content, voices) = await Task.Run(() => (_repository.LoadContent(call), _repository.Voices()));
         if (SelectedRow?.Call == call)
         {
-            Detail = new CallDetailViewModel(call, content, engine.Name, voices);
+            Detail = new CallDetailViewModel(call, content, _engine.Name, voices, Actions);
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <UserControl
     x:Class="Sozvon.App.Calls.CallDetailView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -250,13 +250,14 @@
                 </StackPanel>
 
                 <StackPanel x:Name="TranscriptContent" Visibility="Collapsed">
-                    <ItemsRepeater x:Name="TranscriptRepeater" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                    <ItemsRepeater x:Name="TranscriptRepeater" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}"
+                                   TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled">
                         <ItemsRepeater.Layout>
                             <StackLayout Spacing="2" />
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="calls:TranscriptRow">
-                                <calls:TranscriptRowView Row="{x:Bind}" Activated="OnRowActivated" />
+                                <calls:TranscriptRowView Row="{x:Bind}" Activated="OnRowActivated" RenameRequested="OnRenameRequested" FixRequested="OnFixRequested" />
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
