@@ -94,7 +94,7 @@
             <RowDefinition Height="56" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="16,0,8,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+        <Grid Padding="12,0,24,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
             <SelectorBar x:Name="Tabs" HorizontalAlignment="Left" SelectionChanged="OnTabChanged">
                 <SelectorBarItem x:Name="SummaryTab" Text="{s:L K='Саммари'}" IsSelected="True" />
                 <SelectorBarItem x:Name="TranscriptTab" Text="{s:L K='Расшифровка'}" />
@@ -112,12 +112,9 @@
                 <DropDownButton Content="{s:L K='Ещё'}">
                     <DropDownButton.Flyout>
                         <MenuFlyout>
-                            <MenuFlyoutItem Text="{s:L K='Расшифровать заново…'}" IsEnabled="False" />
-                            <MenuFlyoutItem Text="{s:L K='Обновить саммари'}" IsEnabled="False" />
                             <MenuFlyoutItem x:Name="ShowFolderItem" Text="{s:L K='Показать в проводнике'}" Click="OnShowFolder" />
                             <MenuFlyoutItem x:Name="LogItem" Text="{s:L K='Журнал обработки'}" Click="OnOpenLog" />
-                            <MenuFlyoutItem Text="{s:L K='Удалить в корзину'}" IsEnabled="False" />
-                            <MenuFlyoutSeparator />
+                            <MenuFlyoutSeparator x:Name="DiskSizeSeparator" />
                             <MenuFlyoutItem x:Name="DiskSizeItem" IsEnabled="False" />
                         </MenuFlyout>
                     </DropDownButton.Flyout>
@@ -126,7 +123,7 @@
         </Grid>
 
         <ScrollViewer x:Name="SummaryPane" Grid.Row="1">
-            <StackPanel Padding="16,12,16,16" Spacing="12">
+            <StackPanel Padding="24,16,24,24" Spacing="12">
                 <StackPanel Spacing="4">
                     <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextWrapping="Wrap" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Meta, Mode=OneWay}" />
@@ -184,7 +181,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <StackPanel Padding="16,8" Orientation="Horizontal" Spacing="4">
+            <StackPanel Padding="24,8" Orientation="Horizontal" Spacing="4">
                 <TextBox x:Name="FindBox" Width="280" PlaceholderText="{s:L K='Найти в расшифровке (Ctrl+F)'}" TextChanged="OnFindChanged" />
                 <TextBlock x:Name="FindCount" Margin="8,0" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 <Button ToolTipService.ToolTip="{s:L K='Предыдущее совпадение'}" AutomationProperties.Name="{s:L K='Предыдущее совпадение'}" Click="OnFindPrevious">
@@ -201,7 +198,7 @@
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{s:L K='Нет расшифровки'}" />
         </Grid>
 
-        <Grid x:Name="PlayerBar" Grid.Row="2" Padding="16,0" ColumnSpacing="8"
+        <Grid x:Name="PlayerBar" Grid.Row="2" Padding="24,0" ColumnSpacing="8"
               BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
