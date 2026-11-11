@@ -153,6 +153,14 @@ final class CallsModel: ObservableObject {
 
     func stopWatching() { watcher?.stop() }
 
+    /// The calls folder changed (Settings): watch the new one, if the window watches at all, and list its calls.
+    func followCallsFolder() {
+        let wasWatching = watcher != nil
+        watcher?.stop()
+        watcher = nil
+        if wasWatching { startWatching() } else { reload() }
+    }
+
     /// In the filtered project, or the live call (shown under "Now" whatever the filter).
     private func isShown(_ c: Call) -> Bool {
         CallFilter.isShown(c, filter: projectFilter, isLive: isRecording(c.url))

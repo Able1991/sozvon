@@ -42,6 +42,7 @@ MESSAGES = {
     "log_transcribing": ("транскрибация {track} …", "transcribing {track} …"),
     "log_transcribing_model": ("транскрибация {track} ({model}) …", "transcribing {track} ({model}) …"),
     "log_segments": ("{track}: {n} сегментов", "{track}: {n} segments"),
+    "log_unheard": ("{track}: убрано {n} строк без голоса под ними", "{track}: {n} lines with no voice under them removed"),
     "log_track_lang": ("{track}: язык {lang} ({share:.0%} среди {allowed})",
                        "{track}: language {lang} ({share:.0%} among {allowed})"),
     "all_languages": ("всех", "all"),

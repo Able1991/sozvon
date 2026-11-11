@@ -722,3 +722,56 @@ def test_remote_lines_are_checked_against_saved_voices(tmp_path, capsys, fakes, 
     assert seen["texts"] == ["Бюджет согласован."]
     assert "Евгений: Бюджет согласован." in (d / "transcript.txt").read_text(encoding="utf-8")
 
+
+
+def test_models_leave_memory_as_soon_as_their_stage_is_over(tmp_path, capsys, fakes, monkeypatch):
+    """Whisper (1.5 GB) is not needed to tell the voices apart, nor pyannote for the summary and the listening file."""
+    from sozvon_engine import diarize
+    events = []
+    arrange = run.arrange
+    monkeypatch.setattr(transcribe, "transcribe_tracks", lambda tr, **kw: (
+        events.append("whisper"), ({"mic": [(0.0, 2.0, "Привет.")]}, {"mic": "ru"}))[1])
+    monkeypatch.setattr(whisper, "release_model", lambda: events.append("whisper dropped"))
+    monkeypatch.setattr(run, "arrange", lambda *a, **k: (events.append("voices"), arrange(*a, **k))[1])
+    monkeypatch.setattr(diarize, "unload", lambda: events.append("pyannote dropped"), raising=False)
+    monkeypatch.setattr(run.listen_stage, "render", lambda *a, **k: events.append("listening file"))
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01"})
+    assert run.main([str(d)]) == 0
+    assert events == ["whisper", "whisper dropped", "voices", "pyannote dropped", "listening file"]
+
+
+# Summary language: the conversation's by default; a chosen one (SOZVON_SUMMARY_LANGUAGE) wins, so an English
+# call can be summarized in Russian.
+
+def summary_prompts(monkeypatch, fakes, call_lang):
+    monkeypatch.setattr(transcribe, "transcribe_tracks", lambda tr, **kw: (
+        {"mic": [(0.0, 2.0, "Hello, let's start.")], "system": [(3.0, 5.0, "Budget approved.")]},
+        {"mic": call_lang, "system": call_lang}))
+    monkeypatch.setattr(llm, "backend", lambda settings=None, only=None: ("claude", "/bin/claude"))
+    seen = []
+    monkeypatch.setattr(llm, "run", lambda prompt, cwd, **kw: (seen.append(prompt) or "## Summary\nok", "claude", ""))
+    return seen
+
+
+def test_the_summary_is_in_the_conversation_language_by_default(tmp_path, capsys, fakes, monkeypatch):
+    seen = summary_prompts(monkeypatch, fakes, "en")
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "summary": True})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    assert "in English" in seen[-1]
+
+
+def test_a_chosen_summary_language_wins_over_the_conversation(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setenv("SOZVON_SUMMARY_LANGUAGE", "ru")
+    seen = summary_prompts(monkeypatch, fakes, "en")
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "summary": True})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    assert "саммари на русском" in seen[-1]
+
+
+def test_a_new_summary_uses_the_chosen_language_too(tmp_path, capsys, fakes, monkeypatch):
+    monkeypatch.setenv("SOZVON_SUMMARY_LANGUAGE", "en")
+    seen = summary_prompts(monkeypatch, fakes, "ru")
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01", "summary": True, "languages": "ru"})
+    (d / "transcript.txt").write_text("[00:00] Борис: Привет.\n[00:03] Анна: Бюджет согласован.\n")
+    assert run.main([str(d), "--summary-only"]) == 0
+    assert "in English" in seen[-1]

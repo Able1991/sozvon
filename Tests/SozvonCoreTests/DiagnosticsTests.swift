@@ -29,6 +29,7 @@ final class DiagnosticsTests: TempDirTestCase {
         try write("c", logs.appendingPathComponent("cloudflare.log"))
         try write("s", data.appendingPathComponent("setup.log"))
         try write("m", data.appendingPathComponent("mcp.log"))
+        try write("a", data.appendingPathComponent("assistant.log"))
         try write("TOKEN=abc", data.appendingPathComponent(".env"))
         try write("x", data.appendingPathComponent("voice.log"))
         try write("x", data.appendingPathComponent("voices/anna.json"))
@@ -37,7 +38,7 @@ final class DiagnosticsTests: TempDirTestCase {
         }
         let picked = DiagnosticArchive.selection(logs: logs, data: data, calls: calls)
         let names = picked.map(\.name)
-        XCTAssertEqual(Set(names.filter { !$0.hasPrefix("process-") }), ["recorder.log", "cloudflare.log", "setup.log", "mcp.log"])
+        XCTAssertEqual(Set(names.filter { !$0.hasPrefix("process-") }), ["recorder.log", "cloudflare.log", "setup.log", "mcp.log", "assistant.log"])
         // The five newest by log time: 3 to 7, named by the date id, never by the folder title.
         XCTAssertEqual(Set(names.filter { $0.hasPrefix("process-") }),
                        (3...7).reduce(into: Set<String>()) { $0.insert("process-2026-11-0\($1) 10-00.log") })
@@ -338,6 +339,26 @@ final class DiagnosticsTests: TempDirTestCase {
         let checksText = try String(contentsOf: dest.appendingPathComponent("checks.txt"), encoding: .utf8)
         XCTAssertTrue(checksText.contains("ffmpeg"))
         XCTAssertTrue(checksText.contains("found at ~/x"))
+    }
+
+    /// "Show Logs": the same scrubbed files as the zip, in a folder to look at in Finder; an older copy is replaced.
+    func testWriteFolderHoldsTheSameScrubbedFilesAndReplacesTheOldOnes() throws {
+        try makeCall("2026-11-04 15-01 Acme pricing", log: Self.sampleProcessLog.replacingOccurrences(of: "/Users/anna", with: home))
+        try write("2026-11-04 \(home)/Library/x failed\n", logs.appendingPathComponent("recorder.log"))
+        try write("2026-11-10 20:10:31 \(home)/.local/bin/claude -p --model sonnet | exit 1 | 1.5 s | OAuth token has expired\n",
+                  data.appendingPathComponent("assistant.log"))
+        try write("TOKEN=abc", data.appendingPathComponent(".env"))
+        let folder = tmp.appendingPathComponent("Diagnostics")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try write("stale", folder.appendingPathComponent("stale.log"))
+        try DiagnosticArchive.writeFolder(checks: [], logs: logs, data: data, calls: calls, home: home, to: folder)
+
+        let names = try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+        XCTAssertEqual(names, ["assistant.log", "checks.txt", "process-2026-11-04 15-01.log", "recorder.log"])
+        var all = ""
+        for n in names { all += try String(contentsOf: folder.appendingPathComponent(n), encoding: .utf8) }
+        for secret in ["Acme", "anna", "TOKEN=abc", home] { XCTAssertFalse(all.contains(secret), "\(secret) in:\n\(all)") }
+        XCTAssertTrue(all.contains("OAuth token has expired") && all.contains("~/.local/bin/claude"))
     }
 
     func testBuildReplacesAnExistingFileAndKeepsNoStaging() throws {
