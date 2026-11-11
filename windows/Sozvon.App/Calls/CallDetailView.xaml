@@ -155,7 +155,7 @@
             <StackPanel x:Name="Page" MaxWidth="800" Padding="24,16,24,96" HorizontalAlignment="Left" Spacing="16">
                 <StackPanel Spacing="4">
                     <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{x:Bind ViewModel.Title, Mode=OneWay}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Meta, Mode=OneWay}" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Meta, Mode=OneWay}" TextWrapping="Wrap" />
                     <Grid x:Name="ParticipantsLine" Margin="0,2,0,0" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
