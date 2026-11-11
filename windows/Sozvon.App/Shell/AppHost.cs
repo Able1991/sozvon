@@ -121,6 +121,8 @@ public sealed class AppHost
         {
             _tray.Refresh();
             Relaunch.Poll();
+            // The call being recorded shows in the list at once, as on the Mac, and stops saying so when it ends.
+            _ = _calls?.RefreshAsync();
         };
         recording.CallsChanged += (_, _) =>
         {

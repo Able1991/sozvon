@@ -221,8 +221,13 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         return Sozvon.Core.Calls.CallSearch.Matches(SearchText, new[] { call.Title, call.ProjectTitle }.Concat(call.People));
     }
 
-    private static CallRow Row(CallRecord call)
+    private CallRow Row(CallRecord call)
     {
+        // As the Mac's list: the call being recorded has no call.json yet, so nothing else would say what it is.
+        if (Actions.IsRecording(call))
+        {
+            return new CallRow(call, Loc.L("Идёт запись"), "", "", true);
+        }
         var description = string.Join(" · ", new[]
         {
             call.ProjectTitle,
