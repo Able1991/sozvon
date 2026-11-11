@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "_comment": "Единственный список моделей Sozvon: установка (setup.sh -> install.py), движок (sozvon_engine/models.py) и тесты приложения. revision закрепляет точную версию на Hugging Face.",
+  "_comment": "The one list of Sozvon models: the installer (setup.sh -> install.py), the engine (sozvon_engine/models.py) and the app tests read it. revision pins the exact version on Hugging Face.",
   "models": {
     "turbo":    {"kind": "whisper", "repo": "mlx-community/whisper-large-v3-turbo", "revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb", "dir": "whisper-large-v3-turbo", "files": ["config.json", "weights.safetensors"], "size_gb": 1.6},
     "large-v3": {"kind": "whisper", "repo": "mlx-community/whisper-large-v3-mlx",   "revision": "49e6aa286ad60c14352c404340ded53710378a11", "dir": "whisper-large-v3",       "files": ["config.json", "weights.npz"],         "size_gb": 3.1},

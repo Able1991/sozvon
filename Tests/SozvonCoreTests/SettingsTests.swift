@@ -11,26 +11,26 @@ final class SettingsTests: TempDirTestCase {
         s.assistant = .codex
         s.save()
         let env = try String(contentsOf: Paths.env, encoding: .utf8)
-        XCTAssertTrue(env.contains("CUSTOM=keep"), "чужой ключ сохранён")
-        XCTAssertTrue(env.contains("# comment"), "комментарий сохранён")
+        XCTAssertTrue(env.contains("CUSTOM=keep"), "a foreign key is kept")
+        XCTAssertTrue(env.contains("# comment"), "the comment is kept")
         XCTAssertTrue(env.contains("HF_TOKEN=old"), "a hand-set HF_TOKEN is kept as is")
-        XCTAssertTrue(env.contains(#"SOZVON_ME="Аня""#) && env.contains(#"SOZVON_LLM="codex""#), "имя и помощник")
-        XCTAssertTrue(env.contains(#"SOZVON_ENV_VERSION="1""#), "версия файла")
+        XCTAssertTrue(env.contains(#"SOZVON_ME="Аня""#) && env.contains(#"SOZVON_LLM="codex""#), "name and assistant")
+        XCTAssertTrue(env.contains(#"SOZVON_ENV_VERSION="1""#), "file version")
         let perm = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: Paths.env.path)[.posixPermissions] as? NSNumber)
-        XCTAssertEqual(perm.intValue, 0o600, ".env только для владельца")
+        XCTAssertEqual(perm.intValue, 0o600, ".env is for the owner only")
         let s2 = Settings()
         XCTAssertEqual(s2.assistant, .codex)
-        XCTAssertEqual(s2.name, "Аня", "настройки перечитываются")
+        XCTAssertEqual(s2.name, "Аня", "settings are read again")
     }
 
     func testLegacyNameAliasIsMigrated() throws {
         try write("CALL_ME_NAME=Олег\nSOZVON_LLM=none\n", Paths.env)
         let s = Settings()
-        XCTAssertEqual(s.name, "Олег", "старое имя ключа принимается")
+        XCTAssertEqual(s.name, "Олег", "the old key name is accepted")
         s.save()
         let env = try String(contentsOf: Paths.env, encoding: .utf8)
         XCTAssertTrue(env.contains(#"SOZVON_ME="Олег""#))
-        XCTAssertFalse(env.contains("CALL_ME_NAME"), "старый ключ убран")
+        XCTAssertFalse(env.contains("CALL_ME_NAME"), "the old key is removed")
     }
 
     func testNewKeyWinsOverAlias() {
@@ -40,7 +40,7 @@ final class SettingsTests: TempDirTestCase {
 
     func testDefaultsAndParsing() {
         let v = SettingsValues(env: [:], detect: { .claude })
-        XCTAssertEqual(v.assistant, .claude, "помощник по умолчанию: установленный")
+        XCTAssertEqual(v.assistant, .claude, "default assistant: the installed one")
         XCTAssertEqual(v.languages, [.ru])
         XCTAssertEqual(v.model, .turbo)
         let w = SettingsValues(env: ["SOZVON_LANGUAGE": "auto", "SOZVON_MODEL": "large-v3", "SOZVON_LANG_SWITCH": "1",
@@ -48,7 +48,7 @@ final class SettingsTests: TempDirTestCase {
         XCTAssertEqual(w.languages, [])
         XCTAssertEqual(w.model, .large)
         XCTAssertTrue(w.languageSwitch)
-        XCTAssertEqual(w.assistant, .none, "неизвестный помощник: определяем заново")
+        XCTAssertEqual(w.assistant, .none, "unknown assistant: detect again")
     }
 
     func testCursorAssistantRoundTrips() throws {
@@ -63,21 +63,44 @@ final class SettingsTests: TempDirTestCase {
         XCTAssertEqual(Assistant.cursor.vendor, "Cursor")
     }
 
-    func testSyncVoicesDefaultsOnAndRoundTrips() throws {
-        XCTAssertTrue(SettingsValues(env: [:], detect: { .none }).syncVoices, "absent key: on")
-        XCTAssertTrue(SettingsValues(env: ["SOZVON_SYNC_VOICES": "1"], detect: { .none }).syncVoices)
-        XCTAssertFalse(SettingsValues(env: ["SOZVON_SYNC_VOICES": "0"], detect: { .none }).syncVoices)
+    /// Voice prints are biometric data: they go to the own server only when the user turned that on.
+    func testSyncVoicesIsOptIn() throws {
+        let server = ["SOZVON_SERVER_URL": "https://x.workers.dev", "SOZVON_SERVER_PASSWORD": "a-long-enough-password-1"]
+        func values(_ extra: [String: String]) -> SettingsValues {
+            SettingsValues(env: server.merging(extra) { $1 }, detect: { .none })
+        }
+        XCTAssertFalse(SettingsValues().syncVoices, "a new install: off")
+        XCTAssertFalse(values([:]).syncVoices, "a connected server, the key absent: off")
+        XCTAssertTrue(values(["SOZVON_SYNC_VOICES": "1"]).syncVoices, "a connected server with the key on: kept")
+        XCTAssertFalse(values(["SOZVON_SYNC_VOICES": "0"]).syncVoices)
+        XCTAssertFalse(SettingsValues(env: ["SOZVON_SYNC_VOICES": "1"], detect: { .none }).syncVoices,
+                       "no server: the 1 older versions wrote on every save was never a choice")
         XCTAssertTrue(SettingsValues.managedKeys.contains("SOZVON_SYNC_VOICES"))
+    }
+
+    func testSyncVoicesRoundTripsAndANewServerStartsOff() throws {
+        // What 0.1.5 and older left in .env for a user without a server.
+        try write("SOZVON_SYNC_VOICES=\"1\"\n", Paths.env)
         let s = Settings()
-        XCTAssertTrue(s.syncVoices)
-        s.syncVoices = false
+        XCTAssertFalse(s.syncVoices)
+        s.serverURL = "https://x.workers.dev"
+        s.serverPassword = "a-long-enough-password-1"
         s.save()
-        let env = try String(contentsOf: Paths.env, encoding: .utf8)
-        XCTAssertTrue(env.contains(#"SOZVON_SYNC_VOICES="0""#))
-        XCTAssertFalse(Settings().syncVoices, "read back")
+        XCTAssertTrue(try String(contentsOf: Paths.env, encoding: .utf8).contains(#"SOZVON_SYNC_VOICES="0""#),
+                      "connecting a server does not turn voice prints on")
         s.syncVoices = true
         s.save()
         XCTAssertTrue(try String(contentsOf: Paths.env, encoding: .utf8).contains(#"SOZVON_SYNC_VOICES="1""#))
+        XCTAssertTrue(Settings().syncVoices, "read back")
+        s.serverURL = ""
+        s.serverPassword = ""
+        s.save()
+        XCTAssertFalse(s.syncVoices, "the server is gone: the next one starts off")
+        XCTAssertTrue(try String(contentsOf: Paths.env, encoding: .utf8).contains(#"SOZVON_SYNC_VOICES="0""#))
+        s.serverURL = "https://y.workers.dev"
+        s.serverPassword = "a-long-enough-password-2"
+        s.save()
+        XCTAssertFalse(Settings().syncVoices)
     }
 
     func testSyncAudioDefaultsOnAndRoundTrips() throws {
@@ -90,7 +113,8 @@ final class SettingsTests: TempDirTestCase {
         XCTAssertTrue(try String(contentsOf: Paths.env, encoding: .utf8).contains(#"SOZVON_SYNC_AUDIO="0""#))
         let back = Settings()
         XCTAssertFalse(back.syncAudio, "read back")
-        XCTAssertTrue(back.syncVoices, "the other toggle is independent")
+        XCTAssertFalse(back.syncVoices, "the other toggle is independent")
+        XCTAssertTrue(SettingsValues().syncAudio, "call audio stays on by default")
     }
 
     func testEnvMerge() {
@@ -103,10 +127,10 @@ final class SettingsTests: TempDirTestCase {
         let tricky = #"Иван #2 "Ваня" \ конец"#
         let out = EnvFile.merge("", set: [("SOZVON_ME", tricky), ("N", "a\nb")])
         XCTAssertEqual(out, #"SOZVON_ME="Иван #2 \"Ваня\" \\ конец""# + "\n" + #"N="a\nb""# + "\n",
-                       "как читает python-dotenv: двойные кавычки, \\ и \" экранированы")
+                       "as python-dotenv reads it: double quotes, \\ and \" are escaped")
         XCTAssertEqual(EnvFile.dictionary(out), ["SOZVON_ME": tricky, "N": "a\nb"])
         XCTAssertEqual(EnvFile.dictionary("A='x #1'\nB=y # c\nC=\"q\" # c"), ["A": "x #1", "B": "y", "C": "q"],
-                       "одинарные кавычки и комментарии после значения")
+                       "single quotes and comments after the value")
     }
 
     func testSilenceAlertsDefaultOnAndFollowTheKey() throws {
@@ -123,22 +147,22 @@ final class SettingsTests: TempDirTestCase {
 
 final class LanguageChoiceTests: XCTestCase {
     func testTogglingKeepsCanonicalOrder() {
-        XCTAssertEqual(SpeechLanguage.toggling(.ru, in: [.en]), [.ru, .en], "порядок как в списке языков")
-        XCTAssertEqual(SpeechLanguage.toggling(.en, in: [.ru, .en]), [.ru], "повторный клик снимает язык")
-        XCTAssertEqual(SpeechLanguage.toggling(.de, in: []), [.de], "из «определять сам» в один язык")
+        XCTAssertEqual(SpeechLanguage.toggling(.ru, in: [.en]), [.ru, .en], "order as in the list of languages")
+        XCTAssertEqual(SpeechLanguage.toggling(.en, in: [.ru, .en]), [.ru], "a second click removes the language")
+        XCTAssertEqual(SpeechLanguage.toggling(.de, in: []), [.de], "from \"detect automatically\" to one language")
     }
 
     func testTogglingAutoClears() {
         XCTAssertEqual(SpeechLanguage.toggling(.auto, in: [.ru, .en]), [])
-        XCTAssertEqual(SpeechLanguage.toggling(.ru, in: [.ru]), [], "снять последний язык = определять сам")
+        XCTAssertEqual(SpeechLanguage.toggling(.ru, in: [.ru]), [], "removing the last language means detect automatically")
     }
 
     func testInterfaceLanguageTag() {
-        XCTAssertEqual(InterfaceLanguage.tag(nil), "", "без переопределения: как в системе")
+        XCTAssertEqual(InterfaceLanguage.tag(nil), "", "no override: as in the system")
         XCTAssertEqual(InterfaceLanguage.tag([]), "")
-        XCTAssertEqual(InterfaceLanguage.tag(["ru-RU"]), "ru", "регион отбрасывается")
+        XCTAssertEqual(InterfaceLanguage.tag(["ru-RU"]), "ru", "the region is dropped")
         XCTAssertEqual(InterfaceLanguage.tag(["en_GB", "ru"]), "en")
-        XCTAssertEqual(InterfaceLanguage.tag(["fr"]), "", "непереведённый язык показывается как системный")
+        XCTAssertEqual(InterfaceLanguage.tag(["fr"]), "", "an untranslated language shows as the system one")
     }
 }
 

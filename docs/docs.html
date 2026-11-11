@@ -511,7 +511,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Проекты редактируются в окне «Проекты» из меню. Люди с размеченных звонков добавляются в проект сами.</p>
       <h3 id="discover">Найти проекты автоматически</h3>
       <p>Кнопка «Найти проекты» просит Claude Code, Codex или Cursor просмотреть твои сессии и заметки и предложить проекты с людьми и терминами. Ты выбираешь, что сохранить.</p>
-      <p>Помощник получает названия папок проектов, заметки памяти и ответы открытых сессий. Это уходит в Anthropic, OpenAI или Cursor и выбранной там модели. Что помощник может читать:</p>
+      <p>Помощник получает названия папок проектов и заметки памяти. Это уходит в Anthropic, OpenAI или Cursor и выбранной там модели. Что помощник может читать:</p>
       <ul>
         <li><b>Claude</b> технически ограничен папкой <code>~/.claude</code>.</li>
         <li><b>Codex.</b> Песочница запрещает запись, но не чтение. Ограничение папкой <code>~/.codex</code> только в инструкции.</li>
@@ -533,7 +533,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <thead><tr><th>Модель</th><th>Размер</th><th>Когда выбирать</th></tr></thead>
         <tr><td>Whisper Turbo</td><td>1,6 ГБ</td><td>По умолчанию. Быстро, точно, 99 языков, понимает термины проекта.</td></tr>
-        <tr><td>Whisper Large v3</td><td>3,1 ГБ</td><td>Когда важна каждая фраза и не жалко времени: примерно вдвое медленнее.</td></tr>
+        <tr><td>Whisper Large v3</td><td>3,1 ГБ</td><td>Самая большая Whisper, примерно вдвое медленнее Turbo. На звонках автора заметно точнее не стала.</td></tr>
         <tr><td>Whisper Small</td><td>0,5 ГБ</td><td>Mac с 8 ГБ памяти.</td></tr>
         <tr><td>GigaAM v3</td><td>0,2 ГБ</td><td>Только русский. Лучше всех знает русскую речь и очень быстрая, но не использует термины проекта.</td></tr>
         <tr><td>Parakeet v3</td><td>0,7 ГБ</td><td>25 европейских языков, быстрая, без терминов проекта.</td></tr>
@@ -596,8 +596,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <h3 id="server-data">Что уходит на сервер</h3>
       <p><b>Что уходит:</b> расшифровки, саммари, заметки и данные звонка (дата, тема, проект, участники) только законченных звонков. Кроме того, на вкладке «Облако» два переключателя, оба включены по умолчанию:</p>
       <ul>
-        <li><b>«Отправлять аудио звонков».</b> Звук хранится частями в твоей базе D1, чтобы новый Mac получил звонки вместе с записью. Бесплатного тарифа хватает примерно на 80 часов звонков. Дальше сервер не принимает новый звук, синхронизируется только текст, и Sozvon об этом скажет. Звук удалённых звонков и звук, удалённый <a href="#keep-audio">автоудалением</a>, освобождает место.</li>
-        <li><b>«Отправлять отпечатки голосов».</b> <a href="#voices">Голоса</a>, чтобы другие Mac узнавали тех же людей.</li>
+        <li><b>«Отправлять аудио звонков».</b> Звук хранится частями в твоей базе D1, чтобы новый Mac получил звонки вместе с записью. Бесплатного тарифа хватает примерно на 4 часа звонков: база D1 на нём вмещает 500 МБ, и часть места остаётся под текст. Дальше сервер не принимает новый звук, синхронизируется только текст, и Sozvon об этом скажет. Звук удалённых звонков и звук, удалённый <a href="#keep-audio">автоудалением</a>, освобождает место.</li>
+        <li><b>«Отправлять отпечатки голосов».</b> <a href="#voices">Голоса</a>, чтобы другие Mac узнавали тех же людей. По умолчанию выключено: это биометрические данные.</li>
       </ul>
       <p>Распознавание всё равно идёт на Mac: звук уходит только на твой сервер и только с включённым переключателем. Claude и ChatGPT через коннектор никогда не получают звук и голоса, только текст.</p>
       <p><b>Что могут ассистенты.</b> Смотреть список звонков, читать и искать их (тем же ранжированным поиском, что и на Mac) и добавлять <a href="#notes">заметки</a>. Менять или удалять звонки и заметки они не могут.</p>
@@ -619,7 +619,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Подробности, лимиты бесплатного тарифа и удаление сервера: <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a> на GitHub.</p>
 
       <h2 id="sync">Синхронизация между Mac</h2>
-      <p>Свой сервер заодно связывает несколько Mac. Подключи тот же сервер на втором Mac («Подключить Cloudflare» в том же аккаунте или адрес и пароль вручную), и Sozvon скачает все звонки, которых там нет: текст, саммари, заметки и звук, если его отправляли, так что плеер работает. Голоса тоже приходят, и второй Mac узнаёт тех же людей.</p>
+      <p>Свой сервер заодно связывает несколько Mac. Подключи тот же сервер на втором Mac («Подключить Cloudflare» в том же аккаунте или адрес и пароль вручную), и Sozvon скачает все звонки, которых там нет: текст, саммари, заметки и звук, если его отправляли, так что плеер работает. Голоса тоже приходят, если на обоих Mac включить «Отправлять отпечатки голосов» (по умолчанию выключено), и второй Mac узнаёт тех же людей.</p>
       <ul>
         <li><b>Новые звонки</b> уходят на сервер после расшифровки, остальные Mac забирают их при следующей синхронизации. Синхронизировать сразу можно кнопкой «Синхронизировать» на вкладке «Облако».</li>
         <li><b>Заметки</b> идут в обе стороны: оставленные Claude или ChatGPT на сервере приходят в окно «Звонки», твои уходят на сервер.</li>
@@ -648,9 +648,9 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Модели и Python-окружение</td><td>PyPI, huggingface.co, github.com, один раз при установке</td></tr>
         <tr><td>Текст расшифровки для саммари и имён</td><td>Anthropic, OpenAI или Cursor, только если выбран помощник</td></tr>
         <tr><td>То, что читает ассистент через MCP</td><td>Anthropic, OpenAI или Cursor, только когда ты его спрашиваешь</td></tr>
-        <tr><td>Поиск проектов: названия папок, заметки, ответы сессий. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение</td><td>Anthropic, OpenAI или Cursor, только по кнопке</td></tr>
+        <tr><td>Поиск проектов: названия папок, заметки. Claude читает только ~/.claude, песочница Codex запрещает запись, но не чтение</td><td>Anthropic, OpenAI или Cursor, только по кнопке</td></tr>
         <tr><td>Обновления</td><td>github.com: раз в сутки appcast.xml последнего релиза, при новой версии её DMG. Автоустановка отключается в «О программе»</td></tr>
-        <tr><td>Расшифровки, саммари, заметки и данные звонков, чтобы Claude или ChatGPT отвечали с телефона. Звук и отпечатки голосов, чтобы другие Mac их получили (ассистенты их не видят), если не выключено на вкладке «Облако»</td><td>Твой собственный сервер в твоём аккаунте Cloudflare, не к нам. Только если ты его поднял</td></tr>
+        <tr><td>Расшифровки, саммари, заметки и данные звонков, чтобы Claude или ChatGPT отвечали с телефона. Звук, чтобы другие Mac его получили, если не выключено на вкладке «Облако». Отпечатки голосов, только если включено там же (ассистенты не видят ни того, ни другого)</td><td>Твой собственный сервер в твоём аккаунте Cloudflare, не к нам. Только если ты его поднял</td></tr>
         <tr><td>Вход в Cloudflare и настройка своего сервера</td><td>dash.cloudflare.com и api.cloudflare.com, только по кнопке «Подключить Cloudflare» или «Обновить сервер»</td></tr>
       </table>
       <p>Весь код открыт. Каждый коммит проверяют <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код.</p>
@@ -692,7 +692,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>OAuth token has expired, Authentication required, Not logged in.</b> Вход в аккаунт протух. Claude Code: запусти <code>claude</code> в Терминале и набери <code>/login</code>. Cursor: <code>cursor-agent login</code>. Codex: <code>codex login</code>.</li>
         <li><b>unknown option.</b> CLI устарел: <code>claude update</code>, <code>cursor-agent update</code>, Codex обнови тем же способом, каким ставил.</li>
         <li><b>не найден.</b> Sozvon ищет CLI в <code>~/.local/bin</code>, <code>/opt/homebrew/bin</code> и <code>/usr/local/bin</code>. Проверь <code>which claude</code>: если он лежит в другом месте (например, поставлен через npm под nvm), сделай ссылку в <code>~/.local/bin</code>.</li>
-        <li><b>Sandbox is unavailable</b> у Cursor. Sozvon сам повторяет запрос без песочницы, в режиме только для чтения.</li>
+        <li><b>Sandbox is unavailable</b> у Cursor. На этом Mac не запускается песочница Cursor, а без неё Sozvon его не использует: текст звонка мог бы заставить его читать твои файлы. Выбери Claude или Codex.</li>
       </ul>
       <p>Каждый вызов ассистента пишется в <code>assistant.log</code>: какая команда ушла и чем закончилась, без текста звонка. Для старых звонков без саммари нажми «Обновить саммари».</p>
       <h4>Ассистент не видит звонки</h4>
@@ -1177,7 +1177,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Edit projects in the Projects window from the menu. People from labelled calls are added automatically.</p>
       <h3 id="en-discover">Discover projects</h3>
       <p>Find Projects asks Claude Code, Codex or Cursor to look through your sessions and notes and suggest projects with people and terms. You choose what to keep.</p>
-      <p>The assistant gets project folder names, memory notes and replies from open sessions. These go to Anthropic, OpenAI or Cursor and the model chosen there. What the assistant can read:</p>
+      <p>The assistant gets project folder names and memory notes. These go to Anthropic, OpenAI or Cursor and the model chosen there. What the assistant can read:</p>
       <ul>
         <li><b>Claude</b> is technically limited to <code>~/.claude</code>.</li>
         <li><b>Codex.</b> The sandbox blocks writes but not reads. Its limit to <code>~/.codex</code> is only an instruction.</li>
@@ -1199,7 +1199,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <thead><tr><th>Model</th><th>Size</th><th>When to pick it</th></tr></thead>
         <tr><td>Whisper Turbo</td><td>1.6 GB</td><td>Default. Fast, accurate, 99 languages, uses project terms.</td></tr>
-        <tr><td>Whisper Large v3</td><td>3.1 GB</td><td>When every phrase matters: about twice as slow.</td></tr>
+        <tr><td>Whisper Large v3</td><td>3.1 GB</td><td>The largest Whisper, about twice as slow as Turbo. On the author’s calls it was not noticeably more accurate.</td></tr>
         <tr><td>Whisper Small</td><td>0.5 GB</td><td>Macs with 8 GB of memory.</td></tr>
         <tr><td>GigaAM v3</td><td>0.2 GB</td><td>Russian only. Best at Russian speech and very fast, but ignores project terms.</td></tr>
         <tr><td>Parakeet v3</td><td>0.7 GB</td><td>25 European languages, fast, no project terms.</td></tr>
@@ -1262,8 +1262,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <h3 id="en-server-data">What is sent to the server</h3>
       <p><b>What is sent:</b> transcripts, summaries, notes and call details (date, topic, project, participants) of finished calls only. On top of that, the Cloud tab has two toggles, both on by default:</p>
       <ul>
-        <li><b>Send call audio.</b> The audio is stored in chunks in your own D1 database, so a new Mac gets your calls with their recordings. The free plan holds about 80 hours of calls. After that the server refuses new audio, only text syncs, and Sozvon tells you so. Audio of deleted calls, and audio removed by <a href="#en-keep-audio">automatic deletion</a>, frees the space.</li>
-        <li><b>Send voice prints.</b> <a href="#en-voices">Voices</a>, so your other Macs recognize the same people.</li>
+        <li><b>Send call audio.</b> The audio is stored in chunks in your own D1 database, so a new Mac gets your calls with their recordings. The free plan holds about 4 hours of calls: its D1 database is capped at 500 MB, and part of it is kept for the text. After that the server refuses new audio, only text syncs, and Sozvon tells you so. Audio of deleted calls, and audio removed by <a href="#en-keep-audio">automatic deletion</a>, frees the space.</li>
+        <li><b>Send voice prints.</b> <a href="#en-voices">Voices</a>, so your other Macs recognize the same people. Off by default: they are biometric data.</li>
       </ul>
       <p>Recognition still runs on the Mac: audio goes only to your own server, and only with the toggle on. Claude and ChatGPT never get audio or voice prints through the connector, only text.</p>
       <p><b>What assistants can do.</b> List, read and search your calls (with the same ranked search as on the Mac) and add <a href="#en-notes">notes</a>. They can’t change or delete calls or notes.</p>
@@ -1285,7 +1285,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Details, free plan limits and removing the server: <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a> on GitHub.</p>
 
       <h2 id="en-sync">Sync across Macs</h2>
-      <p>Your own server also links several Macs. Connect the same server on a second Mac (Connect Cloudflare with the same account, or the address and password by hand), and Sozvon downloads every call that Mac doesn’t have: text, summary, notes and the audio if it was sent, so the player works. Voice prints come too, so the second Mac recognizes the same people.</p>
+      <p>Your own server also links several Macs. Connect the same server on a second Mac (Connect Cloudflare with the same account, or the address and password by hand), and Sozvon downloads every call that Mac doesn’t have: text, summary, notes and the audio if it was sent, so the player works. Voice prints come too once you turn on Send voice prints on both Macs (it is off by default), so the second Mac recognizes the same people.</p>
       <ul>
         <li><b>New calls</b> go to the server once transcribed, and the other Macs pick them up on their next sync. Sync now with the Sync button on the Cloud tab.</li>
         <li><b>Notes</b> go both ways: notes Claude or ChatGPT leave on the server show up in the Calls window, and yours go up to the server.</li>
@@ -1314,9 +1314,9 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Models and Python runtime</td><td>PyPI, huggingface.co, github.com, once during setup</td></tr>
         <tr><td>Transcript text for summaries and names</td><td>Anthropic, OpenAI or Cursor, only if you pick an assistant</td></tr>
         <tr><td>What the assistant reads through MCP</td><td>Anthropic, OpenAI or Cursor, only when you ask it</td></tr>
-        <tr><td>Project discovery: folder names, notes, session replies. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads</td><td>Anthropic, OpenAI or Cursor, only when you click the button</td></tr>
+        <tr><td>Project discovery: folder names, notes. Claude reads only ~/.claude; the Codex sandbox blocks writes but not reads</td><td>Anthropic, OpenAI or Cursor, only when you click the button</td></tr>
         <tr><td>Updates</td><td>github.com: the latest release's appcast.xml once a day, and the new version's DMG when there is one. Automatic install can be turned off in About</td></tr>
-        <tr><td>Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone. Audio and voice prints, so your other Macs get them (assistants never see them), unless turned off on the Cloud tab</td><td>Your own server in your own Cloudflare account, never us. Only if you set one up</td></tr>
+        <tr><td>Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone. Audio, so your other Macs get it, unless turned off on the Cloud tab. Voice prints, only if turned on there (assistants never see either)</td><td>Your own server in your own Cloudflare account, never us. Only if you set one up</td></tr>
         <tr><td>Cloudflare sign-in and setting up your own server</td><td>dash.cloudflare.com and api.cloudflare.com, only when you press Connect Cloudflare or Update server</td></tr>
       </table>
       <p>All code is open. Every commit is checked by <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep and CodeQL</a> for secrets, vulnerabilities and suspicious code.</p>
@@ -1358,7 +1358,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>OAuth token has expired, Authentication required, Not logged in.</b> The login expired. Claude Code: run <code>claude</code> in Terminal and type <code>/login</code>. Cursor: <code>cursor-agent login</code>. Codex: <code>codex login</code>.</li>
         <li><b>unknown option.</b> The CLI is too old: <code>claude update</code>, <code>cursor-agent update</code>, update Codex the way you installed it.</li>
         <li><b>not found.</b> Sozvon looks for the CLI in <code>~/.local/bin</code>, <code>/opt/homebrew/bin</code> and <code>/usr/local/bin</code>. Check <code>which claude</code>: if it lives elsewhere (installed with npm under nvm, say), link it into <code>~/.local/bin</code>.</li>
-        <li><b>Sandbox is unavailable</b> from Cursor. Sozvon asks again without the sandbox, in read-only ask mode.</li>
+        <li><b>Sandbox is unavailable</b> from Cursor. Cursor's sandbox does not start on this Mac, and Sozvon does not use Cursor without it: the text of a call could make it read your files. Choose Claude or Codex.</li>
       </ul>
       <p>Every assistant call is written to <code>assistant.log</code>: the command and how it ended, never the call text. For older calls without a summary, press Update Summary.</p>
       <h4>The assistant doesn’t see my calls</h4>

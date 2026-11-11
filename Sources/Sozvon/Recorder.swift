@@ -322,18 +322,10 @@ final class AudioSink: NSObject, SCStreamOutput, @unchecked Sendable {
 // MARK: - recorder.log
 
 /// Capture events and levels in Logs/recorder.log, to check later what a recording went through.
+/// Called from the capture queue and the main actor: AppLog keeps the lines whole and in order.
 enum RecorderLog {
     static func write(_ message: String) {
-        let line = "\(Date()) \(message)\n"
-        try? FileManager.default.createDirectory(at: Paths.logs, withIntermediateDirectories: true)
-        let f = Paths.logs.appendingPathComponent("recorder.log")
-        if let h = try? FileHandle(forWritingTo: f) {
-            h.seekToEndOfFile()
-            h.write(Data(line.utf8))
-            try? h.close()
-        } else {
-            try? line.write(to: f, atomically: true, encoding: .utf8)
-        }
+        AppLog.append("\(Date()) \(message)\n", to: Paths.logs.appendingPathComponent("recorder.log"))
     }
 }
 

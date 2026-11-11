@@ -1,7 +1,7 @@
 // The OAuth sign-in page at /authorize: one password field (SOZVON_PASSWORD), Allow or Deny.
 import { type AuthRequest, AuthorizationError, CimdFetchError, type OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 import { type Env } from "./api";
-import { checkPassword, passwordTag } from "./auth";
+import { checkPassword, passwordProblem, passwordTag } from "./auth";
 import { csp } from "./csp";
 import { sourceName } from "./tools";
 
@@ -61,6 +61,9 @@ const plain = (status: number, message: string) =>
 
 export async function authorize(request: Request, env: Env): Promise<Response> {
   const oauth = env.OAUTH_PROVIDER!;
+  // No password, or one too short to be safe: nobody signs in, and nothing is written to KV.
+  const problem = passwordProblem(env.SOZVON_PASSWORD);
+  if (problem) return plain(503, `${problem}.`);
   try {
     if (request.method === "GET") return await showForm(oauth, await oauth.parseAuthRequest(request));
     if (request.method !== "POST") return plain(405, "Method not allowed.");

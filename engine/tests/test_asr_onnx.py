@@ -17,7 +17,7 @@ def test_is_downloaded(tmp_path):
     d.mkdir(parents=True)
     for f in models.MODELS["gigaam"]["files"]:
         (d / f).write_text("x")
-    assert not models.is_downloaded(tmp_path, "gigaam"), "без VAD не готово"
+    assert not models.is_downloaded(tmp_path, "gigaam"), "without the VAD it is not ready"
     models.vad_dir(tmp_path).mkdir(parents=True)
     for f in models.VAD["files"]:
         (models.vad_dir(tmp_path) / f).write_text("x")

@@ -98,18 +98,28 @@ public enum MCP {
         guard let exe = a.cliPath else { return (false, L("Не найден %@", a.title)) }
         let token = self.token
         let args: [String] = a == .claude
-            // --header goes last: the option is greedy and would otherwise swallow the name and URL
+            // --header goes last: the option is greedy and would otherwise swallow the name and URL.
+            // The password is an argument here, so another account on this Mac could see it in `ps` for the
+            // moment the command runs: `claude mcp add` and `add-json` take a header no other way (no stdin,
+            // no file, no environment variable), and Claude Code's own config is not ours to edit.
             ? ["mcp", "add", "--scope", "user", "--transport", "http", name, url, "--header", "Authorization: Bearer \(token)"]
             : ["mcp", "add", name, "--url", url]
         _ = run(exe, ["mcp", "remove", name] + (a == .claude ? ["--scope", "user"] : []))
         let r = run(exe, args)
-        if a == .codex && r.0 == 0 {
-            let f = Paths.home.appendingPathComponent(".codex/config.toml")
-            if let text = try? String(contentsOf: f, encoding: .utf8), let edited = codexConfig(text, token: token) {
-                try? edited.write(to: f, atomically: true, encoding: .utf8)
-            }
-        }
+        if a == .codex && r.0 == 0 { codexWriteToken(token) }
         return (r.0 == 0, r.1.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Puts the password header into the Sozvon section of ~/.codex/config.toml, keeping everything else in the
+    /// file. Written atomically with mode 600: from now on the file holds the password. -> false when there is
+    /// no file or no Sozvon section (nothing is written).
+    @discardableResult
+    static func codexWriteToken(_ token: String, file: URL = Paths.home.appendingPathComponent(".codex/config.toml")) -> Bool {
+        let target = file.resolvingSymlinksInPath()
+        guard let text = try? String(contentsOf: target, encoding: .utf8), let edited = codexConfig(text, token: token) else {
+            return false
+        }
+        return (try? PrivateFile.write(Data(edited.utf8), to: target)) != nil
     }
 
     /// What Connect does, as text to paste into a terminal (the "Copy command" button).

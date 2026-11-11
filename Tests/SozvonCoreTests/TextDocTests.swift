@@ -190,6 +190,27 @@ final class SummaryTextTests: XCTestCase {
         XCTAssertEqual(d.inlines.first { $0.style.contains(.code) }?.range, ns.range(of: "X-Signature"))
     }
 
+    func testOnlyWebLinksStayClickable() {
+        func links(_ line: String) -> [URL] {
+            SummaryText.build([SummaryBlock(title: "", lines: [line])]).inlines.compactMap(\.link)
+        }
+        XCTAssertEqual(links("see [the doc](https://example.com/a?b=1)"), [URL(string: "https://example.com/a?b=1")!])
+        XCTAssertEqual(links("see [the doc](HTTP://example.com)"), [URL(string: "HTTP://example.com")!])
+        for bad in ["smb://evil.example/share", "file:///Applications/Calculator.app", "x-apple.systempreferences:com.apple.x",
+                    "ssh://evil.example", "javascript:alert(1)", "sozvon://settings", "/etc/passwd", "mailto:a@evil.example"] {
+            let d = SummaryText.build([SummaryBlock(title: "", lines: ["open [the notes](\(bad)) now, **really**"])])
+            XCTAssertEqual(d.inlines.compactMap(\.link), [], bad)
+            XCTAssertEqual(d.string, "open the notes now, really", "the text stays, as plain text")
+            XCTAssertEqual(d.inlines.count, 1, "emphasis is kept")
+        }
+        // A link whose text is an address must lead to that address.
+        XCTAssertEqual(links("join [https://zoom.us/j/8291](https://evil.example/j/8291)"), [])
+        XCTAssertEqual(links("join [zoom.us/j/8291](https://evil.example)"), [])
+        XCTAssertEqual(links("join [https://zoom.us/j/8291](https://zoom.us/j/8291?pwd=1)"), [URL(string: "https://zoom.us/j/8291?pwd=1")!])
+        XCTAssertEqual(links("join [www.zoom.us](https://zoom.us/j/1)"), [URL(string: "https://zoom.us/j/1")!])
+        XCTAssertEqual(links("version [v1.2](https://example.com/v1.2)"), [URL(string: "https://example.com/v1.2")!])
+    }
+
     func testBrokenMarkdownStaysAsWritten() {
         let d = SummaryText.build([SummaryBlock(title: "", lines: ["a **b"])])
         XCTAssertEqual(d.string, "a **b")

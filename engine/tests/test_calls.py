@@ -18,7 +18,7 @@ def test_write_is_atomic_with_schema_first(tmp_path):
     calls.write_call(d, {"id": "2026-11-04 15-01", "status": "recorded"})
     raw = (d / "call.json").read_text()
     assert list(json.loads(raw)) == ["schema", "id", "status"]
-    assert [p.name for p in d.iterdir()] == ["call.json"], "временный файл не остаётся"
+    assert [p.name for p in d.iterdir()] == ["call.json"], "no temporary file is left"
 
 
 def test_update_keeps_app_fields(tmp_path):

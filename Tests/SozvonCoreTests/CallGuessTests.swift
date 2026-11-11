@@ -24,7 +24,7 @@ final class CallGuessTests: XCTestCase {
                      heard: [HeardVoice(name: "Анна Петрова", profile: "acme", seconds: 300),
                              HeardVoice(name: "Олег", profile: "", seconds: 40)])
         XCTAssertEqual(r.info.profile, "acme")
-        XCTAssertEqual(r.info.names, "Анна Петрова, Олег", "голос Анны уже есть из календаря, Олег добавлен")
+        XCTAssertEqual(r.info.names, "Анна Петрова, Олег", "Анна's voice is already there from the calendar, Олег is added")
         XCTAssertEqual(r.info.topic, "Acme: планирование")
         XCTAssertTrue(r.sure)
     }
@@ -38,8 +38,8 @@ final class CallGuessTests: XCTestCase {
 
     func testCalendarAndVoicesDisagree() {
         let r = fill(event: meeting("Acme sync", ["Анна Петрова"]), heard: [HeardVoice(name: "Пётр", profile: "beta", seconds: 300)])
-        XCTAssertEqual(r.info.profile, "acme", "календарь важнее")
-        XCTAssertFalse(r.sure, "голоса говорят о другом проекте: спросить")
+        XCTAssertEqual(r.info.profile, "acme", "the calendar wins")
+        XCTAssertFalse(r.sure, "the voices point to another project: ask")
     }
 
     func testNothingKnown() {
@@ -52,13 +52,13 @@ final class CallGuessTests: XCTestCase {
         let r = fill(event: meeting("Созвон", ["Иван"]))
         XCTAssertEqual(r.info.names, "Иван")
         XCTAssertEqual(r.info.profile, "")
-        XCTAssertFalse(r.sure, "без проекта спросить")
+        XCTAssertFalse(r.sure, "no project: ask")
     }
 
     func testTypedNamesStay() {
         let typed = CallInfo(profile: "beta", names: "Маша")
         let r = fill(typed, heard: [HeardVoice(name: "Анна Петрова", profile: "acme", seconds: 300)])
-        XCTAssertEqual(r.info.names, "Маша", "что набрал пользователь, не трогаем")
+        XCTAssertEqual(r.info.names, "Маша", "what the user typed is left alone")
         XCTAssertEqual(r.info.profile, "beta")
     }
 
@@ -73,42 +73,42 @@ final class CallGuessTests: XCTestCase {
     func testLastProjectIsNotEvidence() {
         let seeded = CallInfo(profile: "acme")
         let r = fill(seeded, lastProject: "acme", heard: [HeardVoice(name: "Пётр", profile: "beta", seconds: 120)])
-        XCTAssertEqual(r.info.profile, "beta", "голоса важнее прошлого проекта")
+        XCTAssertEqual(r.info.profile, "beta", "voices win over the last project")
         XCTAssertTrue(r.sure)
     }
 
     func testLastProjectStaysAsTheFormsDefaultButIsNotSure() {
         let seeded = CallInfo(profile: "acme")
         let r = fill(seeded, lastProject: "acme", event: meeting("Созвон", ["Иван"]))
-        XCTAssertEqual(r.info.profile, "acme", "в форме остаётся как раньше")
-        XCTAssertFalse(r.sure, "проект никто не подтвердил")
+        XCTAssertEqual(r.info.profile, "acme", "the form keeps what it had")
+        XCTAssertFalse(r.sure, "nobody confirmed the project")
     }
 
     func testProjectPickedDuringTheCallIsKept() {
         let picked = CallInfo(profile: "beta")
         let r = fill(picked, lastProject: "acme", event: meeting("Acme sync", ["Анна Петрова"]))
-        XCTAssertEqual(r.info.profile, "beta", "выбранный во время звонка проект не перетирается календарём")
+        XCTAssertEqual(r.info.profile, "beta", "a project picked during the call is not overwritten by the calendar")
     }
 
     func testMeetingMustBeGoingOn() {
         let ev = meeting("Acme sync", ["Анна Петрова"])
-        XCTAssertTrue(fill(event: ev, startedAt: t0 - 120).sure, "начали за пару минут до встречи")
+        XCTAssertTrue(fill(event: ev, startedAt: t0 - 120).sure, "started a couple of minutes before the meeting")
         let after = fill(event: ev, startedAt: t0 + 3600 + 300)
-        XCTAssertEqual(after.info.profile, "acme", "подсказка остаётся")
-        XCTAssertFalse(after.sure, "звонок после конца встречи: спросить")
+        XCTAssertEqual(after.info.profile, "acme", "the hint stays")
+        XCTAssertFalse(after.sure, "a call after the meeting ended: ask")
     }
 
     func testAShortVoiceMatchIsNotEnoughToSkip() {
         let r = fill(heard: [HeardVoice(name: "Анна Петрова", profile: "acme", seconds: 8)])
         XCTAssertEqual(r.info.profile, "acme")
-        XCTAssertFalse(r.sure, "8 секунд совпадения мало, чтобы не спрашивать")
+        XCTAssertFalse(r.sure, "8 seconds of overlap is too little to skip the question")
     }
 
     func testUnsureVoiceGivesTheProjectButNoNameAndNoCertainty() {
         let r = fill(event: meeting("Созвон", ["Иван"]),
                      heard: [HeardVoice(name: "Влад", profile: "acme", seconds: 600, unsure: true)], startedAt: t0 + 7200)
-        XCTAssertEqual(r.info.profile, "acme", "проект у обоих имён один")
-        XCTAssertEqual(r.info.names, "Иван", "имя под вопросом в участники не идёт")
+        XCTAssertEqual(r.info.profile, "acme", "both names have the same project")
+        XCTAssertEqual(r.info.names, "Иван", "a name in question does not go into participants")
         XCTAssertFalse(r.sure)
     }
 

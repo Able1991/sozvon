@@ -39,12 +39,12 @@ describe("validation", () => {
 describe("sync API", () => {
   let env: Env;
   beforeAll(async () => {
-    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" };
+    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
   });
   const call = (method: string, path: string, opts: { auth?: string; body?: string; ip?: string } = {}) =>
     handleApi(new Request(`http://localhost${path}`, {
       method, body: opts.body,
-      headers: { "CF-Connecting-IP": opts.ip ?? "1.1.1.1", ...(opts.auth === undefined ? { Authorization: "Bearer pw" } : opts.auth ? { Authorization: opts.auth } : {}) },
+      headers: { "CF-Connecting-IP": opts.ip ?? "1.1.1.1", ...(opts.auth === undefined ? { Authorization: "Bearer pw-long-enough-for-tests" } : opts.auth ? { Authorization: opts.auth } : {}) },
     }), env);
 
   it("serves health without a password", async () => {
@@ -92,11 +92,11 @@ describe("sync API", () => {
 describe("notes over the sync API", () => {
   let env: Env;
   beforeAll(async () => {
-    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" };
+    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
   });
   const call = (method: string, path: string, b?: unknown) =>
     handleApi(new Request(`http://localhost${path}`, {
-      method, body: b === undefined ? undefined : JSON.stringify(b), headers: { Authorization: "Bearer pw" },
+      method, body: b === undefined ? undefined : JSON.stringify(b), headers: { Authorization: "Bearer pw-long-enough-for-tests" },
     }), env);
   const P = "/api/calls/2026-11-04%2015-01";
   const note = (id: string, text = `note ${id}`, at = `2026-11-04T1${id.length}:00:00Z`) => ({ id, at, text, source: "app" });
@@ -155,11 +155,11 @@ describe("notes over the sync API", () => {
 describe("call tombstones", () => {
   let env: Env;
   beforeAll(async () => {
-    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" };
+    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
   });
   const call = (method: string, path: string, b?: unknown) =>
     handleApi(new Request(`http://localhost${path}`, {
-      method, body: b === undefined ? undefined : JSON.stringify(b), headers: { Authorization: "Bearer pw" },
+      method, body: b === undefined ? undefined : JSON.stringify(b), headers: { Authorization: "Bearer pw-long-enough-for-tests" },
     }), env);
   const P = "/api/calls/2026-11-04%2015-01";
   const note = { id: "n1", at: "2026-11-04T12:00:00Z", text: "x", source: "app" };
@@ -209,14 +209,58 @@ describe("password attempts", () => {
     const db = await localD1();
     const req = (ip: string) => new Request("http://localhost/", { headers: { "CF-Connecting-IP": ip } });
     const t = Date.now();
-    expect(await checkPassword(db, req("9.9.9.9"), "pw", "bad")).toBe("wrong");
+    expect(await checkPassword(db, req("9.9.9.9"), "pw-long-enough-for-tests", "bad")).toBe("wrong");
     expect(Date.now() - t).toBeGreaterThanOrEqual(FAIL_DELAY_MS - 50);
     const now = 1_000_000;
     for (let i = 0; i < MAX_FAILURES; i++) await db.prepare("INSERT OR REPLACE INTO auth_failures VALUES ('8.8.8.8', ?1, ?2)").bind(i + 1, now).run();
-    expect(await checkPassword(db, req("8.8.8.8"), "pw", "pw", now + 1000)).toBe("locked");
-    expect(await checkPassword(db, req("7.7.7.7"), "pw", "pw", now + 1000)).toBe("ok"); // other IPs are not affected
-    expect(await checkPassword(db, req("8.8.8.8"), "pw", "pw", now + 16 * 60 * 1000)).toBe("ok"); // the window passed
-    expect(await checkPassword(db, req("8.8.8.8"), undefined, "pw")).toBe("unset");
+    expect(await checkPassword(db, req("8.8.8.8"), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now + 1000)).toBe("locked");
+    expect(await checkPassword(db, req("7.7.7.7"), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now + 1000)).toBe("ok"); // other IPs are not affected
+    expect(await checkPassword(db, req("8.8.8.8"), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now + 16 * 60 * 1000)).toBe("ok"); // the window passed
+    expect(await checkPassword(db, req("8.8.8.8"), undefined, "pw-long-enough-for-tests")).toBe("unset");
+  });
+  it("a request with no password is refused without counting or waiting, so another site can't lock the owner out", async () => {
+    const env: Env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
+    const get = (headers: Record<string, string>) =>
+      handleApi(new Request("http://localhost/api/calls", { headers: { "CF-Connecting-IP": "6.6.6.6", ...headers } }), env);
+    expect((await get({ Authorization: "Bearer pw-long-enough-for-tests" })).status).toBe(200); // creates the schema
+    const t = Date.now();
+    for (let i = 0; i < MAX_FAILURES + 2; i++) {
+      for (const headers of [{}, { Authorization: "" }, { Authorization: "Basic dXNlcjpwYXNz" }] as Record<string, string>[]) {
+        const r = await get(headers);
+        expect(r.status).toBe(401);
+        expect(await r.json()).toEqual({ error: "password required" });
+      }
+    }
+    expect(Date.now() - t).toBeLessThan(FAIL_DELAY_MS);
+    expect(await env.DB.prepare("SELECT count(*) AS n FROM auth_failures").first()).toEqual({ n: 0 });
+    expect((await get({ Authorization: "Bearer pw-long-enough-for-tests" })).status).toBe(200);
+  });
+  it("parallel correct requests all pass, write nothing and never lock", async () => {
+    const db = await localD1();
+    const req = () => new Request("http://localhost/", { headers: { "CF-Connecting-IP": "5.5.5.4" } });
+    await checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests"); // creates the schema
+    const results = await Promise.all(Array.from({ length: 20 }, () => checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests")));
+    expect(results).toEqual(Array(20).fill("ok"));
+    expect(await db.prepare("SELECT count(*) AS n FROM auth_failures").first()).toEqual({ n: 0 });
+    expect(await checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests")).toBe("ok");
+  });
+  it("parallel wrong guesses are counted atomically and the lock follows the returned count", async () => {
+    const db = await localD1();
+    const req = () => new Request("http://localhost/", { headers: { "CF-Connecting-IP": "5.5.5.5" } });
+    const failures = async () =>
+      (await db.prepare("SELECT n FROM auth_failures WHERE ip = '5.5.5.5'").first<{ n: number }>())?.n ?? 0;
+    const now = 2_000_000;
+    await checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now); // creates the schema
+    const guesses = Array.from({ length: MAX_FAILURES + 5 }, (_, i) => checkPassword(db, req(), "pw-long-enough-for-tests", `guess ${i}`, now));
+    const results = await Promise.all(guesses);
+    // Every guess of the burst is counted (no lost update), and those counted past the threshold are told "locked".
+    expect(await failures()).toBe(MAX_FAILURES + 5);
+    expect(results.filter((r) => r === "wrong")).toHaveLength(MAX_FAILURES);
+    expect(results.filter((r) => r === "locked")).toHaveLength(5);
+    expect(await checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now + 1000)).toBe("locked"); // the right one too, until the window ends
+    expect(await failures()).toBe(MAX_FAILURES + 5); // a locked request is not counted again
+    expect(await checkPassword(db, req(), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now + 16 * 60 * 1000)).toBe("ok");
+    expect(await failures()).toBe(0);
   });
 });
 
@@ -224,8 +268,8 @@ describe("password attempts", () => {
 describe("review fixes", () => {
   it("answers an unexpected error with JSON 500, not Cloudflare's HTML page", async () => {
     const broken = { prepare() { throw new Error("D1 is down"); }, batch() { throw new Error("D1 is down"); } } as unknown as D1Database;
-    const r = await handleApi(new Request("http://localhost/api/calls", { headers: { Authorization: "Bearer pw" } }),
-                              { DB: broken, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" });
+    const r = await handleApi(new Request("http://localhost/api/calls", { headers: { Authorization: "Bearer pw-long-enough-for-tests" } }),
+                              { DB: broken, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" });
     expect(r.status).toBe(500);
     expect(await r.json()).toEqual({ error: "server error: D1 is down" });
   });
@@ -233,11 +277,11 @@ describe("review fixes", () => {
     const db = await localD1();
     const req = (ip: string) => new Request("http://localhost/", { headers: { "CF-Connecting-IP": ip } });
     const now = 5_000_000;
-    await checkPassword(db, req("1.0.0.1"), "pw", "pw", now); // creates the schema
+    await checkPassword(db, req("1.0.0.1"), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now); // creates the schema
     await db.prepare("INSERT INTO auth_failures VALUES ('1.0.0.2', 3, ?1)").bind(now - 20 * 60 * 1000).run(); // window over
     await db.prepare("INSERT INTO auth_failures VALUES ('1.0.0.3', 3, ?1)").bind(now - 60 * 1000).run(); // still fresh
-    expect(await checkPassword(db, req("1.0.0.4"), "pw", "pw", now)).toBe("ok");
-    expect(await checkPassword(db, req("1.0.0.4"), "pw", "bad", now)).toBe("wrong");
+    expect(await checkPassword(db, req("1.0.0.4"), "pw-long-enough-for-tests", "pw-long-enough-for-tests", now)).toBe("ok");
+    expect(await checkPassword(db, req("1.0.0.4"), "pw-long-enough-for-tests", "bad", now)).toBe("wrong");
     const { results } = await db.prepare("SELECT ip, n FROM auth_failures ORDER BY ip").all<{ ip: string; n: number }>();
     expect(results).toEqual([{ ip: "1.0.0.3", n: 3 }, { ip: "1.0.0.4", n: 1 }]);
   });
@@ -285,8 +329,8 @@ describe("too many lines", () => {
       },
     });
     const r = await handleApi(new Request("http://localhost/api/calls/2026-11-04%2015-01", {
-      method: "PUT", body: JSON.stringify(body()), headers: { Authorization: "Bearer pw" } }),
-      { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" });
+      method: "PUT", body: JSON.stringify(body()), headers: { Authorization: "Bearer pw-long-enough-for-tests" } }),
+      { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" });
     expect(r.status).toBe(500);
     expect(await r.json()).toEqual({ error: "server error: Invalid string length" });
   });

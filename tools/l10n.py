@@ -68,7 +68,7 @@ def main(cmd):
             if line[max(0, s - 2):s] == "L(":
                 continue
             if "\\(" in c:
-                print(f"интерполяция, поправь руками: {f.relative_to(SOURCES)}:{no}: {c}")
+                print(f"interpolation, fix it by hand: {f.relative_to(SOURCES)}:{no}: {c}")
                 continue
             files.setdefault(f, []).append((no, s, e))
         for f, items in files.items():
@@ -77,14 +77,14 @@ def main(cmd):
                 l = lines[no - 1]
                 lines[no - 1] = l[:s] + "L(" + l[s:e] + ")" + l[e:]
             f.write_text("\n".join(lines) + "\n")
-            print(f"{f.relative_to(SOURCES)}: обёрнуто {len(items)}")
+            print(f"{f.relative_to(SOURCES)}: wrapped {len(items)}")
         return 0
     keys, bad = [], []
     for f, no, line, s, e, c in scan():
         if line[max(0, s - 2):s] != "L(":
-            bad.append(f"{f.relative_to(SOURCES)}:{no}: строка без L(): \"{c}\"")
+            bad.append(f"{f.relative_to(SOURCES)}:{no}: string without L(): \"{c}\"")
         elif "\\(" in c:
-            bad.append(f"{f.relative_to(SOURCES)}:{no}: интерполяция внутри L(), нужен %@: \"{c}\"")
+            bad.append(f"{f.relative_to(SOURCES)}:{no}: interpolation inside L(), use %@: \"{c}\"")
         else:
             keys.append(c)
     keys = list(dict.fromkeys(keys))

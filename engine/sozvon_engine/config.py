@@ -25,6 +25,7 @@ KEYS = {
     "server_password": ("SOZVON_SERVER_PASSWORD",),
     "sync_voices": ("SOZVON_SYNC_VOICES",),
     "sync_audio": ("SOZVON_SYNC_AUDIO",),
+    "discover_ask": ("SOZVON_DISCOVER_ASK",),
 }
 # Process environment only (set by the app at launch, never in .env).
 ENV_ONLY = {"threads": "SOZVON_THREADS"}
@@ -48,8 +49,11 @@ class Settings:
     cursor_model: str = ""
     server_url: str = ""
     server_password: str = ""
-    sync_voices: bool = True
+    # Voice prints are biometric data: they go to the own server only when asked for.
+    sync_voices: bool = False
     sync_audio: bool = True
+    # Project discovery with Claude may also message the open Claude Code sessions. Off unless asked for.
+    discover_ask: bool = False
     threads: int | None = None
 
 
@@ -100,7 +104,8 @@ def load(env_file: Path | None = None, environ=None) -> Settings:
         cursor_model=raw["cursor_model"] or "",
         server_url=raw["server_url"] or "",
         server_password=raw["server_password"] or "",
-        sync_voices=(raw["sync_voices"] or "1").lower() not in {"0", "false", "no", "off"},
+        sync_voices=(raw["sync_voices"] or "").lower() in TRUE,
         sync_audio=(raw["sync_audio"] or "1").lower() not in {"0", "false", "no", "off"},
+        discover_ask=(raw["discover_ask"] or "").lower() in TRUE,
         threads=int(threads) if threads.isdigit() and int(threads) > 0 else None,
     )

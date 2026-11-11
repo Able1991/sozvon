@@ -25,10 +25,10 @@
   "cloudflare": {
     "bindings": {
       "SOZVON_PASSWORD": {
-        "description": "Choose a long password. Sozvon on your Mac uses it to upload calls, and you type it once when you connect Claude or ChatGPT. Generate one with `openssl rand -base64 24`."
+        "description": "Choose a long password, at least 20 characters (the server refuses a shorter one). Sozvon on your Mac uses it to upload calls, and you type it once when you connect Claude or ChatGPT. Generate one with `openssl rand -base64 24`."
       },
       "DB": {
-        "description": "Your calls: transcripts, summaries, the search index, and (unless turned off in Sozvon) call audio and voice prints."
+        "description": "Your calls: transcripts, summaries, the search index, call audio (unless turned off in Sozvon) and voice prints (only if turned on in Sozvon)."
       },
       "OAUTH_KV": {
         "description": "Sign-in sessions of Claude and ChatGPT."

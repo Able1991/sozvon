@@ -5,7 +5,7 @@ you can download them yourself. The pipeline loads once per process and only whe
 is heavy. Voices here are anonymous: numbered by order of first appearance, names and labels
 are up to the caller.
 """
-from . import audio, config, paths
+from . import audio, config, i18n, paths
 
 PIPELINE = "pyannote/speaker-diarization-3.1"
 # Windows per pass through the models. pyannote's own 32 keep 4 GB on the GPU for a 75-minute track; 8 give
@@ -29,7 +29,7 @@ def load_pipeline():
     if _pipeline is not None:
         return _pipeline
     if not available():
-        raise DiarizationUnavailable("нет моделей pyannote: переустанови движок")
+        raise DiarizationUnavailable(i18n.t("err_no_pyannote"))
     settings = config.load()
     import torch
     if settings.threads:

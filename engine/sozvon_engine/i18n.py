@@ -271,6 +271,24 @@ MESSAGES = {
     "install_no_diarization": ("ВНИМАНИЕ: модели разбивки по голосам не скачались, расшифровка будет без неё.",
                                "WARNING: speaker separation models failed to download; transcripts will not separate speakers."),
     "install_done": ("Готово", "Done"),
+
+    # Errors raised inside the engine: they reach process.log, call.json warnings and the assistant check
+    "err_llm_no_cli": ("не найден ни claude, ни codex, ни cursor-agent CLI",
+                       "none of the claude, codex and cursor-agent CLIs was found"),
+    "err_llm_cli_missing": ("не найден {cli} CLI", "the {cli} CLI was not found"),
+    "err_llm_empty": ("пустой ответ", "empty answer"),
+    "err_llm_outdated": ("Похоже, {cli} устарел, обнови: {how}", "{cli} looks outdated, update it: {how}"),
+    "err_cursor_no_sandbox": ("На этом Mac не работает песочница Cursor, а без неё Sozvon не запускает Cursor. Выбери Claude или Codex в настройках",
+                              "Cursor's sandbox does not run on this Mac, and Sozvon does not use Cursor without it. Choose Claude or Codex in Settings"),
+    "err_llm_logged_out": ("Войди заново: {how}", "Log in again: {how}"),
+    "llm_login_claude": ("запусти claude в Терминале и набери /login", "run claude in Terminal and type /login"),
+    "llm_login_codex": ("codex login", "codex login"),
+    "llm_login_cursor": ("cursor-agent login", "cursor-agent login"),
+    "llm_update_claude": ("claude update", "claude update"),
+    "llm_update_codex": ("brew upgrade codex или npm i -g @openai/codex", "brew upgrade codex or npm i -g @openai/codex"),
+    "llm_update_cursor": ("cursor-agent update", "cursor-agent update"),
+    "err_no_pyannote": ("нет моделей pyannote: переустанови движок", "no pyannote models: reinstall the engine"),
+    "err_json_not_object": ("ожидался JSON-объект", "a JSON object was expected"),
 }
 
 def lang() -> str:

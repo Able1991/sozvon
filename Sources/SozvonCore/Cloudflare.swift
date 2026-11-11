@@ -194,6 +194,8 @@ enum SecureRandom {
 /// Strong password for the server: letters and digits only (easy to paste into a connector login), 32 chars, about 190 bits.
 public enum ServerPassword {
     public static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
+    /// The server refuses a shorter SOZVON_PASSWORD (server/src/auth.ts, MIN_PASSWORD_LENGTH).
+    public static let minimumLength = 20
 
     public static func generate(length: Int = 32) -> String {
         var out = ""

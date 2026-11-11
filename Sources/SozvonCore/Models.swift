@@ -97,7 +97,7 @@ public enum WhisperModel: String, CaseIterable, Identifiable, Sendable {
     public var subtitle: String {
         switch self {
         case .turbo: return L("Быстро и точно. Час звонка за 3-4 минуты на M1.")
-        case .large: return L("Самая точная, примерно в 2 раза медленнее Turbo.")
+        case .large: return L("Самая большая Whisper, примерно в 2 раза медленнее Turbo.")
         case .small: return L("Лёгкая: для Mac с 8 ГБ памяти и экономии места. Точность ниже.")
         case .gigaam: return L("Только русский, от Сбера. Лёгкая и быстрая, но без словаря проектов.")
         case .parakeet: return L("25 европейских языков, от NVIDIA. Очень быстрая, но без словаря проектов.")

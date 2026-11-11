@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { type Env, handleApi, MAX_COMMIT_BODY } from "../src/api";
-import { AUDIO_LIMIT, audioBytes, CHUNK } from "../src/audio";
+import { AUDIO_LIMIT, audioBytes, audioLimit, CHUNK } from "../src/audio";
 import { putCall } from "../src/db";
 import { getCall, searchCalls } from "../src/tools";
 import { localD1 } from "./d1";
@@ -16,7 +16,7 @@ const bytes = (n: number, v = 7) => new Uint8Array(n).fill(v);
 describe("audio API", () => {
   let env: Env;
   beforeAll(async () => {
-    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" };
+    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
     await putCall(env.DB, { schema: 1, id: ID, hash: "c".repeat(64), folder: ID, call: { id: ID }, transcript: "[00:01] A: hi", summary: null });
     await putCall(env.DB, { schema: 1, id: ID2, hash: "e".repeat(64), folder: ID2, call: { id: ID2 }, transcript: "[00:01] B: yo", summary: null });
   });
@@ -24,7 +24,7 @@ describe("audio API", () => {
     handleApi(new Request(`http://localhost${path}`, {
       method, body: opts.body,
       headers: { "CF-Connecting-IP": opts.ip ?? "3.3.3.3", ...(opts.sha ? { "X-Sozvon-Sha256": opts.sha } : {}),
-                 ...(opts.auth === undefined ? { Authorization: "Bearer pw" } : opts.auth ? { Authorization: opts.auth } : {}) },
+                 ...(opts.auth === undefined ? { Authorization: "Bearer pw-long-enough-for-tests" } : opts.auth ? { Authorization: opts.auth } : {}) },
     }), env);
   const commit = (track: string, size: number, chunks: number, sha256 = SHA, extra: Record<string, unknown> = {}, path = P) =>
     req("POST", `${path}/audio/${track}/commit`, { body: JSON.stringify({ size, chunks, sha256, ...extra }) });
@@ -82,6 +82,30 @@ describe("audio API", () => {
     const text = { schema: 1, id: ID, hash: "d".repeat(64), folder: ID, call: { id: ID }, transcript: "[00:01] A: hello", summary: null };
     expect((await req("PUT", P, { body: JSON.stringify(text) })).status).toBe(204);
     await env.DB.prepare(`DELETE FROM audio_tracks WHERE call_id = '2026-01-01 00-00'`).run();
+  });
+
+  it("the audio cap leaves room for the text under D1's free 500 MB per database", () => {
+    // https://developers.cloudflare.com/d1/platform/limits/: 500 MB per database on the free plan, 10 GB on Workers Paid.
+    // Past it D1 refuses every write, text included, so the 507 has to come well before.
+    expect(AUDIO_LIMIT).toBeLessThanOrEqual(400_000_000);
+    expect(audioLimit({})).toBe(AUDIO_LIMIT);
+  });
+
+  it("SOZVON_AUDIO_LIMIT_MB sets another cap (a paid plan), junk falls back to the default", async () => {
+    expect(audioLimit({ SOZVON_AUDIO_LIMIT_MB: "8000" })).toBe(8_000_000_000);
+    expect(audioLimit({ SOZVON_AUDIO_LIMIT_MB: " 20 " })).toBe(20_000_000);
+    for (const junk of ["", "0", "-5", "lots", "1.5", "1e3"]) expect(audioLimit({ SOZVON_AUDIO_LIMIT_MB: junk })).toBe(AUDIO_LIMIT);
+    const small = { ...env, SOZVON_AUDIO_LIMIT_MB: "1" };
+    const put = (e: Env, n: number) => handleApi(new Request(`http://localhost${P2}/audio/system/0`, {
+      method: "PUT", body: bytes(n), headers: { Authorization: "Bearer pw-long-enough-for-tests", "CF-Connecting-IP": "3.3.3.3", "X-Sozvon-Sha256": SHA },
+    }), e);
+    const before = await audioBytes(env.DB);
+    const full = await put(small, 1_000_001 - before);
+    expect(full.status).toBe(507);
+    expect(await full.json()).toEqual({ error: "the storage for audio is full (1000000 bytes)" });
+    expect((await put(small, 1_000_000 - before)).status).toBe(204);
+    await env.DB.prepare(`DELETE FROM audio_staging WHERE call_id = ?1`).bind(ID2).run();
+    expect(await audioBytes(env.DB)).toBe(before);
   });
 
   it("rejects bad requests", async () => {

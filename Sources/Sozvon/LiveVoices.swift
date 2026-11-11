@@ -102,7 +102,7 @@ final class LiveVoices {
 
     /// Worth running: the engine works and someone else's voice is saved.
     static var useful: Bool {
-        EngineState.evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine).isUsable
+        EngineState.current.isUsable
             && VoiceStore.shared.records.contains { !$0.me }
     }
 

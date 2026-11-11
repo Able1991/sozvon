@@ -1,4 +1,6 @@
 """Call language: the base prompt must not pull Whisper into Russian; texts follow the app language."""
+import pytest
+
 from sozvon_engine import i18n, llm, prompt
 from sozvon_engine.pipeline import summary
 
@@ -67,3 +69,21 @@ def test_summary_prompt_key_moments_only_with_marks():
     assert "## Важные моменты" in p and "12:30, 25:10" in p
     assert p.index("## Важные моменты") < p.index("## Решения")
     assert "## Key Moments" in s.build_prompt("x", "Me", lang="en", marks=["01:00"])
+
+
+def test_errors_raised_by_the_engine_follow_the_app_language(monkeypatch, tmp_path):
+    """They end up in process.log and in call.json warnings, so an English interface gets English."""
+    from sozvon_engine import diarize, jsonfile
+    f = tmp_path / "list.json"
+    f.write_text("[1, 2]")
+    monkeypatch.setattr(diarize, "_pipeline", None)
+    monkeypatch.setattr(diarize, "available", lambda: False)
+    for ui, not_object, no_models in [("ru", "ожидался JSON-объект", "нет моделей pyannote: переустанови движок"),
+                                      ("en", "a JSON object was expected", "no pyannote models: reinstall the engine")]:
+        monkeypatch.setenv("SOZVON_UI_LANG", ui)
+        with pytest.raises(jsonfile.JsonFileError) as e:
+            jsonfile.read(f, strict=True)
+        assert str(e.value) == f"{f}: {not_object}"
+        with pytest.raises(diarize.DiarizationUnavailable) as e:
+            diarize.load_pipeline()
+        assert str(e.value) == no_models

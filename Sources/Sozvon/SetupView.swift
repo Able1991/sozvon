@@ -137,7 +137,7 @@ final class SetupModel: ObservableObject {
     }
 
     static var engineReady: Bool {
-        EngineState.evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine).isUsable
+        EngineState.current.isUsable
     }
 
     /// Stop the install with all its child processes (uv, curl, python).
@@ -356,7 +356,7 @@ struct SetupView: View {
 
     private static func discoveryNote(_ a: Assistant) -> String {
         switch a {
-        case .claude: L("Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа.")
+        case .claude: L("Claude посмотрит твои сессии Claude Code и соберёт проекты, людей и термины.")
         case .cursor: L("Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины.")
         case .codex, .none: L("Codex посмотрит прошлые сессии и соберёт проекты, людей и термины.")
         }

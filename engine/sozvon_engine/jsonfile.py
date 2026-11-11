@@ -10,7 +10,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import platform_support
+from . import i18n, platform_support
 
 SCHEMA = 1
 
@@ -32,7 +32,7 @@ def read(path: Path, default=None, strict: bool = False):
         return default
     if not isinstance(data, dict):
         if strict:
-            raise JsonFileError(f"{path}: ожидался JSON-объект")
+            raise JsonFileError(f"{path}: {i18n.t('err_json_not_object')}")
         return default
     return data
 

@@ -96,21 +96,21 @@ class CallSpec:
 
 
 def parse_args(argv=None) -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Sozvon: расшифровать папку звонка (настройки из call.json)")
-    ap.add_argument("dir", help="папка звонка с mic.m4a, system.m4a и call.json")
-    ap.add_argument("--me", default=None, help="как подписывать меня (иначе SOZVON_ME)")
-    ap.add_argument("--language", default=None, help="языки речи: ru, ru,en или auto")
-    ap.add_argument("--speakers", type=int, default=None, help="число собеседников без меня")
-    ap.add_argument("--names", default=None, help="имена собеседников через запятую")
-    ap.add_argument("--profile", default=None, help="проект из profiles/")
-    ap.add_argument("--topic", default=None, help="тема звонка")
-    ap.add_argument("--terms", default=None, help="ключевые слова звонка через запятую")
+    ap = argparse.ArgumentParser(description="Sozvon: transcribe a call folder (settings come from call.json)")
+    ap.add_argument("dir", help="call folder with mic.m4a, system.m4a and call.json")
+    ap.add_argument("--me", default=None, help="how to label my lines (default: SOZVON_ME)")
+    ap.add_argument("--language", default=None, help="spoken languages: ru, ru,en or auto")
+    ap.add_argument("--speakers", type=int, default=None, help="number of other speakers, not counting me")
+    ap.add_argument("--names", default=None, help="names of the other speakers, comma-separated")
+    ap.add_argument("--profile", default=None, help="project from profiles/")
+    ap.add_argument("--topic", default=None, help="call topic")
+    ap.add_argument("--terms", default=None, help="keywords of the call, comma-separated")
     ap.add_argument("--switch", action="store_true", default=None,
-                    help="определять язык каждой фразы (медленнее)")
-    ap.add_argument("--no-diarize", action="store_true", help="без разбивки собеседников по голосам")
-    ap.add_argument("--no-summary", action="store_true", help="без саммари (текст не покидает Mac)")
+                    help="detect the language of every phrase (slower)")
+    ap.add_argument("--no-diarize", action="store_true", help="do not separate the other speakers by voice")
+    ap.add_argument("--no-summary", action="store_true", help="no summary (the text never leaves the Mac)")
     ap.add_argument("--summary-only", action="store_true",
-                    help="только заново сделать саммари по transcript.txt (после правок расшифровки)")
+                    help="only redo the summary from transcript.txt (after the transcript was edited)")
     return ap.parse_args(argv)
 
 

@@ -68,7 +68,7 @@ def test_data_dir_order(monkeypatch, tmp_path):
     assert paths.data_dir() == tmp_path / "new"
     monkeypatch.delenv("SOZVON_DATA_DIR")
     monkeypatch.setenv("WHISPER_MCP_DIR", str(tmp_path / "old"))
-    assert paths.data_dir() == paths.CODE_DIR, "из репозитория: папка с server.py"
+    assert paths.data_dir() == paths.CODE_DIR, "from the repository: the folder with server.py"
 
 
 def test_calls_dir(monkeypatch, tmp_path):

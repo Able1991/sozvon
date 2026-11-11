@@ -28,7 +28,7 @@ def test_fresh_download_passes_pinned_revision(tmp_path):
     assert hub.calls == [(m["repo"], f, m["revision"]) for f in m["files"]] + [(v["repo"], f, v["revision"]) for f in v["files"]]
     assert (d / models.COMPLETE).read_text() == m["revision"] + "\n"
     install.ensure_model(tmp_path, "turbo", hub)
-    assert len(hub.calls) == len(m["files"]) + len(v["files"]), "второй раз не качает"
+    assert len(hub.calls) == len(m["files"]) + len(v["files"]), "the second time downloads nothing"
 
 
 def test_legacy_complete_files_marked_without_refetch(tmp_path):
