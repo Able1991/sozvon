@@ -2,9 +2,30 @@ using Sozvon.Core.Settings;
 
 namespace Sozvon.Core.Engine;
 
-/// <summary>Where the engine and the calls live on Windows.</summary>
-public sealed record EngineLayout(string Data, string Calls)
+/// <summary>
+/// Where the engine and the calls live on Windows. The calls folder can change while the app runs (Settings, Files):
+/// <see cref="Calls"/> is read through <paramref name="calls"/> each time, so every run and every scan uses the folder
+/// of that moment.
+/// </summary>
+public sealed class EngineLayout(string data, Func<string> calls) : IEquatable<EngineLayout>
 {
+    public EngineLayout(string data, string calls) : this(data, () => calls)
+    {
+    }
+
+    public string Data { get; } = data;
+
+    public string Calls => calls();
+
+    /// <summary>The same folders at this moment.</summary>
+    public bool Equals(EngineLayout? other) => other is not null && Data == other.Data && Calls == other.Calls;
+
+    public override bool Equals(object? obj) => Equals(obj as EngineLayout);
+
+    public override int GetHashCode() => HashCode.Combine(Data, Calls);
+
+    public override string ToString() => $"EngineLayout {{ Data = {Data}, Calls = {Calls} }}";
+
     /// <summary>The default folders: data in %LOCALAPPDATA%\Sozvon, calls in the profile, outside any OneDrive redirect.</summary>
     public static EngineLayout Default() => new(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sozvon"),

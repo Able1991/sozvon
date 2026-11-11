@@ -61,7 +61,7 @@ public class EngineEnvironmentTests : TempFolders
         var defaults = EngineLayout.Default();
         Assert.Equal(defaults, EngineLayout.FromEnvironment(_ => null));
         Assert.Equal(defaults, EngineLayout.FromEnvironment(_ => " "));
-        Assert.Equal(defaults with { Data = Data }, EngineLayout.FromEnvironment(name => name == "SOZVON_DATA_DIR" ? Data : ""));
+        Assert.Equal(new EngineLayout(Data, defaults.Calls), EngineLayout.FromEnvironment(name => name == "SOZVON_DATA_DIR" ? Data : ""));
     }
 
     [Fact]

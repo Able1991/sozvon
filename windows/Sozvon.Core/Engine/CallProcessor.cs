@@ -19,8 +19,15 @@ public sealed record CallRunFinished(string Dir, ProcessingKind Kind, RunOutcome
 /// Drives the queue: one engine run at a time, saved in call.json so it survives a restart. The UI layer listens to
 /// the events, which arrive on background threads.
 /// </summary>
-public sealed class CallProcessor(string callsRoot, IEngineRunner runner, Func<IReadOnlyList<Project>> projects)
+public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner, Func<IReadOnlyList<Project>> projects)
 {
+    public CallProcessor(string callsRoot, IEngineRunner runner, Func<IReadOnlyList<Project>> projects) : this(() => callsRoot, runner, projects)
+    {
+    }
+
+    /// <summary>The calls folder of this moment: it can change in Settings between runs.</summary>
+    private string CallsRoot => callsFolder();
+
     private readonly ProcessingQueue _queue = new();
     private readonly object _gate = new();
     private IEngineRun? _run;
@@ -71,7 +78,7 @@ public sealed class CallProcessor(string callsRoot, IEngineRunner runner, Func<I
     /// <summary>At launch: the waiting calls and the one a crash interrupted go back in the queue. Their folders are returned for the .work sweep.</summary>
     public IReadOnlyList<string> RestoreQueue()
     {
-        var jobs = CallFile.RecoverQueue(callsRoot);
+        var jobs = CallFile.RecoverQueue(CallsRoot);
         lock (_gate)
         {
             foreach (var job in jobs) _queue.Admit(job.Dir, job.Kind);
@@ -183,7 +190,7 @@ public sealed class CallProcessor(string callsRoot, IEngineRunner runner, Func<I
     private string Rename(string dir)
     {
         var call = CallFile.Read(dir);
-        var name = CallFolderName.Build(Path.GetFileName(dir), CallFile.Info(call), projects(), CallParticipants.List(call), callsRoot);
+        var name = CallFolderName.Build(Path.GetFileName(dir), CallFile.Info(call), projects(), CallParticipants.List(call), CallsRoot);
         if (name == Path.GetFileName(dir)) return dir;
         var target = Path.Combine(Path.GetDirectoryName(dir)!, name);
         if (Directory.Exists(target)) return dir;
