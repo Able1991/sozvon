@@ -1,4 +1,4 @@
-// "Diagnostics…" in Settings > About: the environment checks and a zip of scrubbed logs for support.
+// "Diagnostics…" in Settings > About: the environment checks, and the scrubbed logs for support as a zip or a folder.
 // What goes into the archive, and what never does, is decided in SozvonCore (Diagnostics.swift).
 
 import AppKit
@@ -64,6 +64,9 @@ struct DiagnosticsSheet: View {
             }
         } actions: {
             Button(L("Закрыть")) { dismiss() }.keyboardShortcut(.cancelAction)
+            Button(L("Показать логи"), action: showLogs)
+                .disabled(checks == nil || saving)
+                .help(L("Те же очищенные журналы, что в архиве, в папке в Finder: посмотреть и отправить"))
             Button(L("Сохранить архив…"), action: save)
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
@@ -107,6 +110,32 @@ struct DiagnosticsSheet: View {
         case .ok: return L("Хорошо")
         case .warning: return L("Внимание")
         case .problem: return L("Проблема")
+        }
+    }
+
+    /// The scrubbed logs in ~/Library/Logs/Sozvon/Diagnostics, shown in Finder.
+    private func showLogs() {
+        guard let checks else { return }
+        let folder = Paths.logs.appendingPathComponent("Diagnostics", isDirectory: true)
+        saving = true
+        result = nil
+        Task {
+            let error: String? = await Task.detached {
+                do {
+                    try DiagnosticArchive.writeFolder(checks: checks, logs: Paths.logs, data: Paths.data, calls: Paths.calls,
+                                                      home: Paths.home.path, to: folder)
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+            saving = false
+            failed = error != nil
+            if let error {
+                result = L("Не получилось собрать журналы: %@", error)
+            } else {
+                NSWorkspace.shared.activateFileViewerSelecting([folder])
+            }
         }
     }
 

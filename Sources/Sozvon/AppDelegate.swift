@@ -85,6 +85,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return self.processing.contains(dir) || self.calls.recordingDir?.standardizedFileURL == dir.standardizedFileURL
         }
         AudioCleanup.onChange = { [weak self] in self?.calls.reload() }
+        CallsFolderChanger.isBusy = { [weak self] in
+            guard let self else { return true }
+            return self.processing.isProcessing || self.calls.recordingDir != nil
+        }
+        CallsFolderChanger.onChanged = { [weak self] in
+            MCPServer.shared.restart()   // its SOZVON_CALLS_DIR is the old folder
+            self?.calls.followCallsFolder()
+        }
         // Not in the first seconds after launch: the app is busy enough then.
         mainAfter(60) { _ = AudioCleanup.run() }
         updateTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in

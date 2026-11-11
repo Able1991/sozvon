@@ -100,6 +100,7 @@ public struct SettingsValues: Equatable, Sendable {
         public static let serverPassword = "SOZVON_SERVER_PASSWORD"
         public static let syncVoices = "SOZVON_SYNC_VOICES"
         public static let syncAudio = "SOZVON_SYNC_AUDIO"
+        public static let summaryLanguage = "SOZVON_SUMMARY_LANGUAGE"
     }
     public static let envVersion = 1
 
@@ -117,6 +118,8 @@ public struct SettingsValues: Equatable, Sendable {
     public var syncVoices = true
     /// Call audio goes to the own server too (absent in .env: on).
     public var syncAudio = true
+    /// The summary's language; nil: the conversation's.
+    public var summaryLanguage: SpeechLanguage?
 
     public init() {}
 
@@ -132,12 +135,13 @@ public struct SettingsValues: Equatable, Sendable {
         serverPassword = kv[Key.serverPassword] ?? ""
         syncVoices = kv[Key.syncVoices] != "0"
         syncAudio = kv[Key.syncAudio] != "0"
+        summaryLanguage = kv[Key.summaryLanguage].flatMap(SpeechLanguage.init(rawValue:)).flatMap { $0 == .auto ? nil : $0 }
     }
 
     /// Keys managed by the app (old names are removed on write).
     public static let managedKeys: Set<String> = [Key.version, Key.me, Key.legacyMe, Key.llm, Key.language,
                                                   Key.langSwitch, Key.model, Key.serverURL,
-                                                  Key.serverPassword, Key.syncVoices, Key.syncAudio]
+                                                  Key.serverPassword, Key.syncVoices, Key.syncAudio, Key.summaryLanguage]
 
     public var pairs: [(String, String)] {
         var kv: [(String, String)] = [(Key.version, String(Self.envVersion))]
@@ -153,6 +157,7 @@ public struct SettingsValues: Equatable, Sendable {
         if !password.isEmpty { kv.append((Key.serverPassword, password)) }
         kv.append((Key.syncVoices, syncVoices ? "1" : "0"))
         kv.append((Key.syncAudio, syncAudio ? "1" : "0"))
+        kv.append((Key.summaryLanguage, summaryLanguage?.rawValue ?? "auto"))
         return kv
     }
 
@@ -176,6 +181,7 @@ public final class Settings: ObservableObject {
     @Published public var serverPassword = ""
     @Published public var syncVoices = true
     @Published public var syncAudio = true
+    @Published public var summaryLanguage: SpeechLanguage?
 
     private let url: URL
 
@@ -195,6 +201,7 @@ public final class Settings: ObservableObject {
         v.serverPassword = serverPassword
         v.syncVoices = syncVoices
         v.syncAudio = syncAudio
+        v.summaryLanguage = summaryLanguage
         return v
     }
 
@@ -210,6 +217,7 @@ public final class Settings: ObservableObject {
         serverPassword = v.serverPassword
         syncVoices = v.syncVoices
         syncAudio = v.syncAudio
+        summaryLanguage = v.summaryLanguage
     }
 
     /// The own server is set up: a valid address and a password.
