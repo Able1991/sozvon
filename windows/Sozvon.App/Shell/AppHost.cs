@@ -22,6 +22,8 @@ namespace Sozvon.App.Shell;
 public sealed class AppHost
 {
     private const string InstanceKey = "sozvon-main";
+    private static readonly TimeSpan HandoverTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan TakeoverTimeout = TimeSpan.FromSeconds(60);
     private static AppHost? _current;
 
     private readonly SettingsStore _store = new(AppPaths.SettingsFile);
@@ -85,11 +87,18 @@ public sealed class AppHost
     /// <summary>Starts the shell, or hands over to the running Sozvon and ends this process.</summary>
     public static void Start()
     {
-        var instance = AppInstance.FindOrRegisterForKey(AppPaths.InstanceKey(InstanceKey));
+        var key = AppPaths.InstanceKey(InstanceKey);
+        var instance = AppInstance.FindOrRegisterForKey(key);
         if (!instance.IsCurrent)
         {
-            Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();
-            Environment.Exit(0);
+            // The running Sozvon opens its window and this process ends. A Sozvon on its way out (quit a moment ago,
+            // still saving a recording) never answers: this process waits for its key to free up and takes its place.
+            var handed = Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs()));
+            if (handed.Wait(HandoverTimeout))
+            {
+                Environment.Exit(0);
+            }
+            instance = WaitForKey(key);
         }
         Application.Current.UnhandledException += OnUnhandledException;
         Application.Current.DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
@@ -239,6 +248,27 @@ public sealed class AppHost
         _tray.Dispose();
         var failure = AppInstance.Restart("");
         Marshal.ThrowExceptionForHR((int)failure);
+    }
+
+    /// <summary>The other instance is gone once its key is free; this process registers it and goes on as the only Sozvon.</summary>
+    private static AppInstance WaitForKey(string key)
+    {
+        var deadline = DateTime.UtcNow + TakeoverTimeout;
+        while (true)
+        {
+            Thread.Sleep(500);
+            var instance = AppInstance.FindOrRegisterForKey(key);
+            if (instance.IsCurrent)
+            {
+                return instance;
+            }
+            if (DateTime.UtcNow >= deadline)
+            {
+                // Still held: that Sozvon is stuck rather than quitting, and a second one must not run beside it.
+                Log(new TimeoutException($"another Sozvon holds {key} and does not answer"));
+                Environment.Exit(1);
+            }
+        }
     }
 
     private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e) => Log(e.Exception);
