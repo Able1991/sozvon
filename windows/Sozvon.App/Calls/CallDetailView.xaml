@@ -71,12 +71,16 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="12,0,24,0" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+        <Grid Padding="12,0,24,0" ColumnSpacing="8" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <SelectorBar x:Name="Tabs" HorizontalAlignment="Left" SelectionChanged="OnTabChanged">
                 <SelectorBarItem x:Name="SummaryTab" Text="{s:L K='Саммари'}" IsSelected="True" />
                 <SelectorBarItem x:Name="TranscriptTab" Text="{s:L K='Расшифровка'}" />
             </SelectorBar>
-            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="4">
+            <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="4">
                 <DropDownButton Content="{s:L K='Поделиться'}">
                     <DropDownButton.Flyout>
                         <MenuFlyout>

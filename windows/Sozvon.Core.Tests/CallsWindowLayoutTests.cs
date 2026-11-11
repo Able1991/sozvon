@@ -27,6 +27,19 @@ public sealed class CallsWindowLayoutTests
         Assert.Equal("CharacterEllipsis", (string?)title.Attribute("TextTrimming"));
     }
 
+    /// <summary>In a narrow window "Поделиться" used to lie on top of the "Расшифровка" tab.</summary>
+    [Fact]
+    public void TabsAndHeaderButtonsDoNotShareAColumn()
+    {
+        var path = Path.Combine(Repo.Root(), "windows", "Sozvon.App", "Calls", "CallDetailView.xaml");
+        var tabs = XDocument.Load(path).Descendants(Ui + "SelectorBar").Single();
+        var header = tabs.Parent!;
+        Assert.Equal(2, header.Element(Ui + "Grid.ColumnDefinitions")?.Elements().Count());
+        var buttons = header.Elements(Ui + "StackPanel").Single();
+        static string Column(XElement e) => (string?)e.Attribute("Grid.Column") ?? "0";
+        Assert.NotEqual(Column(tabs), Column(buttons));
+    }
+
     [Fact]
     public void CardMetaLineWraps()
     {
