@@ -165,6 +165,8 @@ final class SetupModel: ObservableObject {
             self.installed = ok && SetupModel.engineReady
             self.failed = !self.installed && !self.cancelled
             if self.installed && !self.repair { self.step = .permissions }
+            // The engine is there now: check that the chosen assistant answers before it is asked to find projects.
+            if self.installed { AssistantChecks.shared.run(Settings.shared.assistant) }
         }
     }
 }
@@ -174,6 +176,7 @@ struct SetupView: View {
     @ObservedObject private var installer = EngineInstaller.shared
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var voices = VoiceStore.shared
+    @ObservedObject private var checks = AssistantChecks.shared
     @State private var voiceSheet = false
     /// Height of the transparent title bar the page extends under: the hosting window adds it on top of
     /// the view's height.
@@ -329,6 +332,14 @@ struct SetupView: View {
                 SetupChoiceLabel(title: Self.title(a),
                                  note: a == .none ? nil : (a.isAvailable ? L("установлен") : L("не найден")),
                                  text: Self.subtitle(a))
+            }
+            if s.assistant != .none {
+                SetupGroup {
+                    SetupRow(title: L("Язык саммари")) {
+                        SummaryLanguagePicker(selection: $s.summaryLanguage).labelsHidden().fixedSize()
+                    }
+                }
+                .padding(.top, 8)
             }
         }
     }
@@ -601,7 +612,12 @@ struct SetupView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 400)
                         .fixedSize(horizontal: false, vertical: true)
+                    AssistantCheckStatus(assistant: s.assistant)
+                    if let why = checks.problem(s.assistant) {
+                        SettingsWarning(why).frame(maxWidth: 420)
+                    }
                 }
+                .onAppear { checks.runOnce(s.assistant) }
                 if m.discovery.isRunning {
                     GroupBox { ProjectDiscoveryProgress(discovery: m.discovery).padding(6) }
                 } else if !m.discovery.result.isEmpty {

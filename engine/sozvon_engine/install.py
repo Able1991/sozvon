@@ -64,14 +64,14 @@ def ensure_entry(entry: dict, d: Path, downloader: Downloader) -> None:
 
 
 def ensure_model(data: Path, name: str, downloader: Downloader = hf_download) -> Path:
-    """Download a model at its pinned revision (plus the VAD for onnx models)."""
+    """Download a model at its pinned revision, and the VAD: onnx models split speech by it, Whisper's lines
+    without a voice under them are dropped by it."""
     if name not in models.MODELS:
         raise ValueError(f"unknown model {name!r}; available: {', '.join(models.MODELS)}")
     m = models.MODELS[name]
     d = models.model_dir(data, name)
     ensure_entry(m, d, downloader)
-    if m["kind"] == "onnx":
-        ensure_entry(models.VAD, models.vad_dir(data), downloader)
+    ensure_entry(models.VAD, models.vad_dir(data), downloader)
     return d
 
 

@@ -5,13 +5,14 @@ installed of claude, codex, cursor). Uses the user's subscription in the respect
 Text goes to Anthropic (claude), OpenAI (codex) or Cursor and the model chosen there (cursor).
 """
 import json
+import shlex
 import shutil
 import subprocess
 import tempfile
 import time
 from pathlib import Path
 
-from . import config, platform_support
+from . import config, paths, platform_support
 
 BIN_DIRS = platform_support.tool_bin_dirs()
 
@@ -26,13 +27,46 @@ def _find(name: str):
     return None
 
 
+# One line per assistant call in <data>/assistant.log (Settings → Diagnostics puts it in the zip): which CLI, the
+# command, how it ended. The request never: it goes by stdin or request.md, and an argument equal to it is masked.
+JOURNAL = "assistant.log"
+JOURNAL_MAX = 1_000_000
+
+
+def journal(cmd, prompt: str, code, seconds: float, err: str = "") -> None:
+    try:
+        args = ["<request>" if a == prompt else a for a in cmd]
+        line = (f"{time.strftime('%Y-%m-%d %H:%M:%S')} {shlex.join(args)} | exit {code} | {seconds:.1f} s"
+                + (" | " + " ".join(err.split())[-400:] if err.strip() else ""))
+        f = paths.data_dir() / JOURNAL
+        if f.exists() and f.stat().st_size > JOURNAL_MAX:
+            keep = f.read_text(encoding="utf-8", errors="replace")[-JOURNAL_MAX // 2:]
+            f.write_text(keep[keep.find("\n") + 1:], encoding="utf-8")
+        with f.open("a", encoding="utf-8") as out:
+            out.write(line + "\n")
+    except Exception:  # noqa: BLE001 - a journal never fails a summary
+        pass
+
+
+def _exec(cmd, prompt: str, **kw) -> subprocess.CompletedProcess:
+    """subprocess.run with a journal line; a timeout is journalled and raised again."""
+    start = time.time()
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    except subprocess.TimeoutExpired:
+        journal(cmd, prompt, "timeout", time.time() - start)
+        raise
+    journal(cmd, prompt, r.returncode, time.time() - start, r.stderr if r.returncode else "")
+    return r
+
+
 # Backend name -> CLI binary, in auto-detection order.
 BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent"}
 
 
-def backend(settings: config.Settings | None = None):
-    """-> ('claude'|'codex'|'cursor', path) or (None, None)."""
-    want = (settings or config.load()).llm
+def backend(settings: config.Settings | None = None, only: str | None = None):
+    """-> ('claude'|'codex'|'cursor', path) or (None, None). only: that one assistant, whatever the settings say."""
+    want = only or (settings or config.load()).llm
     if want == "none":
         return None, None
     order = [want] if want in BINARIES else list(BINARIES)
@@ -47,15 +81,17 @@ def vendor(name) -> str:
     return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor"}.get(name, "")
 
 
-def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_event=None):
+def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_event=None, only: str | None = None):
     """Run a request. agentic=True: allow reading files (and Claude sessions).
 
     on_event(name, input): called on every agent step (claude only), for progress.
     -> (answer text, backend name, error or "").
     """
     settings = config.load()
-    name, path = backend(settings)
+    name, path = backend(settings, only)
     if not name:
+        if only in BINARIES:
+            return None, None, f"не найден {BINARIES[only]} CLI"
         return None, None, "не найден ни claude, ни codex, ни cursor-agent CLI"
     if name == "claude":
         # --setting-sources project: skip ~/.claude/settings.json, otherwise the user's allow rules
@@ -73,14 +109,19 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
                     "--add-dir", str(Path.home() / ".claude")]
         else:
             cmd += ["--tools", ""]
-        if on_event:
-            return _claude_stream(cmd, prompt, cwd, timeout, on_event)
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                           timeout=timeout, cwd=str(cwd))
-        out = r.stdout.strip()
-        if r.returncode != 0 or not out:
-            return None, name, (r.stderr or out)[:500]
-        return out, name, ""
+        def once(c):
+            if on_event:
+                return _claude_stream(c, prompt, cwd, timeout, on_event)
+            r = _exec(c, prompt, input=prompt, timeout=timeout, cwd=str(cwd))
+            out = r.stdout.strip()
+            if r.returncode != 0 or not out:
+                return None, name, (r.stderr or out)[:500]
+            return out, name, ""
+        res = once(cmd)
+        if res[0] is None and OLD_CLAUDE_FLAG in res[2] and "unknown option" in res[2].lower():
+            # An old Claude Code: the flag only keeps the session out of its history.
+            res = once([a for a in cmd if a != OLD_CLAUDE_FLAG])
+        return res
 
     if name == "cursor":
         return _cursor(path, prompt, agentic, timeout, settings)
@@ -96,8 +137,7 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
         cmd += ["--ignore-rules"]
     cmd.append("-")
     try:
-        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                           timeout=timeout, cwd=str(cwd))
+        r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=str(cwd))
         out = Path(out_file).read_text(encoding="utf-8").strip() if Path(out_file).exists() else ""
     finally:
         Path(out_file).unlink(missing_ok=True)
@@ -106,10 +146,22 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     return out, name, ""
 
 
+OLD_CLAUDE_FLAG = "--no-session-persistence"
+# An installed CLI that is logged out: how its error reads, and how to log in again.
+LOGGED_OUT = ("oauth", "token has expired", "authentication", "not logged in", "login", "api key")
+LOGIN = {"claude": "запусти claude в Терминале и набери /login", "codex": "codex login", "cursor": "cursor-agent login"}
+# How to update each CLI, for a check that meets an option it does not know.
+UPDATE = {"claude": "claude update", "codex": "brew upgrade codex или npm i -g @openai/codex", "cursor": "cursor-agent update"}
+
+
 # Short argument for a summary: the request itself is in request.md, never in argv
 # (a transcript can exceed the argument size limit and would show up in `ps`).
 CURSOR_FILE_PROMPT = ("Read the file request.md in the current workspace and do exactly what it says. "
                       "Reply only with the answer it asks for, nothing else.")
+
+
+# cursor-agent's answer where its sandbox does not run (some Macs): it refuses before reading anything.
+NO_SANDBOX = "sandbox is unavailable"
 
 
 def _cursor(path, prompt, agentic, timeout, settings):
@@ -135,8 +187,11 @@ def _cursor(path, prompt, agentic, timeout, settings):
             arg = CURSOR_FILE_PROMPT
         cmd += ["--workspace", str(workspace), arg]
         try:
-            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                               timeout=timeout, cwd=str(workspace))
+            r = _exec(cmd, prompt, stdin=subprocess.DEVNULL, timeout=timeout, cwd=str(workspace))
+            if r.returncode != 0 and NO_SANDBOX in (r.stderr + r.stdout).lower():
+                # Ask mode is read-only by itself; the sandbox only adds to it where it runs.
+                plain = [a for i, a in enumerate(cmd) if a != "--sandbox" and (i == 0 or cmd[i - 1] != "--sandbox")]
+                r = _exec(plain, prompt, stdin=subprocess.DEVNULL, timeout=timeout, cwd=str(workspace))
         except subprocess.TimeoutExpired:
             return None, "cursor", "timeout"
     finally:
@@ -161,6 +216,7 @@ def _claude_stream(cmd, prompt, cwd, timeout, on_event):
     for line in proc.stdout:
         if time.time() - start > timeout:
             proc.kill()
+            journal(cmd, prompt, "timeout", time.time() - start)
             return None, "claude", "timeout"
         try:
             ev = json.loads(line)
@@ -178,8 +234,31 @@ def _claude_stream(cmd, prompt, cwd, timeout, on_event):
         proc.wait(timeout=max(5, timeout - (time.time() - start)))
     except subprocess.TimeoutExpired:
         proc.kill()
+        journal(cmd, prompt, "timeout", time.time() - start)
         return None, "claude", "timeout"
     if not result or err:
         errf.seek(0)
-        return None, "claude", err or errf.read()[:500]
+        err = err or errf.read()[:500]
+        journal(cmd, prompt, proc.returncode, time.time() - start, err)
+        return None, "claude", err
+    journal(cmd, prompt, proc.returncode, time.time() - start)
     return str(result).strip(), "claude", ""
+
+
+CHECK_PROMPT = "Reply with the single word OK."
+
+
+def check(name: str, timeout: int = 120) -> tuple[bool, str]:
+    """Does this assistant answer, through the very command a summary uses? -> (ok, its answer or the error)."""
+    import tempfile as _t
+    with _t.TemporaryDirectory(prefix="sozvon-check-") as d:
+        out, _, err = run(CHECK_PROMPT, Path(d), timeout=timeout, only=name)
+    if out:
+        return True, out.strip()[:200]
+    err = (err or "пустой ответ").strip()
+    low = err.lower()
+    if "unknown option" in low or "unknown argument" in low:
+        err += f". Похоже, {BINARIES[name]} устарел, обнови: {UPDATE[name]}"
+    elif any(w in low for w in LOGGED_OUT):
+        err += f". Войди заново: {LOGIN[name]}"
+    return False, err

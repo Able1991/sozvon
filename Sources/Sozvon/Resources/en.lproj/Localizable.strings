@@ -794,3 +794,14 @@
 "Предыдущее совпадение" = "Previous Match";
 "Следующее совпадение" = "Next Match";
 "Закрыть поиск" = "Close Find";
+"Проверка" = "Check";
+"Тот же запрос, что для саммари, в одно слово" = "The same request as a summary, one word long";
+"%@ не ответил. Подробности в assistant.log" = "%@ did not answer. Details are in assistant.log";
+"%@ не ответил: %@" = "%@ did not answer: %@";
+"Отвечает" = "Answers";
+"не найден %@" = "%@ not found";
+"Язык саммари" = "Summary language";
+"Как в разговоре" = "Same as the conversation";
+"Показать логи" = "Show Logs";
+"Те же очищенные журналы, что в архиве, в папке в Finder: посмотреть и отправить" = "The same scrubbed logs as the archive, in a Finder folder to look at and send";
+"Не получилось собрать журналы: %@" = "Couldn’t collect the logs: %@";

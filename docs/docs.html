@@ -18,6 +18,7 @@
 .toc a { color: var(--muted); text-decoration: none; }
 .toc a:hover { color: var(--ink); }
 .toc a.active { color: var(--ink); font-weight: 600; }
+.toc li.sub { margin: -2px 0 6px 14px; font-size: 14px; }
 .body { max-width: 720px; }
 .body h1 { font-size: clamp(36px, 4.6vw, 52px); margin-bottom: 16px; }
 .body > p.lead { margin-bottom: 8px; }
@@ -87,6 +88,10 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#privacy">Приватность</a></li>
       <li><a href="#files">Где лежат файлы</a></li>
       <li><a href="#trouble">Если что-то не так</a></li>
+      <li class="sub"><a href="#assistant-check">Саммари не появляются</a></li>
+      <li class="sub"><a href="#hallucinations">«Спасибо» там, где молчали</a></li>
+      <li class="sub"><a href="#corporate">Корпоративная сеть</a></li>
+      <li class="sub"><a href="#logs">Журналы и диагностика</a></li>
       <li><a href="#uninstall">Удаление</a></li>
       <li><a href="#source">Сборка из исходников</a></li>
     </ol></aside>
@@ -238,7 +243,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>Cursor CLI</b> (<code>cursor-agent</code>) по твоей подписке Cursor, с моделью, выбранной в Cursor.</li>
         <li><b>Только локально:</b> без саммари и подписи имён, текст расшифровки никуда не уходит.</li>
       </ul>
-      <p>Помощник выбирается в «Настройки», вкладка «Ассистенты». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
+      <p>Помощник выбирается в «Настройки», вкладка «Ассистенты», или в мастере при первом запуске. Там же «Язык саммари»: «Как в разговоре» (по умолчанию) или конкретный язык, например, чтобы английские звонки получали саммари на русском.</p>
+      <p>Sozvon сразу проверяет выбранного помощника: отправляет ему запрос в одно слово той же командой, что и для саммари, и пишет «Отвечает» или ошибку с подсказкой. Проверка повторяется при подключении ассистента и кнопкой «Проверить». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
 
       <h2 id="mcp">Claude Code, Codex и Cursor (MCP)</h2>
       <p>Sozvon может отдавать звонки твоему ассистенту: «что решили с Acme на прошлой неделе?», «найди, где обсуждали SLA». Пока Sozvon запущен, он держит один общий MCP-сервер на <code>127.0.0.1:47816</code> для всех сессий, около 40 МБ памяти. Сервер доступен только с этого Mac и требует пароль (bearer-токен).</p>
@@ -360,6 +366,17 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Включи «Расшифровывать с низким приоритетом» на вкладке «Распознавание». Расшифровка станет чуть дольше, зато не будет мешать.</p>
       <h3>«Движок сломан» или «Модель не скачана»</h3>
       <p>«Настройки», вкладка «Распознавание», «Переустановить…»: выбери модель и нажми «Переустановить». Записи при этом не трогаются.</p>
+      <h3 id="assistant-check">Саммари не появляются, хотя ассистент «подключён»</h3>
+      <p>«Подключён» значит только, что ассистент видит звонки. Отвечает ли сам CLI, показывает строка «Проверка» в разделе «Саммари» на вкладке «Ассистенты». Частые ответы:</p>
+      <ul>
+        <li><b>OAuth token has expired, Authentication required, Not logged in.</b> Вход в аккаунт протух. Claude Code: запусти <code>claude</code> в Терминале и набери <code>/login</code>. Cursor: <code>cursor-agent login</code>. Codex: <code>codex login</code>.</li>
+        <li><b>unknown option.</b> CLI устарел: <code>claude update</code>, <code>cursor-agent update</code>, Codex обнови тем же способом, каким ставил.</li>
+        <li><b>не найден.</b> Sozvon ищет CLI в <code>~/.local/bin</code>, <code>/opt/homebrew/bin</code> и <code>/usr/local/bin</code>. Проверь <code>which claude</code>: если он лежит в другом месте (например, поставлен через npm под nvm), сделай ссылку в <code>~/.local/bin</code>.</li>
+        <li><b>Sandbox is unavailable</b> у Cursor. Sozvon сам повторяет запрос без песочницы, в режиме только для чтения.</li>
+      </ul>
+      <p>Каждый вызов ассистента пишется в <code>assistant.log</code>: какая команда ушла и чем закончилась, без текста звонка. Для старых звонков без саммари нажми «Обновить саммари».</p>
+      <h3 id="hallucinations">«Спасибо», «Thank you» там, где все молчали</h3>
+      <p>На тишине и тихом шуме Whisper дописывает дежурные фразы: «Спасибо.», «Угу.», «Thank you.», иногда через каждые полминуты. Начиная с 0.1.5 Sozvon проверяет каждую строку детектором речи и убирает те, под которыми нет голоса. В старой расшифровке нажми «Ещё», «Расшифровать заново…».</p>
       <h3 id="corporate">Корпоративная сеть: «invalid peer certificate: UnknownIssuer»</h3>
       <p>Компании часто проверяют HTTPS своим сертификатом. Sozvon и при установке, и при скачивании моделей доверяет сертификатам из Связки ключей macOS, поэтому сертификат, который поставил IT, подхватывается сам. Если сеть требует большего, впиши нужное в файл <code>~/Library/Application Support/Sozvon/.env</code>, по одной строке <code>КЛЮЧ=значение</code>, и нажми «Переустановить…»:</p>
       <ul>
@@ -384,14 +401,15 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Страница входа открыта по старой ссылке, обновлена или отправлена дважды. Начни подключение в Claude или ChatGPT заново.</p>
       <h3>«Сервер не принял пароль»</h3>
       <p>Пароль на сервере сменился. Введи текущий в разделе «Свой адрес» на вкладке «Облако». После 10 неверных попыток с одного адреса сервер не пускает 15 минут.</p>
-      <h3>Журналы</h3>
+      <h3 id="logs">Журналы и диагностика</h3>
       <ul>
         <li><code>process.log</code> в папке звонка: расшифровка.</li>
         <li><code>~/Library/Logs/Sozvon/recorder.log</code>: запись звука.</li>
         <li><code>~/Library/Logs/Sozvon/cloudflare.log</code>: неудачные запросы к Cloudflare при «Подключить Cloudflare».</li>
         <li><code>~/Library/Application Support/Sozvon/setup.log</code> и <code>mcp.log</code>: установка и MCP-сервер.</li>
+        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: вызовы Claude Code, Codex и Cursor для саммари, без текста звонков.</li>
       </ul>
-      <p>Проще всего собрать всё сразу: «Настройки», «О программе», «Диагностика…» показывает, что в порядке, а «Сохранить архив…» кладёт в zip проверки и эти журналы (process.log последних 5 звонков). В архиве нет расшифровок, саммари, аудио, паролей и голосов, имена участников и проектов из журналов убраны, пути к домашней папке заменены на ~.</p>
+      <p>Проще всего собрать всё сразу: «Настройки», «О программе», «Диагностика…» показывает, что в порядке. «Показать логи» кладёт проверки и эти журналы, уже очищенные, в папку <code>~/Library/Logs/Sozvon/Diagnostics</code> и открывает её в Finder, а «Сохранить архив…» кладёт то же в zip. В обоих случаях берётся process.log последних 5 звонков. В архиве нет расшифровок, саммари, аудио, паролей и голосов, имена участников и проектов из журналов убраны, пути к домашней папке заменены на ~.</p>
       <p>Если не помогло, <a href="https://github.com/Able1991/sozvon/issues">открой issue</a> и приложи архив. Отдельные журналы приложи только после проверки: в process.log бывают имена участников.</p>
 
       <h2 id="uninstall">Удаление</h2>
@@ -437,6 +455,10 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#en-privacy">Privacy</a></li>
       <li><a href="#en-files">Where files live</a></li>
       <li><a href="#en-trouble">Troubleshooting</a></li>
+      <li class="sub"><a href="#en-assistant-check">No summaries</a></li>
+      <li class="sub"><a href="#en-hallucinations">“Thank you” where nobody spoke</a></li>
+      <li class="sub"><a href="#en-corporate">Corporate network</a></li>
+      <li class="sub"><a href="#en-logs">Logs and diagnostics</a></li>
       <li><a href="#en-uninstall">Uninstall</a></li>
       <li><a href="#en-source">Build from source</a></li>
     </ol></aside>
@@ -585,7 +607,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>Cursor CLI</b> (<code>cursor-agent</code>) on your Cursor subscription, with the model chosen in Cursor.</li>
         <li><b>Local only:</b> no summaries or speaker naming; the transcript stays on your Mac.</li>
       </ul>
-      <p>Pick it in Settings, Assistants tab. If a summary fails (no network, limit reached), the transcript is still saved.</p>
+      <p>Pick it in Settings, Assistants tab, or in the setup assistant on first launch. Summary Language is there too: Same as the conversation (the default) or a fixed language, for example to get Russian summaries of English calls.</p>
+      <p>Sozvon checks the chosen assistant right away: it sends a one-word request through the same command a summary uses and shows Answers or the error with what to do. The check runs again when you connect an assistant and with the Check button. If a summary fails (no network, limit reached), the transcript is still saved.</p>
 
       <h2 id="en-mcp">Claude Code, Codex and Cursor (MCP)</h2>
       <p>Sozvon can hand your calls to your assistant: “what did we agree with Acme last week?”, “find where we discussed the SLA”. While Sozvon is running, it keeps one shared MCP server on <code>127.0.0.1:47816</code> for every session, about 40 MB of memory. It is reachable only from this Mac and requires a password (bearer token).</p>
@@ -707,6 +730,17 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Turn on “Don’t slow down my Mac” in the Recognition tab. Transcription takes a bit longer but stays out of your way.</p>
       <h3>“Engine is broken” or “Model not downloaded”</h3>
       <p>Settings, Recognition, Reinstall…: pick the model and press Reinstall. Your recordings are not touched.</p>
+      <h3 id="en-assistant-check">No summaries although the assistant is “connected”</h3>
+      <p>Connected only means the assistant can see your calls. Whether its CLI answers is shown by the Check row in the Summary section of the Assistants tab. Common answers:</p>
+      <ul>
+        <li><b>OAuth token has expired, Authentication required, Not logged in.</b> The login expired. Claude Code: run <code>claude</code> in Terminal and type <code>/login</code>. Cursor: <code>cursor-agent login</code>. Codex: <code>codex login</code>.</li>
+        <li><b>unknown option.</b> The CLI is too old: <code>claude update</code>, <code>cursor-agent update</code>, update Codex the way you installed it.</li>
+        <li><b>not found.</b> Sozvon looks for the CLI in <code>~/.local/bin</code>, <code>/opt/homebrew/bin</code> and <code>/usr/local/bin</code>. Check <code>which claude</code>: if it lives elsewhere (installed with npm under nvm, say), link it into <code>~/.local/bin</code>.</li>
+        <li><b>Sandbox is unavailable</b> from Cursor. Sozvon asks again without the sandbox, in read-only ask mode.</li>
+      </ul>
+      <p>Every assistant call is written to <code>assistant.log</code>: the command and how it ended, never the call text. For older calls without a summary, press Update Summary.</p>
+      <h3 id="en-hallucinations">“Thank you” where nobody spoke</h3>
+      <p>On silence and quiet noise Whisper writes stock phrases, “Thank you.”, “Mm-hmm.”, sometimes every half minute. Since 0.1.5 Sozvon checks every line with a speech detector and drops the ones with no voice under them. For an older transcript, press More, Transcribe Again….</p>
       <h3 id="en-corporate">Corporate network: “invalid peer certificate: UnknownIssuer”</h3>
       <p>Companies often inspect HTTPS with their own certificate. Both the install and model downloads trust the certificates in the macOS Keychain, so a certificate your IT installed is picked up by itself. If your network needs more, put it in <code>~/Library/Application Support/Sozvon/.env</code>, one <code>KEY=value</code> per line, and press Reinstall…:</p>
       <ul>
@@ -731,14 +765,15 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>The sign-in page was opened from an old link, reloaded or submitted twice. Start connecting again in Claude or ChatGPT.</p>
       <h3>“The server did not accept the password”</h3>
       <p>The password on the server has changed. Enter the current one under Own address on the Cloud tab. After 10 wrong attempts from one address the server refuses for 15 minutes.</p>
-      <h3>Logs</h3>
+      <h3 id="en-logs">Logs and diagnostics</h3>
       <ul>
         <li><code>process.log</code> in the call folder: transcription.</li>
         <li><code>~/Library/Logs/Sozvon/recorder.log</code>: audio recording.</li>
         <li><code>~/Library/Logs/Sozvon/cloudflare.log</code>: failed Cloudflare requests during Connect Cloudflare.</li>
         <li><code>~/Library/Application Support/Sozvon/setup.log</code> and <code>mcp.log</code>: setup and the MCP server.</li>
+        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: Claude Code, Codex and Cursor calls for summaries, without the call text.</li>
       </ul>
-      <p>The easiest way to collect everything: Settings, About, Diagnostics… shows what is fine, and Save Archive… puts the checks and these logs (process.log of the last 5 calls) in a zip. The archive has no transcripts, summaries, audio, passwords or voices, participant and project names are removed from the logs, and home folder paths are replaced with ~.</p>
+      <p>The easiest way to collect everything: Settings, About, Diagnostics… shows what is fine. Show Logs puts the checks and these logs, already scrubbed, in <code>~/Library/Logs/Sozvon/Diagnostics</code> and opens it in Finder, and Save Archive… puts the same in a zip. Both take process.log of the last 5 calls. The archive has no transcripts, summaries, audio, passwords or voices, participant and project names are removed from the logs, and home folder paths are replaced with ~.</p>
       <p>Still stuck? <a href="https://github.com/Able1991/sozvon/issues">Open an issue</a> with the archive. Attach single logs only after checking them: process.log can hold participant names.</p>
 
       <h2 id="en-uninstall">Uninstall</h2>
