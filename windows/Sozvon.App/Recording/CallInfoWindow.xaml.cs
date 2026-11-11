@@ -86,9 +86,12 @@ public sealed partial class CallInfoWindow : Window
         SetTitleBar(TitleBarArea);
         AppWindow.SetIcon(AppPaths.Asset("Sozvon.ico"));
         AppIcon.Source = new BitmapImage(new Uri(AppPaths.Asset("Sozvon.ico")));
+        // A fixed form: Windows drops the maximize button only when minimize is off as well; with it, Maximize still
+        // stretched the form over the screen.
         var presenter = OverlappedPresenter.Create();
         presenter.IsResizable = false;
         presenter.IsMaximizable = false;
+        presenter.IsMinimizable = false;
         // Sozvon has no active window of its own (the capsule never takes the focus), so Windows refuses to bring a new
         // window to the front: the question would open behind the call app. On top it is seen; it is small and short-lived.
         presenter.IsAlwaysOnTop = true;
