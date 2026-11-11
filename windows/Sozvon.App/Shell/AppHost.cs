@@ -48,6 +48,7 @@ public sealed class AppHost
     private int _retention;
     private bool _exiting;
     private bool _launchedWhileExiting;
+    private DateTime _errorSaid = DateTime.MinValue;
 
     /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
     public static AppHost? Current => _current;
@@ -302,7 +303,20 @@ public sealed class AppHost
         }
     }
 
-    private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e) => Log(e.Exception);
+    /// <summary>
+    /// An error nobody caught, in a window or a control: logged and said, but it does not take the tray, the capsule
+    /// and a recording in progress down with it. A timer failing on every tick is said once a minute, not on each tick.
+    /// </summary>
+    private static void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        Log(e.Exception);
+        e.Handled = true;
+        if (_current is { } host && DateTime.UtcNow - host._errorSaid > TimeSpan.FromMinutes(1))
+        {
+            host._errorSaid = DateTime.UtcNow;
+            host._tray.Notify(Loc.L("Не получилось: подробности в журнале программы."));
+        }
+    }
 
     internal static void Log(Exception error)
     {
