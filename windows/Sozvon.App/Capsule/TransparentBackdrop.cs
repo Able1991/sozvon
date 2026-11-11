@@ -21,6 +21,15 @@ internal sealed partial class TransparentBackdrop : SystemBackdrop
         connectedTarget.SystemBackdrop = _compositor.CreateColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
     }
 
+    /// <summary>
+    /// The theme (or the window's activation) changed: a transparent brush looks the same in every one of them. The
+    /// base method is for the system's own backdrops; for a brush set by hand it throws, which ended the app when
+    /// «Тема» was changed in Settings.
+    /// </summary>
+    protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target, XamlRoot xamlRoot)
+    {
+    }
+
     protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop disconnectedTarget)
     {
         disconnectedTarget.SystemBackdrop = null;
