@@ -98,7 +98,7 @@ public sealed class RecordingController
         _call = new CallAutomationController(() => new CallSituation(
             CallAutomation.Mode(_settings.CallStartAction), _settings.StopAfterCall,
             Busy: _recording || _changing || !_layout.IsInstalled, Recording: _recording, OtherSideAudible: OtherSideAudible));
-        _processor = new CallProcessor(layout.Calls, new EngineSupervisor(layout, engine.Options), () => Project.All(layout.Profiles))
+        _processor = new CallProcessor(() => layout.Calls, new EngineSupervisor(layout, engine.Options), () => Project.All(layout.Profiles))
         {
             // As on the Mac, transcription waits while a call is on: the call app needs the processor more.
             HoldsQueue = () => _recording || _call.InCall,

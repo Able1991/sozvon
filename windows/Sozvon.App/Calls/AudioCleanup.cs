@@ -9,7 +9,7 @@ namespace Sozvon.App.Calls;
 /// tracks; the transcript, summary and notes stay. Runs at launch, every 6 hours and when the setting changes.
 /// Calls being recorded, queued or transcribed are never touched.
 /// </summary>
-public sealed class AudioCleanup(string callsDir, AppSettings settings, Func<string, bool> busy)
+public sealed class AudioCleanup(Func<string> callsFolder, AppSettings settings, Func<string, bool> busy)
 {
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromHours(6) };
 
@@ -46,5 +46,5 @@ public sealed class AudioCleanup(string callsDir, AppSettings settings, Func<str
         return freed;
     }
 
-    private List<string> Expired(int days) => AudioRetention.Expired(callsDir, days, DateTimeOffset.UtcNow, busy);
+    private List<string> Expired(int days) => AudioRetention.Expired(callsFolder(), days, DateTimeOffset.UtcNow, busy);
 }

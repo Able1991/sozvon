@@ -9,17 +9,20 @@ using TextRules = Sozvon.Core.Foundation.TextRules;
 namespace Sozvon.App.Calls;
 
 /// <summary>Reads call folders as the contract describes them. Files are the engine's, so they stay shared.</summary>
-public sealed partial class CallRepository(string callsDir, string dataDir)
+public sealed partial class CallRepository(Func<string> callsFolder, string dataDir)
 {
+    /// <summary>The calls folder of this moment: Settings can change it while the app runs.</summary>
+    private string CallsDir => callsFolder();
+
     /// <summary>All calls, newest first. A folder that cannot be read is still listed, marked unreadable.</summary>
     public IReadOnlyList<CallRecord> Scan()
     {
-        if (!Directory.Exists(callsDir))
+        if (!Directory.Exists(CallsDir))
         {
             return [];
         }
         var titles = Project.Titles(Project.All(Path.Combine(dataDir, "profiles")));
-        return new DirectoryInfo(callsDir).EnumerateDirectories()
+        return new DirectoryInfo(CallsDir).EnumerateDirectories()
             .Where(d => !d.Name.StartsWith('.'))
             .Select(d => ReadCall(d.FullName, titles))
             .OfType<CallRecord>()

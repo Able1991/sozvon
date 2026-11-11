@@ -26,12 +26,12 @@ public sealed class AppHost
 
     private readonly SettingsStore _store = new(AppPaths.SettingsFile);
     private readonly EngineSettings _engineSettings;
-    private readonly CallRepository _repository = new(AppPaths.CallsDir, AppPaths.DataDir);
+    private readonly CallRepository _repository = new(() => AppPaths.CallsDir, AppPaths.DataDir);
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly AppLanguage _startupLanguage;
     private readonly TrayViewModel _trayState;
     private readonly TrayController _tray;
-    private readonly EngineLayout _layout = new(AppPaths.DataDir, AppPaths.CallsDir);
+    private readonly EngineLayout _layout = AppPaths.Layout;
     private readonly McpServer _mcp;
     private readonly ServerSync _server;
     private MainWindow? _window;
@@ -57,6 +57,9 @@ public sealed class AppHost
     /// <summary>"Relaunch Sozvon" after a change of language: at once when idle, otherwise once the recording and the queue are done.</summary>
     public Relauncher Relaunch { get; }
 
+    /// <summary>The calls folder row of Settings: refused while recording or transcribing, applied at once, as on the Mac.</summary>
+    public CallsFolderChanger CallsFolder { get; }
+
     private AppHost()
     {
         Relaunch = new Relauncher(() => _recording?.IsBusy ?? false, RestartNow);
@@ -68,6 +71,9 @@ public sealed class AppHost
         _tray = new TrayController(this, _trayState);
         _tray.Start();
         _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
+        CallsFolder = new CallsFolderChanger(AppPaths.SettingsFile, AppPaths.DataDir, AppPaths.DefaultCallsDir, () => AppPaths.CallsDir,
+            () => _recording?.IsBusy ?? false, AppPaths.ChangeCallsDir, Loc.L);
+        AppPaths.CallsDirChanged += OnCallsDirChanged;
         _server = new ServerSync(SavedServer, url => OwnServer.CheckHealthAsync(url), (url, password) => OwnServer.AcceptsAsync(url, password),
             onLine => ServerSyncScript.RunAsync(_layout, _engineSettings.Options(), onLine));
     }
@@ -127,7 +133,7 @@ public sealed class AppHost
             capsule.MoveToIfOnScreen(x, y);
         }
         recording.Problem += (_, text) => _tray.Notify(text);
-        _cleanup = new AudioCleanup(AppPaths.CallsDir, _store.Settings,
+        _cleanup = new AudioCleanup(() => AppPaths.CallsDir, _store.Settings,
             dir => recording.Processor.Contains(dir) || (recording.RecordingDirectory is { } live && CallActions.SameFolder(live, dir)));
         _cleanup.Removed += (_, _) => _ = _calls?.RefreshAsync();
         _retention = _store.Settings.AudioRetention;
@@ -162,7 +168,20 @@ public sealed class AppHost
             {
                 // A finished install brings the shared MCP server up; an engine update brings the new server.py.
                 setup.EnableRaisingEvents = true;
-                setup.Exited += (_, _) => _dispatcher.TryEnqueue(() => _ = _mcp.RestartAsync());
+                // The wizard may have chosen another calls folder: the app follows it, which restarts the server too.
+                setup.Exited += (_, _) => _dispatcher.TryEnqueue(() =>
+                {
+                    var chosen = Sozvon.Core.Calls.CallsFolder.Current(AppPaths.SettingsFile, AppPaths.DefaultCallsDir,
+                        Environment.GetEnvironmentVariable("SOZVON_CALLS_DIR"));
+                    if (Sozvon.Core.Calls.CallsFolder.SamePath(chosen, AppPaths.CallsDir))
+                    {
+                        _ = _mcp.RestartAsync();
+                    }
+                    else
+                    {
+                        AppPaths.ChangeCallsDir(chosen);
+                    }
+                });
             }
         }
         catch (System.ComponentModel.Win32Exception error)
@@ -243,11 +262,25 @@ public sealed class AppHost
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
         // The demo runs no recorder: its Settings get a shortcut nobody has registered or taken.
         var settings = new SettingsViewModel(_store, _engineSettings, _layout, _startupLanguage, Relaunch, integrations, SignIn,
-            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut());
+            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut())
+        {
+            CallsFolder = CallsFolder,
+        };
         var profiles = Path.Combine(AppPaths.DataDir, "profiles");
         var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);
         var projects = new ProjectsPage(profiles, _repository, voices, () => _ = _calls.RefreshAsync());
         return new MainWindow(_calls, settings, projects, new VoicesPage(myVoice, profiles), myVoice);
+    }
+
+    /// <summary>
+    /// Another calls folder, from Settings or the wizard: the list reads it, the MCP server starts again with its
+    /// SOZVON_CALLS_DIR, and the next recordings and runs go there (they read <see cref="AppPaths.CallsDir"/> each time).
+    /// </summary>
+    private void OnCallsDirChanged()
+    {
+        _ = _mcp.RestartAsync();
+        CallsFolder.Refresh();
+        _ = _calls?.RefreshAsync();
     }
 
     private static ServerConfig SavedServer()

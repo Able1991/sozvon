@@ -31,7 +31,7 @@ public sealed partial class SetupWindow : Window
         [
             new WelcomePage(),
             new AssistantPage(state),
-            new DetailsPage(state),
+            new DetailsPage(state, CallsFolderChanger(context)),
             new ModelPage(context, state, MachineTools.FindNvidiaCard()),
             new EnginePage(context, state),
             new MicrophonePage(),
@@ -55,6 +55,18 @@ public sealed partial class SetupWindow : Window
         };
         Show(0);
         Root.Loaded += (_, _) => FitTallestStep();
+    }
+
+    /// <summary>
+    /// The calls folder of the "A few details" step. The wizard is its own process: "busy" is read from the call folders
+    /// (a recording spooling, a run or a queue), and the app follows the choice when the wizard closes.
+    /// </summary>
+    private static CallsFolderChanger CallsFolderChanger(SetupContext context)
+    {
+        var defaultFolder = Sozvon.Core.Engine.EngineLayout.Default().Calls;
+        var current = Sozvon.Core.Calls.CallsFolder.Current(context.SettingsFile, defaultFolder, Environment.GetEnvironmentVariable("SOZVON_CALLS_DIR"));
+        return new CallsFolderChanger(context.SettingsFile, context.DataFolder, defaultFolder, () => current,
+            () => Sozvon.Core.Calls.CallsFolder.HasWorkInProgress(current), chosen => current = chosen, Strings.L);
     }
 
     private void ConfigureWindow()

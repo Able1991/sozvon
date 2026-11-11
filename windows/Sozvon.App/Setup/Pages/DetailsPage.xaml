@@ -14,6 +14,20 @@
                     <TextBlock x:Name="LanguagesLabel" />
                     <StackPanel x:Name="LanguageChoices" />
                 </StackPanel>
+                <Border Height="1" Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                <Grid Padding="16,12" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="FolderLabel" />
+                        <TextBlock x:Name="FolderPath" AutomationProperties.AutomationId="SetupCallsFolder" Style="{StaticResource SetupDetail}"
+                                   MaxLines="2" TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True" />
+                    </StackPanel>
+                    <Button x:Name="FolderButton" Grid.Column="1" VerticalAlignment="Center"
+                            AutomationProperties.AutomationId="SetupChangeCallsFolder" Click="OnChangeFolder" />
+                </Grid>
             </StackPanel>
         </Border>
         <TextBlock x:Name="FootText" Style="{StaticResource SetupDetail}" />

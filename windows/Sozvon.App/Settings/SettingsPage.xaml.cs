@@ -40,6 +40,30 @@ public sealed partial class SettingsPage : UserControl
         CallLanguagesBox.Languages = ViewModel.CallLanguages;
         CallLanguagesBox.LanguagesChanged += (_, _) => ViewModel.CallLanguages = CallLanguagesBox.Languages;
         ViewModel.Integrations.Confirm = ConfirmAsync;
+        ViewModel.CallsFolder.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CallsFolderChanger.Current))
+            {
+                _ = ShowServerOnceUpAsync();
+            }
+        };
+    }
+
+    /// <summary>
+    /// After a change of the calls folder the MCP server starts again: the row would keep "not answering" from the
+    /// moment it was down, so it is asked again until the new server answers (half a minute at most).
+    /// </summary>
+    private async Task ShowServerOnceUpAsync()
+    {
+        for (var attempt = 0; attempt < 15; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            if ((await Sozvon.Core.Engine.McpHealth.ProbeAsync(ViewModel.Integrations.Endpoint)).State == Sozvon.Core.Engine.McpHealthState.Listening)
+            {
+                break;
+            }
+        }
+        await ViewModel.Integrations.RefreshServerAsync();
     }
 
     public SettingsViewModel ViewModel { get; }
@@ -189,7 +213,19 @@ public sealed partial class SettingsPage : UserControl
 
     private void OnManageVoices(object sender, RoutedEventArgs e) => _showVoices();
 
-    private void OnShowCallsFolder(object sender, RoutedEventArgs e) => ShowFolder(ViewModel.CallsFolder);
+    private void OnShowCallsFolder(object sender, RoutedEventArgs e) => ShowFolder(ViewModel.CallsFolder.Current);
+
+    private async void OnChangeCallsFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ViewModel.CallsFolder.ChangeAsync(XamlRoot);
+        }
+        catch (Exception error)
+        {
+            Shell.AppHost.Log(error);
+        }
+    }
 
     private void OnShowDataFolder(object sender, RoutedEventArgs e) => ShowFolder(ViewModel.DataFolder);
 

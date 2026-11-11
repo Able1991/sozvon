@@ -49,7 +49,10 @@ public sealed partial class SettingsStore : ObservableObject
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
             var temp = _path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(Settings, Options));
+            // Keys this object does not hold stay: the calls folder is written by the wizard and the Files rows.
+            var mine = JsonSerializer.SerializeToNode(Settings, Options)!.AsObject();
+            var disk = Sozvon.Core.Foundation.JsonFile.Read(_path);
+            File.WriteAllText(temp, Sozvon.Core.Settings.SettingsJson.KeepForeignKeys(disk, mine).ToJsonString(Options));
             File.Move(temp, _path, overwrite: true);
             SaveError = "";
         }

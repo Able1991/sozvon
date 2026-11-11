@@ -183,7 +183,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The same answer the tray and the recorder give: the venv and the marker of a finished install.</summary>
     public bool EngineInstalled => _layout.IsInstalled;
 
-    public string CallsFolder => _layout.Calls;
+    /// <summary>The calls folder row: where the calls are, and "Change Folder…" with the move of the calls.</summary>
+    public required CallsFolderChanger CallsFolder { get; init; }
 
     public string PhoneFolderText => Settings.PhoneFolder.Length > 0 ? Settings.PhoneFolder : Loc.L("Не выбрана");
 

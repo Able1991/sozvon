@@ -6,14 +6,20 @@ namespace Sozvon.App.Setup.Pages;
 public sealed partial class DetailsPage : UserControl, ISetupPage
 {
     private readonly SetupState _state;
+    private readonly Settings.CallsFolderChanger _folder;
     private readonly Dictionary<string, CheckBox> _languages = [];
     private readonly CheckBox _auto = new();
     private bool _updating;
 
-    internal DetailsPage(SetupState state)
+    internal DetailsPage(SetupState state, Settings.CallsFolderChanger folder)
     {
         InitializeComponent();
         _state = state;
+        _folder = folder;
+        FolderLabel.Text = Strings.L("Папка звонков");
+        FolderButton.Content = Strings.L("Сменить папку…");
+        folder.PropertyChanged += (_, _) => ShowFolder();
+        ShowFolder();
         NameLabel.Text = Strings.L("Как тебя подписывать");
         AutomationProperties.SetName(NameBox, NameLabel.Text);
         NameBox.PlaceholderText = Strings.L("Аня");
@@ -44,6 +50,26 @@ public sealed partial class DetailsPage : UserControl, ISetupPage
         _state.Name = NameBox.Text;
         _state.Save();
         return true;
+    }
+
+    private void ShowFolder()
+    {
+        FolderPath.Text = _folder.Shown;
+        ToolTipService.SetToolTip(FolderPath, _folder.Current);
+        FolderButton.IsEnabled = _folder.CanChange;
+    }
+
+    private async void OnChangeFolder(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        try
+        {
+            await _folder.ChangeAsync(XamlRoot);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // A dialog already open, or a folder that went away meanwhile: the row keeps the folder in use.
+            FolderPath.Text = error.Message;
+        }
     }
 
     private void AddLanguage(string key, string title)
