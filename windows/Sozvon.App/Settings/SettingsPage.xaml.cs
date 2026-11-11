@@ -176,6 +176,8 @@ public sealed partial class SettingsPage : UserControl
 
     private void OnCheckSummary(object sender, RoutedEventArgs e) => ViewModel.CheckSummary();
 
+    private async void OnShowLogs(object sender, RoutedEventArgs e) => await ViewModel.ShowLogsAsync();
+
     private void OnCopyAssistantCommand(object sender, RoutedEventArgs e)
     {
         if ((sender as FrameworkElement)?.Tag is AssistantRow row)

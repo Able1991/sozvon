@@ -344,6 +344,19 @@
                 <StackPanel x:Name="About" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Sozvon" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.Version}" />
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Диагностика'}" />
+                    <local:SettingsRow Header="{s:L K='Журналы'}"
+                                       Description="{s:L K='Проверки и журналы для поддержки, без расшифровок, саммари, аудио и паролей. Открываются в проводнике: посмотреть и отправить.'}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.CollectingLogs, Mode=OneWay}"
+                                          Visibility="{x:Bind ViewModel.CollectingLogs, Mode=OneWay}" />
+                            <!-- Never disabled while it works: the focus would jump to the next link; a second press is ignored. -->
+                            <Button Content="{s:L K='Показать логи'}" Click="OnShowLogs"
+                                    AutomationProperties.AutomationId="ShowLogs" />
+                        </StackPanel>
+                    </local:SettingsRow>
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasLogsError, Mode=OneWay}" Severity="Error" IsClosable="False"
+                             Message="{x:Bind ViewModel.LogsError, Mode=OneWay}" />
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Ссылки'}" />
                     <local:SettingsRow Header="{s:L K='Сайт'}">
                         <HyperlinkButton Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />

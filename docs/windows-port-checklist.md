@@ -115,5 +115,5 @@ RTX 50xx and every NVIDIA generation other than the GTX 1070; AMD; real network 
 - Choosing a calls folder inside OneDrive or another synced folder shows an honest warning.
 - A guard against the silent deletion of a folder larger than the Recycle Bin quota, before sync is turned on.
 - Recording (WASAPI), the capsule, automatic start and stop, the Calls window.
-- Settings, About: the Diagnostics row (the Mac's environment checks and log archive) is hidden on Windows until it is built.
+- Settings, About: Diagnostics has "Show Logs" only, as the Mac's sheet does: checks.txt (engine, model, disk, MCP server, versions) and the logs scrubbed by the Mac's rules (profile folder, call titles, tokens, e-mails; process.log and mcp.log filtered closed) in `<data>\Diagnostics`, opened in Explorer. Still missing: the sheet with the checks on screen, the zip ("Save Archive…") and the permission checks.
 - Settings, About: updates wait for the owner's decision on Windows releases. Releases hold only the Mac's DMG and the app has no version of its own, so a check against GitHub would compare with the Mac's versions; until then About shows the Mac's version as "сборка Windows, предварительная" with the commit, and no update rows.

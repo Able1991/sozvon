@@ -157,3 +157,8 @@
 
 /* Settings, Assistants: the check of the summary assistant gave no answer in time. */
 "%@ не ответил за %@ с" = "%@ did not answer in %@ s";
+
+/* Settings, About: Show Logs writes the checks and the scrubbed logs to a folder and opens it in File Explorer. */
+"Журналы" = "Logs";
+"Проверки и журналы для поддержки, без расшифровок, саммари, аудио и паролей. Открываются в проводнике: посмотреть и отправить." = "Checks and logs for support, with no transcripts, summaries, audio or passwords. They open in File Explorer to look at and send.";
+"%@ не скачана" = "%@ is not downloaded";

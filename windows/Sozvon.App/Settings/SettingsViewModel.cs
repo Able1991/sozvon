@@ -6,6 +6,7 @@ using Sozvon.App.Shell;
 using Sozvon.App.Strings;
 using Sozvon.Core.Assistants;
 using Sozvon.Core.Automation;
+using Sozvon.Core.Diagnostics;
 using Sozvon.Core.Engine;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Settings;
@@ -310,6 +311,80 @@ public sealed partial class SettingsViewModel : ObservableObject
             var parts = new[] { metadata.GetValueOrDefault("SozvonVersion", ""), Loc.L("сборка Windows, предварительная"), metadata.GetValueOrDefault("SozvonCommit", "") };
             return string.Join(" · ", parts.Where(p => p.Length > 0));
         }
+    }
+
+    /// <summary>"Show Logs": the folder the scrubbed logs are written to, as the Mac's ~/Library/Logs/Sozvon/Diagnostics.</summary>
+    public string DiagnosticsFolder => Path.Combine(_layout.Data, "Diagnostics");
+
+    [ObservableProperty]
+    public partial bool CollectingLogs { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLogsError))]
+    public partial string LogsError { get; private set; } = "";
+
+    public bool HasLogsError => LogsError.Length > 0;
+
+    /// <summary>
+    /// The checks and the scrubbed logs, as the Mac's diagnostics zip holds them, written to <see cref="DiagnosticsFolder"/>
+    /// off the UI thread and shown in Explorer. SOZVON_DIAGNOSTICS_NO_OPEN=1 (a test run) leaves Explorer closed.
+    /// </summary>
+    public async Task ShowLogsAsync()
+    {
+        if (CollectingLogs) return;
+        CollectingLogs = true;
+        LogsError = "";
+        var folder = DiagnosticsFolder;
+        try
+        {
+            var checks = await DiagnosticChecksAsync();
+            var homes = new[] { Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.GetEnvironmentVariable("USERPROFILE") ?? "" };
+            var (data, calls) = (_layout.Data, CallsFolder);
+            await Task.Run(() => DiagnosticArchive.WriteFolder(checks, Path.Combine(data, "Logs"), data, calls, homes, folder));
+            if (Environment.GetEnvironmentVariable("SOZVON_DIAGNOSTICS_NO_OPEN") != "1")
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\"")?.Dispose();
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            LogsError = Loc.L("Не получилось собрать журналы: %@", e.Message);
+        }
+        finally
+        {
+            CollectingLogs = false;
+        }
+    }
+
+    /// <summary>What the Mac's checks.txt says that Windows can tell: the engine, the model, the disk, the MCP server, the versions.</summary>
+    private async Task<IReadOnlyList<DiagnosticCheck>> DiagnosticChecksAsync()
+    {
+        var model = _engine.Model;
+        var free = DiagnosticChecks.FreeBytes(_layout.Data);
+        var disk = DiagnosticChecks.DiskState(free);
+        var health = await McpHealth.ProbeAsync(Integrations.Endpoint);
+        return
+        [
+            new("python", Loc.L("Окружение Python"), _layout.IsInstalled ? DiagnosticState.Ok : DiagnosticState.Problem,
+                Loc.L(_layout.IsInstalled ? "Установлен" : "Не установлен")),
+            new("model", Loc.L("Модель распознавания"), model.IsDownloaded(_layout.Data) ? DiagnosticState.Ok : DiagnosticState.Problem,
+                Loc.L(model.IsDownloaded(_layout.Data) ? "%@ скачана" : "%@ не скачана", model.Key())),
+            new("disk", Loc.L("Свободное место"), disk, free is not { } bytes ? Loc.L("Не удалось узнать") : disk switch
+            {
+                DiagnosticState.Problem => Loc.L("Почти нет места: %@", Calls.CallFormat.Size(bytes)),
+                DiagnosticState.Warning => Loc.L("Мало места: %@", Calls.CallFormat.Size(bytes)),
+                _ => Loc.L("Свободно %@", Calls.CallFormat.Size(bytes)),
+            }),
+            new("mcp", Loc.L("MCP-сервер"), health.State == McpHealthState.Listening ? DiagnosticState.Ok : DiagnosticState.Problem, health.State switch
+            {
+                McpHealthState.Listening => Loc.L("Отвечает на порту %@", Integrations.Endpoint.Port),
+                McpHealthState.Unauthorized => Loc.L("На порту другой сервер или другой пароль"),
+                McpHealthState.Unexpected => Loc.L("Неожиданный ответ, код %@", health.StatusCode ?? 0),
+                McpHealthState.Error => health.Message,
+                _ => Loc.L("Не отвечает. Подробности в mcp.log."),
+            }),
+            new("versions", Loc.L("Версии"), DiagnosticState.Ok, Version),
+        ];
     }
 
     private bool RecordsByItself => CallAutomation.Mode(Settings.CallStartAction) == CallStartMode.Record;
