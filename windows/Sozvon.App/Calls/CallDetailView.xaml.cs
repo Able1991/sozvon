@@ -104,7 +104,8 @@ public sealed partial class CallDetailView : UserControl
     /// <summary>"Undo delete" in the More menu: the page brings the last deleted call back.</summary>
     public event EventHandler? UndoTrashRequested;
 
-    public static string TaskGlyph(bool done) => done ? "" : "";
+    /// <summary>A ticked or an empty checkbox, as the task's "- [x]" or "- [ ]" says.</summary>
+    public static string TaskGlyph(bool done) => done ? "" : "";
 
     /// <summary>Ctrl+F: the find bar on the Transcript tab. False on the Summary tab, where Ctrl+F searches all calls.</summary>
     public bool OpenFind()
