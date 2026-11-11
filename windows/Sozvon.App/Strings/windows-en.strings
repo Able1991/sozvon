@@ -115,6 +115,7 @@
 
 /* Projects and voices pages. */
 "OK" = "OK";
+"Звонки сохранят свои расшифровки. Уйдут только люди, термины и замены этого проекта. Файл попадёт в Корзину, его можно вернуть." = "Calls keep their transcripts. Only this project's people, terms and replacements go away. The file goes to the Recycle Bin, so it can be restored.";
 "Отпечатки голосов относятся к биометрическим данным: они хранятся на этом компьютере. Sozvon использует их только для того, чтобы называть собеседников в твоих звонках." = "Voice prints are biometric data: they are stored on this computer. Sozvon uses them only to name the people in your calls.";
 "Sozvon перестанет узнавать собеседников и тебя по голосу. Свой голос можно будет записать заново." = "Sozvon will stop recognizing other people and you by voice. You can record your own voice again.";
 
