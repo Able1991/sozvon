@@ -37,9 +37,41 @@ def _run(args: list, src) -> bytes:
     return r.stdout
 
 
+PIECE = 60 * SR  # samples read at a time from a working wav
+
+
+def _working_wav(path):
+    """A 16 kHz mono 16-bit wav (every working track of a call) -> float32, read a minute at a time; anything
+    else -> None. Through ffmpeg the whole track is in memory twice while its output is collected, and the
+    result cannot be written to: 0.6 GB instead of 0.3 for 75 minutes, on every reading of a track."""
+    import wave
+
+    import numpy as np
+    try:
+        with wave.open(str(path), "rb") as w:
+            if (w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getcomptype()) != (1, 2, SR, "NONE"):
+                return None
+            total = min(w.getnframes(), os.path.getsize(path) // 2)   # a header may promise more than the file has
+            out, n = np.empty(total, dtype=np.float32), 0
+            while n < total:
+                piece = np.frombuffer(w.readframes(min(PIECE, total - n)), dtype="<i2")
+                if not len(piece):
+                    break
+                out[n:n + len(piece)] = piece
+                n += len(piece)
+    except (wave.Error, EOFError, OSError):
+        return None
+    out = out[:n]
+    out /= 32768.0     # as ffmpeg scales 16-bit samples
+    return out
+
+
 def decode(path) -> "np.ndarray":  # noqa: F821
     """Any file -> 16 kHz mono float32."""
     import numpy as np
+    x = _working_wav(path)
+    if x is not None:
+        return x
     raw = _run(["-i", str(path), "-f", "f32le", "-ac", "1", "-ar", str(SR), "-"], path)
     return np.frombuffer(raw, dtype=np.float32)
 

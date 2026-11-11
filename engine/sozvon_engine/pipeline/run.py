@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
 
-from .. import calls, config, jsonfile, langid, llm, models, paths, profiles, remote, voices, whisper
+from .. import calls, config, diarize, jsonfile, langid, llm, models, paths, profiles, remote, voices, whisper
 from .. import prompt as prompts
 from .. import vocab as vocabs
 from ..audio import FfmpegError, FfmpegMissing
@@ -255,14 +255,16 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
         segs, langs = transcribe_stage.transcribe_tracks(
             tracks, data_dir=data, model=spec.model, model_path=model_path, allowed=allowed,
             switch=spec.switch, prompts=prompt_set, log=log)
+        whisper.release_model()   # 1.5 GB the voices, the summary and the listening file do not need
         paras = arrange(spec, prof, tracks, segs, settings)
+        diarize.unload()
         people = names_stage.participants(paras, spec.me, spec.names)
         (d / "transcript.txt").write_text(render.render_txt(paras), encoding="utf-8")
         write_md(spec, paras, prof)
 
         if spec.summary and paras and llm.backend(settings)[0]:
-            # Summary language: the conversation language (my track, else the others', else the configured one).
-            lang = langs.get("mic") or langs.get("system") or (allowed[0] if allowed else None)
+            # Summary language: the chosen one, else the conversation's (my track, else the others', else the configured one).
+            lang = settings.summary_language or langs.get("mic") or langs.get("system") or (allowed[0] if allowed else None)
             try:
                 summarize(spec, prof, paras, lang, people)
             except Exception as ex:  # noqa: BLE001  an assistant failure does not lose the transcript
@@ -328,7 +330,7 @@ def resummarize(spec: CallSpec, settings: config.Settings) -> list:
     people = names_stage.participants(paras, spec.me, spec.names)
     # One call language: the summary is in it. Several or auto: None, and summary.build_prompt falls back to
     # the app's language (the detected language of the tracks is not kept after a transcription).
-    lang = allowed[0] if allowed and len(allowed) == 1 else None
+    lang = settings.summary_language or (allowed[0] if allowed and len(allowed) == 1 else None)
     try:
         text = summarize(spec, profiles.load(spec.profile), paras, lang, people)
     except Exception as ex:  # noqa: BLE001  the run fails, and the call keeps the reason

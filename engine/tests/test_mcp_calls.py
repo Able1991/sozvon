@@ -205,6 +205,25 @@ def test_transcribe_tool_auto_language_and_word_times(data, tmp_path, monkeypatc
     assert seen["language"] is None and seen["word_timestamps"] is True
 
 
+def test_transcribe_tool_leaves_no_models_in_the_server(data, tmp_path, monkeypatch):
+    """The MCP server lives as long as the app: a model left loaded is 1.5 GB held until the app quits."""
+    from conftest import fake_model
+    from sozvon_engine import diarize, prompt, whisper
+    fake_model(data)
+    monkeypatch.setattr(prompt, "count_tokens", lambda text: len(text.split()))
+    dropped = []
+
+    def broken(*a, **kw):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(whisper, "whisper_with_fallback", broken)
+    monkeypatch.setattr(whisper, "release_model", lambda: dropped.append("whisper"))
+    monkeypatch.setattr(diarize, "unload", lambda: dropped.append("pyannote"), raising=False)
+    f = tmp_path / "a.wav"
+    f.write_bytes(b"x")
+    assert "boom" in tools.transcribe(str(f))
+    assert dropped == ["whisper", "pyannote"]
+
+
 def _ts_tools() -> dict:
     """Tool name -> argument names, read from the hosted server's registerTool calls (server/src/mcp.ts)."""
     import re

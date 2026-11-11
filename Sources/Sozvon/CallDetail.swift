@@ -76,6 +76,8 @@ struct CallDetail: View {
     @State private var findQuery = ""
     @State private var findIndex = 0
     @State private var findFocus = 0
+    /// Scrolls the transcript text: it is one text view in the card's scroll view, not rows to scroll to.
+    @State private var scroller = TranscriptScroller()
     /// What the open find bar matches in this transcript.
     private func found(in doc: TranscriptDoc) -> [TranscriptFind.Match] {
         findOpen ? TranscriptFind.matches(findQuery, in: doc.lines.map(\.text)) : []
@@ -184,7 +186,7 @@ struct CallDetail: View {
         let doc = showsTranscript ? texts.doc : TranscriptDoc.empty
         let matches = found(in: doc)
         let currentMatch = matches.indices.contains(findIndex) ? matches[findIndex] : nil
-        ScrollViewReader { proxy in
+        Group {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -214,17 +216,16 @@ struct CallDetail: View {
                                       onStep: { d in
                                           findIndex = TranscriptFind.step(from: findIndex, by: d, count: matches.count)
                                           let i = findIndex
-                                          if matches.indices.contains(i), matches[i].line < doc.rowIDs.count {
-                                              withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(doc.rowIDs[matches[i].line], anchor: .center) }
-                                          }
+                                          if matches.indices.contains(i) { scroller.reveal(matches[i]) }
                                       },
                                       onClose: { findOpen = false; findQuery = "" })
                 }
             }
             .onChange(of: findQuery) { _, _ in
                 findIndex = 0
-                if let first = found(in: doc).first, first.line < doc.rowIDs.count {
-                    withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(doc.rowIDs[first.line], anchor: .center) }
+                if let first = found(in: doc).first {
+                    // After the text view has the new highlights.
+                    DispatchQueue.main.async { scroller.reveal(first) }
                 }
             }
             .onChange(of: m.transcriptFindRequest) { _, _ in
@@ -238,9 +239,9 @@ struct CallDetail: View {
             }
             .onReceive(player.line.$time) { _ in
                 // Keep the line being played in view, scrolling only when it changes.
-                guard let i = player.line.index(in: doc.starts), i != followed, player.isPlaying, i < doc.rowIDs.count else { return }
+                guard let i = player.line.index(in: doc.starts), i != followed, player.isPlaying else { return }
                 followed = i
-                withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(doc.rowIDs[i]) }
+                scroller.reveal(line: i)
             }
         }
         .task(id: CardTexts.key(call)) { await load() }
@@ -253,6 +254,22 @@ struct CallDetail: View {
                 let from = CommandLine.arguments.firstIndex(of: "--from").flatMap { i in
                     i + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[i + 1]) : nil } ?? 0
                 player.play(from: from)
+            }
+            // Screenshot check of the playing paragraph's highlight and scrolling to it, without sound.
+            if let at = CommandLine.arguments.firstIndex(of: "--playing-at").flatMap({ i in
+                i + 1 < CommandLine.arguments.count ? Double(CommandLine.arguments[i + 1]) : nil }) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    player.line.time = at
+                    if let i = player.line.index(in: texts.doc.starts) { scroller.reveal(line: i) }
+                }
+            }
+            // Screenshot check of find in the transcript: --find <words>.
+            if let q = CommandLine.arguments.firstIndex(of: "--find").flatMap({ i in
+                i + 1 < CommandLine.arguments.count ? CommandLine.arguments[i + 1] : nil }) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    findOpen = true
+                    findQuery = q
+                }
             }
             if CommandLine.arguments.contains("--rename") {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -389,7 +406,7 @@ struct CallDetail: View {
                            onRememberVoice: call.hasAudio ? { voices.enroll([$0], from: call) } : nil,
                            voiced: voiced,
                            onFix: { fixing = $0 },
-                           found: found, currentFound: current)
+                           found: found, currentFound: current, scroller: scroller)
         } else if call.hasSummary {
             SummaryCards(text: texts.summary)
         } else {

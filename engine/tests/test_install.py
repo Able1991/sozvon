@@ -104,10 +104,11 @@ def test_fresh_download_passes_pinned_revision(tmp_path):
     hub = FakeHub()
     d = install.ensure_model(tmp_path, "turbo", hub)
     m = models.MODELS["turbo"]
-    assert hub.calls == [(m["repo"], f, m["revision"]) for f in m["files"]]
+    v = models.VAD
+    assert hub.calls == [(m["repo"], f, m["revision"]) for f in m["files"]] + [(v["repo"], f, v["revision"]) for f in v["files"]]
     assert (d / models.COMPLETE).read_text() == m["revision"] + "\n"
     install.ensure_model(tmp_path, "turbo", hub)
-    assert len(hub.calls) == len(m["files"]), "второй раз не качает"
+    assert len(hub.calls) == len(m["files"]) + len(v["files"]), "второй раз не качает"
 
 
 def test_legacy_complete_files_marked_without_refetch(tmp_path):
@@ -117,7 +118,8 @@ def test_legacy_complete_files_marked_without_refetch(tmp_path):
         (d / f).write_text("x")
     hub = FakeHub()
     install.ensure_model(tmp_path, "turbo", hub)
-    assert hub.calls == [] and (d / models.COMPLETE).read_text() == "legacy\n"
+    assert all(c[0] == models.VAD["repo"] for c in hub.calls), "the model itself is not fetched again"
+    assert (d / models.COMPLETE).read_text() == "legacy\n"
 
 
 def test_onnx_model_also_gets_vad(tmp_path):
@@ -199,7 +201,7 @@ def test_main_installs_everything(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("SOZVON_PYANNOTE_SHA", hashlib.sha256(good).hexdigest())
     hub = FakeHub()
     assert install.main([str(tmp_path)], downloader=hub, fetch=FakeFetch({"https://net": good})) == 0
-    assert {c[0] for c in hub.calls} == {models.MODELS["small"]["repo"], models.MANIFEST["aec"]["repo"]}
+    assert {c[0] for c in hub.calls} == {models.MODELS["small"]["repo"], models.VAD["repo"], models.MANIFEST["aec"]["repo"]}
     assert (tmp_path / ".venv-lock").read_text().strip() == hashlib.sha256(b"lock").hexdigest()[:16]
     assert (tmp_path / ".installed").read_text().strip().isdigit()
     out = capsys.readouterr().out.splitlines()

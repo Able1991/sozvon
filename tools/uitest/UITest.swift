@@ -176,7 +176,8 @@ let actionable: Set<String> = ["AXButton", "AXMenuButton", "AXPopUpButton", "AXC
 let external = ["Finder", "Подключ", "Connect", "Claude", "ChatGPT", "Codex", "Cursor", "Терминал", "Terminal", "Выйти", "Quit",
                 "браузер", "Перезапустить", "Relaunch", "Cloudflare", "Открыть сайт", "GitHub", "Системные настройки",
                 "Скачать модель", "Переустановить", "Установить", "Повторить", "Записать", "Обновить сервер",
-                "Проверить", "Сохранить архив", "Save Archive", "Синхронизировать", "Импорт", "Выбрать папку", "Choose Folder",
+                "Проверить", "Сохранить архив", "Save Archive", "Синхронизировать", "Импорт", "Выбрать папку", "Choose Folder", "Сменить папку", "Change Folder",
+                "Показать логи", "Show Logs",
                 "Запись одним нажатием", "Record in one tap"]
 /// Toggles that ask macOS for a permission (Calendar, Reminders, notifications): hit-tested, never switched.
 let permissionToggles = ["Календар", "Calendar", "Напоминан", "Reminders", "уведомлен"]

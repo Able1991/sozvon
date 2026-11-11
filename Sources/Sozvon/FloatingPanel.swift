@@ -283,12 +283,8 @@ struct PanelView: View {
         .contextMenu {
             Button(L("Скрыть панель")) { m.onHide() }
         }
-        // isMovableByWindowBackground stops working while the waveform redraws ten times a second
-        // (during a recording the capsule could not be dragged): an explicit window drag works always,
-        // and the buttons still get their clicks. Simultaneous: a drag that starts on "Record" or a button moves
-        // the capsule too, and m.click drops the press that ends it.
+        // Dragging is handed to the system in FloatingPanel (performDrag): see the mouse monitor there.
         .contentShape(Rectangle())
-        .simultaneousGesture(WindowDragGesture())
         .animation(.easeInOut(duration: 0.25), value: m.state)
         .animation(.easeInOut(duration: 0.25), value: m.callPrompt)
         .animation(.easeInOut(duration: 0.25), value: m.stopIn == nil)
@@ -499,7 +495,8 @@ final class FloatingPanel {
         p.hasShadow = true
         p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        // The SwiftUI WindowDragGesture moves it; a second, AppKit drag on top of it made the capsule jerk.
+        // isMovableByWindowBackground stops working while the waveform redraws ten times a second; the
+        // mouse monitor below hands the drag to the system instead.
         p.isMovableByWindowBackground = false
         p.hidesOnDeactivate = false
         p.becomesKeyOnlyIfNeeded = true
@@ -515,23 +512,28 @@ final class FloatingPanel {
         // Remember the panel position and the mouse on mouse down: if either moved by mouse up, the buttons
         // don't fire (it was a drag, not a press). The mouse is checked on screen: the capsule moves along with
         // it, so inside the capsule a drag looks like a click, and the window frame may lag behind the drag.
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] e in
+        // Once the mouse moves past the threshold, the system drags the window (performDrag): the window
+        // server moves it with the mouse however fast it goes and however busy the app is. A SwiftUI window
+        // drag gesture lost a fast flick once the pointer left the capsule, and the capsule jumped back.
+        // The press still reaches the buttons; m.click drops it if it turned into a drag.
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged]) { [weak self] e in
             MainActor.assumeIsolated {
-                if let self, e.window === self.panel {
-                    self.downOrigin = self.panel?.frame.origin
+                guard let self, let panel = self.panel, e.window === panel else { return e }
+                if e.type == .leftMouseDown {
+                    self.downOrigin = panel.frame.origin
                     self.downMouse = NSEvent.mouseLocation
+                    return e
                 }
+                guard PanelDrag.moved(self.downMouse, NSEvent.mouseLocation) else { return e }
+                panel.performDrag(with: e)
+                return nil
             }
-            return e
         }
         model.wasDragged = { [weak self] in
             MainActor.assumeIsolated {
                 guard let self else { return false }
-                func moved(_ a: NSPoint?, _ b: NSPoint?) -> Bool {
-                    guard let a, let b else { return false }
-                    return abs(a.x - b.x) > 3 || abs(a.y - b.y) > 3
-                }
-                return moved(self.downOrigin, self.panel?.frame.origin) || moved(self.downMouse, NSEvent.mouseLocation)
+                return PanelDrag.moved(self.downOrigin, self.panel?.frame.origin)
+                    || PanelDrag.moved(self.downMouse, NSEvent.mouseLocation)
             }
         }
         hoverSub = model.$hovering.removeDuplicates().sink { [weak self] _ in

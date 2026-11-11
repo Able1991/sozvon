@@ -15,6 +15,7 @@ Contract version: **1**. A breaking change bumps the version and requires a migr
 | Python environment | `<data>/.venv` | `setup.sh` (`uv sync --frozen`) |
 | Models | `<data>/models/<dir>/` + `.complete` marker | the installer, from `models.json` |
 | Projects | `<data>/profiles/<slug>.json` | the app, the engine, MCP |
+| Assistant calls | `<data>/assistant.log`: one line per call of Claude Code, Codex or Cursor CLI (time, command with the request masked as `<request>`, exit code, seconds, the end of stderr on a failure); cut to its newer half past 1 MB; goes into the diagnostics zip | the engine (`llm.py`) |
 | Last project discovery reply | `<data>/profiles/.discover-last.txt` (raw assistant text, for debugging; overwritten on every discovery run) | `bin/discover_projects.py` |
 | Shared vocabulary | `<data>/vocab.json` | the engine, MCP, the app (a replacement remembered in the Calls window) |
 | Call search index | `<data>/index.db` (SQLite FTS5, mode 600) + `index.db.lock`; a cache synced with the calls folder before each search and rebuilt when broken or of another schema version, safe to delete | MCP (`search_calls`) |
@@ -25,7 +26,7 @@ Contract version: **1**. A breaking change bumps the version and requires a migr
 | sha256 of local tracks, to compare with the own server's audio | `<data>/server-audio.json` (a cache, safe to delete) | `bin/sync_server.py` only |
 | Voice prints | `<data>/voices/<id>.json` (mode 600, folder mode 700) + `voices/.lock` (section 6) | `bin/voice.py`, `bin/sync_server.py` |
 | Voice prints deleted here, to delete on the own server | `<data>/voices-deleted.json` (section 6) | `bin/voice.py` adds, `bin/sync_server.py` removes |
-| Calls (`SOZVON_CALLS_DIR`) | `~/Documents/Calls/<id>[ · project · topic · people]/` | the app and the engine |
+| Calls (`SOZVON_CALLS_DIR`) | `~/Documents/Calls/<id>[ · project · topic · people]/`, or the folder chosen in the app (defaults key `callsDir`) | the app and the engine |
 
 Engine state markers in `<data>`: `.engine-version` (version of the copied code),
 `.venv-lock` (hash of the `uv.lock` the environment was built for), `.installed` (install time),
@@ -57,8 +58,10 @@ the ones marked "manual" below):
 | `SOZVON_ME` | how to label the user |
 | `SOZVON_LLM` | `claude`, `codex`, `cursor`, `none`, `auto` (the first installed of `claude`, `codex`, `cursor-agent`) |
 | `SOZVON_SUMMARY_MODEL` | Claude model for summaries, speaker naming and project discovery (default `sonnet`). Manual |
+| `SOZVON_SUMMARY_LANGUAGE` | Language of the summary: `ru`, `en`, `uk`, `de`, `es`; `auto` or absent: the conversation's |
 | `SOZVON_LANGUAGE` | call languages: `ru`, `ru,en`, `auto` |
 | `SOZVON_LANG_SWITCH` | `1`: detect the language of each phrase |
+| `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `HF_ENDPOINT`, `UV_DEFAULT_INDEX`, `PIP_INDEX_URL`, `UV_PYTHON`, `UV_PYTHON_INSTALL_MIRROR`, `SOZVON_SYSTEM_CERTS` | corporate network, see the docs section "Corporate network". Only these keys are taken from `.env` by `setup.sh` and exported by `runtime.prepare()`; the environment wins. By default `setup.sh` runs uv with `UV_SYSTEM_CERTS=1` and the engine injects `truststore` (macOS Keychain); a certificate file or `SOZVON_SYSTEM_CERTS=0` turns that off in the engine. With a package index (also `index-url` from `pip.conf`) `setup.sh` installs the locked versions from `uv export` with hashes instead of `uv sync --frozen`. Manual |
 | `SOZVON_MODEL` | key from `models.json`: `turbo`, `large-v3`, `small`, `gigaam`, `parakeet` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |
@@ -185,6 +188,8 @@ Mac last sent per call (ids of calls no longer here are dropped):
 ```
 
 `bin/voice.py` enrolls, lists and deletes voice prints (section 6).
+
+`bin/check_assistant.py claude|codex|cursor` sends a one-word request through the very command a summary uses.
 
 `bin/discover_projects.py` discovers projects. `server.py` runs MCP over stdio, `server.py --http`
 runs the shared server on `127.0.0.1:$SOZVON_MCP_PORT` with a bearer token. `models.py <data> <model>` downloads a model.
@@ -390,6 +395,8 @@ speaker naming does not change exit code 0.
 
 The last output line of `bin/process_call.py`: `RESULT: ok` or `RESULT: error <code> <message>`.
 `bin/discover_projects.py` prints intermediate `STATUS: <text>` lines.
+`bin/check_assistant.py` ends with `RESULT: ok <answer>` or `RESULT: error <message>`; exit 0 when the assistant
+answered, 1 when it did not (the message is its error: not installed, not logged in, no sandbox...), 2 for a wrong argument.
 `bin/sync_server.py` prints `STATUS: <text>` lines and ends with `RESULT: ok <sent> <deleted> <downloaded> <trashed> <failed>`
 (calls sent or with notes sent, calls deleted on the server, calls downloaded, calls moved to the Trash because
 they were deleted on another Mac, calls a request failed for; the app also accepts the older lines with 2 to 4

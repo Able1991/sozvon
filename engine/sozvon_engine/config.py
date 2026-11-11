@@ -13,6 +13,7 @@ KEYS = {
     "me": ("SOZVON_ME",),
     "llm": ("SOZVON_LLM",),
     "summary_model": ("SOZVON_SUMMARY_MODEL",),
+    "summary_language": ("SOZVON_SUMMARY_LANGUAGE",),
     "languages": ("SOZVON_LANGUAGE",),
     "lang_switch": ("SOZVON_LANG_SWITCH",),
     "model": ("SOZVON_MODEL",),
@@ -36,6 +37,8 @@ class Settings:
     me: str = ""
     llm: str = "auto"
     summary_model: str = "sonnet"
+    # The summary's language: "" (or "auto") is the conversation's.
+    summary_language: str = ""
     languages: str = "ru"
     lang_switch: bool = False
     model: str = "turbo"
@@ -87,6 +90,7 @@ def load(env_file: Path | None = None, environ=None) -> Settings:
         me=raw["me"] or defaults.me,
         llm=(raw["llm"] or defaults.llm).lower(),
         summary_model=raw["summary_model"] or defaults.summary_model,
+        summary_language="" if (raw["summary_language"] or "").strip().lower() in ("", "auto") else raw["summary_language"].strip().lower(),
         languages=raw["languages"] or defaults.languages,
         lang_switch=(raw["lang_switch"] or "").lower() in TRUE,
         model=raw["model"] or defaults.model,

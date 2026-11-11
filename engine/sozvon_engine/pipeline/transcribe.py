@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .. import asr_onnx, langid, whisper
+from .. import asr_onnx, langid, vad, whisper
 from ..i18n import t
 
 Log = Callable[[str], None]
@@ -30,6 +30,17 @@ def whisper_track(wav: Path, model_path: str, language, prompts: Prompts, log: L
     if used != prompt:
         log(t("log_prompt_retry"))
     return whisper.clean_segments(segments, prompts.replacements)
+
+
+# Word times and the detector's edges disagree by a few tenths of a second: a line this close to a voice is speech.
+HEARD_PAD = 0.5
+
+
+def drop_unheard(pieces: list, spans: list) -> tuple[list, int]:
+    """Lines with no voice under them (Whisper on silence) go. -> (kept, dropped)."""
+    kept = [p for p in pieces
+            if any(p[0] < e + HEARD_PAD and p[1] > s - HEARD_PAD for s, e in spans)]
+    return kept, len(pieces) - len(kept)
 
 
 def retranscribe(chunk, model_path: str, language: str, prompts: Prompts) -> str:
@@ -74,14 +85,19 @@ def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | N
             lang, share = langid.detect_track(audio, allowed, det.probs)
             log(t("log_track_lang", track=key, lang=lang, share=share,
                   allowed=",".join(allowed) if allowed else t("all_languages")))
+            if not (switch and allowed and len(allowed) > 1):
+                audio = None   # only relabel needs it again; Whisper decodes the file itself
         langs[key] = lang
         log(t("log_transcribing", track=key))
         segs[key] = whisper_track(wav, model_path, lang, prompts, log)
+        if vad.available(data_dir):
+            segs[key], dropped = drop_unheard(segs[key], vad.speech_spans(data_dir, wav))
+            if dropped:
+                log(t("log_unheard", track=key, n=dropped))
         log(t("log_segments", track=key, n=len(segs[key])))
         if switch and allowed and len(allowed) > 1:
             segs[key], n = langid.relabel(
                 audio, segs[key], lang, allowed, det.probs,
                 lambda chunk, lg: retranscribe(chunk, model_path, lg, prompts))
             log(t("log_switched", track=key, n=n))
-    whisper.release_backend()
     return segs, langs

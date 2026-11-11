@@ -1,5 +1,6 @@
-// The transcript in the call card: one row per paragraph, a click plays from there, the playing line
-// is highlighted; context actions rename a speaker or fix a misheard word (and can teach the project).
+// The transcript in the call card: one selectable text (DocText.swift), a click on a paragraph plays from there,
+// the playing paragraph is highlighted; context actions rename a speaker or fix a misheard word (and can teach the
+// project).
 
 import AppKit
 import SozvonCore
@@ -20,21 +21,20 @@ struct TranscriptDoc: Sendable {
 
     static let empty = TranscriptDoc("")
 
+    /// Tells one parse from another: the text view rebuilds its text only for a new one.
+    let id = UUID()
     let items: [Item]
-    /// Paragraph start times and their row ids, by paragraph number.
+    /// Paragraph start times, by paragraph number.
     let starts: [TimeInterval]
-    let rowIDs: [Int]
     let lines: [TranscriptLine]
 
     init(_ text: String) {
         var items: [Item] = []
         var starts: [TimeInterval] = []
-        var rowIDs: [Int] = []
         var lines: [TranscriptLine] = []
         var seen: [TranscriptLine: Int] = [:]
         for raw in text.components(separatedBy: "\n") where !raw.trimmingCharacters(in: .whitespaces).isEmpty {
             if let (line, _) = Transcript.parse(raw) {
-                rowIDs.append(items.count)
                 let n = seen[line, default: 0]
                 seen[line] = n + 1
                 items.append(Item(id: items.count, kind: .line(line, ordinal: starts.count, occurrence: n)))
@@ -46,7 +46,6 @@ struct TranscriptDoc: Sendable {
         }
         self.items = items
         self.starts = starts
-        self.rowIDs = rowIDs
         self.lines = lines
     }
 }
@@ -54,7 +53,7 @@ struct TranscriptDoc: Sendable {
 struct TranscriptView: View {
     let doc: TranscriptDoc
     @ObservedObject var playing: PlayingLine
-    /// There is audio: a click on a row plays from there (text selection is off then; use Copy).
+    /// There is audio: a plain click on a paragraph plays from there (a drag still selects).
     let canPlay: Bool
     /// Not being recorded or transcribed: edits are allowed.
     let canEdit: Bool
@@ -70,122 +69,14 @@ struct TranscriptView: View {
     /// Find in the transcript: what to highlight, and which of it is the current match.
     var found: [TranscriptFind.Match] = []
     var currentFound: TranscriptFind.Match? = nil
+    /// Lets the card scroll to the playing paragraph and to find matches.
+    var scroller: TranscriptScroller? = nil
 
     var body: some View {
-        let current = playing.index(in: doc.starts)
-        let foundByLine = Dictionary(grouping: found, by: \.line)
-        // Rows 6 apart.
-        LazyVStack(alignment: .leading, spacing: 6) {
-            ForEach(doc.items) { item in
-                switch item.kind {
-                case .line(let line, let n, let occurrence):
-                    row(line, occurrence: occurrence, current: current == n, found: foundByLine[n] ?? []).id(item.id)
-                case .other(let text):
-                    other(text).id(item.id)
-                }
-            }
-        }
-    }
-
-    /// Anything between paragraphs: the "## Transcript" heading render.py writes (styled like the card's other
-    /// section headings), or a stray line as plain text.
-    @ViewBuilder private func other(_ text: String) -> some View {
-        if text.hasPrefix("#") {
-            Text(verbatim: text.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces))
-                .font(.title3.weight(.semibold))
-                .padding(.horizontal, 4).padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
-        } else if text.trimmingCharacters(in: .whitespaces) != "---" {
-            Text(verbatim: text).szFont(.transcript).foregroundStyle(SZ.label2).textSelection(.enabled)
-        }
-    }
-
-    /// The engine ends a paragraph marked "important" during the recording with a star (render.py).
-    static let star = " \u{2B50}"
-
-    /// A named speaker whose voice can still be remembered: not the user, not a generic label, not saved yet.
-    private func unconfirmed(_ speaker: String) -> Bool {
-        !Voices.isGenericLabel(speaker, me: me) && !voiced.contains(speaker.lowercased())
-    }
-
-    /// "Name:" in semibold (coral for a name whose voice isn't saved yet, so it's clear whom to confirm),
-    /// then the text (inserted verbatim, never parsed as Markdown), without the star.
-    private func label(_ l: TranscriptLine, found: [TranscriptFind.Match] = []) -> Text {
-        let text = l.text.hasSuffix(Self.star) ? String(l.text.dropLast(Self.star.count)) : l.text
-        let unconfirmed = unconfirmed(l.speaker)
-        let name = Text(verbatim: l.speaker + ":").fontWeight(.semibold).foregroundStyle(unconfirmed ? SZ.coral : SZ.label)
-        guard !found.isEmpty else { return Text("\(name)\(text.isEmpty ? "" : " " + text)") }
-        var marked = AttributedString(" " + text)
-        for m in found {
-            // Offsets in the paragraph, moved past the leading space of the marked copy.
-            let start = l.text.distance(from: l.text.startIndex, to: m.range.lowerBound) + 1
-            let length = l.text.distance(from: m.range.lowerBound, to: m.range.upperBound)
-            let from = marked.index(marked.startIndex, offsetByCharacters: start)
-            let to = marked.index(from, offsetByCharacters: length)
-            marked[from..<to].backgroundColor = m == currentFound ? SZ.accent : SZ.yellow.opacity(0.45)
-            if m == currentFound { marked[from..<to].foregroundColor = .white }
-        }
-        return Text("\(name)\(Text(marked))")
-    }
-
-    /// A row: time column (44, right-aligned, label3), the line; current: accent row with a 2px accent bar,
-    /// starred: a yellow tint and a star.
-    @ViewBuilder
-    private func row(_ l: TranscriptLine, occurrence: Int, current: Bool, found: [TranscriptFind.Match] = []) -> some View {
-        let starred = l.text.hasSuffix(Self.star)
-        let shape = RoundedRectangle(cornerRadius: SZ.radiusControl)
-        let content = HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(Call.clock(Int(l.start), empty: "0:00"))
-                .font(.system(size: 12).monospacedDigit())
-                .foregroundStyle(current ? SZ.accent : SZ.label3)
-                .frame(minWidth: 44, alignment: .trailing)
-            label(l, found: found).szFont(.transcript).foregroundStyle(SZ.label)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            if starred {
-                Image(systemName: "star.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(SZ.yellow)
-                    .help(L("Отмечено как важное во время записи"))
-                    .accessibilityLabel(L("Отмечено как важное во время записи"))
-            }
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            if current {
-                shape.fill(SZ.accentRow)
-                    .overlay(alignment: .leading) { Rectangle().fill(SZ.accent).frame(width: 2) }
-                    .clipShape(shape)
-            } else if starred {
-                shape.fill(SZ.starRow)
-            }
-        }
-        .contentShape(Rectangle())
-        .help(voiced.contains(l.speaker.lowercased()) ? L("Голос «%@» сохранён: Sozvon узнаёт этого человека в следующих звонках", l.speaker) : "")
-        .contextMenu {
-            if canPlay { Button(L("Слушать отсюда")) { onPlay(l) } }
-            Button(L("Копировать")) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("[\(Call.clock(Int(l.start), empty: "0:00"))] \(l.speaker): \(l.text)",
-                                               forType: .string)
-            }
-            Divider()
-            Button(L("Переименовать говорящего…")) { onRename(FixTarget(line: l, occurrence: occurrence)) }.disabled(!canEdit)
-            if let onRememberVoice, unconfirmed(l.speaker) {
-                Button(L("Запомнить голос «%@»", l.speaker)) { onRememberVoice(l.speaker) }.disabled(!canEdit)
-            }
-            Button(L("Исправить слово…")) { onFix(FixTarget(line: l, occurrence: occurrence)) }.disabled(!canEdit)
-        }
-        if canPlay {
-            content
-                .onTapGesture { onPlay(l) }
-                .accessibilityAddTraits(.isButton)
-                .accessibilityAction(named: L("Слушать отсюда")) { onPlay(l) }
-        } else {
-            content.textSelection(.enabled)
-        }
+        TranscriptPane(doc: doc, me: me, voiced: voiced, current: playing.index(in: doc.starts),
+                       canPlay: canPlay, canEdit: canEdit, canRemember: onRememberVoice != nil,
+                       found: found, currentFound: currentFound, scroller: scroller,
+                       onPlay: onPlay, onRename: onRename, onRemember: { onRememberVoice?($0) }, onFix: onFix)
     }
 }
 
