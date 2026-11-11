@@ -740,7 +740,7 @@ struct EngineSection: View {
         }
 
         Section(L("Файлы")) {
-            pathRow(L("Папка записей"), Paths.calls)
+            CallsFolderRow()
             pathRow(L("Папка данных"), Paths.data)
             LabeledContent {
                 Button(L("Переустановить…"), action: reinstall)

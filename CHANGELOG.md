@@ -2,6 +2,7 @@
 
 ## 0.1.5
 
+- **Choose where calls are kept.** The setup assistant asks for the calls folder (`~/Documents/Calls` by default), and Settings, Recognition, Files can change it later. Your calls can move along: renamed on the same disk; copied to another disk, checked against the original, and only then the original goes to the Trash.
 - **No more "Thank you." on a silent microphone.** When you listen and say nothing, Whisper used to write stock phrases on the room noise, "Thank you." every half minute in English. Lines with no voice under them are now dropped (the speech detector already used by GigaAM and Parakeet is downloaded for every model).
 - **Settings say whether your assistant really answers.** Choosing or connecting Claude Code, Codex or Cursor sends it a one-word request through the same command a summary uses, and shows "Answers" or its own error with what to do: log in again, update an old CLI, or install it. Every assistant call is written to assistant.log (the command without your text), which Diagnostics puts in its zip.
 - **Cursor works where its sandbox does not.** On Macs where cursor-agent cannot start its sandbox, the request goes again without it, still in read-only ask mode. An old Claude Code without `--no-session-persistence` is asked again without that flag.

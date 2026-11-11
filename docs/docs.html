@@ -333,7 +333,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><th>Что</th><th>Куда</th></tr>
         <tr><td>Запись, расшифровка, удаление эха, разбивка и отпечатки голосов</td><td>Никуда. Только этот Mac: папка ~/Documents/Calls и данные Sozvon</td></tr>
-        <tr><td>Папка звонков, если macOS синхронизирует «Документы»</td><td>iCloud Drive, это делает macOS, а не Sozvon: только если в настройках iCloud Drive включены папки «Рабочий стол» и «Документы». Выключи их, чтобы звонки не попадали в iCloud.</td></tr>
+        <tr><td>Папка звонков, если macOS синхронизирует «Документы»</td><td>iCloud Drive, это делает macOS, а не Sozvon: только если в настройках iCloud Drive включены папки «Рабочий стол» и «Документы». Выключи их или перенеси папку звонков из «Документов», чтобы звонки не попадали в iCloud.</td></tr>
         <tr><td>Модели и Python-окружение</td><td>PyPI, huggingface.co, github.com, один раз при установке</td></tr>
         <tr><td>Текст расшифровки для саммари и имён</td><td>Anthropic, OpenAI или Cursor, только если выбран помощник</td></tr>
         <tr><td>То, что читает ассистент через MCP</td><td>Anthropic, OpenAI или Cursor, только когда ты его спрашиваешь</td></tr>
@@ -345,6 +345,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>Весь код открыт. Каждый коммит проверяют <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep и CodeQL</a>: секреты, уязвимости, подозрительный код.</p>
 
       <h2 id="files">Где лежат файлы</h2>
+      <p>Папку звонков можно выбрать в мастере при первом запуске и сменить потом: «Настройки», «Распознавание», «Файлы», «Папка звонков», «Изменить…». Sozvon предложит перенести звонки: на том же диске папки просто переезжают, на другой диск копируются, копия сверяется с оригиналом, и только потом оригинал уходит в корзину. Во время записи или расшифровки папка не меняется.</p>
       <p>Каждый звонок это папка в <code>~/Documents/Calls</code>, например <code>2026-11-04 15-01 · Acme · запуск · Анна</code>:</p>
       <table>
         <tr><td><code>mic.m4a</code>, <code>system.m4a</code></td><td>Твой микрофон и звук компьютера, отдельными дорожками. У импортированной записи только <code>system.m4a</code>.</td></tr>
@@ -697,7 +698,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><th>What</th><th>Where to</th></tr>
         <tr><td>Recording, transcript, echo removal, speaker separation, voice prints</td><td>Nowhere. Only this Mac: the ~/Documents/Calls folder and Sozvon’s data</td></tr>
-        <tr><td>The calls folder, if macOS syncs Documents</td><td>iCloud Drive, synced by macOS and not by Sozvon: only if Desktop &amp; Documents Folders is on in iCloud Drive settings. Turn it off to keep the calls off iCloud.</td></tr>
+        <tr><td>The calls folder, if macOS syncs Documents</td><td>iCloud Drive, synced by macOS and not by Sozvon: only if Desktop &amp; Documents Folders is on in iCloud Drive settings. Turn it off, or move the calls folder out of Documents, to keep the calls off iCloud.</td></tr>
         <tr><td>Models and Python runtime</td><td>PyPI, huggingface.co, github.com, once during setup</td></tr>
         <tr><td>Transcript text for summaries and names</td><td>Anthropic, OpenAI or Cursor, only if you pick an assistant</td></tr>
         <tr><td>What the assistant reads through MCP</td><td>Anthropic, OpenAI or Cursor, only when you ask it</td></tr>
@@ -709,6 +710,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>All code is open. Every commit is checked by <a href="https://github.com/Able1991/sozvon/actions/workflows/security.yml">Gitleaks, Semgrep and CodeQL</a> for secrets, vulnerabilities and suspicious code.</p>
 
       <h2 id="en-files">Where files live</h2>
+      <p>You pick the calls folder in the setup assistant on first launch and can change it later: Settings, Recognition, Files, Calls Folder, Change…. Sozvon offers to move your calls: on the same disk the folders just move; to another disk they are copied, each copy is compared with its original, and only then the original goes to the Trash. The folder can’t change during a recording or a transcription.</p>
       <p>Each call is a folder in <code>~/Documents/Calls</code>, for example <code>2026-11-04 15-01 · Acme · launch · Anna</code>:</p>
       <table>
         <tr><td><code>mic.m4a</code>, <code>system.m4a</code></td><td>Your microphone and your computer’s audio, as separate tracks. An imported recording has only <code>system.m4a</code>.</td></tr>

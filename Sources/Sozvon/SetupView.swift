@@ -177,6 +177,7 @@ struct SetupView: View {
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var voices = VoiceStore.shared
     @ObservedObject private var checks = AssistantChecks.shared
+    @ObservedObject private var folder = CallsFolderChanger.shared
     @State private var voiceSheet = false
     /// Height of the transparent title bar the page extends under: the hosting window adds it on top of
     /// the view's height.
@@ -392,6 +393,9 @@ struct SetupView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(L("Языки звонков"))
+                SetupRow(title: L("Папка звонков"), detail: folder.moving ?? (folder.current.path as NSString).abbreviatingWithTildeInPath) {
+                    Button(L("Изменить…")) { folder.change() }.disabled(folder.moving != nil)
+                }
             }
             if Engine.gentle {
                 Text(L("Расшифровка уступает твоим программам: при звонке она не мешает Zoom и браузеру."))

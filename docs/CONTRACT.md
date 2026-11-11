@@ -26,7 +26,7 @@ Contract version: **1**. A breaking change bumps the version and requires a migr
 | sha256 of local tracks, to compare with the own server's audio | `<data>/server-audio.json` (a cache, safe to delete) | `bin/sync_server.py` only |
 | Voice prints | `<data>/voices/<id>.json` (mode 600, folder mode 700) + `voices/.lock` (section 6) | `bin/voice.py`, `bin/sync_server.py` |
 | Voice prints deleted here, to delete on the own server | `<data>/voices-deleted.json` (section 6) | `bin/voice.py` adds, `bin/sync_server.py` removes |
-| Calls (`SOZVON_CALLS_DIR`) | `~/Documents/Calls/<id>[ · project · topic · people]/` | the app and the engine |
+| Calls (`SOZVON_CALLS_DIR`) | `~/Documents/Calls/<id>[ · project · topic · people]/`, or the folder chosen in the app (defaults key `callsDir`) | the app and the engine |
 
 Engine state markers in `<data>`: `.engine-version` (version of the copied code),
 `.venv-lock` (hash of the `uv.lock` the environment was built for), `.installed` (install time),
