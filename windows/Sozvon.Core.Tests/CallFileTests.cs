@@ -607,6 +607,24 @@ public class ProjectAndVoiceTests : TempFolders
         Assert.Equal(ReplacementFailure.NoProject, Assert.Throws<ReplacementException>(() => ReplacementStore.Add("a", "b", "missing", Data)).Failure);
     }
 
+    /// <summary>A project or vocabulary file another program holds is busy, not missing, and is never written over.</summary>
+    [Fact]
+    public void LockedReplacementFileIsBusyNotMissing()
+    {
+        var project = Path.Combine(Data, "profiles", "acme.json");
+        WriteText(project, """{"schema": 1, "title": "Acme", "replacements": [["хпа", "HPA"]]}""");
+        var vocab = Path.Combine(Data, "vocab.json");
+        WriteText(vocab, """{"schema": 1, "replacements": [["кубер", "Kubernetes"]]}""");
+        foreach (var (file, slug) in new[] { (project, "acme"), (vocab, "") })
+        {
+            using (new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.Throws<IOException>(() => ReplacementStore.Add("a", "b", slug, Data));
+            }
+            Assert.Single(JsonFile.Read(file)!["replacements"]!.AsArray());
+        }
+    }
+
     [Fact]
     public void VoicesRecordsAndArguments()
     {

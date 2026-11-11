@@ -185,6 +185,8 @@ public static class ReplacementStore
         FileLock.With(file, () =>
         {
             var o = JsonFile.Read(file, out var exists);
+            // Held by another program: busy, not missing, and never replaced by a file with only this entry.
+            if (!exists && File.Exists(file)) throw new IOException($"cannot read {file}");
             if (exists && o is null) throw new ReplacementException(ReplacementFailure.Corrupt);
             if (!exists && !create) throw new ReplacementException(ReplacementFailure.NoProject);
             o ??= [];
