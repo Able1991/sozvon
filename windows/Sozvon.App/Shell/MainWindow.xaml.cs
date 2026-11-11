@@ -51,6 +51,14 @@ public sealed partial class MainWindow : Window
         var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
         AppWindow.Resize(new((int)(LogicalWidth * scale), (int)(LogicalHeight * scale)));
         AppWindow.Closing += OnClosing;
+        // Shown again from the tray with Settings open: the page is still loaded, so it is told it is in view.
+        Activated += (_, e) =>
+        {
+            if (e.WindowActivationState != WindowActivationState.Deactivated && ReferenceEquals(PageHost.Content, _settingsPage))
+            {
+                _settingsPage.Appeared();
+            }
+        };
 
         ApplyTheme(settings.Settings.Theme);
         Root.KeyboardAccelerators.Add(Accelerator(VirtualKeyModifiers.Control, OnFind));

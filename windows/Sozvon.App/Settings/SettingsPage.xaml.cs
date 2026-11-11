@@ -32,6 +32,7 @@ public sealed partial class SettingsPage : UserControl
         {
             myVoice.Store.Changed += OnVoicesChanged;
             ShowOtherVoices();
+            Appeared();
         };
         Unloaded += (_, _) => myVoice.Store.Changed -= OnVoicesChanged;
         PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
@@ -68,6 +69,12 @@ public sealed partial class SettingsPage : UserControl
     }
 
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>
+    /// The page came into view: on the page itself, the General tab, or the window shown again with Settings open. What
+    /// Windows keeps (open at sign-in, maybe switched off in Task Manager meanwhile) is read again.
+    /// </summary>
+    public void Appeared() => ViewModel.SignIn.Refresh();
 
     /// <summary>In enum order: the box's index is the model. A model that is not on disk cannot be chosen: the engine would refuse the call.</summary>
     private void AddModels()
@@ -140,6 +147,10 @@ public sealed partial class SettingsPage : UserControl
         else if (tag == nameof(Cloud))
         {
             ViewModel.Server.Appeared();
+        }
+        else if (tag == nameof(General))
+        {
+            Appeared();
         }
     }
 

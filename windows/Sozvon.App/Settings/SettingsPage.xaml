@@ -50,17 +50,17 @@
                 <StackPanel x:Name="General" Spacing="4">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Профиль'}" />
                     <local:SettingsRow Header="{s:L K='Как тебя подписывать'}" Description="{s:L K='Имя пишется в расшифровке рядом с твоими репликами'}">
-                        <TextBox Width="260" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}" />
+                        <TextBox Width="260" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Как тебя подписывать'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Тема'}">
-                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}">
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.ThemeIndex, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Тема'}">
                             <ComboBoxItem Content="{s:L K='Светлая'}" />
                             <ComboBoxItem Content="{s:L K='Тёмная'}" />
                             <ComboBoxItem Content="{s:L K='Как в системе'}" />
                         </ComboBox>
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Язык интерфейса'}">
-                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.LanguageIndex, Mode=TwoWay}">
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.LanguageIndex, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Язык интерфейса'}">
                             <ComboBoxItem Content="{s:L K='Как в системе'}" />
                             <ComboBoxItem Content="Русский" />
                             <ComboBoxItem Content="English" />
@@ -87,20 +87,20 @@
                                       AutomationProperties.Name="{s:L K='Показывать панель и без записи'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Когда начинается звонок'}" Description="{x:Bind ViewModel.CallStartDescription, Mode=OneWay}">
-                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}">
+                        <ComboBox Width="200" SelectedIndex="{x:Bind ViewModel.Settings.CallStartAction, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Когда начинается звонок'}">
                             <ComboBoxItem Content="{s:L K='Спрашивать'}" />
                             <ComboBoxItem Content="{s:L K='Записывать сам'}" />
                             <ComboBoxItem Content="{s:L K='Ничего не делать'}" />
                         </ComboBox>
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Останавливать после звонка'}" Description="{x:Bind ViewModel.StopAfterCallDescription}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.StopAfterCall, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.StopAfterCall, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Останавливать после звонка'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Напоминать сказать о записи'}" Description="{s:L K='На несколько секунд в начале записи'}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.RemindToSay, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.RemindToSay, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Напоминать сказать о записи'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Предупреждать о тишине'}" Description="{s:L K='Если тебя или собеседников не слышно больше двух минут или тебя очень тихо слышно'}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.WarnOnSilence, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.WarnOnSilence, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Предупреждать о тишине'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Звук при старте и остановке записи'}" Description="{s:L K='Во время звонка звука нет: его услышали бы собеседники'}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.PlaySounds, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Звук при старте и остановке записи'}" />
@@ -136,7 +136,7 @@
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='После звонка'}" />
                     <local:SettingsRow Header="{s:L K='Сразу расшифровывать, если всё понятно'}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.Settings.TranscribeWhenClear, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Сразу расшифровывать, если всё понятно'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Автоудаление аудио'}">
                         <ComboBox x:Name="AudioRetentionBox" Width="200" SelectedIndex="{x:Bind ViewModel.Settings.AudioRetention, Mode=TwoWay}"
@@ -153,13 +153,13 @@
                 <StackPanel x:Name="Recognition" Spacing="4" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Модель'}" />
                     <local:SettingsRow Header="{s:L K='Модель распознавания'}">
-                        <ComboBox x:Name="ModelBox" Width="240" SelectedIndex="{x:Bind ViewModel.SpeechModelIndex, Mode=TwoWay}" />
+                        <ComboBox x:Name="ModelBox" Width="240" SelectedIndex="{x:Bind ViewModel.SpeechModelIndex, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Модель распознавания'}" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Языки звонков'}">
                         <local:LanguagesButton x:Name="CallLanguagesBox" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Переключение языка посреди речи'}" Description="{s:L K='Язык определяется для каждой фразы, медленнее на 20-30%'}">
-                        <ToggleSwitch IsOn="{x:Bind ViewModel.LanguageSwitching, Mode=TwoWay}" />
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.LanguageSwitching, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Переключение языка посреди речи'}" />
                     </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Движок'}" />
@@ -363,10 +363,10 @@
                              Message="{x:Bind ViewModel.LogsError, Mode=OneWay}" />
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Ссылки'}" />
                     <local:SettingsRow Header="{s:L K='Сайт'}">
-                        <HyperlinkButton Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />
+                        <HyperlinkButton Margin="0,0,-11,0" Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Исходный код'}">
-                        <HyperlinkButton Content="GitHub" NavigateUri="https://github.com/Able1991/sozvon" />
+                        <HyperlinkButton Margin="0,0,-11,0" Content="GitHub" NavigateUri="https://github.com/Able1991/sozvon" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Лицензия'}">
                         <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="MIT" />

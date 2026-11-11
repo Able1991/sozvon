@@ -41,7 +41,8 @@ public static class OwnServer
     public const string SyncScript = "sync_server.py";
     public const string SyncLog = "server-sync.log";
 
-    public static readonly Uri DocsUrl = new("https://able1991.github.io/sozvon/docs.html#server");
+    /// <summary>"How it works": the docs' section on the server in the interface's language (#server or #en-server).</summary>
+    public static Uri Docs(bool russian) => new($"https://able1991.github.io/sozvon/docs.html#{(russian ? "" : "en-")}server");
 
     /// <summary>Opens the "Add custom connector" dialog directly. No other query parameters: they break it.</summary>
     public static readonly Uri ClaudeConnectorsUrl = new("https://claude.ai/customize/connectors?modal=add-custom-connector");

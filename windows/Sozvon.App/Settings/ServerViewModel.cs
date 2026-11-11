@@ -86,7 +86,7 @@ public sealed partial class ServerViewModel : ObservableObject
 
     public bool HasSaveError => SaveError.Length > 0;
 
-    public Uri DocsUrl => OwnServer.DocsUrl;
+    public Uri DocsUrl => OwnServer.Docs(Loc.IsRussian);
 
     /// <summary>Enter or Save: spaces and line breaks around a pasted address or password are dropped, then one check.</summary>
     public void Save()
