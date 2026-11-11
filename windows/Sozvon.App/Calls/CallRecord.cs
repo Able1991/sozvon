@@ -31,7 +31,9 @@ public sealed record CallRecord
     /// <summary>mic.m4a or system.m4a is there: the call can be played and transcribed again.</summary>
     public bool HasAudio { get; init; }
     public bool IsQueued { get; init; }
-    public bool HasSummaryWarning { get; init; }
+    /// <summary>Why the summary failed on the last run (call.json <c>warnings</c>), on one line; null when it did not.</summary>
+    public string? SummaryWarning { get; init; }
+    public bool HasSummaryWarning => SummaryWarning is not null;
     public bool IsUnreadable { get; init; }
 
     /// <summary>Text of a call that lives only in memory (the demo call); real calls are read from the folder.</summary>

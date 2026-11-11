@@ -243,15 +243,18 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
                        hasTranscript ? Loc.L("Здесь расшифровка с прошлого раза.") : "",
                        canTranscribe ? CallBannerAction.Retranscribe : CallBannerAction.None);
         }
+        if (call.SummaryWarning is { } why)
+        {
+            // Before "stale": a run whose summary failed leaves the older summary.md behind, which would read as an
+            // edited transcript. The engine's reason says what to fix (the assistant missing, logged out).
+            return new(CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось"), why,
+                       hasTranscript && actions.CanTranscribe && !actions.IsEditLocked(call) ? CallBannerAction.Resummarize : CallBannerAction.None);
+        }
         if (hasSummary && SummaryStale(call.Folder) && !actions.IsEditLocked(call))
         {
             // The transcript was edited after the summary was written (names fixed, lines moved).
             return new(CallBannerKind.Caution, Loc.L("Саммари устарело."), Loc.L("Расшифровку изменили после того, как оно было написано."),
                        actions.CanTranscribe ? CallBannerAction.Resummarize : CallBannerAction.None);
-        }
-        if (call.HasSummaryWarning)
-        {
-            return new(CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось"));
         }
         return new(CallBannerKind.None, "");
     }
