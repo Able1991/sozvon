@@ -49,6 +49,8 @@ public sealed partial class TrayViewModel : ObservableObject
     {
         TrayState.Recording => Loc.L("Идёт запись %@", CallFormat.Clock((Recording?.IsRecording == true ? Recording.Elapsed : DateTime.Now - _startedAt).TotalSeconds)) + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
         TrayState.SetupNeeded => Loc.L("Нужна настройка"),
+        // As the Mac's menu: the engine has work, though a recording can still start.
+        _ when !IsPreview && Recording?.Processor.HasWork == true => Loc.L("Расшифровка…"),
         _ => Loc.L("Готов к записи"),
     };
 
