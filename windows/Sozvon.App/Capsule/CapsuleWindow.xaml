@@ -129,11 +129,11 @@
             <!-- Every element is centred on the same line; the bar's height is the shape's inner height. -->
             <StackPanel x:Name="Bar" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Left">
                 <Grid x:Name="RecordDot" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
-                      AutomationProperties.Name="RecordDot">
+                      AutomationProperties.AutomationId="RecordDot">
                     <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
                 </Grid>
                 <Grid x:Name="Spinner" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
-                      AutomationProperties.Name="Spinner">
+                      AutomationProperties.AutomationId="Spinner">
                     <Grid.Resources>
                         <Storyboard x:Name="SpinnerTurning" RepeatBehavior="Forever">
                             <DoubleAnimation Storyboard.TargetName="SpinnerTurn" Storyboard.TargetProperty="Angle" From="0" To="360" Duration="0:0:0.9" />
@@ -149,13 +149,13 @@
                     </Grid>
                 </Grid>
                 <Grid x:Name="Check" Width="16" Height="32" VerticalAlignment="Center" Visibility="Collapsed"
-                      AutomationProperties.Name="Check">
+                      AutomationProperties.AutomationId="Check">
                     <Ellipse Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
                     <FontIcon Glyph="&#xE73E;" FontSize="8" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 </Grid>
 
                 <Button x:Name="RecordButton" Style="{StaticResource CapsuleIconButton}" Width="NaN" Padding="8,0,12,0" Visibility="Collapsed"
-                        AutomationProperties.Name="RecordButton">
+                        AutomationProperties.AutomationId="RecordButton">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Grid Width="16" Height="16" VerticalAlignment="Center">
                             <Ellipse Width="8" Height="8" HorizontalAlignment="Center" VerticalAlignment="Center" Fill="{StaticResource RecordRedBrush}" />
@@ -170,7 +170,7 @@
                            Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                 <TextBlock x:Name="Warning" VerticalAlignment="Center" FontSize="14" TextLineBounds="Tight" Visibility="Collapsed"
                            Foreground="{ThemeResource SystemFillColorCautionBrush}" />
-                <Canvas x:Name="Wave" Height="32" VerticalAlignment="Center" Visibility="Collapsed" AutomationProperties.Name="Wave">
+                <Canvas x:Name="Wave" Height="32" VerticalAlignment="Center" Visibility="Collapsed" AutomationProperties.AutomationId="Wave" AutomationProperties.AccessibilityView="Raw">
                     <Rectangle x:Name="WaveDivider" Width="1" Height="16" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                 </Canvas>
 
