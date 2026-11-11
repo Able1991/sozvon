@@ -31,6 +31,9 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
     private readonly ProcessingQueue _queue = new();
     private readonly object _gate = new();
     private IEngineRun? _run;
+
+    /// <summary>The bookkeeping after the running engine: a quit waits for it, so the call is saved before the app ends.</summary>
+    private Task _watch = Task.CompletedTask;
     private bool _quitting;
 
     /// <summary>Asked before each start: a recording is going on, or a call app holds the microphone.</summary>
@@ -135,11 +138,22 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
         return run?.StopAsync() ?? Task.CompletedTask;
     }
 
-    /// <summary>The app is quitting: the running call ends as a crash would, the waiting ones keep their place.</summary>
-    public Task AbortAllAsync()
+    /// <summary>The app is quitting: the running call goes back in the queue, the waiting ones keep their place.</summary>
+    public async Task AbortAllAsync()
     {
-        lock (_gate) _quitting = true;
-        return StopRunningAsync();
+        Task watch;
+        lock (_gate)
+        {
+            _quitting = true;
+            watch = _watch;
+        }
+        await StopRunningAsync().ConfigureAwait(false);
+        await watch.ConfigureAwait(false);
+    }
+
+    private bool Quitting
+    {
+        get { lock (_gate) return _quitting; }
     }
 
     private void StartNextLocked()
@@ -154,7 +168,7 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
             CallFile.SetQueued(job.Dir, null);
             var run = runner.Start(job, line => OutputLine?.Invoke(job.Dir, line));
             _run = run;
-            _ = WatchAsync(job, run);
+            _watch = WatchAsync(job, run);
             return;
         }
     }
@@ -176,6 +190,11 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
 
     private string FinishCall(string dir, EngineRunResult result)
     {
+        if (result.Stopped && Quitting)
+        {
+            CallFile.BackToQueue(dir, AheadOfTheWaiting());
+            return dir;
+        }
         if (!result.Outcome.IsOk)
         {
             CallFile.SetFailedUnlessDone(dir);
@@ -184,6 +203,13 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
         }
         CallFile.ClearRetries(dir);
         return Rename(dir);
+    }
+
+    /// <summary>A queue time just before every waiting call: the run cut short by a quit keeps its turn at the next launch.</summary>
+    private DateTimeOffset AheadOfTheWaiting()
+    {
+        var first = Waiting.Select(j => CallFile.QueuedAt(CallFile.Read(j.Dir))).Where(t => t is not null).Min();
+        return first is { } at ? at.AddMilliseconds(-1) : DateTimeOffset.UtcNow;
     }
 
     /// <summary>The readable folder name, only after success: while the engine writes to the folder, it stays put.</summary>

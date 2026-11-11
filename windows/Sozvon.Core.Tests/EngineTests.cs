@@ -629,19 +629,64 @@ public class CallProcessorTests : TempFolders
     }
 
     [Fact]
-    public async Task QuitStopsTheRunAndLeavesTheWaitingOnesQueued()
+    public async Task QuitStopsTheRunAndPutsItBackInTheQueueWithTheWaitingOnes()
     {
         var a = MakeCall("2026-11-04 15-01", new JsonObject { ["status"] = "recorded" });
         var b = MakeCall("2026-11-04 15-02", new JsonObject { ["status"] = "recorded" });
         var processor = Processor();
         processor.Enqueue(a, ProcessingKind.Transcribe);
         processor.Enqueue(b, ProcessingKind.Transcribe);
+        CallFile.Update(a, c => c["status"] = "processing"); // what the engine writes once it starts
         var result = await NextFinished(processor, () => processor.AbortAllAsync());
         Assert.True(result.Stopped);
         Assert.True(_runner.Started[0].Run.StopAsked);
-        Assert.Equal("failed", Json(a).Text("status"));
+        Assert.Equal("recorded", Json(a).Text("status"));
+        Assert.NotNull(Json(a)["queued_at"]);
         Assert.NotNull(Json(b)["queued_at"]);
         Assert.Single(_runner.Started);
+
+        // The next launch runs both again; the one cut short is not a failure and used no retry.
+        Assert.Null(Json(a)["retries"]);
+        var nextLaunch = new FakeRunner();
+        var restored = new CallProcessor(Calls, nextLaunch, () => []).RestoreQueue();
+        Assert.Equal(new[] { a, b }, restored); // the one cut short keeps its turn, as after a crash
+        Assert.Equal(a, nextLaunch.Started.Single().Job.Dir);
+    }
+
+    [Fact]
+    public async Task QuitReturnsOnlyOnceTheCallIsBackInTheQueue()
+    {
+        // The app exits as soon as the quit is done: the call must already be saved as waiting by then.
+        var a = MakeCall("2026-11-04 15-01", new JsonObject { ["status"] = "recorded" });
+        var processor = Processor();
+        processor.Enqueue(a, ProcessingKind.Transcribe);
+        CallFile.Update(a, c => c["status"] = "processing");
+        await processor.AbortAllAsync();
+        Assert.Equal("recorded", Json(a).Text("status"));
+        Assert.NotNull(Json(a)["queued_at"]);
+    }
+
+    [Fact]
+    public async Task QuitLeavesACallTheEngineHadFinishedDone()
+    {
+        var a = MakeCall("2026-11-04 15-01", new JsonObject { ["status"] = "recorded" });
+        var processor = Processor();
+        processor.Enqueue(a, ProcessingKind.Transcribe);
+        CallFile.Update(a, c => c["status"] = "done");
+        await NextFinished(processor, () => processor.AbortAllAsync());
+        Assert.Equal("done", Json(a).Text("status"));
+        Assert.Null(Json(a)["queued_at"]);
+    }
+
+    [Fact]
+    public async Task AStopThatIsNotAQuitStillFailsTheCall()
+    {
+        var a = MakeCall("2026-11-04 15-01", new JsonObject { ["status"] = "processing" });
+        var processor = Processor();
+        processor.Enqueue(a, ProcessingKind.Transcribe);
+        var result = await NextFinished(processor, () => processor.StopRunningAsync());
+        Assert.True(result.Stopped);
+        Assert.Equal("failed", Json(a).Text("status"));
     }
 
     [Fact]

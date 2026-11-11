@@ -36,6 +36,19 @@ public static partial class CallFile
     public static bool ClearRetries(string dir) => Update(dir, c => c.Remove(RetriesKey));
 
     /// <summary>
+    /// The app quit in the middle of a run: the call waits again, to be transcribed at the next launch. Not a failure, so
+    /// no retry is used up. A call the engine had already finished stays done.
+    /// </summary>
+    public static bool BackToQueue(string dir, DateTimeOffset now) => Update(dir, c =>
+    {
+        if (c.Text("status") == CallStatus.Done.Key()) return;
+        c["status"] = CallStatus.Recorded.Key();
+        c[QueuedAtKey] = Iso8601.Milliseconds(now);
+        c.Remove(QueuedSummaryOnlyKey);
+        c.Remove(RetriesKey);
+    });
+
+    /// <summary>
     /// At launch: what goes back in the queue, in order. A call left processing by a crash is requeued
     /// <see cref="MaxRetries"/> times and goes first, because it was already running; after that it is failed, so a
     /// call that kills the app cannot do so forever.
