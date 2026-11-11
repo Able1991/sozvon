@@ -5,7 +5,10 @@ namespace Sozvon.App.Calls;
 /// <summary>Dates and durations as the list and the header show them.</summary>
 public static class CallFormat
 {
-    public static string Duration(double seconds)
+    /// <summary>"1 ч 23 мин" with no-break spaces: a wrapping meta line never leaves "1" at the end of one line and "ч 23 мин" on the next.</summary>
+    public static string Duration(double seconds) => NoBreak(DurationText(seconds));
+
+    private static string DurationText(double seconds)
     {
         if (seconds < 60)
         {
@@ -18,6 +21,8 @@ public static class CallFormat
         }
         return Loc.IsRussian ? $"{minutes / 60} ч {minutes % 60:00} мин" : $"{minutes / 60} h {minutes % 60:00} min";
     }
+
+    private static string NoBreak(string text) => text.Replace(' ', '\u00A0');
 
     /// <summary>"37 МБ", "1,2 ГБ".</summary>
     public static string Size(long bytes)
