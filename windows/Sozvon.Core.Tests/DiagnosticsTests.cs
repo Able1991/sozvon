@@ -36,6 +36,7 @@ public sealed class DiagnosticsTests : TempFolders
         WriteText(Path.Combine(Logs, "cloudflare.log"), "c");
         WriteText(Path.Combine(Data, "setup.log"), "s");
         WriteText(Path.Combine(Data, "mcp.log"), "m");
+        WriteText(Path.Combine(Data, "assistant.log"), "a");
         WriteText(Path.Combine(Data, ".env"), "TOKEN=abc");
         WriteText(Path.Combine(Data, "voice.log"), "x");
         WriteText(Path.Combine(Data, "app-errors.log"), "x");
@@ -45,7 +46,7 @@ public sealed class DiagnosticsTests : TempFolders
             MakeCallFolder($"2026-11-0{i} 10-00 · Topic {i}", logTime: new DateTime(2026, 11, 10, 10, i, 0, DateTimeKind.Utc));
         }
         var names = DiagnosticArchive.Selection(Logs, Data, Calls).Select(i => i.Name).ToList();
-        Assert.Equal(new HashSet<string> { "recorder.log", "cloudflare.log", "setup.log", "mcp.log" },
+        Assert.Equal(new HashSet<string> { "recorder.log", "cloudflare.log", "setup.log", "mcp.log", "assistant.log" },
                      names.Where(n => !n.StartsWith("process-", StringComparison.Ordinal)).ToHashSet());
         // The five newest by log time: 3 to 7, named by the date id, never by the folder title.
         Assert.Equal(Enumerable.Range(3, 5).Select(i => $"process-2026-11-0{i} 10-00.log").ToHashSet(),
@@ -358,6 +359,29 @@ public sealed class DiagnosticsTests : TempFolders
         }
         Assert.Equal("[ok] Свободное место: ~: 50 ГБ\n", File.ReadAllText(Path.Combine(folder, "checks.txt"), Encoding.UTF8));
         Assert.NotEqual(0xEF, File.ReadAllBytes(Path.Combine(folder, "checks.txt"))[0]);
+    }
+
+    /// <summary>
+    /// The engine's assistant journal (llm.journal, docs/CONTRACT.md): one line per CLI call, the request masked, the end of
+    /// stderr on a failure. It goes in scrubbed like any log: what the CLI said stays, the profile folder does not.
+    /// </summary>
+    [Fact]
+    public void TheAssistantJournalGoesInScrubbed()
+    {
+        WriteText(Path.Combine(Data, "assistant.log"),
+            "2026-11-10 20:10:31 node claude -p --model sonnet --tools '' | exit 1 | 1.5 s | OAuth token has expired. Please obtain a new token\r\n"
+            + "2026-11-10 20:11:02 codex exec -C C:\\Users\\anna\\AppData\\Local\\Temp\\sozvon-codex-x -o C:\\Users\\anna\\answer.txt - | exit 0 | 9.0 s\r\n"
+            + "2026-11-10 20:12:00 cursor-agent -p '<request>' | exit 1 | 2.0 s | Error: Authentication required api_key=sk-abcdefghijklmnopqrstuv\r\n");
+        WriteText(Path.Combine(Data, ".env"), "TOKEN=abc");
+        var folder = Path.Combine(Data, "Diagnostics");
+        DiagnosticArchive.WriteFolder([], Logs, Data, Calls, [Home], folder);
+        var journal = File.ReadAllText(Path.Combine(folder, "assistant.log"), Encoding.UTF8);
+        Assert.Contains("OAuth token has expired", journal);
+        Assert.Contains("exit 0 | 9.0 s", journal);
+        Assert.Contains(@"-C ~\AppData\Local\Temp\sozvon-codex-x -o ~\answer.txt", journal);
+        Assert.Contains("'<request>'", journal);
+        foreach (var leak in new[] { "anna", "sk-abcdef", "\r" }) Assert.DoesNotContain(leak, journal);
+        Assert.Equal(["assistant.log", "checks.txt"], Directory.GetFiles(folder).Select(p => Path.GetFileName(p)).Order(StringComparer.Ordinal));
     }
 
     [Fact]

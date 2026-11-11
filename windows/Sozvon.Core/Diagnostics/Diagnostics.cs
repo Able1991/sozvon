@@ -267,9 +267,12 @@ public static class DiagnosticArchive
         public bool IsMcpLog => Name == "mcp.log";
     }
 
-    /// <summary>The named logs and where they are: the recorder's in <c>&lt;data&gt;\Logs</c>, the engine's in the data folder.</summary>
+    /// <summary>
+    /// The named logs and where they are: the recorder's in <c>&lt;data&gt;\Logs</c>, the engine's in the data folder, among
+    /// them assistant.log, the engine's journal of assistant CLI calls (llm.journal: the request is masked there).
+    /// </summary>
     private static IEnumerable<(string Folder, string Name)> NamedLogs(string logs, string data) =>
-        [(logs, "recorder.log"), (logs, "cloudflare.log"), (data, "setup.log"), (data, "mcp.log")];
+        [(logs, "recorder.log"), (logs, "cloudflare.log"), (data, "setup.log"), (data, "mcp.log"), (data, "assistant.log")];
 
     /// <summary>
     /// The only files that may go in: the named logs and the process.log of the newest calls. Nothing else from these
