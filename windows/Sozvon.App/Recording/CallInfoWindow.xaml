@@ -99,7 +99,7 @@
                              PlaceholderText="{s:L K='HMAC, invoice.paid, песочница'}" AutomationProperties.Name="{s:L K='Ключевые слова:'}" />
 
                     <TextBlock Grid.Row="6" Style="{StaticResource FormLabel}" Text="{s:L K='Язык:'}" />
-                    <settings:LanguagesButton x:Name="LanguagesBox" Grid.Row="6" Grid.Column="1" Margin="0,12,0,0" MinWidth="200" HorizontalContentAlignment="Left"
+                    <settings:LanguagesButton x:Name="LanguagesBox" Grid.Row="6" Grid.Column="1" Margin="0,12,0,0" MinWidth="250" HorizontalContentAlignment="Left"
                                               AutomationProperties.Name="{s:L K='Язык:'}" />
 
                     <TextBlock Grid.Row="7" Style="{StaticResource FormLabel}" Margin="0,12,0,0" Text="{s:L K='Саммари:'}" />
