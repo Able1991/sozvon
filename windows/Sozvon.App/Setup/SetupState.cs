@@ -24,7 +24,15 @@ internal sealed class SetupState
         // Codex and Cursor are never picked for the user: they run only when chosen.
         var claude = assistants.Any(a => a.Key == "claude" && a.IsInstalled);
         Assistant = saved.GetValueOrDefault("SOZVON_LLM", claude ? "claude" : NoAssistant);
+        var summary = saved.GetValueOrDefault("SOZVON_SUMMARY_LANGUAGE", Auto);
+        SummaryLanguage = SummaryLanguages.Contains(summary) ? summary : Auto;
     }
+
+    /// <summary>SOZVON_SUMMARY_LANGUAGE values, in the order of the dropdown: the conversation's language first.</summary>
+    public static readonly IReadOnlyList<string> SummaryLanguages = [Auto, "ru", "en", "uk", "de", "es"];
+
+    /// <summary>The summary's language; "auto": the conversation's.</summary>
+    public string SummaryLanguage { get; set; }
 
     public IReadOnlyList<SpeechModel> Models { get; }
     public IReadOnlyList<Assistant> Assistants { get; }
@@ -43,5 +51,6 @@ internal sealed class SetupState
         ["SOZVON_LLM"] = Assistant,
         ["SOZVON_LANGUAGE"] = Languages.Count == 0 ? Auto : string.Join(',', Languages),
         ["SOZVON_MODEL"] = Model.Key,
+        ["SOZVON_SUMMARY_LANGUAGE"] = SummaryLanguage,
     });
 }

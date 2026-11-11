@@ -21,7 +21,33 @@ public sealed partial class AssistantPage : UserControl, ISetupPage
         }
         AddChoice(SetupState.NoAssistant, Strings.L("Без саммари"), "", Strings.L("Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."), true);
         WarningBar.Title = Strings.L("Не проверено на Windows");
+        SummaryLanguageLabel.Text = Strings.L("Язык саммари");
+        AutomationProperties.SetName(SummaryLanguageBox, Strings.L("Язык саммари"));
+        foreach (var code in SetupState.SummaryLanguages)
+        {
+            SummaryLanguageBox.Items.Add(new ComboBoxItem { Content = LanguageTitle(code) });
+        }
+        SummaryLanguageBox.SelectedIndex = SetupState.SummaryLanguages.ToList().IndexOf(state.SummaryLanguage);
         ShowWarning();
+    }
+
+    /// <summary>As the call languages are named on the next step; the summary follows the conversation by default.</summary>
+    private static string LanguageTitle(string code) => code switch
+    {
+        "ru" => Strings.L("Русский"),
+        "en" => "English",
+        "uk" => Strings.L("Українська"),
+        "de" => "Deutsch",
+        "es" => "Español",
+        _ => Strings.L("Как в разговоре"),
+    };
+
+    private void OnSummaryLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (SummaryLanguageBox.SelectedIndex >= 0)
+        {
+            _state.SummaryLanguage = SetupState.SummaryLanguages[SummaryLanguageBox.SelectedIndex];
+        }
     }
 
     public event Action? Changed { add { } remove { } }
@@ -61,6 +87,8 @@ public sealed partial class AssistantPage : UserControl, ISetupPage
 
     private void ShowWarning()
     {
+        // As on the Mac: the summary's language is asked only when there will be a summary.
+        SummaryLanguageCard.Visibility = _state.Assistant == SetupState.NoAssistant ? Visibility.Collapsed : Visibility.Visible;
         var cursor = _state.Assistant == "cursor";
         WarningBar.IsOpen = cursor || _state.Assistant == "codex";
         WarningBar.Message = Strings.L(cursor ? CursorWarning : UnverifiedWarning);

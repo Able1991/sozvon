@@ -128,6 +128,35 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>"Язык саммари": 0 is the conversation's language, then Russian, English, Ukrainian, German, Spanish.</summary>
+    public static IReadOnlyList<SpeechLanguage> SummaryLanguages { get; } = [SpeechLanguage.Auto, .. SpeechLanguages.Real];
+
+    public int SummaryLanguageIndex
+    {
+        get => Math.Max(0, SummaryLanguages.ToList().IndexOf(_engine.SummaryLanguage));
+        set
+        {
+            if (value < 0 || value >= SummaryLanguages.Count || SummaryLanguages[value] == _engine.SummaryLanguage) return;
+            try
+            {
+                _engine.SummaryLanguage = SummaryLanguages[value];
+                SummaryLanguageError = "";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                SummaryLanguageError = e.Message;
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SummaryLanguageError));
+            OnPropertyChanged(nameof(HasSummaryLanguageError));
+        }
+    }
+
+    /// <summary>Why .env could not take the language; empty when it did.</summary>
+    public string SummaryLanguageError { get; private set; } = "";
+
+    public bool HasSummaryLanguageError => SummaryLanguageError.Length > 0;
+
     /// <summary>Whether each assistant's CLI answers through the summary's own command.</summary>
     public AssistantChecks Checks { get; }
 

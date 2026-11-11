@@ -72,6 +72,8 @@ internal static class Strings
         ["Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."] = "Text goes to Cursor and the model chosen there. Later, ask about your calls in Cursor.",
         ["Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."] = "Transcripts only. Nothing leaves your PC. You can turn summaries on later in Settings.",
         ["Не проверено на Windows"] = "Not verified on Windows",
+        ["Язык саммари"] = "Summary language",
+        ["Как в разговоре"] = "Same as the conversation",
         ["Этот ассистент не проверялся на Windows с настоящей программой, его песочница тоже. Текст звонка уходит выбранному ассистенту."] = "This assistant has not been verified on Windows with the real CLI, nor has its sandbox. The text of the call goes to the chosen assistant.",
         ["Этот ассистент не проверялся на Windows с настоящей программой, его песочница тоже. Текст звонка уходит выбранному ассистенту. У Cursor на Windows может не быть файловой песочницы."] = "This assistant has not been verified on Windows with the real CLI, nor has its sandbox. The text of the call goes to the chosen assistant. Cursor may have no file sandbox on Windows.",
 

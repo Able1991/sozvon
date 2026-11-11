@@ -25,6 +25,16 @@ public sealed class EngineSettings(AppSettings settings, string envFile)
 
     public Assistant Assistant => settings.SummaryAssistantChoice ?? Wizard.Assistant;
 
+    /// <summary>
+    /// SOZVON_SUMMARY_LANGUAGE lives only in .env, where the engine reads it for every summary: Settings and the wizard
+    /// write the same line. Auto: the conversation's language.
+    /// </summary>
+    public SpeechLanguage SummaryLanguage
+    {
+        get => Wizard.SummaryLanguage;
+        set => SettingsValues.SaveSummaryLanguage(envFile, value);
+    }
+
     /// <summary>Read for every run: a change in Settings applies to the next call.</summary>
     public EngineOptions Options() => new(
         Loc.IsRussian ? "ru" : "en",

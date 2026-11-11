@@ -50,7 +50,7 @@ public sealed partial class LanguagesButton : DropDownButton
         }
     }
 
-    private static string Title(SpeechLanguage language) => language switch
+    internal static string Title(SpeechLanguage language) => language switch
     {
         SpeechLanguage.Ru => L("Русский"),
         SpeechLanguage.En => "English",

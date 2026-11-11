@@ -186,6 +186,12 @@
                         <ComboBox x:Name="AssistantBox" Width="240" SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}"
                                   AutomationProperties.Name="{s:L K='Помощник для саммари'}" />
                     </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Язык саммари'}" Visibility="{x:Bind ViewModel.HasSummaryAssistant, Mode=OneWay}">
+                        <ComboBox x:Name="SummaryLanguageBox" Width="240" SelectedIndex="{x:Bind ViewModel.SummaryLanguageIndex, Mode=TwoWay}"
+                                  AutomationProperties.Name="{s:L K='Язык саммари'}" />
+                    </local:SettingsRow>
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryLanguageError, Mode=OneWay}" Severity="Error" IsClosable="False"
+                             Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.SummaryLanguageError, Mode=OneWay}" />
                     <local:SettingsRow Header="{s:L K='Проверка'}" Description="{s:L K='Тот же запрос, что для саммари, в одно слово'}"
                                        Visibility="{x:Bind ViewModel.HasSummaryAssistant, Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
