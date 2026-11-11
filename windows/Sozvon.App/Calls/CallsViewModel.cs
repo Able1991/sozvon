@@ -134,8 +134,13 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         SearchText = "";
     }
 
+    /// <summary>
+    /// The projects found in the calls. The chosen one stays chosen by its slug, under its new title after a rename;
+    /// when no call has it any more, the list shows all projects.
+    /// </summary>
     private void RebuildProjects()
     {
+        var chosen = SelectedProject.Slug;
         var known = _calls
             .Where(c => c.ProjectSlug.Length > 0)
             .GroupBy(c => c.ProjectSlug)
@@ -147,6 +152,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         {
             Projects.Add(project);
         }
+        SelectedProject = Projects.FirstOrDefault(p => p.Slug == chosen) ?? AllProjects;
     }
 
     private void ApplyFilter()
