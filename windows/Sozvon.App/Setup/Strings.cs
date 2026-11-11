@@ -72,6 +72,8 @@ internal static class Strings
         ["Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."] = "Text goes to Cursor and the model chosen there. Later, ask about your calls in Cursor.",
         ["Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."] = "Transcripts only. Nothing leaves your PC. You can turn summaries on later in Settings.",
         ["Не проверено на Windows"] = "Not verified on Windows",
+        ["Язык саммари"] = "Summary language",
+        ["Как в разговоре"] = "Same as the conversation",
         ["Этот ассистент не проверялся на Windows с настоящей программой, его песочница тоже. Текст звонка уходит выбранному ассистенту."] = "This assistant has not been verified on Windows with the real CLI, nor has its sandbox. The text of the call goes to the chosen assistant.",
         ["Этот ассистент не проверялся на Windows с настоящей программой, его песочница тоже. Текст звонка уходит выбранному ассистенту. У Cursor на Windows может не быть файловой песочницы."] = "This assistant has not been verified on Windows with the real CLI, nor has its sandbox. The text of the call goes to the chosen assistant. Cursor may have no file sandbox on Windows.",
 
@@ -135,6 +137,12 @@ internal static class Strings
         ["Разбивка по голосам"] = "Speaker separation",
         ["pyannote, работает на этом компьютере"] = "pyannote, runs on this PC",
         ["Модели не скачались, расшифровка будет без разбивки по голосам"] = "The models were not downloaded, transcripts will have no speaker separation",
+        ["Проверяю, отвечает ли ассистент…"] = "Checking that the assistant answers…",
+        ["Отвечает"] = "Answers",
+        ["не найден %@"] = "%@ not found",
+        ["%@ не ответил: %@"] = "%@ did not answer: %@",
+        ["%@ не ответил. Подробности в assistant.log"] = "%@ did not answer. Details are in assistant.log",
+        ["%@ не ответил за %@ с"] = "%@ did not answer in %@ s",
 
         ["Разрешения"] = "Permissions",
         ["Без микрофона звонок не записать. Звук компьютера разрешения не требует."] = "Without the microphone a call can't be recorded. The computer's sound needs no permission.",

@@ -37,6 +37,7 @@ public sealed partial class SettingsPage : UserControl
         PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
         AddModels();
         AddAssistants();
+        AddSummaryLanguages();
         CallLanguagesBox.Languages = ViewModel.CallLanguages;
         CallLanguagesBox.LanguagesChanged += (_, _) => ViewModel.CallLanguages = CallLanguagesBox.Languages;
         ViewModel.Integrations.Confirm = ConfirmAsync;
@@ -91,6 +92,16 @@ public sealed partial class SettingsPage : UserControl
         AssistantBox.SelectedIndex = ViewModel.SummaryAssistantIndex;
     }
 
+    /// <summary>The conversation's language first, as on the Mac, then the real languages in the canonical order.</summary>
+    private void AddSummaryLanguages()
+    {
+        foreach (var language in SettingsViewModel.SummaryLanguages)
+        {
+            SummaryLanguageBox.Items.Add(new ComboBoxItem { Content = language == SpeechLanguage.Auto ? L("Как в разговоре") : LanguagesButton.Title(language) });
+        }
+        SummaryLanguageBox.SelectedIndex = ViewModel.SummaryLanguageIndex;
+    }
+
     private static string ModelTitle(WhisperModel model) => model switch
     {
         WhisperModel.Turbo => "Whisper Turbo",
@@ -118,9 +129,9 @@ public sealed partial class SettingsPage : UserControl
         }
         _tabsByKeyboard = false;
         // Each look runs the assistants' tools again, as the Mac does when the pane appears.
-        if (tag == nameof(Assistants) && !ViewModel.Integrations.Busy)
+        if (tag == nameof(Assistants))
         {
-            _ = ViewModel.Integrations.RefreshAsync();
+            _ = ViewModel.AssistantsAppearedAsync();
         }
         else if (tag == nameof(Recognition))
         {
@@ -183,9 +194,13 @@ public sealed partial class SettingsPage : UserControl
     {
         if ((sender as FrameworkElement)?.Tag is AssistantRow row)
         {
-            await ViewModel.Integrations.ActAsync(row);
+            await ViewModel.ActAsync(row);
         }
     }
+
+    private void OnCheckSummary(object sender, RoutedEventArgs e) => ViewModel.CheckSummary();
+
+    private async void OnShowLogs(object sender, RoutedEventArgs e) => await ViewModel.ShowLogsAsync();
 
     private void OnCopyAssistantCommand(object sender, RoutedEventArgs e)
     {

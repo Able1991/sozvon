@@ -4,7 +4,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
+using Sozvon.Core.Assistants;
 using Sozvon.Core.Automation;
+using Sozvon.Core.Diagnostics;
 using Sozvon.Core.Engine;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Settings;
@@ -22,10 +24,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly Relauncher _relaunch;
 
     public SettingsViewModel(SettingsStore store, EngineSettings engine, EngineLayout layout, AppLanguage startupLanguage, Relauncher relaunch,
-        IntegrationsViewModel integrations, SignInSetting signIn, ServerViewModel server, MarkShortcut markShortcut)
+        IntegrationsViewModel integrations, SignInSetting signIn, ServerViewModel server, MarkShortcut markShortcut, AssistantChecks checks)
     {
         Server = server;
         Integrations = integrations;
+        Checks = checks;
+        checks.Changed += (_, _) => ShowChecks();
         SignIn = signIn;
         _store = store;
         _engine = engine;
@@ -117,7 +121,108 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(SummaryFooter));
                 OnPropertyChanged(nameof(SummaryWarning));
                 OnPropertyChanged(nameof(HasSummaryWarning));
+                OnPropertyChanged(nameof(HasSummaryAssistant));
+                // As on the Mac: a newly chosen assistant is asked at once whether it answers.
+                Checks.Run(_engine.Assistant);
+                ShowChecks();
             }
+        }
+    }
+
+    /// <summary>"Язык саммари": 0 is the conversation's language, then Russian, English, Ukrainian, German, Spanish.</summary>
+    public static IReadOnlyList<SpeechLanguage> SummaryLanguages { get; } = [SpeechLanguage.Auto, .. SpeechLanguages.Real];
+
+    public int SummaryLanguageIndex
+    {
+        get => Math.Max(0, SummaryLanguages.ToList().IndexOf(_engine.SummaryLanguage));
+        set
+        {
+            if (value < 0 || value >= SummaryLanguages.Count || SummaryLanguages[value] == _engine.SummaryLanguage) return;
+            try
+            {
+                _engine.SummaryLanguage = SummaryLanguages[value];
+                SummaryLanguageError = "";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                SummaryLanguageError = e.Message;
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SummaryLanguageError));
+            OnPropertyChanged(nameof(HasSummaryLanguageError));
+        }
+    }
+
+    /// <summary>Why .env could not take the language; empty when it did.</summary>
+    public string SummaryLanguageError { get; private set; } = "";
+
+    public bool HasSummaryLanguageError => SummaryLanguageError.Length > 0;
+
+    /// <summary>Whether each assistant's CLI answers through the summary's own command.</summary>
+    public AssistantChecks Checks { get; }
+
+    public bool HasSummaryAssistant => _engine.Assistant != Assistant.None;
+
+    public bool SummaryCheckRunning => Checks.IsRunning(_engine.Assistant);
+
+    public bool SummaryAnswers => Checks.Result(_engine.Assistant)?.State == AssistantCheckState.Ok;
+
+    public bool SummaryNotAnswering => Checks.Result(_engine.Assistant)?.State == AssistantCheckState.Failed;
+
+    public bool CanCheckSummary => !SummaryCheckRunning;
+
+    /// <summary>What the summary assistant's CLI said, with the hint how to fix it; empty when it answered or was not checked.</summary>
+    public string SummaryCheckProblem => HasSummaryAssistant ? Checks.Problem(_engine.Assistant) ?? "" : "";
+
+    public bool HasSummaryCheckProblem => SummaryCheckProblem.Length > 0;
+
+    /// <summary>"Check": the same one-word request again.</summary>
+    public void CheckSummary() => Checks.Run(_engine.Assistant);
+
+    /// <summary>The Assistants tab opened: the summary assistant and every connected one, once per launch.</summary>
+    public async Task AssistantsAppearedAsync()
+    {
+        Checks.RunOnce(_engine.Assistant);
+        if (!Integrations.Busy)
+        {
+            await Integrations.RefreshAsync();
+        }
+        foreach (var row in Integrations.Rows.Where(r => r.IsConnected))
+        {
+            Checks.RunOnce(row.Assistant);
+        }
+        ShowChecks();
+    }
+
+    /// <summary>"Connect" pressed: then the assistant is asked whether it answers, as on the Mac.</summary>
+    public async Task ActAsync(AssistantRow row)
+    {
+        var connecting = row.Connection != McpConnection.Connected;
+        await Integrations.ActAsync(row);
+        if (connecting)
+        {
+            Checks.Run(row.Assistant);
+        }
+        ShowChecks();
+    }
+
+    /// <summary>The connected assistants whose check failed, one line each.</summary>
+    public string ConnectionProblems =>
+        string.Join("\n", Integrations.Rows.Where(r => r.IsConnected).Select(r => Checks.Problem(r.Assistant)).OfType<string>());
+
+    public bool HasConnectionProblems => ConnectionProblems.Length > 0;
+
+    private void ShowChecks()
+    {
+        foreach (var row in Integrations.Rows)
+        {
+            row.NotAnswering = row.IsConnected && Checks.Result(row.Assistant)?.State == AssistantCheckState.Failed;
+            row.CheckProblem = Checks.Problem(row.Assistant) ?? "";
+        }
+        foreach (var name in new[] { nameof(SummaryCheckRunning), nameof(SummaryAnswers), nameof(SummaryNotAnswering), nameof(CanCheckSummary),
+                                     nameof(SummaryCheckProblem), nameof(HasSummaryCheckProblem), nameof(ConnectionProblems), nameof(HasConnectionProblems) })
+        {
+            OnPropertyChanged(name);
         }
     }
 
@@ -207,6 +312,80 @@ public sealed partial class SettingsViewModel : ObservableObject
             var parts = new[] { metadata.GetValueOrDefault("SozvonVersion", ""), Loc.L("сборка Windows, предварительная"), metadata.GetValueOrDefault("SozvonCommit", "") };
             return string.Join(" · ", parts.Where(p => p.Length > 0));
         }
+    }
+
+    /// <summary>"Show Logs": the folder the scrubbed logs are written to, as the Mac's ~/Library/Logs/Sozvon/Diagnostics.</summary>
+    public string DiagnosticsFolder => Path.Combine(_layout.Data, "Diagnostics");
+
+    [ObservableProperty]
+    public partial bool CollectingLogs { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLogsError))]
+    public partial string LogsError { get; private set; } = "";
+
+    public bool HasLogsError => LogsError.Length > 0;
+
+    /// <summary>
+    /// The checks and the scrubbed logs, as the Mac's diagnostics zip holds them, written to <see cref="DiagnosticsFolder"/>
+    /// off the UI thread and shown in Explorer. SOZVON_DIAGNOSTICS_NO_OPEN=1 (a test run) leaves Explorer closed.
+    /// </summary>
+    public async Task ShowLogsAsync()
+    {
+        if (CollectingLogs) return;
+        CollectingLogs = true;
+        LogsError = "";
+        var folder = DiagnosticsFolder;
+        try
+        {
+            var checks = await DiagnosticChecksAsync();
+            var homes = new[] { Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Environment.GetEnvironmentVariable("USERPROFILE") ?? "" };
+            var (data, calls) = (_layout.Data, Shell.AppPaths.CallsDir);
+            await Task.Run(() => DiagnosticArchive.WriteFolder(checks, Path.Combine(data, "Logs"), data, calls, homes, folder));
+            if (Environment.GetEnvironmentVariable("SOZVON_DIAGNOSTICS_NO_OPEN") != "1")
+            {
+                System.Diagnostics.Process.Start("explorer.exe", $"\"{folder}\"")?.Dispose();
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            LogsError = Loc.L("Не получилось собрать журналы: %@", e.Message);
+        }
+        finally
+        {
+            CollectingLogs = false;
+        }
+    }
+
+    /// <summary>What the Mac's checks.txt says that Windows can tell: the engine, the model, the disk, the MCP server, the versions.</summary>
+    private async Task<IReadOnlyList<DiagnosticCheck>> DiagnosticChecksAsync()
+    {
+        var model = _engine.Model;
+        var free = DiagnosticChecks.FreeBytes(_layout.Data);
+        var disk = DiagnosticChecks.DiskState(free);
+        var health = await McpHealth.ProbeAsync(Integrations.Endpoint);
+        return
+        [
+            new("python", Loc.L("Окружение Python"), _layout.IsInstalled ? DiagnosticState.Ok : DiagnosticState.Problem,
+                Loc.L(_layout.IsInstalled ? "Установлен" : "Не установлен")),
+            new("model", Loc.L("Модель распознавания"), model.IsDownloaded(_layout.Data) ? DiagnosticState.Ok : DiagnosticState.Problem,
+                Loc.L(model.IsDownloaded(_layout.Data) ? "%@ скачана" : "%@ не скачана", model.Key())),
+            new("disk", Loc.L("Свободное место"), disk, free is not { } bytes ? Loc.L("Не удалось узнать") : disk switch
+            {
+                DiagnosticState.Problem => Loc.L("Почти нет места: %@", Calls.CallFormat.Size(bytes)),
+                DiagnosticState.Warning => Loc.L("Мало места: %@", Calls.CallFormat.Size(bytes)),
+                _ => Loc.L("Свободно %@", Calls.CallFormat.Size(bytes)),
+            }),
+            new("mcp", Loc.L("MCP-сервер"), health.State == McpHealthState.Listening ? DiagnosticState.Ok : DiagnosticState.Problem, health.State switch
+            {
+                McpHealthState.Listening => Loc.L("Отвечает на порту %@", Integrations.Endpoint.Port),
+                McpHealthState.Unauthorized => Loc.L("На порту другой сервер или другой пароль"),
+                McpHealthState.Unexpected => Loc.L("Неожиданный ответ, код %@", health.StatusCode ?? 0),
+                McpHealthState.Error => health.Message,
+                _ => Loc.L("Не отвечает. Подробности в mcp.log."),
+            }),
+            new("versions", Loc.L("Версии"), DiagnosticState.Ok, Version),
+        ];
     }
 
     private bool RecordsByItself => CallAutomation.Mode(Settings.CallStartAction) == CallStartMode.Record;

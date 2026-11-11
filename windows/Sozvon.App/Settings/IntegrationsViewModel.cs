@@ -30,6 +30,12 @@ public sealed partial class AssistantRow(Assistant assistant, string shortComman
     /// <summary>No other action is running.</summary>
     [ObservableProperty] public partial bool Enabled { get; set; } = true;
 
+    /// <summary>Connected, but its CLI did not answer the check: next to "Connected" only a problem is worth a mark.</summary>
+    [ObservableProperty] public partial bool NotAnswering { get; set; }
+
+    /// <summary>What the check said, for the mark's tooltip.</summary>
+    [ObservableProperty] public partial string CheckProblem { get; set; } = "";
+
     public bool IsConnected => Connection == McpConnection.Connected;
 
     public bool Checking => Installed && Connection is null;

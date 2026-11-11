@@ -34,6 +34,9 @@ public sealed class AppHost
     private readonly EngineLayout _layout = AppPaths.Layout;
     private readonly McpServer _mcp;
     private readonly ServerSync _server;
+
+    /// <summary>Kept for the whole run: "once per launch" outlives a closed window.</summary>
+    private readonly AssistantChecks _checks;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
@@ -74,6 +77,7 @@ public sealed class AppHost
         CallsFolder = new CallsFolderChanger(AppPaths.SettingsFile, AppPaths.DataDir, AppPaths.DefaultCallsDir, () => AppPaths.CallsDir,
             () => _recording?.IsBusy ?? false, AppPaths.ChangeCallsDir, Loc.L);
         AppPaths.CallsDirChanged += OnCallsDirChanged;
+        _checks = new AssistantChecks(_layout, _engineSettings.Options, Loc.L);
         _server = new ServerSync(SavedServer, url => OwnServer.CheckHealthAsync(url), (url, password) => OwnServer.AcceptsAsync(url, password),
             onLine => ServerSyncScript.RunAsync(_layout, _engineSettings.Options(), onLine));
     }
@@ -262,7 +266,7 @@ public sealed class AppHost
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
         // The demo runs no recorder: its Settings get a shortcut nobody has registered or taken.
         var settings = new SettingsViewModel(_store, _engineSettings, _layout, _startupLanguage, Relaunch, integrations, SignIn,
-            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut())
+            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut(), _checks)
         {
             CallsFolder = CallsFolder,
         };

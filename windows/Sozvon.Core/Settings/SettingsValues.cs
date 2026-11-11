@@ -10,12 +10,12 @@ public sealed record SettingsValues
     private const string VersionKey = "SOZVON_ENV_VERSION", MeKey = "SOZVON_ME", LlmKey = "SOZVON_LLM",
         LanguageKey = "SOZVON_LANGUAGE", LangSwitchKey = "SOZVON_LANG_SWITCH", ModelKey = "SOZVON_MODEL",
         ServerUrlKey = "SOZVON_SERVER_URL", ServerPasswordKey = "SOZVON_SERVER_PASSWORD",
-        SyncVoicesKey = "SOZVON_SYNC_VOICES", SyncAudioKey = "SOZVON_SYNC_AUDIO";
+        SyncVoicesKey = "SOZVON_SYNC_VOICES", SyncAudioKey = "SOZVON_SYNC_AUDIO", SummaryLanguageKey = "SOZVON_SUMMARY_LANGUAGE";
 
     public static readonly IReadOnlySet<string> ManagedKeys = new HashSet<string>
     {
         VersionKey, MeKey, LlmKey, LanguageKey, LangSwitchKey, ModelKey, ServerUrlKey, ServerPasswordKey,
-        SyncVoicesKey, SyncAudioKey,
+        SyncVoicesKey, SyncAudioKey, SummaryLanguageKey,
     };
 
     public string Name { get; set; } = "";
@@ -27,6 +27,9 @@ public sealed record SettingsValues
     public string ServerPassword { get; set; } = "";
     public bool SyncVoices { get; set; } = true;
     public bool SyncAudio { get; set; } = true;
+
+    /// <summary>The summary's language; Auto: the conversation's.</summary>
+    public SpeechLanguage SummaryLanguage { get; set; } = SpeechLanguage.Auto;
 
     /// <summary>From .env keys. <paramref name="detect"/> picks the assistant when none is set.</summary>
     public static SettingsValues FromEnv(IReadOnlyDictionary<string, string> env, Func<Assistant>? detect = null) => new()
@@ -40,6 +43,7 @@ public sealed record SettingsValues
         ServerPassword = env.GetValueOrDefault(ServerPasswordKey, ""),
         SyncVoices = env.GetValueOrDefault(SyncVoicesKey) != "0",
         SyncAudio = env.GetValueOrDefault(SyncAudioKey) != "0",
+        SummaryLanguage = SpeechLanguages.Real.FirstOrDefault(l => l.Code() == env.GetValueOrDefault(SummaryLanguageKey), SpeechLanguage.Auto),
     };
 
     public IReadOnlyList<(string Key, string Value)> Pairs()
@@ -55,6 +59,7 @@ public sealed record SettingsValues
         if (ServerPassword.Trim() is { Length: > 0 } password) pairs.Add((ServerPasswordKey, password));
         pairs.Add((SyncVoicesKey, SyncVoices ? "1" : "0"));
         pairs.Add((SyncAudioKey, SyncAudio ? "1" : "0"));
+        pairs.Add((SummaryLanguageKey, SummaryLanguage.Code()));
         return pairs;
     }
 
@@ -74,6 +79,14 @@ public sealed record SettingsValues
         pairs.Add((SyncVoicesKey, syncVoices ? "1" : "0"));
         Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
         var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", pairs, [ServerUrlKey, ServerPasswordKey]);
+        AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
+    }
+
+    /// <summary>Only SOZVON_SUMMARY_LANGUAGE, as Settings saves it: the engine reads it from .env for every summary.</summary>
+    public static void SaveSummaryLanguage(string envPath, SpeechLanguage language)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
+        var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", [(SummaryLanguageKey, language.Code())], [SummaryLanguageKey]);
         AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
     }
 

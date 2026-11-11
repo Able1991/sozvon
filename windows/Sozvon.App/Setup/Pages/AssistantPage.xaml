@@ -6,6 +6,13 @@
         <Border Style="{StaticResource SetupCard}" Padding="16,4">
             <StackPanel x:Name="Choices" />
         </Border>
+        <Border x:Name="SummaryLanguageCard" Style="{StaticResource SetupCard}">
+            <Grid Padding="16,12">
+                <TextBlock x:Name="SummaryLanguageLabel" VerticalAlignment="Center" />
+                <ComboBox x:Name="SummaryLanguageBox" AutomationProperties.AutomationId="SummaryLanguageBox" Width="220" HorizontalAlignment="Right"
+                          SelectionChanged="OnSummaryLanguageChanged" />
+            </Grid>
+        </Border>
         <InfoBar x:Name="WarningBar" Severity="Warning" IsClosable="False" IsOpen="False" />
     </StackPanel>
 </UserControl>

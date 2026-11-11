@@ -12,11 +12,15 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
 
     private const string PhasePrefix = "==> ";
     private const int MaxLogLines = 400;
+    private const string AssistantGlyph = "";
     private readonly SetupContext _context;
     private readonly SetupState _state;
     private readonly EngineInstaller _installer;
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly List<string> _log = [];
+
+    /// <summary>Whether the assistant chosen two steps back answers, now that the engine can ask it (as the Mac's wizard).</summary>
+    private readonly Settings.AssistantChecks _checks;
     private InstallState _current = InstallState.Stopped;
     private bool _stopRequested;
 
@@ -27,6 +31,15 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         _state = state;
         _installer = new EngineInstaller(context);
         _installer.LineReceived += line => _dispatcher.TryEnqueue(() => AddLine(line));
+        _checks = new Settings.AssistantChecks(new Sozvon.Core.Engine.EngineLayout(context.DataFolder, Shell.AppPaths.CallsDir),
+            () => new Sozvon.Core.Engine.EngineOptions(Strings.EngineLanguage), Strings.L);
+        _checks.Changed += (_, _) =>
+        {
+            if (_current == InstallState.Done)
+            {
+                ShowDoneRows();
+            }
+        };
         LogExpander.Header = Strings.L("Подробности");
         OpenLogButton.Content = Strings.L("Открыть журнал");
         FailedBar.Title = Strings.L("Что-то пошло не так.");
@@ -101,8 +114,16 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
             AddLine(error.Message);
         }
 
+        // The engine is there now: a fresh check of the chosen assistant, whatever an earlier look found.
+        if (succeeded && ChosenAssistant is { } chosen)
+        {
+            _checks.Run(chosen);
+        }
         Show(succeeded ? InstallState.Done : _stopRequested ? InstallState.Stopped : InstallState.Failed);
     }
+
+    private Sozvon.Core.Settings.Assistant? ChosenAssistant =>
+        Sozvon.Core.Settings.Assistants.FromKey(_state.Assistant) is { } a and not Sozvon.Core.Settings.Assistant.None ? a : null;
 
     private void AddLine(string line)
     {
@@ -130,6 +151,10 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         DoneCard.Visibility = state == InstallState.Done ? Visibility.Visible : Visibility.Collapsed;
         if (state == InstallState.Done)
         {
+            if (ChosenAssistant is { } chosen)
+            {
+                _checks.RunOnce(chosen);
+            }
             ShowDoneRows();
         }
         Changed?.Invoke();
@@ -143,6 +168,18 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         DoneRows.Children.Add(new DoneRow("", _state.Model.Title, Strings.L("%@, скачана и проверена", _state.Model.Size), true));
         DoneRows.Children.Add(new DoneRow("", Strings.L("Разбивка по голосам"),
             Strings.L(hasDiarization ? "pyannote, работает на этом компьютере" : "Модели не скачались, расшифровка будет без разбивки по голосам"), hasDiarization));
+        if (ChosenAssistant is { } chosen && _checks.Result(chosen) is { } check)
+        {
+            var title = Sozvon.Core.Assistants.AssistantCli.Title(chosen);
+            var row = check.State switch
+            {
+                Sozvon.Core.Assistants.AssistantCheckState.Running => new DoneRow(AssistantGlyph, title, Strings.L("Проверяю, отвечает ли ассистент…"), DoneRow.Mark.Working),
+                Sozvon.Core.Assistants.AssistantCheckState.Ok => new DoneRow(AssistantGlyph, title, Strings.L("Отвечает"), DoneRow.Mark.Done),
+                _ => new DoneRow(AssistantGlyph, title, _checks.Problem(chosen) ?? "", DoneRow.Mark.Problem),
+            };
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(row, "AssistantCheckRow");
+            DoneRows.Children.Add(row);
+        }
     }
 
     private void OnOpenLog(object sender, RoutedEventArgs e)
