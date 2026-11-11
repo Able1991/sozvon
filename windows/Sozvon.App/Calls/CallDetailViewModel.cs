@@ -251,7 +251,9 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         }
         if (call.HasSummaryWarning)
         {
-            return new(CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось"));
+            // The Mac's notification for this carries the Update Summary button; the banner offers the same.
+            return new(CallBannerKind.Caution, Loc.L("Готово, но саммари не получилось"), "",
+                       hasTranscript && actions.CanTranscribe && !actions.IsEditLocked(call) ? CallBannerAction.Resummarize : CallBannerAction.None);
         }
         return new(CallBannerKind.None, "");
     }
