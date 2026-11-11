@@ -46,6 +46,8 @@ public sealed class AppHost
     private AudioCleanup? _cleanup;
     private PhoneInboxWatcher? _phone;
     private int _retention;
+    private bool _exiting;
+    private bool _launchedWhileExiting;
 
     /// <summary>The running host; null only before <see cref="Start"/> and in the setup process.</summary>
     public static AppHost? Current => _current;
@@ -103,7 +105,7 @@ public sealed class AppHost
         Application.Current.UnhandledException += OnUnhandledException;
         Application.Current.DispatcherShutdownMode = DispatcherShutdownMode.OnExplicitShutdown;
         _current = new AppHost();
-        instance.Activated += (_, _) => _current._dispatcher.TryEnqueue(() => _current.OpenWindow(AppPage.Calls));
+        instance.Activated += (_, _) => _current._dispatcher.TryEnqueue(_current.OnActivated);
     }
 
     /// <summary>Connects the capsule and the recorder to the tray and to the settings that concern them.</summary>
@@ -224,8 +226,24 @@ public sealed class AppHost
         _calls!.SelectCall(id);
     }
 
+    /// <summary>Sozvon launched again. While this one is quitting the launch is kept, and it starts again once the quit is done.</summary>
+    private void OnActivated()
+    {
+        if (_exiting)
+        {
+            _launchedWhileExiting = true;
+            return;
+        }
+        OpenWindow(AppPage.Calls);
+    }
+
     public async void Exit()
     {
+        if (_exiting)
+        {
+            return;
+        }
+        _exiting = true;
         try
         {
             if (_recording is { } recording)
@@ -240,6 +258,19 @@ public sealed class AppHost
         _mcp.Stop();
         _tray.Dispose();
         _window?.CloseForExit();
+        if (_launchedWhileExiting)
+        {
+            // The new launch handed itself to this process and ended: without a restart no Sozvon would be left.
+            try
+            {
+                RestartNow();
+                return;
+            }
+            catch (Exception error)
+            {
+                Log(error);
+            }
+        }
         Application.Current.Exit();
     }
 
