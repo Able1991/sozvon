@@ -87,13 +87,15 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 
 ## Recognition models
 
-| Model | Size | Languages | Notes |
-|---|---|---|---|
-| **Whisper Turbo** (recommended) | 1.6 GB | 99 | Fast and accurate, uses the project vocabulary |
-| Whisper Large v3 | 3.1 GB | 99 | Most accurate, about 2x slower |
-| Whisper Small | 0.5 GB | 99 | For Macs with 8 GB of memory |
-| GigaAM v3 (Sber) | 0.2 GB | Russian | Light and fast, no project vocabulary |
-| Parakeet v3 (NVIDIA) | 0.7 GB | 25 European | Very fast, no project vocabulary |
+| Model | Size | Languages | Peak memory | Time for a 75 min call | Notes |
+|---|---|---|---|---|---|
+| **Whisper Turbo** (recommended) | 1.6 GB | 99 | 4.0 GB | 36 min | Fast and accurate, uses the project vocabulary |
+| Whisper Large v3 | 3.1 GB | 99 | 4.9 GB | 68 min | Most accurate, about 2x slower |
+| Whisper Small | 0.5 GB | 99 | 4.0 GB | 23 min | For Macs with 8 GB of memory |
+| GigaAM v3 (Sber) | 0.2 GB | Russian | 3.2 GB | 20 min | Light and fast, no project vocabulary |
+| Parakeet v3 (NVIDIA) | 0.7 GB | 25 European | 5.2 GB | 21 min | Very fast, no project vocabulary |
+
+Peak memory and time: the whole processing of one 75-minute call with two tracks (echo removal, recognition, speaker separation), MacBook Pro M1 Pro with 16 GB, version 0.1.5. About 10 minutes of each run is speaker separation, the same for every model. Version 0.1.4 needed up to 17 GB for the same call with Whisper Turbo.
 
 Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 MB, installed with the app). Switch models in Settings → Recognition. The same tab has "Transcribe at low priority": transcription yields to other apps.
 
