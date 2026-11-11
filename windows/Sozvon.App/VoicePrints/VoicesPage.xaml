@@ -51,9 +51,9 @@
                                 <FontIcon VerticalAlignment="Center" FontSize="20" Glyph="&#xE77B;" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Visibility="{x:Bind MeIcon}" />
                                 <FontIcon VerticalAlignment="Center" FontSize="20" Glyph="&#xE716;" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{x:Bind OtherIcon}" />
                                 <StackPanel Grid.Column="1" Spacing="2">
-                                    <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Title}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                     <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               Text="{x:Bind Details}" TextTrimming="CharacterEllipsis" />
+                                               Text="{x:Bind Details}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <Button Grid.Column="2" Padding="8" Background="Transparent" BorderThickness="0" Tag="{x:Bind}" IsEnabled="{x:Bind CanDelete}"
                                         AutomationProperties.Name="{x:Bind DeleteLabel}" ToolTipService.ToolTip="{x:Bind DeleteLabel}" Click="OnDeleteButtonClick">

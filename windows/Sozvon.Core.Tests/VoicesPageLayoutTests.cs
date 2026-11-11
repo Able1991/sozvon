@@ -28,6 +28,23 @@ public sealed class VoicesPageLayoutTests
         Assert.NotNull(button.Attribute("Click"));
     }
 
+    /// <summary>
+    /// The caption style wraps by default: a long project title spread the row's details over two lines instead of
+    /// ending in an ellipsis.
+    /// </summary>
+    [Fact]
+    public void RowTextsStayOnOneLineWithAnEllipsis()
+    {
+        var path = Path.Combine(Repo.Root(), "windows", "Sozvon.App", "VoicePrints", "VoicesPage.xaml");
+        var texts = XDocument.Load(path).Descendants(Ui + "DataTemplate").Single().Descendants(Ui + "TextBlock").ToList();
+        Assert.Equal(2, texts.Count);
+        foreach (var text in texts)
+        {
+            Assert.Equal("NoWrap", (string?)text.Attribute("TextWrapping"));
+            Assert.Equal("CharacterEllipsis", (string?)text.Attribute("TextTrimming"));
+        }
+    }
+
     [Fact]
     public void RowDeleteButtonIsEnabledFromItsRow()
     {
