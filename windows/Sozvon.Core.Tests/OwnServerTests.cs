@@ -24,6 +24,12 @@ public sealed class OwnServerTests : TempFolders
     [InlineData("", null)]
     public void AddressesAreNormalized(string raw, string? normalized) => Assert.Equal(normalized, OwnServer.Normalize(raw));
 
+    /// <summary>"How it works" opens the section in the interface's language: docs.html has #server and #en-server.</summary>
+    [Theory]
+    [InlineData(true, "https://able1991.github.io/sozvon/docs.html#server")]
+    [InlineData(false, "https://able1991.github.io/sozvon/docs.html#en-server")]
+    public void DocsOpenInTheInterfaceLanguage(bool russian, string url) => Assert.Equal(url, OwnServer.Docs(russian).ToString());
+
     [Fact]
     public void BothAddressAndPasswordMakeAServer()
     {
