@@ -100,7 +100,7 @@ public sealed partial class CallRepository(Func<string> callsFolder, string data
             AudioRemoved = Text(root, "audio_removed_at").Length > 0,
             HasAudio = call.HasAudio,
             IsQueued = Text(root, "queued_at").Length > 0,
-            HasSummaryWarning = HasWarning(root, "summary"),
+            SummaryWarning = Warning(root, "summary"),
         };
     }
 
@@ -113,9 +113,12 @@ public sealed partial class CallRepository(Func<string> callsFolder, string data
         _ => CallStatus.Unknown,
     };
 
-    private static bool HasWarning(JsonElement root, string step) =>
+    /// <summary>The reason a step failed on the last run, on one line ("" when the engine gave none); null when it did not.</summary>
+    private static string? Warning(JsonElement root, string step) =>
         root.TryGetProperty("warnings", out var list) && list.ValueKind == JsonValueKind.Array
-        && list.EnumerateArray().Any(w => w.ValueKind == JsonValueKind.Object && Text(w, "step") == step);
+        && list.EnumerateArray().FirstOrDefault(w => w.ValueKind == JsonValueKind.Object && Text(w, "step") == step) is { ValueKind: JsonValueKind.Object } found
+            ? TextRules.Squeeze(Text(found, "error"))
+            : null;
 
     private static string ReadText(string folder, string name)
     {

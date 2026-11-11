@@ -71,6 +71,10 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         call.Status == CallStatus.Processing
         || (recording()?.Processor.Running is { Kind: ProcessingKind.Transcribe } job && SameFolder(job.Dir, call.Folder));
 
+    /// <summary>The recording goes into this call's folder right now.</summary>
+    public bool IsRecording(CallRecord call) =>
+        !call.IsDemo && call.Folder.Length > 0 && recording()?.RecordingDirectory is { } dir && SameFolder(dir, call.Folder);
+
     /// <summary>Waiting in the engine's queue.</summary>
     public bool IsWaiting(CallRecord call) =>
         call.IsQueued || recording()?.Processor.Waiting.Any(j => SameFolder(j.Dir, call.Folder)) == true;
