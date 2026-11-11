@@ -27,6 +27,30 @@ public sealed class CallsWindowLayoutTests
         Assert.Equal("CharacterEllipsis", (string?)title.Attribute("TextTrimming"));
     }
 
+    /// <summary>
+    /// The row's second line: a horizontal StackPanel gives the subtitle all the width it asks for, so a long project and
+    /// people list was cut mid-word with no ellipsis and pushed the «Без саммари» mark out of the row. In a Grid the
+    /// subtitle takes the star column and trims, and the mark keeps its own Auto column.
+    /// </summary>
+    [Fact]
+    public void ListSubtitleTrimsAndKeepsTheMarkVisible()
+    {
+        var path = Path.Combine(Repo.Root(), "windows", "Sozvon.App", "Calls", "CallsPage.xaml");
+        var subtitles = XDocument.Load(path).Descendants(Ui + "TextBlock")
+            .Where(e => (string?)e.Attribute("Text") == "{x:Bind Subtitle}").ToList();
+        Assert.NotEmpty(subtitles);
+        static string Column(XElement e) => (string?)e.Attribute("Grid.Column") ?? "0";
+        foreach (var subtitle in subtitles)
+        {
+            var line = subtitle.Parent!;
+            Assert.Equal(Ui + "Grid", line.Name);
+            var columns = line.Element(Ui + "Grid.ColumnDefinitions")!.Elements().ToList();
+            Assert.Equal("*", (string?)columns[int.Parse(Column(subtitle))].Attribute("Width"));
+            var badge = line.Elements(Ui + "Border").Single(b => b.Descendants(Ui + "TextBlock").Any(t => (string?)t.Attribute("Text") == "{x:Bind Badge}"));
+            Assert.Equal("Auto", (string?)columns[int.Parse(Column(badge))].Attribute("Width"));
+        }
+    }
+
     /// <summary>In a narrow window "Поделиться" used to lie on top of the "Расшифровка" tab.</summary>
     [Fact]
     public void TabsAndHeaderButtonsDoNotShareAColumn()
