@@ -127,12 +127,17 @@ public sealed class AppHost
             _ = _calls?.RefreshAsync();
             Relaunch.Poll();
         };
-        // A finished transcription goes to the own server, if one is set up.
+        // A finished transcription goes to the own server, if one is set up. The result is said, as on the Mac: a failed
+        // run would otherwise leave only a red row, and its reason only in process.log.
         recording.Processor.RunFinished += run => _dispatcher.TryEnqueue(() =>
         {
             if (run.Outcome.IsOk)
             {
                 _ = _server.SyncAsync();
+            }
+            if (RunReport.For(run, Loc.L) is { } notice)
+            {
+                _tray.Notify(notice.Title, notice.Message);
             }
         });
         recording.RemindToSay = () => _store.Settings.RemindToSay;

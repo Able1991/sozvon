@@ -167,3 +167,6 @@
 "файл проекта не найден" = "the project file is missing";
 "файл повреждён" = "the file is damaged";
 "файл занят другой программой" = "another program is using the file";
+
+/* Tray: the result of a run, as the Mac says it; the Mac's line about screen recording does not apply. */
+"Ни одна дорожка не записалась. Проверь доступ к микрофону в параметрах Windows." = "Neither track recorded anything. Check microphone access in Windows Settings.";

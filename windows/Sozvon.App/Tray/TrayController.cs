@@ -60,6 +60,8 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
 
     public void Notify(string text) => _icon?.ShowNotification("Sozvon", text);
 
+    public void Notify(string title, string text) => _icon?.ShowNotification(title, text);
+
     public void Refresh()
     {
         if (_icon is null)
