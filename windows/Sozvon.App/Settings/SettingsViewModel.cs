@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sozvon.App.Shell;
 using Sozvon.App.Strings;
+using Sozvon.Core.Assistants;
 using Sozvon.Core.Automation;
 using Sozvon.Core.Engine;
 using Sozvon.Core.Calls;
@@ -22,10 +23,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     private readonly Relauncher _relaunch;
 
     public SettingsViewModel(SettingsStore store, EngineSettings engine, EngineLayout layout, AppLanguage startupLanguage, Relauncher relaunch,
-        IntegrationsViewModel integrations, SignInSetting signIn, ServerViewModel server, MarkShortcut markShortcut)
+        IntegrationsViewModel integrations, SignInSetting signIn, ServerViewModel server, MarkShortcut markShortcut, AssistantChecks checks)
     {
         Server = server;
         Integrations = integrations;
+        Checks = checks;
+        checks.Changed += (_, _) => ShowChecks();
         SignIn = signIn;
         _store = store;
         _engine = engine;
@@ -117,7 +120,79 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(SummaryFooter));
                 OnPropertyChanged(nameof(SummaryWarning));
                 OnPropertyChanged(nameof(HasSummaryWarning));
+                OnPropertyChanged(nameof(HasSummaryAssistant));
+                // As on the Mac: a newly chosen assistant is asked at once whether it answers.
+                Checks.Run(_engine.Assistant);
+                ShowChecks();
             }
+        }
+    }
+
+    /// <summary>Whether each assistant's CLI answers through the summary's own command.</summary>
+    public AssistantChecks Checks { get; }
+
+    public bool HasSummaryAssistant => _engine.Assistant != Assistant.None;
+
+    public bool SummaryCheckRunning => Checks.IsRunning(_engine.Assistant);
+
+    public bool SummaryAnswers => Checks.Result(_engine.Assistant)?.State == AssistantCheckState.Ok;
+
+    public bool SummaryNotAnswering => Checks.Result(_engine.Assistant)?.State == AssistantCheckState.Failed;
+
+    public bool CanCheckSummary => !SummaryCheckRunning;
+
+    /// <summary>What the summary assistant's CLI said, with the hint how to fix it; empty when it answered or was not checked.</summary>
+    public string SummaryCheckProblem => HasSummaryAssistant ? Checks.Problem(_engine.Assistant) ?? "" : "";
+
+    public bool HasSummaryCheckProblem => SummaryCheckProblem.Length > 0;
+
+    /// <summary>"Check": the same one-word request again.</summary>
+    public void CheckSummary() => Checks.Run(_engine.Assistant);
+
+    /// <summary>The Assistants tab opened: the summary assistant and every connected one, once per launch.</summary>
+    public async Task AssistantsAppearedAsync()
+    {
+        Checks.RunOnce(_engine.Assistant);
+        if (!Integrations.Busy)
+        {
+            await Integrations.RefreshAsync();
+        }
+        foreach (var row in Integrations.Rows.Where(r => r.IsConnected))
+        {
+            Checks.RunOnce(row.Assistant);
+        }
+        ShowChecks();
+    }
+
+    /// <summary>"Connect" pressed: then the assistant is asked whether it answers, as on the Mac.</summary>
+    public async Task ActAsync(AssistantRow row)
+    {
+        var connecting = row.Connection != McpConnection.Connected;
+        await Integrations.ActAsync(row);
+        if (connecting)
+        {
+            Checks.Run(row.Assistant);
+        }
+        ShowChecks();
+    }
+
+    /// <summary>The connected assistants whose check failed, one line each.</summary>
+    public string ConnectionProblems =>
+        string.Join("\n", Integrations.Rows.Where(r => r.IsConnected).Select(r => Checks.Problem(r.Assistant)).OfType<string>());
+
+    public bool HasConnectionProblems => ConnectionProblems.Length > 0;
+
+    private void ShowChecks()
+    {
+        foreach (var row in Integrations.Rows)
+        {
+            row.NotAnswering = row.IsConnected && Checks.Result(row.Assistant)?.State == AssistantCheckState.Failed;
+            row.CheckProblem = Checks.Problem(row.Assistant) ?? "";
+        }
+        foreach (var name in new[] { nameof(SummaryCheckRunning), nameof(SummaryAnswers), nameof(SummaryNotAnswering), nameof(CanCheckSummary),
+                                     nameof(SummaryCheckProblem), nameof(HasSummaryCheckProblem), nameof(ConnectionProblems), nameof(HasConnectionProblems) })
+        {
+            OnPropertyChanged(name);
         }
     }
 

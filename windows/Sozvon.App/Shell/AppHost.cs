@@ -34,6 +34,9 @@ public sealed class AppHost
     private readonly EngineLayout _layout = new(AppPaths.DataDir, AppPaths.CallsDir);
     private readonly McpServer _mcp;
     private readonly ServerSync _server;
+
+    /// <summary>Kept for the whole run: "once per launch" outlives a closed window.</summary>
+    private readonly AssistantChecks _checks;
     private MainWindow? _window;
     private CallsViewModel? _calls;
     private CapsuleWindow? _capsule;
@@ -68,6 +71,7 @@ public sealed class AppHost
         _tray = new TrayController(this, _trayState);
         _tray.Start();
         _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
+        _checks = new AssistantChecks(_layout, _engineSettings.Options, Loc.L);
         _server = new ServerSync(SavedServer, url => OwnServer.CheckHealthAsync(url), (url, password) => OwnServer.AcceptsAsync(url, password),
             onLine => ServerSyncScript.RunAsync(_layout, _engineSettings.Options(), onLine));
     }
@@ -243,7 +247,7 @@ public sealed class AppHost
         var integrations = new IntegrationsViewModel(_mcp, AssistantHome.FromEnvironment(), _mcp.Endpoint);
         // The demo runs no recorder: its Settings get a shortcut nobody has registered or taken.
         var settings = new SettingsViewModel(_store, _engineSettings, _layout, _startupLanguage, Relaunch, integrations, SignIn,
-            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut());
+            new ServerViewModel(_server, AppPaths.EnvFile), _recording?.MarkShortcut ?? new Sozvon.Core.Calls.MarkShortcut(), _checks);
         var profiles = Path.Combine(AppPaths.DataDir, "profiles");
         var myVoice = new MyVoice(voices, AppPaths.DataDir, _engineSettings);
         var projects = new ProjectsPage(profiles, _repository, voices, () => _ = _calls.RefreshAsync());

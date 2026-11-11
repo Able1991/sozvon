@@ -186,7 +186,29 @@
                         <ComboBox x:Name="AssistantBox" Width="240" SelectedIndex="{x:Bind ViewModel.SummaryAssistantIndex, Mode=TwoWay}"
                                   AutomationProperties.Name="{s:L K='Помощник для саммари'}" />
                     </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Проверка'}" Description="{s:L K='Тот же запрос, что для саммари, в одно слово'}"
+                                       Visibility="{x:Bind ViewModel.HasSummaryAssistant, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.SummaryCheckRunning, Mode=OneWay}"
+                                          Visibility="{x:Bind ViewModel.SummaryCheckRunning, Mode=OneWay}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind ViewModel.SummaryAnswers, Mode=OneWay}">
+                                <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+                                <TextBlock AutomationProperties.AutomationId="SummaryCheckAnswers" Text="{s:L K='Отвечает'}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind ViewModel.SummaryNotAnswering, Mode=OneWay}"
+                                        ToolTipService.ToolTip="{x:Bind ViewModel.SummaryCheckProblem, Mode=OneWay}">
+                                <FontIcon FontSize="14" Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                <TextBlock AutomationProperties.AutomationId="SummaryCheckFails" Text="{s:L K='Не отвечает'}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <Button Content="{s:L K='Проверить'}" IsEnabled="{x:Bind ViewModel.CanCheckSummary, Mode=OneWay}" Click="OnCheckSummary"
+                                    AutomationProperties.AutomationId="CheckSummaryAssistant" />
+                        </StackPanel>
+                    </local:SettingsRow>
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.SummaryFooter, Mode=OneWay}" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryCheckProblem, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             AutomationProperties.AutomationId="SummaryCheckProblem" Message="{x:Bind ViewModel.SummaryCheckProblem, Mode=OneWay}" />
                     <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryWarning, Mode=OneWay}" Severity="Warning" IsClosable="False"
                              Message="{x:Bind ViewModel.SummaryWarning, Mode=OneWay}" />
 
@@ -202,6 +224,11 @@
                                 <local:SettingsRow Header="{x:Bind Title}" Description="{s:L K='Видит звонки, саммари и заметки'}">
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <ProgressRing Width="16" Height="16" IsActive="{x:Bind Checking, Mode=OneWay}" Visibility="{x:Bind Checking, Mode=OneWay}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind NotAnswering, Mode=OneWay}"
+                                                    ToolTipService.ToolTip="{x:Bind CheckProblem, Mode=OneWay}">
+                                            <FontIcon FontSize="14" Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}" />
+                                            <TextBlock Text="{s:L K='Не отвечает'}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Visibility="{x:Bind StatusVisible, Mode=OneWay}">
                                             <FontIcon FontSize="14" Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{x:Bind IsConnected, Mode=OneWay}" />
                                             <FontIcon FontSize="14" Glyph="&#xE7BA;" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="{x:Bind Outdated, Mode=OneWay}"
@@ -217,6 +244,8 @@
                     </ItemsControl>
                     <InfoBar IsOpen="{x:Bind ViewModel.Integrations.HasMessage, Mode=OneWay}" Severity="Warning" IsClosable="False"
                              Message="{x:Bind ViewModel.Integrations.Message, Mode=OneWay}" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasConnectionProblems, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             Message="{x:Bind ViewModel.ConnectionProblems, Mode=OneWay}" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключить вручную'}" />
                     <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">

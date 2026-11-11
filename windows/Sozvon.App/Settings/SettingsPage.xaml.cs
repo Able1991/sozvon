@@ -94,9 +94,9 @@ public sealed partial class SettingsPage : UserControl
         }
         _tabsByKeyboard = false;
         // Each look runs the assistants' tools again, as the Mac does when the pane appears.
-        if (tag == nameof(Assistants) && !ViewModel.Integrations.Busy)
+        if (tag == nameof(Assistants))
         {
-            _ = ViewModel.Integrations.RefreshAsync();
+            _ = ViewModel.AssistantsAppearedAsync();
         }
         else if (tag == nameof(Recognition))
         {
@@ -159,9 +159,11 @@ public sealed partial class SettingsPage : UserControl
     {
         if ((sender as FrameworkElement)?.Tag is AssistantRow row)
         {
-            await ViewModel.Integrations.ActAsync(row);
+            await ViewModel.ActAsync(row);
         }
     }
+
+    private void OnCheckSummary(object sender, RoutedEventArgs e) => ViewModel.CheckSummary();
 
     private void OnCopyAssistantCommand(object sender, RoutedEventArgs e)
     {

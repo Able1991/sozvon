@@ -115,6 +115,12 @@ internal static class Strings
         ["Разбивка по голосам"] = "Speaker separation",
         ["pyannote, работает на этом компьютере"] = "pyannote, runs on this PC",
         ["Модели не скачались, расшифровка будет без разбивки по голосам"] = "The models were not downloaded, transcripts will have no speaker separation",
+        ["Проверяю, отвечает ли ассистент…"] = "Checking that the assistant answers…",
+        ["Отвечает"] = "Answers",
+        ["не найден %@"] = "%@ not found",
+        ["%@ не ответил: %@"] = "%@ did not answer: %@",
+        ["%@ не ответил. Подробности в assistant.log"] = "%@ did not answer. Details are in assistant.log",
+        ["%@ не ответил за %@ с"] = "%@ did not answer in %@ s",
 
         ["Разрешения"] = "Permissions",
         ["Без микрофона звонок не записать. Звук компьютера разрешения не требует."] = "Without the microphone a call can't be recorded. The computer's sound needs no permission.",

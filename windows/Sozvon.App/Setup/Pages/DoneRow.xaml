@@ -11,8 +11,10 @@
         <FontIcon x:Name="RowIcon" FontSize="20" />
         <StackPanel Grid.Column="1">
             <TextBlock x:Name="RowTitle" />
-            <TextBlock x:Name="RowDetail" Style="{StaticResource SetupDetail}" />
+            <TextBlock x:Name="RowDetail" Style="{StaticResource SetupDetail}" IsTextSelectionEnabled="True" />
         </StackPanel>
         <FontIcon x:Name="RowCheck" Grid.Column="2" Glyph="&#xE73E;" FontSize="16" Foreground="{ThemeResource SystemFillColorSuccessBrush}" />
+        <FontIcon x:Name="RowWarning" Grid.Column="2" Glyph="&#xE7BA;" FontSize="16" Foreground="{ThemeResource SystemFillColorCautionBrush}" Visibility="Collapsed" />
+        <ProgressRing x:Name="RowProgress" Grid.Column="2" Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
     </Grid>
 </UserControl>
