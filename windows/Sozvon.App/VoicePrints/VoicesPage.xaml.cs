@@ -11,13 +11,16 @@ using static Sozvon.App.Strings.Loc;
 namespace Sozvon.App.VoicePrints;
 
 /// <summary>A saved voice: whose, then project, seconds of speech and date.</summary>
-public sealed class VoiceRow(VoiceRecord record, string title, string details)
+public sealed class VoiceRow(VoiceRecord record, string title, string details, bool canDelete)
 {
     public VoiceRecord Record { get; } = record;
 
     public string Title { get; } = title;
 
     public string Details { get; } = details;
+
+    /// <summary>False while a voice.py run goes on; the rows are made again when it ends.</summary>
+    public bool CanDelete { get; } = canDelete;
 
     /// <summary>The user's own voice gets the accent person icon, the others the people icon.</summary>
     public Visibility MeIcon => Record.Me ? Visibility.Visible : Visibility.Collapsed;
@@ -72,7 +75,7 @@ public sealed partial class VoicesPage : UserControl
         {
             var details = new[] { record.Me ? "" : ProjectTitle(record), L("%@ с речи", (int)Math.Round(record.Seconds)), Date(record) };
             Rows.Add(new VoiceRow(record, record.Me ? L("%@ (мой голос)", record.Name) : record.Name,
-                string.Join(" · ", details.Where(d => d.Length > 0))));
+                string.Join(" · ", details.Where(d => d.Length > 0)), !Store.IsBusy));
         }
         VoiceList.SelectedItem = Rows.FirstOrDefault(r => r.Record.Id == selected);
         VoiceList.Visibility = Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -90,14 +93,16 @@ public sealed partial class VoicesPage : UserControl
         ? L("Sozvon перестанет узнавать тебя по голосу. Свой голос можно записать заново.")
         : L("Sozvon перестанет узнавать этого человека по голосу. Голос снова сохранится, когда ты подпишешь его в расшифровке.");
 
-    /// <summary>Each row's trash button asks in a flyout, so the list stays where it is.</summary>
-    private void OnDeleteButtonLoaded(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Each row's trash button asks in a flyout, so the list stays where it is. The question is made on the click from
+    /// the row the button shows now: the list reuses its row containers when the rows are made again.
+    /// </summary>
+    private void OnDeleteButtonClick(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: VoiceRow row } button)
+        if (sender is Button { Tag: VoiceRow row } button && !Store.IsBusy)
         {
-            button.IsEnabled = !Store.IsBusy;
-            button.Flyout = Dialogs.ConfirmFlyout(L("Удалить голос «%@»?", row.Record.Name), DeleteText(row.Record), L("Удалить"),
-                () => _ = DeleteAsync(row.Record));
+            Dialogs.ConfirmFlyout(L("Удалить голос «%@»?", row.Record.Name), DeleteText(row.Record), L("Удалить"),
+                () => _ = DeleteAsync(row.Record)).ShowAt(button);
         }
     }
 
