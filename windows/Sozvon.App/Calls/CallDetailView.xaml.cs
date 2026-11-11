@@ -639,6 +639,8 @@ public sealed partial class CallDetailView : UserControl
             CallBannerAction.RemoveFromQueue => BannerButton(L("Убрать из очереди"), () => call.Actions.RemoveFromQueue(call.Call)),
             CallBannerAction.Retranscribe => BannerButton(L("Расшифровать заново…"), () => call.Actions.Retranscribe(call.Call)),
             CallBannerAction.Resummarize => BannerButton(L("Обновить саммари"), () => call.Actions.Resummarize(call.Call)),
+            CallBannerAction.Describe => BannerButton(L("Описать…"), () => call.Actions.Retranscribe(call.Call)),
+            CallBannerAction.Transcribe => BannerButton(L("Расшифровать…"), () => call.Actions.Retranscribe(call.Call)),
             _ => null,
         };
     }

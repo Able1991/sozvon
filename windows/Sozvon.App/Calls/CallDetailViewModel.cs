@@ -9,7 +9,7 @@ namespace Sozvon.App.Calls;
 public enum CallBannerKind { None, Informational, Critical, Caution }
 
 /// <summary>The button of the status banner.</summary>
-public enum CallBannerAction { None, RemoveFromQueue, Retranscribe, Resummarize }
+public enum CallBannerAction { None, RemoveFromQueue, Retranscribe, Resummarize, Describe, Transcribe }
 
 /// <summary>The line under the header: what is happening to the call, and what can be done about it.</summary>
 public sealed record CallBanner(CallBannerKind Kind, string Title, string Message = "", CallBannerAction Action = CallBannerAction.None, bool Progress = false);
@@ -236,12 +236,17 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
                        CallBannerAction.RemoveFromQueue);
         }
         var canTranscribe = call.HasAudio && actions.CanTranscribe && !actions.IsBusy(call);
+        if (call.IsWaitingForDescription)
+        {
+            // As the Mac's card: the call waits for its description, and the way to give it is on the card, not only in More.
+            return new(CallBannerKind.Informational, Loc.L("Ждёт описания"), "", canTranscribe ? CallBannerAction.Describe : CallBannerAction.None);
+        }
         if (call.Status == CallStatus.Failed)
         {
             // The last run failed; a transcript on screen is from the run before it.
             return new(CallBannerKind.Critical, Loc.L(hasTranscript ? "Не получилось расшифровать." : "Не получилось расшифровать"),
                        hasTranscript ? Loc.L("Здесь расшифровка с прошлого раза.") : "",
-                       canTranscribe ? CallBannerAction.Retranscribe : CallBannerAction.None);
+                       !canTranscribe ? CallBannerAction.None : hasTranscript ? CallBannerAction.Retranscribe : CallBannerAction.Transcribe);
         }
         if (call.SummaryWarning is { } why)
         {
@@ -255,6 +260,11 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
             // The transcript was edited after the summary was written (names fixed, lines moved).
             return new(CallBannerKind.Caution, Loc.L("Саммари устарело."), Loc.L("Расшифровку изменили после того, как оно было написано."),
                        actions.CanTranscribe ? CallBannerAction.Resummarize : CallBannerAction.None);
+        }
+        if (call.Status == CallStatus.Recorded && !hasTranscript && canTranscribe)
+        {
+            // Recorded and never transcribed (the run was turned off or taken out of the queue): the Mac offers "Расшифровать…" here.
+            return new(CallBannerKind.Informational, Loc.L("Нет расшифровки"), "", CallBannerAction.Transcribe);
         }
         return new(CallBannerKind.None, "");
     }
