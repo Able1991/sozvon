@@ -13,6 +13,8 @@
 "Звонок в Корзине" = "The call is in the Recycle Bin";
 "Не получилось вернуть звонок" = "Couldn’t bring the call back";
 "Звонок в Корзине, но на сервере он останется" = "The call is in the Recycle Bin, but it will stay on the server";
+"убрано в Корзину %@" = "%@ moved to the Recycle Bin";
+"Обновить саммари" = "Update summary";
 "Решения" = "Decisions";
 "Открытые вопросы" = "Open questions";
 "%d из %d" = "%d of %d";
