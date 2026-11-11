@@ -36,6 +36,9 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
 
     public bool IsAvailable { get; private set; }
 
+    /// <summary>The files are let go: this player plays nothing any more.</summary>
+    public bool IsDisposed => _disposed;
+
     public string Unavailable { get; private set; }
 
     [ObservableProperty] public partial double Position { get; private set; }

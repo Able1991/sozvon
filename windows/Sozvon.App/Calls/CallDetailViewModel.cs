@@ -26,7 +26,9 @@ public sealed record ParticipantChip(string Name, bool Saved, bool Unconfirmed, 
 /// <summary>An opened call: header, status, the summary feed, the transcript and the player.</summary>
 public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
 {
-    public CallDetailViewModel(CallRecord call, CallContent content, string myName, IReadOnlyCollection<VoiceRecord> voices, CallActions actions)
+    /// <param name="previous">The same call as the card showed it before this reading; its player goes on when it can.</param>
+    public CallDetailViewModel(CallRecord call, CallContent content, string myName, IReadOnlyCollection<VoiceRecord> voices, CallActions actions,
+                               CallDetailViewModel? previous = null)
     {
         Call = call;
         Actions = actions;
@@ -43,7 +45,8 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         Participants = Chips(call, speakers, me, voices, Unsaved);
         Notes = new ObservableCollection<NoteRow>(call.Notes.Select(Row));
         // An open file would keep the engine from renaming the folder when it finishes.
-        Player = new CallPlayer(call, busy: actions.IsBusy(call) || actions.IsTranscribing(call));
+        var busy = actions.IsBusy(call) || actions.IsTranscribing(call);
+        Player = previous?.HandOverPlayer(call, busy) ?? new CallPlayer(call, busy);
         foreach (var row in Rows)
         {
             row.CanPlay = Player.IsAvailable;
@@ -107,7 +110,30 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
     public bool HasLog => CanOpenFolder && File.Exists(LogPath);
     public bool HasTranscriptFile => CanOpenFolder && File.Exists(TranscriptPath);
 
-    public void Dispose() => Player.Dispose();
+    private bool _playerHandedOver;
+
+    /// <summary>Lets the audio go, unless the player went on to the next reading of this call.</summary>
+    public void Dispose()
+    {
+        if (!_playerHandedOver)
+        {
+            Player.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// The player, for the same call read again: it keeps playing where it was. Not when the engine now works on the
+    /// call (the files must be let go) or the audio changed.
+    /// </summary>
+    private CallPlayer? HandOverPlayer(CallRecord next, bool busy)
+    {
+        if (busy || Player.IsDisposed || !Player.IsAvailable || next.AudioRemoved != Call.AudioRemoved || next.HasAudio != Call.HasAudio)
+        {
+            return null;
+        }
+        _playerHandedOver = true;
+        return Player;
+    }
 
     /// <summary>Adds a note to call.json. The reason it was not saved, or null.</summary>
     public string? AddNote(string text, string source = "app", DateTimeOffset? at = null)
