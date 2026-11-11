@@ -9,7 +9,7 @@ public sealed partial class ProjectsWordingTests
         "Звонки сохранят свои расшифровки. Уйдут только люди, термины и замены этого проекта. Файл попадёт в Корзину, его можно вернуть.";
 
     /// <summary>The Windows English table, which wins over the Mac's.</summary>
-    private static Dictionary<string, string> WindowsEnglish()
+    internal static Dictionary<string, string> WindowsEnglish()
     {
         var path = Path.Combine(Repo.Root(), "windows", "Sozvon.App", "Strings", "windows-en.strings");
         return File.ReadLines(path).Select(line => Pair().Match(line)).Where(m => m.Success)
