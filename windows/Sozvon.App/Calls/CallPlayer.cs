@@ -149,7 +149,9 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         var player = new MediaPlayer { TimelineController = _clock };
         player.CommandManager.IsEnabled = false;
         player.TimelineControllerPositionOffset = TimeSpan.FromSeconds(offset);
-        player.MediaFailed += (_, args) => _ui.Post(_ => Error = Loc.L("Запись недоступна") + ": " + args.ErrorMessage, null);
+        player.MediaFailed += (_, args) => _ui.Post(_ => Error = args.ErrorMessage.Trim().Length > 0
+            ? Loc.L("Запись недоступна") + ": " + args.ErrorMessage.Trim()
+            : Loc.L("Запись недоступна: звуковые дорожки не читаются."), null);
         player.PlaybackSession.NaturalDurationChanged += (session, _) => OnNaturalDuration(session.NaturalDuration.TotalSeconds + offset);
         // A damaged or unknown file fails here, not in MediaFailed: under a timeline controller the clock would run
         // on in silence with nothing on screen.
