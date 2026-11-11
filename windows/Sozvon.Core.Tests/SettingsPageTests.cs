@@ -20,4 +20,19 @@ public sealed class SettingsPageTests
         Assert.True(entry.Success, "windows-en.strings has no entry for «Тема»");
         Assert.Equal("Theme", entry.Groups[1].Value);
     }
+
+    /// <summary>
+    /// A box or a switch carries no text of its own: without a name a screen reader says only "combo box, Light". The
+    /// Mac labels each of them (accessibilityLabel); here each has the row's header as its name.
+    /// </summary>
+    [Fact]
+    public void EveryBoxAndSwitchHasAName()
+    {
+        var nameless = Page().Descendants()
+            .Where(e => e.Name == Ui + "TextBox" || e.Name == Ui + "ComboBox" || e.Name == Ui + "ToggleSwitch" || e.Name == Ui + "PasswordBox")
+            .Where(e => e.Attribute("AutomationProperties.Name") is null)
+            .Select(e => e.ToString().Split('\n')[0])
+            .ToList();
+        Assert.Empty(nameless);
+    }
 }
