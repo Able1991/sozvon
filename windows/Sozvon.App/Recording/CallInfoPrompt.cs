@@ -30,19 +30,25 @@ public sealed class CallInfoPrompt(EngineLayout layout, EngineSettings engine, A
 
     public void Close() => _window?.Close();
 
-    public Task<CallInfoAnswer> AskAsync(CallInfoRequest request)
+    public async Task<CallInfoAnswer> AskAsync(CallInfoRequest request)
     {
         _window?.Close();
         var window = new CallInfoWindow(request, layout, engine, settings);
-        window.Closed += (_, _) =>
-        {
-            if (_window == window)
-            {
-                _window = null;
-            }
-        };
+        window.Closed += (_, _) => Forget(window);
         _window = window;
         window.Activate();
-        return window.Answer;
+        var answer = await window.Answer;
+        // The answer comes before the window has closed: whoever acts on it must already see the form as gone,
+        // or a relaunch waiting for the form never goes ahead.
+        Forget(window);
+        return answer;
+    }
+
+    private void Forget(CallInfoWindow window)
+    {
+        if (_window == window)
+        {
+            _window = null;
+        }
     }
 }
