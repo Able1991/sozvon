@@ -51,6 +51,24 @@ public sealed class CallsWindowLayoutTests
         }
     }
 
+    /// <summary>
+    /// The call form's project box: "Northwind · редизайн" was cut mid-word with no ellipsis, since the item's title sat in
+    /// a horizontal StackPanel that never trims. The title takes a star column of a Grid and trims.
+    /// </summary>
+    [Fact]
+    public void FormProjectTitleTrimsWithAnEllipsis()
+    {
+        var path = Path.Combine(Repo.Root(), "windows", "Sozvon.App", "Recording", "CallInfoWindow.xaml");
+        var title = XDocument.Load(path).Descendants(Ui + "DataTemplate")
+            .Single(t => (string?)t.Attribute(XName.Get("Key", "http://schemas.microsoft.com/winfx/2006/xaml")) == "ProjectTemplate")
+            .Descendants(Ui + "TextBlock").Single(t => (string?)t.Attribute("Text") == "{x:Bind Title}");
+        Assert.Equal("CharacterEllipsis", (string?)title.Attribute("TextTrimming"));
+        var line = title.Parent!;
+        Assert.Equal(Ui + "Grid", line.Name);
+        var columns = line.Element(Ui + "Grid.ColumnDefinitions")!.Elements().ToList();
+        Assert.Equal("*", (string?)columns[int.Parse((string?)title.Attribute("Grid.Column") ?? "0")].Attribute("Width"));
+    }
+
     /// <summary>In a narrow window "Поделиться" used to lie on top of the "Расшифровка" tab.</summary>
     [Fact]
     public void TabsAndHeaderButtonsDoNotShareAColumn()
