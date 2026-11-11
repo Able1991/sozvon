@@ -45,6 +45,7 @@ public sealed partial class CallInfoWindow : Window
     private IReadOnlyList<Call> _pastCalls = [];
     private ProjectChoice? _selected;
     private int? _countdown;
+    private Windows.Graphics.PointInt32? _placed;
 
     internal CallInfoWindow(CallInfoRequest request, EngineLayout layout, EngineSettings engine, AppSettings settings)
     {
@@ -100,7 +101,15 @@ public sealed partial class CallInfoWindow : Window
         var scale = Scale();
         var screen = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         AppWindow.ResizeClient(new((int)(LogicalWidth * scale), Math.Min((int)(480 * scale), screen.Height)));
-        AppWindow.Move(new(screen.X + (screen.Width - AppWindow.Size.Width) / 2, screen.Y + (screen.Height - AppWindow.Size.Height) / 2));
+        Centre();
+    }
+
+    /// <summary>In the middle of the work area; remembered, so a later fit keeps it there unless the user moved it.</summary>
+    private void Centre()
+    {
+        var screen = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        _placed = new(screen.X + (screen.Width - AppWindow.Size.Width) / 2, screen.Y + (screen.Height - AppWindow.Size.Height) / 2);
+        AppWindow.Move(_placed.Value);
     }
 
     private double Scale() => NativeWindow.GetDpiForWindow(WindowNative.GetWindowHandle(this)) / 96.0;
@@ -167,7 +176,13 @@ public sealed partial class CallInfoWindow : Window
         var height = Math.Min((int)Math.Ceiling((32 + Body.ActualHeight + footer) * scale), screen.Height);
         if (height != AppWindow.ClientSize.Height)
         {
+            // Grown from the first guess downwards, the form was no longer centred.
+            var untouched = _placed is { } placed && AppWindow.Position.Equals(placed);
             AppWindow.ResizeClient(new(AppWindow.ClientSize.Width, height));
+            if (untouched)
+            {
+                Centre();
+            }
         }
     }
 
