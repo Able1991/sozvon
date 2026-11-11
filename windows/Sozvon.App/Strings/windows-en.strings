@@ -162,3 +162,8 @@
 "Журналы" = "Logs";
 "Проверки и журналы для поддержки, без расшифровок, саммари, аудио и паролей. Открываются в проводнике: посмотреть и отправить." = "Checks and logs for support, with no transcripts, summaries, audio or passwords. They open in File Explorer to look at and send.";
 "%@ не скачана" = "%@ is not downloaded";
+
+/* Calls, Fix word: why a replacement could not be remembered. */
+"файл проекта не найден" = "the project file is missing";
+"файл повреждён" = "the file is damaged";
+"файл занят другой программой" = "another program is using the file";

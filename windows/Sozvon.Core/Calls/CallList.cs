@@ -17,6 +17,23 @@ public static class CallFilter
         (filter.Length == 0 ? calls : calls.Where(c => Matches(c, filter))).ToList();
 }
 
+/// <summary>
+/// The search across calls in the title bar: a call shows when one of its fields (title, project, names) contains the
+/// query. Case and diacritics don't count, as in the find inside a transcript, so "елка" finds "Ёлка".
+/// </summary>
+public static class CallSearch
+{
+    private const System.Globalization.CompareOptions Loose = System.Globalization.CompareOptions.IgnoreCase
+        | System.Globalization.CompareOptions.IgnoreNonSpace | System.Globalization.CompareOptions.IgnoreWidth;
+
+    public static bool Matches(string query, IEnumerable<string> fields)
+    {
+        var q = query.Trim();
+        var compare = System.Globalization.CultureInfo.InvariantCulture.CompareInfo;
+        return q.Length == 0 || fields.Any(field => compare.IndexOf(field, q, Loose) >= 0);
+    }
+}
+
 /// <summary>Day groups of the Calls list.</summary>
 public static class CallDays
 {

@@ -101,7 +101,15 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         }
         catch (Exception e) when (e is ReplacementException or IOException or UnauthorizedAccessException)
         {
-            return Loc.L("Не получилось запомнить замену: %@", e.Message);
+            // In words, not the failure's code name ("NoProject").
+            var reason = e switch
+            {
+                ReplacementException { Failure: ReplacementFailure.NoProject } => Loc.L("файл проекта не найден"),
+                ReplacementException { Failure: ReplacementFailure.Corrupt } => Loc.L("файл повреждён"),
+                ReplacementException => e.Message,
+                _ => Loc.L("файл занят другой программой"),
+            };
+            return Loc.L("Не получилось запомнить замену: %@", reason);
         }
     }
 

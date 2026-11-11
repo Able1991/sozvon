@@ -57,8 +57,9 @@ public sealed partial class CallRepository(Func<string> callsFolder, string data
         }
     }
 
+    /// <summary>Listed under the day its folder name gives, as the Mac does, rather than under «Без даты».</summary>
     private static CallRecord Unreadable(string folder, string name) =>
-        new() { Folder = folder, Id = name, Topic = name, IsUnreadable = true };
+        new() { Folder = folder, Id = name, Topic = name, CreatedAt = Call.ParseId(name), IsUnreadable = true };
 
     /// <summary>An old call without call.json: what the folder name and meta.json say.</summary>
     private static CallRecord FromFolderName(string folder, Call call) => new()
