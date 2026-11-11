@@ -14,7 +14,6 @@ namespace Sozvon.App.Recording;
 /// <summary>Connects the capsule to the recorder and the engine: one recording, then its transcription.</summary>
 public sealed class RecordingController
 {
-    private static readonly TimeSpan SavedShownFor = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReminderShownFor = TimeSpan.FromSeconds(8);
 
     /// <summary>The Mac's "other side audible" (0.15 on the -50...0 dB meter, -42.5 dB) on the capsule's -75...-25 dB scale.</summary>
@@ -31,6 +30,7 @@ public sealed class RecordingController
     private readonly CallAutomationController _call;
     private readonly HotKey _markKeys;
     private readonly MarkShortcut _markShortcut = new();
+    private readonly SavedNotice _saved = new();
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private string? _dir;
@@ -251,6 +251,7 @@ public sealed class RecordingController
             _changing = false;
             _clock.Stop();
             ReleaseMarkKeys();
+            _saved.End();
             StateChanged?.Invoke(this, EventArgs.Empty);
             Problem?.Invoke(this, Loc.L("Не получилось: подробности в журнале программы."));
             ShowProcessing();
@@ -333,8 +334,10 @@ public sealed class RecordingController
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
+        // The queue going on reports a change, which redraws the resting capsule: the notice holds it off for its time.
         _processor.StartNext();
         _capsule.Render(new CapsuleModel(CapsulePhase.Saved) { SavedMinutes = minutes > 0 ? minutes : null });
+        _saved.Show(DateTimeOffset.Now);
         var (info, sure) = CallGuess.Fill(_info, _settings.LastProject, _startedAt, calendarEvent: null, heard: [], Project.All(_layout.Profiles));
         if (info != _info)
         {
@@ -344,7 +347,8 @@ public sealed class RecordingController
         Ask(DescribeRequest(info, countdown), answer => Apply(dir, answer));
         _changing = false;
         StateChanged?.Invoke(this, EventArgs.Empty);
-        await Task.Delay(SavedShownFor);
+        await Task.Delay(SavedNotice.ShownFor);
+        _saved.End();
         ShowProcessing();
     }
 
@@ -520,7 +524,7 @@ public sealed class RecordingController
     /// <summary>At rest: the call prompt first, then the transcription in progress, otherwise the Record button.</summary>
     private void ShowProcessing()
     {
-        if (_recording || _changing)
+        if (_recording || _changing || _saved.Holds(DateTimeOffset.Now))
         {
             return;
         }
