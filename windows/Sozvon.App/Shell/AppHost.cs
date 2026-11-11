@@ -206,7 +206,8 @@ public sealed class AppHost
         }
     }
 
-    public void OpenWindow(AppPage page)
+    /// <param name="page">Null ("Open", a click on the tray icon): the page the window was closed on, Calls the first time.</param>
+    public void OpenWindow(AppPage? page)
     {
         try
         {

@@ -31,7 +31,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
             Id = StableGuid(),
             ContextMenuMode = H.NotifyIcon.ContextMenuMode.PopupMenu,
             NoLeftClickDelay = true,
-            LeftClickCommand = new RelayCommand(() => host.OpenWindow(AppPage.Calls)),
+            LeftClickCommand = new RelayCommand(() => host.OpenWindow(null)),
             RightClickCommand = new RelayCommand(Refresh),
             ToolTipText = state.ToolTip,
             ContextFlyout = BuildMenu(),
@@ -87,7 +87,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
             return menu;
         }
 
-        AddAction(menu, "Открыть", () => host.OpenWindow(AppPage.Calls));
+        AddAction(menu, "Открыть", () => host.OpenWindow(null));
         AddSeparator(menu);
         if (state.State == TrayState.Recording)
         {

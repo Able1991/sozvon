@@ -87,9 +87,13 @@ public sealed partial class MainWindow : Window
 
     public void ApplyTheme(AppTheme theme) => WindowTheme.Apply(this, Root, theme);
 
-    public void Show(AppPage page)
+    /// <param name="page">Null: the page it was closed on.</param>
+    public void Show(AppPage? page)
     {
-        Navigation.SelectedItem = ItemFor(page);
+        if (page is { } chosen)
+        {
+            Navigation.SelectedItem = ItemFor(chosen);
+        }
         AppWindow.Show();
         Activate();
     }
