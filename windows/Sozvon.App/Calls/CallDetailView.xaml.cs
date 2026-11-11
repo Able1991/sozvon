@@ -185,7 +185,7 @@ public sealed partial class CallDetailView : UserControl
         PlayerBar.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
         Page.Padding = new Thickness(24, 16, 24, player.IsAvailable ? PlayerBar.Height + PlayerBar.Margin.Bottom + 24 : 24);
         var failed = player.Error.Length > 0;
-        UnavailableText.Text = failed ? L("Запись недоступна") + ": " + player.Error : "";
+        UnavailableText.Text = player.Error;
         PositionSlider.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
         UnavailableText.Visibility = failed ? Visibility.Visible : Visibility.Collapsed;
         ShowPlayState(player.IsPlaying);
@@ -207,7 +207,7 @@ public sealed partial class CallDetailView : UserControl
                 FollowPlayingLine(player);
                 break;
             case nameof(CallPlayer.Error) when player.Error.Length > 0:
-                UnavailableText.Text = L("Запись недоступна") + ": " + player.Error;
+                UnavailableText.Text = player.Error;
                 UnavailableText.Visibility = Visibility.Visible;
                 PositionSlider.Visibility = Visibility.Collapsed;
                 break;
