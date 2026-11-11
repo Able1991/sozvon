@@ -51,10 +51,19 @@ public sealed partial class SignInSetting : ObservableObject
                     Error = Loc.L("Не получилось изменить автозапуск: %@", e.Message);
                 }
             }
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(State));
-            OnPropertyChanged(nameof(Description));
+            Refresh();
         }
+    }
+
+    /// <summary>
+    /// Windows' state may have changed meanwhile (Task Manager, another copy): the switch and the line under it read it
+    /// again. Called whenever Settings comes into view.
+    /// </summary>
+    public void Refresh()
+    {
+        OnPropertyChanged(nameof(IsOn));
+        OnPropertyChanged(nameof(State));
+        OnPropertyChanged(nameof(Description));
     }
 
     /// <summary>Under the switch: why it is off although the value is there, or why the change failed.</summary>
