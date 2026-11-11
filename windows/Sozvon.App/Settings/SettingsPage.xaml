@@ -363,10 +363,10 @@
                              Message="{x:Bind ViewModel.LogsError, Mode=OneWay}" />
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Ссылки'}" />
                     <local:SettingsRow Header="{s:L K='Сайт'}">
-                        <HyperlinkButton Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />
+                        <HyperlinkButton Margin="0,0,-11,0" Content="able1991.github.io/sozvon" NavigateUri="https://able1991.github.io/sozvon/" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Исходный код'}">
-                        <HyperlinkButton Content="GitHub" NavigateUri="https://github.com/Able1991/sozvon" />
+                        <HyperlinkButton Margin="0,0,-11,0" Content="GitHub" NavigateUri="https://github.com/Able1991/sozvon" />
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='Лицензия'}">
                         <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="MIT" />

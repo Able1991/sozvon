@@ -35,4 +35,16 @@ public sealed class SettingsPageTests
             .ToList();
         Assert.Empty(nameless);
     }
+
+    /// <summary>A link as a row's control ends on the same right edge as the boxes and switches: its padding is pulled back.</summary>
+    [Fact]
+    public void RowLinksEndOnTheRowsRightEdge()
+    {
+        var links = Page().Descendants(Ui + "HyperlinkButton").Where(e => e.Parent?.Name.LocalName == "SettingsRow").ToList();
+        Assert.NotEmpty(links);
+        foreach (var link in links)
+        {
+            Assert.Equal("0,0,-11,0", (string?)link.Attribute("Margin"));
+        }
+    }
 }
