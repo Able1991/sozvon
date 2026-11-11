@@ -39,6 +39,7 @@ public sealed partial class CapsuleWindow : Window
     private readonly double[] _themHistory = new double[BarsPerSide];
     private readonly HashSet<UIElement> _shown = [];
     private readonly DispatcherTimer _hideFade = new() { Interval = Motion };
+    private readonly Sozvon.Core.Calls.HideCross _cross = new();
     private CapsuleModel _model = new(CapsulePhase.Idle);
     private Storyboard? _widthAnimation;
     private readonly DispatcherTimer _pointerWatch = new() { Interval = TimeSpan.FromMilliseconds(50) };
@@ -98,6 +99,7 @@ public sealed partial class CapsuleWindow : Window
         _hideFade.Tick += (_, _) =>
         {
             _hideFade.Stop();
+            _cross.Faded();
             Render(_model, anchorLeft: true);
         };
         // Handled events too: a press on a button still starts a drag once the pointer has moved far enough,
@@ -175,6 +177,8 @@ public sealed partial class CapsuleWindow : Window
         _model = model;
         _anchorLeft = anchorLeft;
         _shown.Clear();
+        // Decided before the row is laid out: a cross fading out keeps its place until the fade is over.
+        var fadeStarts = _cross.Pointer(_hovered && model.Phase == CapsulePhase.Idle);
         if (model.Phase is CapsulePhase.Starting or CapsulePhase.Processing)
         {
             SpinnerTurning.Begin();
@@ -187,7 +191,7 @@ public sealed partial class CapsuleWindow : Window
         {
             case CapsulePhase.Idle:
                 Show(RecordButton);
-                if (_hovered || _hideFade.IsEnabled)
+                if (_cross.InRow)
                 {
                     Show(HideButton);
                 }
@@ -213,7 +217,7 @@ public sealed partial class CapsuleWindow : Window
                 break;
         }
         ApplyVisibility();
-        ShowHideButton(_hovered && model.Phase == CapsulePhase.Idle);
+        ShowHideButton(_cross.Visible, fadeStarts);
         DispatcherQueue.TryEnqueue(FitToContent);
         Rendered?.Invoke(this, EventArgs.Empty);
     }
@@ -296,7 +300,7 @@ public sealed partial class CapsuleWindow : Window
     };
 
     /// <summary>The cross fades and grows in; on the way out it fades first and leaves the row afterwards.</summary>
-    private void ShowHideButton(bool visible)
+    private void ShowHideButton(bool visible, bool fadeStarts)
     {
         if (visible)
         {
@@ -307,10 +311,10 @@ public sealed partial class CapsuleWindow : Window
         else
         {
             _revealPending = false;
-            if (HideButton.Opacity > 0)
+            HideButton.Opacity = 0;
+            HideButton.Scale = new(0.6f, 0.6f, 1);
+            if (fadeStarts)
             {
-                HideButton.Opacity = 0;
-                HideButton.Scale = new(0.6f, 0.6f, 1);
                 _hideFade.Start();
             }
         }
