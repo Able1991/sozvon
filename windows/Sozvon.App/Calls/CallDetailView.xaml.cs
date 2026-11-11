@@ -772,6 +772,19 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
-    private static void OpenInShell(string path) =>
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    /// <summary>
+    /// The file in its default app. Windows has none for .md or .log until the user picks one, and the shell then
+    /// refuses (an unhandled refusal would take the app down): Notepad opens it instead.
+    /// </summary>
+    private static void OpenInShell(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Process.Start(new ProcessStartInfo("notepad.exe") { ArgumentList = { path }, UseShellExecute = false })?.Dispose();
+        }
+    }
 }
