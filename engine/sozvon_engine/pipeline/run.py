@@ -270,6 +270,11 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
             except Exception as ex:  # noqa: BLE001  an assistant failure does not lose the transcript
                 log(t("log_summary_failed", who=type(ex).__name__, err=ex))
                 spec.warn("summary", f"{type(ex).__name__}: {ex}")
+        elif spec.summary and paras and settings.llm in llm.BINARIES:
+            # The assistant chosen in Settings is not there (uninstalled, not on PATH): the summary asked for in the
+            # form is a warning, not a silent gap. "auto" and "none" stay quiet, as before.
+            log(t("err_no_assistant"))
+            spec.warn("summary", t("err_no_assistant"))
         complete(spec, people)
         # Last, while the working wavs are still here, and after the call is done: its outcome cannot change the call.
         listen_stage.render(d, files, offsets, tracks, gains, log)

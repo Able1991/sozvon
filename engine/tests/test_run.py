@@ -11,7 +11,7 @@ import pytest
 
 from sozvon_engine import platform_support
 from conftest import fake_model
-from sozvon_engine import audio, llm, prompt, whisper
+from sozvon_engine import audio, i18n, llm, prompt, whisper
 from sozvon_engine.pipeline import run, speakers, tracks, transcribe
 
 
@@ -508,6 +508,18 @@ def test_summary_off_or_no_assistant_is_not_a_warning(tmp_path, capsys, fakes, m
     monkeypatch.setattr(llm, "run", lambda *a, **kw: (None, "claude", "down"))
     assert run.main([str(d), "--no-diarize", "--no-summary"]) == 0
     assert _warnings(d) is None
+
+
+def test_a_chosen_assistant_that_is_missing_is_a_summary_warning(tmp_path, capsys, fakes, monkeypatch):
+    # Codex chosen in Settings, then uninstalled: the summary asked for in the form must not vanish without a word.
+    monkeypatch.setenv("SOZVON_LLM", "codex")
+    monkeypatch.setattr(llm, "backend", lambda settings=None: (None, None))
+    d = make_call(tmp_path, {"id": "2026-11-04 15-01"})
+    assert run.main([str(d), "--no-diarize"]) == 0
+    c = json.loads((d / "call.json").read_text())
+    assert c["status"] == "done"
+    assert _warnings(d) == [{"step": "summary", "error": i18n.t("err_no_assistant")}]
+    assert i18n.t("err_no_assistant") in capsys.readouterr().err
 
 
 def test_a_clean_run_removes_old_warnings(tmp_path, capsys, fakes):
