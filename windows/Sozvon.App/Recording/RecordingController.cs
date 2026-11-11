@@ -387,6 +387,8 @@ public sealed class RecordingController
             Problem?.Invoke(this, Loc.L("Не удалось сохранить данные звонка"));
         }
         StateChanged?.Invoke(this, EventArgs.Empty);
+        // The answer changed call.json ("waits for description", the topic): the calls list shows it at once.
+        CallsChanged?.Invoke(this, EventArgs.Empty);
         ShowProcessing();
     }
 
