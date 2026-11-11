@@ -104,7 +104,7 @@ public sealed partial class SetupWindow : Window
         }
         Present(shown);
         var scale = Root.XamlRoot.RasterizationScale;
-        // Never taller than the work area: on a small screen the footer would sit under the taskbar; the step scrolls instead.
+        // Never taller than the work area: on a small screen the footer would end up off it; the step scrolls instead.
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         var height = Math.Min(Math.Min(tallest, LogicalHeight) * scale, area.Height - 2 * WorkAreaMargin * scale);
         AppWindow.ResizeClient(new((int)Math.Ceiling(LogicalWidth * scale), (int)Math.Ceiling(height)));
