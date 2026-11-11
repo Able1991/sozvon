@@ -821,3 +821,4 @@
 "Она внутри нынешней папки звонков. Выбери папку рядом или в другом месте." = "It’s inside the current calls folder. Pick a folder next to it or elsewhere.";
 "Нынешняя папка звонков лежит внутри неё. Выбери другую папку." = "The current calls folder is inside it. Pick another folder.";
 "Это папка движка Sozvon: при переустановке звонки пропали бы. Выбери другую." = "This is the Sozvon engine folder: a reinstall would take the calls with it. Pick another one.";
+"Сменить папку…" = "Change Folder…";

@@ -124,7 +124,7 @@ struct CallsFolderRow: View {
         LabeledContent {
             HStack(spacing: 8) {
                 Button(L("Показать в Finder")) { NSWorkspace.shared.open(changer.current) }
-                Button(L("Изменить…")) { changer.change() }.disabled(changer.moving != nil)
+                Button(L("Сменить папку…")) { changer.change() }.disabled(changer.moving != nil)
             }
         } label: {
             Text(title)

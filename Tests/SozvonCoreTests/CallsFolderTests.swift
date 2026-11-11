@@ -83,12 +83,14 @@ final class CallsFolderTests: XCTestCase {
     }
 
     func testTheChoiceIsKeptAndTheDefaultIsDocumentsCalls() {
-        let defaults = UserDefaults(suiteName: "calls-folder-\(UUID().uuidString)")!
-        XCTAssertNil(CallsFolder.chosen(defaults))
+        // Read the suite's own domain: launch arguments of other tests (callsDir) override what a lookup returns.
+        let name = "calls-folder-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
         CallsFolder.choose(tmp, defaults)
-        XCTAssertEqual(CallsFolder.chosen(defaults)?.path, tmp.path)
+        XCTAssertEqual(defaults.persistentDomain(forName: name)?[CallsFolder.defaultsKey] as? String, tmp.path)
         CallsFolder.choose(nil, defaults)
-        XCTAssertNil(CallsFolder.chosen(defaults))
+        XCTAssertNil(defaults.persistentDomain(forName: name)?[CallsFolder.defaultsKey])
         XCTAssertTrue(CallsFolder.defaultURL.path.hasSuffix("Documents/Calls"))
     }
 }

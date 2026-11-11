@@ -394,7 +394,7 @@ struct SetupView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(L("Языки звонков"))
                 SetupRow(title: L("Папка звонков"), detail: folder.moving ?? (folder.current.path as NSString).abbreviatingWithTildeInPath) {
-                    Button(L("Изменить…")) { folder.change() }.disabled(folder.moving != nil)
+                    Button(L("Сменить папку…")) { folder.change() }.disabled(folder.moving != nil)
                 }
             }
             if Engine.gentle {
