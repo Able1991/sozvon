@@ -36,6 +36,9 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
 
     public bool IsAvailable { get; private set; }
 
+    /// <summary>The files are let go: this player plays nothing any more.</summary>
+    public bool IsDisposed => _disposed;
+
     public string Unavailable { get; private set; }
 
     [ObservableProperty] public partial double Position { get; private set; }
@@ -44,6 +47,7 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
 
     [ObservableProperty] public partial bool IsPlaying { get; private set; }
 
+    /// <summary>Why the audio does not play, as the player bar shows it ("Запись недоступна: …"); empty while it does.</summary>
     [ObservableProperty] public partial string Error { get; private set; } = "";
 
     [ObservableProperty] public partial int RateIndex { get; set; }
@@ -145,9 +149,21 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         var player = new MediaPlayer { TimelineController = _clock };
         player.CommandManager.IsEnabled = false;
         player.TimelineControllerPositionOffset = TimeSpan.FromSeconds(offset);
-        player.MediaFailed += (_, args) => _ui.Post(_ => Error = args.ErrorMessage, null);
+        player.MediaFailed += (_, args) => _ui.Post(_ => Error = args.ErrorMessage.Trim().Length > 0
+            ? Loc.L("Запись недоступна") + ": " + args.ErrorMessage.Trim()
+            : Loc.L("Запись недоступна: звуковые дорожки не читаются."), null);
         player.PlaybackSession.NaturalDurationChanged += (session, _) => OnNaturalDuration(session.NaturalDuration.TotalSeconds + offset);
-        player.Source = MediaSource.CreateFromUri(new Uri(path));
+        // A damaged or unknown file fails here, not in MediaFailed: under a timeline controller the clock would run
+        // on in silence with nothing on screen.
+        var source = MediaSource.CreateFromUri(new Uri(path));
+        source.OpenOperationCompleted += (_, args) =>
+        {
+            if (args.Error is not null)
+            {
+                _ui.Post(_ => Error = Loc.L("Запись недоступна: звуковые дорожки не читаются."), null);
+            }
+        };
+        player.Source = source;
         _players.Add(player);
     }
 

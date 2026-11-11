@@ -73,11 +73,23 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] public partial bool IsEmpty { get; private set; }
 
+    /// <summary>The list is being rebuilt: the selection passes through null and back, which must not close the card.</summary>
+    private bool _rebuilding;
+
+    /// <summary>The latest <see cref="Open"/>: an older one still loading gives way to it.</summary>
+    private int _opening;
+
     partial void OnSelectedProjectChanged(ProjectFilter value) => ApplyFilter();
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
-    partial void OnSelectedRowChanged(CallRow? value) => Open(value?.Call);
+    partial void OnSelectedRowChanged(CallRow? value)
+    {
+        if (!_rebuilding)
+        {
+            Open(value?.Call);
+        }
+    }
 
     public async Task RefreshAsync()
     {
@@ -85,7 +97,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         IsDemoOnly = calls.Count == 0;
         _calls = IsDemoOnly ? [DemoCall.Create()] : calls;
         RebuildProjects();
-        ApplyFilter();
+        ApplyFilter(reload: true);
     }
 
     /// <summary>Selects a call by id, now or as soon as the list has it.</summary>
@@ -134,8 +146,13 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         SearchText = "";
     }
 
+    /// <summary>
+    /// The projects found in the calls. The chosen one stays chosen by its slug, under its new title after a rename;
+    /// when no call has it any more, the list shows all projects.
+    /// </summary>
     private void RebuildProjects()
     {
+        var chosen = SelectedProject.Slug;
         var known = _calls
             .Where(c => c.ProjectSlug.Length > 0)
             .GroupBy(c => c.ProjectSlug)
@@ -147,20 +164,38 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         {
             Projects.Add(project);
         }
+        SelectedProject = Projects.FirstOrDefault(p => p.Slug == chosen) ?? AllProjects;
     }
 
-    private void ApplyFilter()
+    /// <summary>
+    /// Rebuilds the list for the filter and the search. The card follows the selection; after a reload from disk the
+    /// selected call is read again, in place, so what is playing, the find bar and the note being typed stay.
+    /// </summary>
+    private void ApplyFilter(bool reload = false)
     {
         var selectedId = _pendingCallId ?? SelectedRow?.Call.Id;
         var rows = _calls.Where(Matches).Select(Row).ToList();
-        Groups.Clear();
-        foreach (var group in rows.GroupBy(r => CallFormat.DayGroup(r.Call.CreatedAt)))
+        _rebuilding = true;
+        try
         {
-            Groups.Add(new CallGroup(group.Key, group));
+            Groups.Clear();
+            foreach (var group in rows.GroupBy(r => CallFormat.DayGroup(r.Call.CreatedAt)))
+            {
+                Groups.Add(new CallGroup(group.Key, group));
+            }
+            IsEmpty = rows.Count == 0;
+            SelectedRow = rows.FirstOrDefault(r => r.Call.Id == selectedId);
+            SelectPending();
         }
-        IsEmpty = rows.Count == 0;
-        SelectedRow = rows.FirstOrDefault(r => r.Call.Id == selectedId);
-        SelectPending();
+        finally
+        {
+            _rebuilding = false;
+        }
+        var call = SelectedRow?.Call;
+        if (reload || call?.Id != Detail?.Call.Id)
+        {
+            Open(call);
+        }
     }
 
     private void SelectPending()
@@ -183,9 +218,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         {
             return false;
         }
-        var query = SearchText.Trim();
-        return query.Length == 0
-            || new[] { call.Title, call.ProjectTitle }.Concat(call.People).Any(t => t.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        return Sozvon.Core.Calls.CallSearch.Matches(SearchText, new[] { call.Title, call.ProjectTitle }.Concat(call.People));
     }
 
     private static CallRow Row(CallRecord call)
@@ -210,18 +243,32 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         };
     }
 
+    /// <summary>
+    /// Opens the call in the card. The same call read again (a refresh, an edit) replaces the card only once its new
+    /// content is loaded, and keeps the player when its audio is still free to play.
+    /// </summary>
     private async void Open(CallRecord? call)
     {
-        Detail?.Dispose();
-        Detail = null;
+        var previous = Detail;
+        var same = call is not null && previous is not null && previous.Call.Id == call.Id
+                   && string.Equals(previous.Call.Folder, call.Folder, StringComparison.OrdinalIgnoreCase);
+        if (!same)
+        {
+            previous?.Dispose();
+            Detail = null;
+        }
+        var opening = ++_opening;
         if (call is null)
         {
             return;
         }
         var (content, voices) = await Task.Run(() => (_repository.LoadContent(call), _repository.Voices()));
-        if (SelectedRow?.Call == call)
+        if (opening != _opening || SelectedRow?.Call != call)
         {
-            Detail = new CallDetailViewModel(call, content, _engine.Name, voices, Actions);
+            return;
         }
+        var shown = Detail;
+        Detail = new CallDetailViewModel(call, content, _engine.Name, voices, Actions, previous: same ? shown : null);
+        shown?.Dispose();
     }
 }

@@ -69,12 +69,17 @@ public sealed partial class CallDetailView : UserControl
         get => _viewModel;
         set
         {
+            // The same call read again (a refresh, an edit): the find bar and the note being typed stay.
+            var same = _viewModel is not null && value is not null && _viewModel.Call.Id == value.Call.Id;
             if (_viewModel is not null)
             {
                 _viewModel.Player.PropertyChanged -= OnPlayerChanged;
                 _viewModel.Actions.Voices.Changed -= OnVoicesChanged;
             }
-            CloseFind();
+            if (!same)
+            {
+                CloseFind();
+            }
             if (_viewModel is not null)
             {
                 _shown = (_viewModel.Call.Id, Scroller.VerticalOffset);
@@ -85,7 +90,15 @@ public sealed partial class CallDetailView : UserControl
             {
                 value.Player.PropertyChanged += OnPlayerChanged;
                 value.Actions.Voices.Changed += OnVoicesChanged;
-                ShowCall(value);
+                ShowCall(value, same);
+                if (same && FindBar.Visibility == Visibility.Visible)
+                {
+                    // The rows are new: the matches are found in them again, from the same place.
+                    var at = _foundIndex;
+                    _found = TranscriptFind.Matches(FindBox.Text, value.Rows.Select(r => r.Line.Text).ToList());
+                    _foundIndex = _found.Count == 0 ? 0 : Math.Min(at, _found.Count - 1);
+                    ShowFound(scroll: false);
+                }
                 // The same call read again after an edit keeps its place on the page.
                 if (_shown is { } shown && shown.Id == value.Call.Id)
                 {
@@ -104,7 +117,8 @@ public sealed partial class CallDetailView : UserControl
     /// <summary>"Undo delete" in the More menu: the page brings the last deleted call back.</summary>
     public event EventHandler? UndoTrashRequested;
 
-    public static string TaskGlyph(bool done) => done ? "" : "";
+    /// <summary>A ticked or an empty checkbox, as the task's "- [x]" or "- [ ]" says.</summary>
+    public static string TaskGlyph(bool done) => done ? "" : "";
 
     /// <summary>Ctrl+F: the find bar on the Transcript tab. False on the Summary tab, where Ctrl+F searches all calls.</summary>
     public bool OpenFind()
@@ -131,7 +145,7 @@ public sealed partial class CallDetailView : UserControl
 
     private void OnFindItem(object sender, RoutedEventArgs e) => OpenFind();
 
-    private void ShowCall(CallDetailViewModel call)
+    private void ShowCall(CallDetailViewModel call, bool same)
     {
         ShowBanner(call);
         ShowVoices(call);
@@ -150,22 +164,32 @@ public sealed partial class CallDetailView : UserControl
         DiskSizeItem.Text = call.DiskSize;
         DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ParticipantsLine.Visibility = call.Participants.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ShowNotes(call);
-        // The chosen tab, or the other one when this call doesn't have it.
-        var transcript = (_wantsTranscript || !call.HasSummary) && (call.HasTranscript || !call.HasSummary);
-        var wanted = _wantsTranscript;
-        Tabs.SelectedItem = transcript ? TranscriptTab : SummaryTab;
-        ShowTab(transcript);
-        _wantsTranscript = wanted;
-        Scroller.ChangeView(null, 0, null, disableAnimation: true);
+        ShowNotes(call, same);
+        // The chosen tab, or the other one when this call doesn't have it; with neither, Summary ("Саммари нет"), as
+        // on the Mac.
+        var transcript = call.HasTranscript && (_wantsTranscript || !call.HasSummary);
+        if (!same || transcript != ShowsTranscript)
+        {
+            var wanted = _wantsTranscript;
+            Tabs.SelectedItem = transcript ? TranscriptTab : SummaryTab;
+            ShowTab(transcript);
+            _wantsTranscript = wanted;
+        }
+        if (!same)
+        {
+            Scroller.ChangeView(null, 0, null, disableAnimation: true);
+        }
 
-        // The player only for a call whose audio is there, as on the Mac; the page keeps room for it.
+        // The player only for a call whose audio is there, as on the Mac; the page keeps room for it. A player that
+        // went on from the previous reading of the call shows where it is.
         var player = call.Player;
         PlayerBar.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
         Page.Padding = new Thickness(24, 16, 24, player.IsAvailable ? PlayerBar.Height + PlayerBar.Margin.Bottom + 24 : 24);
-        PositionSlider.Visibility = Visibility.Visible;
-        UnavailableText.Visibility = Visibility.Collapsed;
-        ShowPlayState(false);
+        var failed = player.Error.Length > 0;
+        UnavailableText.Text = player.Error;
+        PositionSlider.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
+        UnavailableText.Visibility = failed ? Visibility.Visible : Visibility.Collapsed;
+        ShowPlayState(player.IsPlaying);
         ShowSpeed(player.RateIndex);
         UpdatePosition(player);
         _playing = null;
@@ -184,7 +208,7 @@ public sealed partial class CallDetailView : UserControl
                 FollowPlayingLine(player);
                 break;
             case nameof(CallPlayer.Error) when player.Error.Length > 0:
-                UnavailableText.Text = L("Запись недоступна") + ": " + player.Error;
+                UnavailableText.Text = player.Error;
                 UnavailableText.Visibility = Visibility.Visible;
                 PositionSlider.Visibility = Visibility.Collapsed;
                 break;
@@ -496,14 +520,18 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
-    private void ShowNotes(CallDetailViewModel call)
+    private void ShowNotes(CallDetailViewModel call, bool same)
     {
         call.Notes.CollectionChanged += (_, _) => ShowNoNotes();
         NotesSection.Visibility = call.CanEditNotes || call.Notes.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AddNoteButton.Visibility = call.CanEditNotes ? Visibility.Visible : Visibility.Collapsed;
-        NoteBox.Text = "";
-        NoteBox.Visibility = NoteError.Visibility = NoteDeleted.Visibility = Visibility.Collapsed;
-        _deletedNote = null;
+        // The same call read again keeps the note being typed and "Вернуть" for the one just deleted.
+        if (!same || !call.CanEditNotes)
+        {
+            NoteBox.Text = "";
+            NoteBox.Visibility = NoteError.Visibility = NoteDeleted.Visibility = Visibility.Collapsed;
+            _deletedNote = null;
+        }
         ShowNoNotes();
     }
 
@@ -745,6 +773,19 @@ public sealed partial class CallDetailView : UserControl
         }
     }
 
-    private static void OpenInShell(string path) =>
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+    /// <summary>
+    /// The file in its default app. Windows has none for .md or .log until the user picks one, and the shell then
+    /// refuses (an unhandled refusal would take the app down): Notepad opens it instead.
+    /// </summary>
+    private static void OpenInShell(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Process.Start(new ProcessStartInfo("notepad.exe") { ArgumentList = { path }, UseShellExecute = false })?.Dispose();
+        }
+    }
 }

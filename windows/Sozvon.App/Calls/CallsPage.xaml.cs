@@ -219,7 +219,12 @@ public sealed partial class CallsPage : UserControl
                 ShowDetail();
                 break;
             case nameof(CallsViewModel.SelectedProject):
+                // The tick follows a filter changed in code too (a rename, "Последняя расшифровка" clearing it).
                 ProjectButton.Content = ViewModel.SelectedProject.Title;
+                foreach (var item in ProjectMenu.Items.OfType<RadioMenuFlyoutItem>())
+                {
+                    item.IsChecked = Equals(item.Tag, ViewModel.SelectedProject);
+                }
                 break;
         }
     }
@@ -237,7 +242,7 @@ public sealed partial class CallsPage : UserControl
         ProjectMenu.Items.Clear();
         foreach (var project in ViewModel.Projects)
         {
-            var item = new RadioMenuFlyoutItem { Text = project.Title, IsChecked = project == ViewModel.SelectedProject };
+            var item = new RadioMenuFlyoutItem { Text = project.Title, Tag = project, IsChecked = project == ViewModel.SelectedProject };
             item.Click += (_, _) => ViewModel.SelectedProject = project;
             ProjectMenu.Items.Add(item);
         }

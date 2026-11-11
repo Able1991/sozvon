@@ -91,6 +91,11 @@ public sealed partial class CapsuleWindow : Window
         HideItem.Text = CapsuleText.Hide;
         ToolTipService.SetToolTip(StopButton, CapsuleText.Stop);
         ToolTipService.SetToolTip(HideButton, CapsuleText.Hide);
+        // What a screen reader says: the action in words, not the control's code name; icon buttons have no text of their own.
+        AutomationProperties.SetName(RecordButton, CapsuleText.Record);
+        AutomationProperties.SetName(StopButton, CapsuleText.Stop);
+        AutomationProperties.SetName(MarkButton, CapsuleText.Mark);
+        AutomationProperties.SetName(HideButton, CapsuleText.Hide);
         RecordButton.Click += (_, _) => Click(RecordClicked);
         StopButton.Click += (_, _) => Click(StopClicked);
         MarkButton.Click += (_, _) => Click(MarkClicked);

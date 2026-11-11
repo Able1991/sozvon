@@ -31,6 +31,7 @@ public static partial class CallFile
     /// <summary>
     /// Read-modify-write under the lock. <paramref name="change"/> returns whether to write; a throw writes nothing.
     /// Strict: an existing call.json that is not a JSON object is never replaced. A folder that is gone is never recreated.
+    /// A call.json that is there but cannot be read (another program holds it) is never taken for a missing one.
     /// </summary>
     public static bool Edit(string dir, Func<JsonObject, bool> change, bool strict = true)
     {
@@ -39,6 +40,7 @@ public static partial class CallFile
         return FileLock.With(file, () =>
         {
             var call = JsonFile.Read(file, out var exists);
+            if (!exists && File.Exists(file)) throw new IOException($"cannot read {file}");
             if (call is null && exists && strict) throw new CallFileCorruptException(file);
             call ??= [];
             if (!change(call)) return false;

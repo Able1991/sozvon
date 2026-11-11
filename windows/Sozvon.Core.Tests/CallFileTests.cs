@@ -510,6 +510,26 @@ public class NotesAndPendingTests : TempFolders
         Assert.Equal("{broken", File.ReadAllText(CallFile.PathIn(dir)));
     }
 
+    /// <summary>A call.json another program holds is not an empty one: nothing is deleted or written on top of it.</summary>
+    [Fact]
+    public void LockedCallJsonIsNotTakenForMissing()
+    {
+        var dir = MakeCall("2026-11-04 15-05", new JsonObject
+        {
+            ["topic"] = "запуск",
+            ["notes"] = new JsonArray(new JsonObject { ["id"] = "n1", ["at"] = "2026-11-04T12:00:00Z", ["text"] = "Перезвонить", ["source"] = "app" }),
+        });
+        using (new FileStream(CallFile.PathIn(dir), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Throws<IOException>(() => CallNotes.Delete("n1", dir));
+            Assert.Throws<IOException>(() => CallNotes.Add("ещё", dir));
+            Assert.False(CallFile.Update(dir, c => c["status"] = "done"));
+        }
+        Assert.Equal(["Перезвонить"], CallNotes.Read(dir).Select(n => n.Text));
+        Assert.Equal("запуск", Json(dir).Text("topic"));
+        Assert.Null(Json(dir)[CallNotes.DeletedKey]);
+    }
+
     [Fact]
     public void WarningsSummary()
     {
@@ -585,6 +605,24 @@ public class ProjectAndVoiceTests : TempFolders
         Assert.Single(list);
         Assert.Equal("better", list[0]![1]!.GetValue<string>());
         Assert.Equal(ReplacementFailure.NoProject, Assert.Throws<ReplacementException>(() => ReplacementStore.Add("a", "b", "missing", Data)).Failure);
+    }
+
+    /// <summary>A project or vocabulary file another program holds is busy, not missing, and is never written over.</summary>
+    [Fact]
+    public void LockedReplacementFileIsBusyNotMissing()
+    {
+        var project = Path.Combine(Data, "profiles", "acme.json");
+        WriteText(project, """{"schema": 1, "title": "Acme", "replacements": [["хпа", "HPA"]]}""");
+        var vocab = Path.Combine(Data, "vocab.json");
+        WriteText(vocab, """{"schema": 1, "replacements": [["кубер", "Kubernetes"]]}""");
+        foreach (var (file, slug) in new[] { (project, "acme"), (vocab, "") })
+        {
+            using (new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                Assert.Throws<IOException>(() => ReplacementStore.Add("a", "b", slug, Data));
+            }
+            Assert.Single(JsonFile.Read(file)!["replacements"]!.AsArray());
+        }
     }
 
     [Fact]
