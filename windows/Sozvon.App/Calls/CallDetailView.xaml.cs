@@ -165,8 +165,9 @@ public sealed partial class CallDetailView : UserControl
         DiskSizeItem.Visibility = DiskSizeSeparator.Visibility = call.DiskSize.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ParticipantsLine.Visibility = call.Participants.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ShowNotes(call, same);
-        // The chosen tab, or the other one when this call doesn't have it.
-        var transcript = (_wantsTranscript || !call.HasSummary) && (call.HasTranscript || !call.HasSummary);
+        // The chosen tab, or the other one when this call doesn't have it; with neither, Summary ("Саммари нет"), as
+        // on the Mac.
+        var transcript = call.HasTranscript && (_wantsTranscript || !call.HasSummary);
         if (!same || transcript != ShowsTranscript)
         {
             var wanted = _wantsTranscript;
