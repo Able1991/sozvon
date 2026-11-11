@@ -55,8 +55,8 @@
                                     <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                Text="{x:Bind Details}" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
-                                <Button Grid.Column="2" Padding="8" Background="Transparent" BorderThickness="0" Tag="{x:Bind}"
-                                        AutomationProperties.Name="{x:Bind DeleteLabel}" ToolTipService.ToolTip="{x:Bind DeleteLabel}" Loaded="OnDeleteButtonLoaded">
+                                <Button Grid.Column="2" Padding="8" Background="Transparent" BorderThickness="0" Tag="{x:Bind}" IsEnabled="{x:Bind CanDelete}"
+                                        AutomationProperties.Name="{x:Bind DeleteLabel}" ToolTipService.ToolTip="{x:Bind DeleteLabel}" Click="OnDeleteButtonClick">
                                     <FontIcon FontSize="14" Glyph="&#xE74D;" />
                                 </Button>
                             </Grid>
