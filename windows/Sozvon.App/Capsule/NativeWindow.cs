@@ -14,8 +14,7 @@ internal static partial class NativeWindow
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
-    private const uint WM_MOUSEACTIVATE = 0x0021, WM_NCLBUTTONDOWN = 0x00A1, WM_EXITSIZEMOVE = 0x0232, WM_HOTKEY = 0x0312;
-    private const nint HTCAPTION = 2;
+    private const uint WM_MOUSEACTIVATE = 0x0021, WM_EXITSIZEMOVE = 0x0232, WM_HOTKEY = 0x0312;
 
     // What each subclassed window wants to know when a system move of it has ended.
     private static readonly Dictionary<nint, Action> MoveEnded = [];
@@ -69,7 +68,7 @@ internal static partial class NativeWindow
     }
 
     /// <summary>A click on the window must not take the focus from the app the user is typing in.</summary>
-    /// <param name="moveEnded">Called when a move started by <see cref="DragWithSystem"/> has ended.</param>
+    /// <param name="moveEnded">Called when a system move of the window (Alt+Space, Move) has ended.</param>
     public static void RefuseActivationOnClick(nint hwnd, Action moveEnded)
     {
         MoveEnded[hwnd] = moveEnded;
@@ -82,23 +81,6 @@ internal static partial class NativeWindow
         HotKeyPressed[hwnd] = pressed;
         SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
     }
-
-    /// <summary>
-    /// The window manager moves the window with the mouse until the button goes up, as it does a title bar: a fast
-    /// flick or a busy UI thread cannot lose the drag. Called with the left button down; returns when the move has ended.
-    /// </summary>
-    public static void DragWithSystem(nint hwnd)
-    {
-        ReleaseCapture();
-        SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-    }
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool ReleaseCapture();
-
-    [LibraryImport("user32.dll", EntryPoint = "SendMessageW")]
-    private static partial nint SendMessage(nint hwnd, uint message, nint wParam, nint lParam);
 
     private static nint OnSubclassMessage(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data)
     {

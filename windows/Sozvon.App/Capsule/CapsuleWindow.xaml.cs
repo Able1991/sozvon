@@ -58,6 +58,7 @@ public sealed partial class CapsuleWindow : Window
     private bool _dragged;
     private bool _dragging;
     private NativeWindow.Point _dragCursor;
+    private Windows.Graphics.PointInt32 _dragWindow;
 
     public event EventHandler? RecordClicked;
     public event EventHandler? StopClicked;
@@ -590,27 +591,38 @@ public sealed partial class CapsuleWindow : Window
         _pressed = true;
         _dragged = false;
         _dragCursor = NativeWindow.CursorPosition();
+        _dragWindow = AppWindow.Position;
     }
 
     private void OnMoved(object sender, PointerRoutedEventArgs e)
     {
+        var cursor = NativeWindow.CursorPosition();
+        if (_dragging)
+        {
+            FollowCursor(cursor);
+            return;
+        }
         if (!_pressed)
         {
             return;
         }
-        var cursor = NativeWindow.CursorPosition();
         if (Math.Abs(cursor.X - _dragCursor.X) < DragThreshold && Math.Abs(cursor.Y - _dragCursor.Y) < DragThreshold)
         {
             return;
         }
-        // From here on it is a drag, and the system does it. The button underneath still sees the release as the end
-        // of its press, so its click is thrown away (see Click) until the next press.
+        // From here on it is a drag. The capsule moves itself with the cursor, not through the system's move loop: with
+        // «Показывать содержимое окна при перетаскивании» off in Windows that loop drags only an outline and jumps on
+        // release. The pointer is captured so a fast flick past the edge keeps the moves coming. The button underneath
+        // still sees the release as the end of its press, so its click is thrown away (see Click) until the next press.
         _pressed = false;
         _dragged = true;
         _dragging = true;
-        NativeWindow.DragWithSystem(_hwnd);
-        _dragging = false;
+        Root.CapturePointer(e.Pointer);
+        FollowCursor(cursor);
     }
+
+    private void FollowCursor(NativeWindow.Point cursor) =>
+        NativeWindow.MoveWithoutActivating(_hwnd, _dragWindow.X + cursor.X - _dragCursor.X, _dragWindow.Y + cursor.Y - _dragCursor.Y);
 
     /// <summary>A button's click counts only when the press that ended on it was not a drag of the capsule.</summary>
     private void Click(EventHandler? handler)
@@ -622,9 +634,19 @@ public sealed partial class CapsuleWindow : Window
         handler?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnReleased(object sender, PointerRoutedEventArgs e) => _pressed = false;
+    private void OnReleased(object sender, PointerRoutedEventArgs e)
+    {
+        _pressed = false;
+        if (!_dragging)
+        {
+            return;
+        }
+        _dragging = false;
+        Root.ReleasePointerCaptures();
+        OnSystemMoveEnded();
+    }
 
-    /// <summary>The system move has ended: the capsule stays on screen and the place is remembered.</summary>
+    /// <summary>A move has ended: the capsule stays on screen and the place is remembered.</summary>
     private void OnSystemMoveEnded()
     {
         KeepOnScreen();
