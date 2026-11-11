@@ -183,9 +183,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
         {
             return false;
         }
-        var query = SearchText.Trim();
-        return query.Length == 0
-            || new[] { call.Title, call.ProjectTitle }.Concat(call.People).Any(t => t.Contains(query, StringComparison.CurrentCultureIgnoreCase));
+        return Sozvon.Core.Calls.CallSearch.Matches(SearchText, new[] { call.Title, call.ProjectTitle }.Concat(call.People));
     }
 
     private static CallRow Row(CallRecord call)
