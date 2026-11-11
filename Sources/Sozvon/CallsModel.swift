@@ -11,6 +11,8 @@ import UniformTypeIdentifiers
 @MainActor
 final class CallsModel: ObservableObject {
     @Published var calls: [Call] = []
+    /// Grows on every ⌘F on the Transcript tab: the card opens its find bar.
+    @Published var transcriptFindRequest = 0
     /// Set from outside too (Show in Calls, undo, import): a call hidden by the project filter brings back all projects.
     @Published var selection: Call.ID? { didSet { if selection != oldValue { revealSelection() } } }
     @Published var search = "" { didSet { if search != oldValue { scheduleTextSearch() } } }
@@ -150,6 +152,14 @@ final class CallsModel: ObservableObject {
     }
 
     func stopWatching() { watcher?.stop() }
+
+    /// The calls folder changed (Settings): watch the new one, if the window watches at all, and list its calls.
+    func followCallsFolder() {
+        let wasWatching = watcher != nil
+        watcher?.stop()
+        watcher = nil
+        if wasWatching { startWatching() } else { reload() }
+    }
 
     /// In the filtered project, or the live call (shown under "Now" whatever the filter).
     private func isShown(_ c: Call) -> Bool {

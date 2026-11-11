@@ -359,12 +359,12 @@ public enum DiagnosticArchive {
         public var isMCPLog: Bool { name == "mcp.log" }
     }
 
-    /// The only files that may go in: four named logs and the process.log of the newest calls.
+    /// The only files that may go in: five named logs and the process.log of the newest calls.
     /// Nothing else from these folders is ever looked at, so a transcript, call.json or `.env` cannot slip in.
     public static func selection(logs: URL, data: URL, calls: URL, count: Int = processLogCount) -> [Item] {
         let fm = FileManager.default
         var items: [Item] = []
-        for (folder, name) in [(logs, "recorder.log"), (logs, "cloudflare.log"), (data, "setup.log"), (data, "mcp.log")] {
+        for (folder, name) in [(logs, "recorder.log"), (logs, "cloudflare.log"), (data, "setup.log"), (data, "mcp.log"), (data, "assistant.log")] {
             let url = folder.appendingPathComponent(name)
             if fm.fileExists(atPath: url.path) { items.append(Item(name: name, url: url, isProcessLog: false)) }
         }
@@ -424,6 +424,31 @@ public enum DiagnosticArchive {
         return s.hasPrefix("[earlier lines cut]") ? s : "[earlier lines cut]\n" + s
     }
 
+    /// checks.txt and the selected logs, scrubbed, written into `folder`. -> their names.
+    static func writeFiles(checks: [DiagnosticCheck], logs: URL, data: URL, calls: URL, scrub: DiagnosticScrub,
+                           into folder: URL) throws -> [String] {
+        var names = ["checks.txt"]
+        try scrub.text(DiagnosticChecks.text(checks)).write(to: folder.appendingPathComponent("checks.txt"), atomically: true, encoding: .utf8)
+        for item in selection(logs: logs, data: data, calls: calls) {
+            let raw = tail(item.url, limit: maxLogBytes * 5)
+            let clean = item.isProcessLog ? scrub.processLog(raw) : item.isMCPLog ? scrub.mcpLog(raw) : scrub.text(raw)
+            try limited(clean).write(to: folder.appendingPathComponent(item.name), atomically: true, encoding: .utf8)
+            names.append(item.name)
+        }
+        return names
+    }
+
+    /// "Show Logs": the files the zip would hold, scrubbed the same way, in `folder` (emptied first) to look at in
+    /// Finder and send. Run it off the main thread.
+    public static func writeFolder(checks: [DiagnosticCheck], logs: URL, data: URL, calls: URL, home: String,
+                                   to folder: URL) throws {
+        let fm = FileManager.default
+        try? fm.removeItem(at: folder)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        _ = try writeFiles(checks: checks, logs: logs, data: data, calls: calls,
+                           scrub: DiagnosticScrub(home: home, callFolders: callFolderNames(in: calls)), into: folder)
+    }
+
     public enum Failure: Error { case zipFailed(Int32) }
 
     /// Write the zip: `checks.txt` and the selected logs, all scrubbed. Run it off the main thread.
@@ -435,14 +460,7 @@ public enum DiagnosticArchive {
         try fm.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: staging) }
 
-        var names = ["checks.txt"]
-        try scrub.text(DiagnosticChecks.text(checks)).write(to: staging.appendingPathComponent("checks.txt"), atomically: true, encoding: .utf8)
-        for item in selection(logs: logs, data: data, calls: calls) {
-            let raw = tail(item.url, limit: maxLogBytes * 5)
-            let clean = item.isProcessLog ? scrub.processLog(raw) : item.isMCPLog ? scrub.mcpLog(raw) : scrub.text(raw)
-            try limited(clean).write(to: staging.appendingPathComponent(item.name), atomically: true, encoding: .utf8)
-            names.append(item.name)
-        }
+        let names = try writeFiles(checks: checks, logs: logs, data: data, calls: calls, scrub: scrub, into: staging)
 
         let zip = staging.appendingPathComponent("archive.zip")
         let p = Process()

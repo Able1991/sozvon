@@ -444,6 +444,88 @@ def test_a_real_tiny_model_runs_through_load_and_forward(tmp_path):
     assert len(y) == SR and np.isfinite(y).all()
 
 
+REAL_WIDTHS = {"mic_channels": [2, 32, 40, 40, 40, 40], "far_channels": [2, 32, 40], "kernel_size": [4, 4],
+               "bottleneck_hidden": 162, "n_freqs": 256}      # the published v1.2 checkpoint
+
+
+@pytest.mark.parametrize("frames", [3, 40])        # shorter and longer than the delay window
+def test_lean_alignment_matches_the_vendored_block(frames):
+    """The alignment the model runs with is the vendored one, computed without a copy of the reference per delay."""
+    import torch
+    from sozvon_engine.localvqe.align import AlignBlock
+    torch.manual_seed(0)
+    block = AlignBlock(8, 6, dmax=16, temperature=0.5).eval()
+    mic, ref = torch.randn(2, 8, frames, 9), torch.randn(2, 8, frames, 9)
+    with torch.no_grad():
+        want, want_delay = AlignBlock.forward(block, mic, ref, return_delay=True)
+        got, got_delay = aec_neural.lean_align(block, mic, ref, return_delay=True)
+        assert got.shape == want.shape and got_delay.shape == want_delay.shape
+        assert torch.allclose(got, want, atol=1e-5)
+        assert torch.allclose(got_delay, want_delay, atol=1e-6)
+        assert torch.allclose(aec_neural.lean_align(block, mic, ref), want, atol=1e-5)
+
+
+def test_the_loaded_model_aligns_without_the_per_delay_copies(tmp_path, monkeypatch):
+    import torch
+    from sozvon_engine.localvqe.align import AlignBlock
+    from sozvon_engine.localvqe.model import LocalVQE
+    cfg = {"mic_channels": [2, 4, 4, 4, 4, 4], "far_channels": [2, 4, 4], "kernel_size": [4, 4], "bottleneck_hidden": 8,
+           "n_freqs": 256}
+    net = LocalVQE(arch_version=3, dmax=64, align_hidden=32, power_law_c=0.3, **cfg)
+    path = tmp_path / "tiny.pt"
+    torch.save({"model_config": cfg, "model_state_dict": net.state_dict()}, path)
+    rng = np.random.default_rng(2)
+    mic, ref = 0.05 * rng.standard_normal(SR), 0.05 * rng.standard_normal(SR)
+    net.eval().align.fold_temperature()
+    with torch.no_grad():
+        want = net(torch.from_numpy(mic.astype(np.float32))[None], torch.from_numpy(ref.astype(np.float32))[None])
+        if want.ndim == 4:
+            want = net.decoder(want, length=SR)
+    model = aec_neural._Model(path)
+
+    def vendored(*a, **kw):
+        raise AssertionError("the vendored alignment ran: it copies the reference once per delay")
+    monkeypatch.setattr(AlignBlock, "forward", vendored)
+    got = model.forward(mic, ref)
+    assert np.allclose(got, want[0].numpy(), atol=1e-5)
+
+
+PEAK_SCRIPT = """
+import resource, sys
+import numpy as np, torch
+from sozvon_engine import aec_neural
+from sozvon_engine.localvqe.model import LocalVQE
+cfg = %r
+torch.manual_seed(0)
+net = LocalVQE(arch_version=3, dmax=64, align_hidden=32, power_law_c=0.3, **cfg)
+torch.save({"model_config": cfg, "model_state_dict": net.state_dict()}, sys.argv[1])
+del net
+model = aec_neural._Model(sys.argv[1])
+model.device = "cpu"                       # process memory is only a fair measure on the CPU
+model.net.to("cpu")
+n = aec_neural.CHUNK + aec_neural.WARMUP   # the longest piece the engine ever sends
+rng = np.random.default_rng(0)
+y = model.forward(0.05 * rng.standard_normal(n), 0.05 * rng.standard_normal(n))
+assert len(y) == n
+peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+print(peak if sys.platform == "darwin" else peak * 1024)
+"""
+
+
+def test_one_piece_of_a_call_fits_in_two_and_a_half_gigabytes(tmp_path):
+    """A 33 s piece at the real model widths. With a copy of the reference per delay it took 3.4 GB on the CPU and
+    9.3 GB on the GPU, for every call longer than half a minute."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    engine = Path(aec_neural.__file__).resolve().parent.parent
+    res = subprocess.run([sys.executable, "-c", PEAK_SCRIPT % (REAL_WIDTHS,), str(tmp_path / "real.pt")],
+                         cwd=engine, capture_output=True, text=True, timeout=600)
+    assert res.returncode == 0, res.stderr[-2000:]
+    peak = int(res.stdout.strip().splitlines()[-1])
+    assert peak < 2.5 * 2**30, f"peak {peak / 2**30:.2f} GB"
+
+
 class Pickled:
     """A checkpoint with an object that a weights-only load must refuse."""
 

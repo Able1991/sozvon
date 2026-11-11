@@ -740,7 +740,7 @@ struct EngineSection: View {
         }
 
         Section(L("Файлы")) {
-            pathRow(L("Папка записей"), Paths.calls)
+            CallsFolderRow()
             pathRow(L("Папка данных"), Paths.data)
             LabeledContent {
                 Button(L("Переустановить…"), action: reinstall)
@@ -789,6 +789,7 @@ struct EngineSection: View {
 
 private struct AssistantsPane: View {
     @ObservedObject private var s = Settings.shared
+    @ObservedObject private var checks = AssistantChecks.shared
 
     var body: some View {
         Form {
@@ -798,18 +799,101 @@ private struct AssistantsPane: View {
                         Text(a.title + (a.isAvailable ? "" : L(" (не найден)"))).tag(a)
                     }
                 }
+                if s.assistant != .none {
+                    SummaryLanguagePicker(selection: $s.summaryLanguage)
+                    LabeledContent {
+                        HStack(spacing: 10) {
+                            AssistantCheckStatus(assistant: s.assistant)
+                            Button(L("Проверить")) { checks.run(s.assistant) }
+                                .disabled(checks.results[s.assistant] == .running)
+                        }
+                    } label: {
+                        Text(L("Проверка"))
+                        Text(L("Тот же запрос, что для саммари, в одно слово"))
+                    }
+                }
             } header: {
                 Text(L("Саммари"))
             } footer: {
-                SettingsFooter(s.assistant.subtitle)
+                VStack(alignment: .leading, spacing: 6) {
+                    SettingsFooter(s.assistant.subtitle)
+                    if let why = checks.problem(s.assistant) { SettingsWarning(why) }
+                }
             }
             IntegrationsSection()
             DemoCallsSection()
         }
         .formStyle(.grouped)
-        .onChange(of: s.assistant) { s.save() }
+        .onAppear { checks.runOnce(s.assistant) }
+        .onChange(of: s.assistant) {
+            s.save()
+            checks.run(s.assistant)
+        }
+        .onChange(of: s.summaryLanguage) { s.save() }
     }
 }
+
+/// The summary's language: the conversation's by default, or a fixed one (an English call summarized in Russian).
+struct SummaryLanguagePicker: View {
+    @Binding var selection: SpeechLanguage?
+
+    var body: some View {
+        Picker(L("Язык саммари"), selection: $selection) {
+            Text(L("Как в разговоре")).tag(SpeechLanguage?.none)
+            Divider()
+            ForEach(SpeechLanguage.real) { Text($0.title).tag(SpeechLanguage?.some($0)) }
+        }
+    }
+}
+
+/// Whether each assistant CLI answers, through the very command a summary uses (bin/check_assistant.py). Run when an
+/// assistant is chosen or connected, and once per launch when the Assistants tab opens: "connected" alone says
+/// nothing about a CLI that is logged out, too old or cannot start.
+@MainActor final class AssistantChecks: ObservableObject {
+    static let shared = AssistantChecks()
+    @Published private(set) var results: [Assistant: AssistantCheck] = [:]
+
+    func runOnce(_ a: Assistant) {
+        if results[a] == nil { run(a) }
+    }
+
+    func run(_ a: Assistant) {
+        guard a != .none, results[a] != .running else { return }
+        guard a.isAvailable else { results[a] = .failed(L("не найден %@", a.cli ?? a.title)); return }
+        guard FileManager.default.isExecutableFile(atPath: Paths.python.path) else { return }
+        results[a] = .running
+        let lines = LineBox()
+        Engine.runScript("check_assistant.py", [a.rawValue], onLine: { lines.items.append($0) }) { [weak self] code in
+            self?.results[a] = AssistantCheck.parse(lines.items, code: code)
+        }
+    }
+
+    /// The line to show under a failed check, nil when it answered or was not checked.
+    func problem(_ a: Assistant) -> String? {
+        guard case .failed(let why) = results[a] else { return nil }
+        return why.isEmpty ? L("%@ не ответил. Подробности в assistant.log", a.title) : L("%@ не ответил: %@", a.title, why)
+    }
+}
+
+/// "Answers" / "Does not answer" / a spinner for the last check of one assistant.
+/// `onlyProblems`: next to "Connected" a second green mark says nothing new.
+struct AssistantCheckStatus: View {
+    let assistant: Assistant
+    var onlyProblems = false
+    @ObservedObject private var checks = AssistantChecks.shared
+
+    var body: some View {
+        switch checks.results[assistant] {
+        case .running: ProgressView().controlSize(.small)
+        case .ok: if !onlyProblems { SZSettingsStatus(text: L("Отвечает")) }
+        case .failed: SZSettingsStatus(text: L("Не отвечает"), ok: false).help(checks.problem(assistant) ?? "")
+        case nil: EmptyView()
+        }
+    }
+}
+
+/// Output lines of a check, collected on the main actor.
+@MainActor private final class LineBox { var items: [String] = [] }
 
 /// A few fictional calls (text only) to try the assistant on before the first recording.
 /// "Remove" moves only the calls marked `demo` to the Trash.
@@ -860,19 +944,34 @@ struct IntegrationsSection: View {
     @State private var message = ""
     /// The Terminal command just copied (its button briefly says so).
     @State private var copied: Assistant?
+    @ObservedObject private var checks = AssistantChecks.shared
 
     var body: some View {
         Section {
-            ForEach(Self.assistants) { connection($0) }
+            // Rows written out, not ForEach: in the grouped form the ForEach rows lost their card (Cursor stood
+            // apart from Claude Code and Codex, and the next footer went into a card).
+            connection(.claude)
+            connection(.codex)
+            connection(.cursor)
         } header: {
             Text(L("Подключения"))
         } footer: {
-            if !message.isEmpty { SettingsWarning(message) }
+            VStack(alignment: .leading, spacing: 6) {
+                if !message.isEmpty { SettingsWarning(message) }
+                ForEach(Self.assistants.filter { MCP.isInstalled($0) && checks.problem($0) != nil }) { a in
+                    SettingsWarning(checks.problem(a) ?? "")
+                }
+            }
         }
-        .onAppear { perform { "" } }
+        .onAppear {
+            perform { "" }
+            for a in Self.assistants where MCP.isInstalled(a) { checks.runOnce(a) }
+        }
 
         Section {
-            ForEach(Self.assistants) { command($0) }
+            command(.claude)
+            command(.codex)
+            command(.cursor)
         } header: {
             Text(L("Подключить вручную"))
         } footer: {
@@ -883,6 +982,7 @@ struct IntegrationsSection: View {
     private func connection(_ a: Assistant) -> some View {
         LabeledContent {
             HStack(spacing: 10) {
+                if MCP.isInstalled(a) { AssistantCheckStatus(assistant: a, onlyProblems: true) }
                 status(a)
                 action(a)
             }
@@ -947,6 +1047,7 @@ struct IntegrationsSection: View {
                         let (ok, out) = MCP.connect(a)
                         return ok ? "" : out
                     }
+                    checks.run(a)
                 }
                 .disabled(busy)
             }

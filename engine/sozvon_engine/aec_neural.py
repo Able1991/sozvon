@@ -12,6 +12,7 @@ Runs on Apple Silicon (MPS, CPU fallback), streams the call in 30 s pieces, each
 before it. Weights are one download (models.json, key "aec"). Anything going wrong leaves the classic output:
 this stage can only make it better.
 """
+import functools
 import hashlib
 import os
 from pathlib import Path
@@ -61,6 +62,30 @@ def weights_path() -> Path | None:
     return weights_state()[0]
 
 
+def lean_align(block, x_mic, x_ref, return_delay=False):
+    """localvqe.align.AlignBlock.forward with the same result and a fraction of the memory.
+
+    The vendored forward lays out a copy of the reference features for each of the dmax delays, twice
+    ((B, H, T, dmax, F) for the similarity and (B, C, T, dmax, F) for the weighted sum): for one 33 s piece that
+    was 9.3 GB on the GPU. A delay of k frames is a slice k frames back, so both sums go over the delays one at a
+    time. The vendored file stays as upstream wrote it.
+    """
+    import math
+
+    import torch
+    T, F, d = x_ref.shape[2], x_ref.shape[3], block.dmax
+    pad = torch.nn.functional.pad
+    q = block.pconv_mic(x_mic)
+    k = pad(block.pconv_ref(x_ref), [0, 0, d - 1, 0])                 # d - 1 frames of silence before the start
+    v = torch.stack([(q * k[:, :, i:i + T]).sum(-1) for i in range(d)], dim=-1) / math.sqrt(F)
+    a = torch.softmax(block.conv(v) / block.temperature, dim=-1)      # (B, 1, T, dmax)
+    r = pad(x_ref, [0, 0, d - 1, 0])
+    aligned = torch.zeros_like(x_ref)
+    for i in range(d):
+        aligned += r[:, :, i:i + T] * a[:, :, :, i, None]
+    return (aligned, a.squeeze(1)) if return_delay else aligned
+
+
 class _Model:
     """Load the checkpoint. forward(mic, ref) -> enhanced waveform (numpy, same length as the input)."""
 
@@ -78,6 +103,7 @@ class _Model:
                        n_freqs=cfg["n_freqs"]).eval()
         net.load_state_dict(ck["model_state_dict"])
         net.align.fold_temperature()
+        net.align.forward = functools.partial(lean_align, net.align)
         self.device = "mps" if torch.backends.mps.is_available() else "cpu"
         self.net = net.to(self.device)
         self.torch = torch

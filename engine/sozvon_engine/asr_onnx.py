@@ -37,6 +37,14 @@ def _load(engine_dir, model: str):
     return _cache[model]
 
 
+def release() -> None:
+    """Drop the loaded model and its speech detector (up to 2 GB for Parakeet): diarization does not need them,
+    and the next call loads them again in a second."""
+    import gc
+    _cache.clear()
+    gc.collect()
+
+
 def transcribe(engine_dir, model: str, audio: np.ndarray) -> list:
     """16 kHz mono float32 -> [(start, end, text)]."""
     segs = _load(engine_dir, model).recognize(audio, sample_rate=SR)

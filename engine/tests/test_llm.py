@@ -198,3 +198,123 @@ def test_claude_never_gets_mcp_servers(bins, tmp_path):
     assert "--strict-mcp-config" in log.read_text()
     llm.run("x", tmp_path, agentic=True)
     assert "--strict-mcp-config" in log.read_text()
+
+
+# Where Cursor's sandbox does not run, cursor-agent refuses before reading anything: "sandbox is enabled but not
+# available on this system". Ask mode is read-only by itself: the same request goes again without the sandbox.
+NO_SANDBOX_FAKE = """printf '%s\\n' "$@" >> {log}; echo --- >> {log}
+for a in "$@"; do if [ "$a" = "--sandbox" ]; then echo "Error: sandbox is enabled but not available on this system. Sandbox is unavailable" >&2; exit 1; fi; done
+echo "готово"
+"""
+
+
+def test_cursor_without_a_sandbox_asks_again_in_read_only_mode(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    log = tmp_path / "log"
+    fake_cli(bins, "cursor-agent", NO_SANDBOX_FAKE.format(log=log))
+    assert llm.run("саммари", tmp_path) == ("готово", "cursor", "")
+    first, second = [c.split("\n") for c in log.read_text().strip().split("\n---") if c.strip()][:2]
+    assert "--sandbox" in first and "--sandbox" not in [a for a in second if a]
+    second = [a for a in second if a]
+    assert second[second.index("--mode") + 1] == "ask"
+    for bad in ("--force", "--yolo", "--approve-mcps"):
+        assert bad not in second
+
+
+def test_other_cursor_errors_are_not_retried(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    log = tmp_path / "log"
+    fake_cli(bins, "cursor-agent", f"echo call >> {log}; echo 'Error: Authentication required' >&2; exit 1")
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and "Authentication" in err and log.read_text().count("call") == 1
+
+
+# Every assistant call leaves one line in <data>/assistant.log (the diagnostics zip takes it): which CLI, how it
+# was called, how it ended. Never the request itself: a transcript, or a project prompt passed as an argument.
+
+def journal(data):
+    return (data / "assistant.log").read_text(encoding="utf-8")
+
+
+def test_a_failed_call_is_in_the_journal_without_the_request(bins, tmp_path, monkeypatch, data):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    fake_cli(bins, "cursor-agent", "echo 'Error: Authentication required' >&2; exit 1")
+    llm.run("Секретная РАСШИФРОВКА звонка", tmp_path)
+    llm.run("найди проекты: Секретный клиент", tmp_path, agentic=True)
+    text = journal(data)
+    assert text.count("cursor-agent") == 2 and "--mode ask" in text and "exit 1" in text
+    assert "Authentication required" in text
+    assert "Секрет" not in text and "<request>" in text
+
+
+def test_a_good_call_is_in_the_journal_too(bins, tmp_path, monkeypatch, data):
+    fake_cli(bins, "claude", "cat >/dev/null; echo ответ")
+    assert llm.run("Секретный текст", tmp_path)[0] == "ответ"
+    text = journal(data)
+    assert "claude -p" in text and "exit 0" in text and "Секрет" not in text
+
+
+def test_the_sandbox_retry_shows_as_two_calls(bins, tmp_path, monkeypatch, data):
+    monkeypatch.setenv("SOZVON_LLM", "cursor")
+    fake_cli(bins, "cursor-agent", NO_SANDBOX_FAKE.format(log=tmp_path / "log"))
+    llm.run("x", tmp_path)
+    lines = [ln for ln in journal(data).splitlines() if "cursor-agent" in ln]
+    assert len(lines) == 2 and "--sandbox" in lines[0] and "--sandbox" not in lines[1]
+
+
+# The app checks the chosen assistant right when it is picked: the same command a summary uses, a tiny request.
+
+def test_check_runs_the_chosen_assistant_not_the_first_installed(bins, tmp_path):
+    fake_cli(bins, "claude", "cat >/dev/null; echo OK")
+    fake_cli(bins, "cursor-agent", "echo 'Error: Authentication required' >&2; exit 1")
+    ok, message = llm.check("cursor")
+    assert not ok and "Authentication required" in message
+    assert llm.check("claude") == (True, "OK")
+
+
+def test_check_names_a_missing_cli(bins):
+    ok, message = llm.check("codex")
+    assert not ok and "codex" in message
+
+
+def test_check_does_not_accept_an_empty_answer(bins):
+    fake_cli(bins, "claude", "cat >/dev/null; exit 0")
+    ok, message = llm.check("claude")
+    assert not ok and message
+
+
+# An old Claude Code does not know --no-session-persistence ("error: unknown option"): the flag only keeps the
+# session out of its history, so the request goes again without it.
+OLD_CLAUDE = """cat >/dev/null
+printf '%s\\n' "$@" >> {log}; echo --- >> {log}
+for a in "$@"; do if [ "$a" = "--no-session-persistence" ]; then echo "error: unknown option '--no-session-persistence'" >&2; exit 1; fi; done
+echo ответ
+"""
+
+
+def test_an_old_claude_without_session_persistence_flag_is_asked_again(bins, tmp_path):
+    log = tmp_path / "log"
+    fake_cli(bins, "claude", OLD_CLAUDE.format(log=log))
+    assert llm.run("x", tmp_path) == ("ответ", "claude", "")
+    calls = [c for c in log.read_text().split("---") if c.strip()]
+    assert len(calls) == 2 and "--no-session-persistence" not in calls[1] and "--tools" in calls[1]
+
+
+def test_a_check_of_an_outdated_cli_says_to_update_it(bins):
+    fake_cli(bins, "claude", "cat >/dev/null; echo \"error: unknown option '--setting-sources'\" >&2; exit 1")
+    ok, message = llm.check("claude")
+    assert not ok and "--setting-sources" in message and "claude update" in message
+
+
+# A CLI that is installed but logged out (an expired login) answers with an error: the check says how to log in.
+
+@pytest.mark.parametrize("name,binary,error,hint", [
+    ("claude", "claude", "OAuth token has expired. Please obtain a new token or refresh your existing token.", "/login"),
+    ("claude", "claude", "Invalid API key · Please run /login", "/login"),
+    ("cursor", "cursor-agent", "Error: Authentication required. Please run 'agent login' first", "cursor-agent login"),
+    ("codex", "codex", "Not logged in. Run codex login", "codex login"),
+])
+def test_a_check_of_a_logged_out_cli_says_how_to_log_in(bins, monkeypatch, name, binary, error, hint):
+    fake_cli(bins, binary, f"cat >/dev/null; echo '{error}' >&2; exit 1")
+    ok, message = llm.check(name)
+    assert not ok and error[:20] in message and hint in message

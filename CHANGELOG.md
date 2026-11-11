@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.5
+
+- **Choose where calls are kept.** The setup assistant asks for the calls folder (`~/Documents/Calls` by default), and Settings, Recognition, Files can change it later. Your calls can move along: renamed on the same disk; copied to another disk, checked against the original, and only then the original goes to the Trash.
+- **No more "Thank you." on a silent microphone.** When you listen and say nothing, Whisper used to write stock phrases on the room noise, "Thank you." every half minute in English. Lines with no voice under them are now dropped (the speech detector already used by GigaAM and Parakeet is downloaded for every model).
+- **Settings say whether your assistant really answers.** Choosing or connecting Claude Code, Codex or Cursor sends it a one-word request through the same command a summary uses, and shows "Answers" or its own error with what to do: log in again, update an old CLI, or install it. Every assistant call is written to assistant.log (the command without your text), which Diagnostics puts in its zip.
+- **Summary in the language you choose.** Settings, Assistants and the setup assistant have "Summary language": the conversation's own by default, or a fixed one, so an English call can be summarized in Russian.
+- **Logs you can look at and send.** Diagnostics has "Show Logs": the same cleaned logs that go into the archive open in Finder. Every assistant call is noted in `assistant.log`, without the text of the call.
+- **Cursor works where its sandbox does not.** On Macs where cursor-agent cannot start its sandbox, the request goes again without it, still in read-only ask mode. An old Claude Code without `--no-session-persistence` is asked again without that flag.
+- **A long call no longer takes all the memory.** Processing a 75-minute call peaked at 17 GB and now stays near 4 GB, with the same result and a few percent slower: echo removal, recognition and speaker separation each work in smaller pieces and give their memory back as soon as their stage is over. The MCP server no longer keeps the models loaded after a transcription.
+- **The capsule keeps up with a fast drag.** A quick flick during a recording no longer makes it jerk and jump back: macOS itself now moves the window with the pointer.
+- **Works on corporate networks.** The install and model downloads trust the certificates in the macOS Keychain, so a company HTTPS certificate no longer stops them with "UnknownIssuer". A package mirror (also the one in `pip.conf`), your own Python, a Hugging Face mirror, a proxy or a certificate file can be set in the engine `.env`. See "Corporate network" in the docs.
+- **Select and copy in the summary and the transcript.** Drag across lines, sections or paragraphs, ⌘A selects it all, ⌘C copies plain text: bullets as "• ", tasks as "- [ ] ", transcript lines as "[1:12] Anna: text". Each summary section has its own Copy button. In the transcript a plain click still plays from that paragraph; a drag, a double or a triple click selects.
+- **Saved voices check every long line.** When the people on a call have saved voices, each long line of the other side is compared with them and gets the name it clearly sounds like, even where speaker separation put two people under one label.
+- **One voice, one label.** A remote voice cut into two parts by speaker separation is put back together, for example when someone in the room is listed among the participants.
+- **Find inside a transcript.** ⌘F on the Transcript tab finds words in this call: every match is highlighted, Return and Shift-Return move between them. On the Summary tab, or with ⌥⌘F, it searches across all calls as before.
+- Transcribing the same call again gives the same text: Whisper's random retries on unsure pieces now use a fixed seed.
+- Parakeet and GigaAM leave memory as soon as recognition is over, before speaker separation.
+- Settings > Assistants: Cursor no longer stands apart from Claude Code and Codex, every connection sits in one card.
+
 ## 0.1.4
 
 - **Ask your assistant about people.** Two new MCP tools: `get_commitments` ("what did Oleg promise me", from the summaries across calls) and `get_person` (how many calls, the last one, projects, who else was there, open commitments).
