@@ -205,9 +205,11 @@ public enum ServerPasswords {
                               stored: @Sendable () async -> String?, accepts: @Sendable (URL, String) async -> Bool,
                               generate: @Sendable () -> String = { ServerPassword.generate() }) async -> (password: String, choice: Choice) {
         let saved = savedPassword.trimmingCharacters(in: .whitespaces)
-        if OwnServer.normalize(savedURL) == server && !saved.isEmpty { return (saved, .saved) }
+        // A password the server would refuse as too short (typed by hand for an older server) is never set again.
+        let usable = { (p: String) in p.count >= ServerPassword.minimumLength }
+        if OwnServer.normalize(savedURL) == server && usable(saved) { return (saved, .saved) }
         guard replacesServer else { return (generate(), .new(signInAgain: false)) }
-        if let copy = await stored()?.trimmingCharacters(in: .whitespacesAndNewlines), !copy.isEmpty,
+        if let copy = await stored()?.trimmingCharacters(in: .whitespacesAndNewlines), usable(copy),
            await accepts(server, copy) {
             return (copy, .stored)
         }

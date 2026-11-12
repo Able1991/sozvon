@@ -863,13 +863,19 @@ def test_llm_skips_names_given_by_voice(monkeypatch, fake_track, tmp_path):
 from test_remote import fake, root  # noqa: E402,F401  the fake own server
 
 
+@pytest.fixture
+def voices_on(monkeypatch):
+    """Send voice prints turned on: it is off unless the user asked for it."""
+    monkeypatch.setenv("SOZVON_SYNC_VOICES", "1")
+
+
 def server_rec(name, vec, at="2026-11-05T10:00:00Z", **kw):
     r = rec(name, vec, **kw)
     r["updated_at"] = at
     return r
 
 
-def test_sync_voices_both_ways(fake, root, data):
+def test_sync_voices_both_ways(fake, root, data, voices_on):
     fake.version = "0.4.0"
     mine = voices.store("Анна", "acme", False, one_hot(0), 10)
     theirs = server_rec("Олег", one_hot(1))
@@ -887,7 +893,7 @@ def test_sync_voices_both_ways(fake, root, data):
     assert len([r for r in fake.requests if r[0] == "PUT"]) == puts and not any("голос" in x for x in lines)
 
 
-def test_sync_never_overwrites_a_newer_local_voice(fake, root):
+def test_sync_never_overwrites_a_newer_local_voice(fake, root, voices_on):
     fake.version = "0.4.0"
     mine = voices.store("Анна", "", False, one_hot(0), 10)
     fake.voices[mine["id"]] = {**mine, "embedding": one_hot(7), "updated_at": "2020-01-01T00:00:00Z"}
@@ -901,7 +907,7 @@ def test_sync_never_overwrites_a_newer_local_voice(fake, root):
     assert voices.load_all()[0]["embedding"] == one_hot(8)
 
 
-def test_sync_deletions_both_ways(fake, root):
+def test_sync_deletions_both_ways(fake, root, voices_on):
     fake.version = "0.4.0"
     a = voices.store("Анна", "", False, one_hot(0), 10)
     remote.sync(root=root)
@@ -917,7 +923,7 @@ def test_sync_deletions_both_ways(fake, root):
     assert "Образцы голосов: отправлено 0, скачано 0, удалено 2" in lines
 
 
-def test_sync_folds_a_duplicate_from_another_mac(fake, root):
+def test_sync_folds_a_duplicate_from_another_mac(fake, root, voices_on):
     fake.version = "0.4.0"
     mine = voices.store("Анна", "acme", False, one_hot(0), 10)
     dup = server_rec("Анна", one_hot(1), profile="acme")
@@ -928,7 +934,7 @@ def test_sync_folds_a_duplicate_from_another_mac(fake, root):
     assert fake.voices[dup["id"]]["deleted"] is True and fake.voices[mine["id"]]["seconds"] == 40
 
 
-def test_sync_merges_a_concurrent_enrollment_of_the_same_voice(fake, root, monkeypatch):
+def test_sync_merges_a_concurrent_enrollment_of_the_same_voice(fake, root, monkeypatch, voices_on):
     """Two Macs enrolled the same record at once: the later PUT gets 409 and the stored print, merges, sends once."""
     fake.version = "0.4.0"
     mine = voices.store("Анна", "", False, one_hot(0), 10)
@@ -956,9 +962,12 @@ def test_sync_merges_a_concurrent_enrollment_of_the_same_voice(fake, root, monke
     assert len(puts) == 2, "one retry, no loop"
 
 
-def test_sync_voices_switch_off(fake, root, monkeypatch):
+@pytest.mark.parametrize("value", [None, "0"])
+def test_sync_voices_switch_off(fake, root, monkeypatch, value):
+    """Off unless asked for (the key absent) and when turned off."""
     fake.version = "0.4.0"
-    monkeypatch.setenv("SOZVON_SYNC_VOICES", "0")
+    if value is not None:
+        monkeypatch.setenv("SOZVON_SYNC_VOICES", value)
     a = voices.store("Анна", "", False, one_hot(0), 10)
     b = voices.store("Олег", "", False, one_hot(1), 10)
     fake.voices[b["id"]] = {k: v for k, v in b.items() if k != "schema"}
@@ -978,7 +987,7 @@ def test_sync_voices_needs_server_040(fake, root):
     assert fake.voices == {} and not any(p.startswith("/api/voices") for _, p, *_ in fake.requests)
 
 
-def test_sync_voice_failure_keeps_result(fake, root, monkeypatch):
+def test_sync_voice_failure_keeps_result(fake, root, monkeypatch, voices_on):
     fake.version = "0.4.0"
     voices.store("Анна", "", False, one_hot(0), 10)
     real = remote._request
@@ -995,8 +1004,11 @@ def test_sync_voice_failure_keeps_result(fake, root, monkeypatch):
 
 def test_sync_voices_key(tmp_path):
     from sozvon_engine import config
-    assert config.load(tmp_path / "none", environ={}).sync_voices is True
+    assert config.Settings().sync_voices is False
+    assert config.load(tmp_path / "none", environ={}).sync_voices is False, "biometric data: opt-in"
     assert config.load(tmp_path / "none", environ={"SOZVON_SYNC_VOICES": "0"}).sync_voices is False
+    assert config.load(tmp_path / "none", environ={"SOZVON_SYNC_VOICES": "yes"}).sync_voices is True
+    assert config.load(tmp_path / "none", environ={"SOZVON_SYNC_VOICES": "maybe"}).sync_voices is False
     env = tmp_path / ".env"
     env.write_text("SOZVON_SYNC_VOICES=1\n")
     assert config.load(env, environ={}).sync_voices is True
@@ -1086,7 +1098,7 @@ def test_accept_and_merge_remote_keep_the_local_record_of_another_model():
     assert [r["embedding"] for r in voices.load_all() if r["name"] == "Олег"] == [mine["embedding"]]
 
 
-def test_sync_does_not_send_records_of_another_model(fake, root):
+def test_sync_does_not_send_records_of_another_model(fake, root, voices_on):
     fake.version = "0.4.0"
     mine = voices.store("Анна", "", False, one_hot(0), 10)
     foreign = put_foreign("Олег")

@@ -95,8 +95,9 @@ final class OwnServerTests: TempDirTestCase {
     // MARK: Password reuse on a new Mac
 
     func testPasswordChoice() async {
+        let mine = "mine-typed-long-enough-0123", stored = "stored-in-the-account-0123"
         let url = URL(string: "https://sozvon.ann.workers.dev")!
-        let accepted: @Sendable (URL, String) async -> Bool = { _, pw in pw == "stored-pw" }
+        let accepted: @Sendable (URL, String) async -> Bool = { _, pw in pw == stored }
         let reads = Counter()
         func choose(savedURL: String = "", saved: String = "", replaces: Bool = true,
                     stored: String? = nil) async -> (String, ServerPasswords.Choice) {
@@ -105,20 +106,25 @@ final class OwnServerTests: TempDirTestCase {
                                                  generate: { "generated" })
             return (r.password, r.choice)
         }
-        var r = await choose(savedURL: "https://sozvon.ann.workers.dev/", saved: "mine", stored: "stored-pw")
-        XCTAssertEqual(r.0, "mine"); XCTAssertEqual(r.1, .saved)  // an update from this Mac
+        var r = await choose(savedURL: "https://sozvon.ann.workers.dev/", saved: mine, stored: stored)
+        XCTAssertEqual(r.0, mine); XCTAssertEqual(r.1, .saved)  // an update from this Mac
         let readsAfterSaved = await reads.n
         XCTAssertEqual(readsAfterSaved, 0, "the account copy is not read when this Mac has the password")
         r = await choose()
         XCTAssertEqual(r.0, "generated"); XCTAssertEqual(r.1, .new(signInAgain: true))  // nothing stored
-        r = await choose(stored: "stored-pw\n")
-        XCTAssertEqual(r.0, "stored-pw"); XCTAssertEqual(r.1, .stored)  // a new Mac, the copy in the account
+        r = await choose(stored: stored + "\n")
+        XCTAssertEqual(r.0, stored); XCTAssertEqual(r.1, .stored)  // a new Mac, the copy in the account
         r = await choose(stored: "stale")
         XCTAssertEqual(r.0, "generated"); XCTAssertEqual(r.1, .new(signInAgain: true))  // the server does not take it
-        r = await choose(replaces: false, stored: "stored-pw")
+        r = await choose(replaces: false, stored: stored)
         XCTAssertEqual(r.1, .new(signInAgain: false))  // a brand-new server: nobody to sign out
-        r = await choose(savedURL: "https://other.workers.dev", saved: "mine")
+        r = await choose(savedURL: "https://other.workers.dev", saved: mine)
         XCTAssertEqual(r.0, "generated", "a password saved for another server is never sent to this one")
+        // The server refuses a password under 20 characters: a short one typed by hand is replaced, not uploaded.
+        r = await choose(savedURL: "https://sozvon.ann.workers.dev", saved: "only-19-characters!")
+        XCTAssertEqual(r.0, "generated"); XCTAssertEqual(r.1, .new(signInAgain: true))
+        XCTAssertEqual(ServerPassword.minimumLength, 20)
+        XCTAssertGreaterThanOrEqual(ServerPassword.generate().count, ServerPassword.minimumLength)
     }
 }
 

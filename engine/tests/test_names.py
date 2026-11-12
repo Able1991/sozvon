@@ -136,3 +136,14 @@ def test_resolve_names_rejects_generic_and_taken_names_ignoring_case(monkeypatch
                                                          "claude", ""))
     out = names.resolve_names(paras(), ["Влад"], [], "Я", tmp_path, taken={"Влад"})
     assert [w for *_, w in out][1::2] == ["Собеседник 1", "Собеседник 2"]
+
+
+def test_prompts_fence_the_transcript_as_data(monkeypatch):
+    for lang, word in (("ru", "Расшифровка:"), ("en", "Transcript:")):
+        monkeypatch.setenv("SOZVON_UI_LANG", lang)
+        for p in (summary.build_prompt("[00:00] A: текст звонка", "Me", lang=lang),
+                  summary.build_prompt("[00:00] A: текст звонка", "Me", lang=lang, reflection=True),
+                  names.build_prompt([(0, 1, "текст звонка", "Speaker 1")], ["Speaker 1"], ["Ann"], [], "Me")):
+            tail = p.split(word)[1]
+            assert tail.startswith("\n<transcript>\n") and "текст звонка" in tail.split("</transcript>")[0]
+            assert tail.split("</transcript>")[1].strip(), "the rule about data comes after the block"

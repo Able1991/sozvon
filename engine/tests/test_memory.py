@@ -19,6 +19,7 @@ def fake_mlx(monkeypatch, macos):
     core = types.ModuleType("mlx.core")
     core.set_cache_limit = lambda n: calls.append(("limit", n))
     core.clear_cache = lambda: calls.append(("clear",))
+    core.random = types.SimpleNamespace(seed=lambda n: calls.append(("seed", n)))
     mlx = types.ModuleType("mlx")
     mlx.core = core
     mw = types.ModuleType("mlx_whisper")
@@ -47,7 +48,7 @@ def test_whisper_runs_with_a_small_mlx_cache_and_clears_it(fake_mlx):
     whisper._transcribe("a.wav")
     assert fake_mlx[0] == ("limit", whisper.MLX_CACHE_LIMIT)
     assert whisper.MLX_CACHE_LIMIT <= 1 << 30
-    assert fake_mlx[1:] == [("transcribe",), ("clear",)]
+    assert fake_mlx[1:] == [("seed", whisper.SEED), ("transcribe",), ("clear",)]
 
 
 def test_mlx_cache_is_cleared_when_whisper_fails(fake_mlx):
@@ -119,6 +120,35 @@ def test_the_spectrogram_of_a_long_track_takes_a_fraction_of_the_memory():
     mx.eval(mel)
     # The library's own function peaks at about 12 times the audio; the result alone is 0.8 of it.
     assert mx.get_peak_memory() < 5 * x.nbytes, f"{mx.get_peak_memory() / x.nbytes:.1f} times the audio"
+
+
+# Whisper retries an unsure piece with random sampling: with a fixed seed the same call gives the same text.
+
+def test_whisper_samples_the_same_way_every_time(monkeypatch):
+    mx = pytest.importorskip("mlx.core")
+    picks = []
+    mw = types.ModuleType("mlx_whisper")
+    inner = types.ModuleType("mlx_whisper.transcribe")
+
+    def transcribe(audio, **kw):
+        picks.append(mx.random.categorical(mx.zeros((1, 50)), num_samples=20).tolist())
+        return {"segments": []}
+    mw.transcribe = transcribe
+    monkeypatch.setitem(sys.modules, "mlx_whisper", mw)
+    monkeypatch.setitem(sys.modules, "mlx_whisper.transcribe", inner)
+    whisper._transcribe("a.wav")
+    mx.random.categorical(mx.zeros((1, 50)))      # something else draws in between
+    whisper._transcribe("a.wav")
+    assert picks[0] == picks[1]
+
+
+# Parakeet and GigaAM stay cached after recognition: diarization does not need them.
+
+def test_the_onnx_model_is_dropped(monkeypatch):
+    from sozvon_engine import asr_onnx
+    monkeypatch.setattr(asr_onnx, "_cache", {"parakeet": object()})
+    asr_onnx.release()
+    assert asr_onnx._cache == {}
 
 
 # The Whisper model stays loaded in mlx-whisper after a call: 1.5 GB that diarization does not need.

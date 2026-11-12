@@ -28,13 +28,21 @@ public enum EngineState: Equatable, Sendable {
         }
     }
 
+    /// The state for this app's data folder and the selected model.
+    @MainActor public static var current: EngineState {
+        evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine)
+    }
+
+    /// Cheap enough for the main thread: this runs on every recording or queue change, menu rebuild and render of
+    /// the setup assistant. uv.lock is read and hashed once per change of the file (FileMemo), not once per call.
     public static func evaluate(data: URL, model: WhisperModel, isDevEngine: Bool) -> EngineState {
         let fm = FileManager.default
         guard fm.isExecutableFile(atPath: data.appendingPathComponent(".venv/bin/python3").path) else { return .notInstalled }
-        if !isDevEngine, let lock = try? Data(contentsOf: data.appendingPathComponent("uv.lock")) {
-            let installed = (try? String(contentsOf: data.appendingPathComponent(".venv-lock"), encoding: .utf8))?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if installed != lockHash(lock) { return .needsUpdate }
+        if !isDevEngine, let expected = FileMemo.shared.value(data.appendingPathComponent("uv.lock"), lockHash) {
+            let installed = FileMemo.shared.value(data.appendingPathComponent(".venv-lock")) {
+                String(data: $0, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            if installed != expected { return .needsUpdate }
         }
         return model.isDownloaded(in: data) ? .ready : .modelMissing(model)
     }
@@ -62,6 +70,57 @@ public enum EngineState: Equatable, Sendable {
     /// Same as setup.sh: the first 16 hex chars of the sha256 of uv.lock.
     public static func lockHash(_ data: Data) -> String {
         String(SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined().prefix(16))
+    }
+}
+
+/// Something derived from a file's contents (the hash of uv.lock), remembered until the file changes.
+/// A lookup is one `stat`; the file is read again only when its identity, size or timestamps differ.
+final class FileMemo: @unchecked Sendable {
+    static let shared = FileMemo()
+
+    private struct Stamp: Equatable {
+        let device: dev_t, inode: ino_t, size: off_t
+        let modified: [Int], changed: [Int]
+
+        init?(_ path: String) {
+            var st = stat()
+            guard stat(path, &st) == 0 else { return nil }
+            device = st.st_dev
+            inode = st.st_ino
+            size = st.st_size
+            modified = [st.st_mtimespec.tv_sec, st.st_mtimespec.tv_nsec]
+            changed = [st.st_ctimespec.tv_sec, st.st_ctimespec.tv_nsec]
+        }
+    }
+
+    // Guarded by `lock`: callers come from the main thread and from detached tasks.
+    private let lock = NSLock()
+    private var entries: [String: (stamp: Stamp, value: String?)] = [:]
+    private var loadCount = 0
+
+    /// How many times a file was actually read (tests).
+    var loads: Int { lock.withLock { loadCount } }
+
+    /// `derive(contents)` for the file at `url`; nil when the file can't be read (or `derive` returns nil).
+    func value(_ url: URL, _ derive: (Data) -> String?) -> String? {
+        let path = url.path
+        lock.lock()
+        defer { lock.unlock() }
+        guard let stamp = Stamp(path) else {
+            entries[path] = nil
+            return nil
+        }
+        if let known = entries[path], known.stamp == stamp { return known.value }
+        entries[path] = nil
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        loadCount += 1
+        let value = derive(data)
+        // Remember only what was read from a file that stood still: a write during the read gives a new stamp.
+        if Stamp(path) == stamp {
+            if entries.count >= 32 { entries.removeAll() }
+            entries[path] = (stamp, value)
+        }
+        return value
     }
 }
 

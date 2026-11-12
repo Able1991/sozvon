@@ -25,17 +25,17 @@ final class ProcessRunnerTests: TempDirTestCase {
     func testAllLinesThenDoneWithLog() throws {
         let log = tmp.appendingPathComponent("run.log")
         let (c, _) = run("/bin/sh", ["-c", "for i in 1 2 3; do echo line$i; done; printf tail >&2; exit 3"], log: log)
-        XCTAssertEqual(c.code, 3, "код завершения")
-        XCTAssertEqual(c.lines, ["line1", "line2", "line3", "tail"], "все строки дошли, и хвост без перевода строки")
-        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "line1\nline2\nline3\ntail", "журнал")
+        XCTAssertEqual(c.code, 3, "exit code")
+        XCTAssertEqual(c.lines, ["line1", "line2", "line3", "tail"], "every line arrived, and the tail without a line break too")
+        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "line1\nline2\nline3\ntail", "log")
     }
 
     func testLaunchFailure() throws {
         let log = tmp.appendingPathComponent("f.log")
         let (c, p) = run("/nonexistent/bin", [], log: log)
         XCTAssertNil(p)
-        XCTAssertEqual(c.code, -1, "ошибка запуска -> -1")
-        XCTAssertTrue(try String(contentsOf: log, encoding: .utf8).contains("Не удалось запустить"), "ошибка в журнале")
+        XCTAssertEqual(c.code, -1, "launch error -> -1")
+        XCTAssertTrue(try String(contentsOf: log, encoding: .utf8).contains("Не удалось запустить"), "the error is in the log")
         XCTAssertEqual(c.lines.count, 1)
     }
 
@@ -43,7 +43,7 @@ final class ProcessRunnerTests: TempDirTestCase {
         let log = tmp.appendingPathComponent("a.log")
         try write("old\n", log)
         _ = run("/bin/echo", ["new"], log: log)
-        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "new\n", "по умолчанию журнал заново")
+        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "new\n", "by default the log starts over")
         let c = Collected()
         let done = expectation(description: "done")
         ProcessRunner.run(URL(fileURLWithPath: "/bin/echo"), ["more"], environment: [:], log: log, appendLog: true) {
@@ -51,7 +51,7 @@ final class ProcessRunnerTests: TempDirTestCase {
             done.fulfill()
         }
         wait(for: [done], timeout: 5)
-        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "new\nmore\n", "дописывание")
+        XCTAssertEqual(try String(contentsOf: log, encoding: .utf8), "new\nmore\n", "appending")
     }
 
     func testEnvironmentAndDirectory() throws {
@@ -79,7 +79,7 @@ final class ProcessRunnerTests: TempDirTestCase {
                 c.code = code
                 done.fulfill()
             })
-        XCTAssertEqual(getpgid(p.pid), p.pid, "своя группа процессов")
+        XCTAssertEqual(getpgid(p.pid), p.pid, "its own process group")
         let until = Date().addingTimeInterval(5)
         while !c.lines.contains("ready") && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
         p.terminate()
@@ -90,7 +90,7 @@ final class ProcessRunnerTests: TempDirTestCase {
         // launchd doesn't reap an orphaned process instantly: wait up to 2 seconds.
         let gone = Date().addingTimeInterval(2)
         while kill(child, 0) == 0 && Date() < gone { usleep(50_000) }
-        XCTAssertEqual(kill(child, 0), -1, "внук тоже остановлен")
+        XCTAssertEqual(kill(child, 0), -1, "the grandchild is stopped too")
     }
 
     func testAsyncVariant() async {

@@ -65,12 +65,13 @@ the ones marked "manual" below):
 | `SOZVON_MODEL` | key from `models.json`: `turbo`, `large-v3`, `small`, `gigaam`, `parakeet` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |
+| `SOZVON_DISCOVER_ASK` | `1`: project discovery with Claude may also list and message the open Claude Code sessions (`ListAgents`, `SendMessage`). Off by default: what discovery reads in `~/.claude` holds text from other people, and those tools reach sessions that may be allowed more. Manual |
 | `SOZVON_CURSOR_MODEL` | Cursor model (`cursor-agent --model`); empty: the default model from the Cursor settings. Manual |
 | `HF_TOKEN` | Hugging Face token: higher download limits when many people download from one address (the speaker separation models ship with the app and need none). Manual |
 | `SOZVON_SERVER_URL` | address of the user's own server (`docs/SERVER.md`), `https://` only (`http://` only for `localhost` and `127.0.0.1`, for testing). Empty: no server |
 | `SOZVON_SERVER_PASSWORD` | password of the own server, sent as `Authorization: Bearer <password>`; never logged |
 | `SOZVON_SYNC_AUDIO` | `1` (default when absent) or `0`: sync call audio (`mic.m4a`, `system.m4a`) with the own server. With `0` sync neither uploads nor downloads audio; the server copy of audio the app removed (`audio_removed_at`) is still deleted |
-| `SOZVON_SYNC_VOICES` | `1` (default when absent) or `0`: sync voice prints with the own server. With `0` sync neither uploads nor downloads voice records; deletions made on this Mac are still sent, so a deleted voice is deleted on the server too |
+| `SOZVON_SYNC_VOICES` | `1` or `0` (default when absent: voice prints are biometric data, so sending them is opt-in): sync voice prints with the own server. The app writes `1` only with an own server set up and the toggle turned on. With `0` sync neither uploads nor downloads voice records; deletions made on this Mac are still sent, so a deleted voice is deleted on the server too |
 
 ## 3. Command line
 
@@ -143,7 +144,7 @@ and `<me> + собеседники` / `<me> + others` are not counted; when noth
    something changed. Local track hashes are cached in `<data>/server-audio.json` by call id, track, size and mtime.
 8. **Voice prints** (after the calls; section 6). Deletions made here (`<data>/voices-deleted.json`)
    are sent as `DELETE /api/voices/{id}` and dropped from the list, always, even with `SOZVON_SYNC_VOICES=0`. With
-   voice sync on: a server tombstone deletes the record here unless the record here changed later; a server record
+   voice sync on (`SOZVON_SYNC_VOICES=1`, off by default): a server tombstone deletes the record here unless the record here changed later; a server record
    missing here, or newer than the one here (by `updated_at`), is downloaded, never over a newer local one; a record
    the server lacks, or holds older with another content hash, is uploaded. When the server answers that upload with
    `409` (another Mac changed the same record after this one, with another print), the two prints are merged (as in
@@ -409,7 +410,7 @@ Messages are in the `SOZVON_UI_LANG` language.
 
 A voice print lets the engine name a voice it has heard before, instead of guessing from the conversation (two
 people called Alexander are no longer confused). **Voice prints are biometric data.** They stay on this Mac unless
-the user has set up an own server; then they sync to the user's own Cloudflare account (their cloud, their
+the user has set up an own server and turned on Send voice prints (`SOZVON_SYNC_VOICES=1`, off by default); then they sync to the user's own Cloudflare account (their cloud, their
 responsibility), never anywhere else, and are never shown to the MCP tools. Deleting a voice deletes it everywhere:
 here at once, on the server and on the other Macs at their next sync.
 

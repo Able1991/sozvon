@@ -31,9 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Single-instance lock, held until the app quits.
     private var instanceLock: InstanceLock?
 
-    var engineState: EngineState {
-        EngineState.evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine)
-    }
+    var engineState: EngineState { EngineState.current }
 
     /// sozvon://settings/cloud: the browser hands control back after "Подключить Cloudflare".
     func application(_ application: NSApplication, open urls: [URL]) {

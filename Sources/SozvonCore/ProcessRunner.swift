@@ -141,18 +141,6 @@ public enum ProcessRunner {
         }
     }
 
-    private static func writeAll(_ fd: Int32, _ data: Data) {
-        data.withUnsafeBytes { buf in
-            var off = 0
-            while off < buf.count {
-                let n = write(fd, buf.baseAddress! + off, buf.count - off)
-                if n < 0 && errno == EINTR { continue }
-                if n <= 0 { return }
-                off += n
-            }
-        }
-    }
-
     /// A short command that waits and returns the full output (assistant CLIs). Not for the main thread.
     public static func capture(_ exe: String, _ args: [String], environment: [String: String]) -> (Int32, String) {
         let p = Process()

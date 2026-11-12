@@ -948,7 +948,11 @@ struct IntegrationsSection: View {
 
     var body: some View {
         Section {
-            ForEach(Self.assistants) { connection($0) }
+            // Rows written out, not ForEach: in the grouped form the ForEach rows lost their card (Cursor stood
+            // apart from Claude Code and Codex, and the next footer went into a card).
+            connection(.claude)
+            connection(.codex)
+            connection(.cursor)
         } header: {
             Text(L("Подключения"))
         } footer: {
@@ -965,7 +969,9 @@ struct IntegrationsSection: View {
         }
 
         Section {
-            ForEach(Self.assistants) { command($0) }
+            command(.claude)
+            command(.codex)
+            command(.cursor)
         } header: {
             Text(L("Подключить вручную"))
         } footer: {
@@ -1185,7 +1191,7 @@ struct ServerView: View {
             } footer: {
                 if ready {
                     VStack(alignment: .leading, spacing: 8) {
-                        SettingsCaution(L("Звук звонков с голосами собеседников будет храниться в твоём аккаунте Cloudflare: за него и за согласие тех, кого ты записываешь, отвечаешь ты. Бесплатного хранилища хватит примерно на 80 часов звонков, дальше уходит только текст. Если выключить, новые записи перестанут отправляться."))
+                        SettingsCaution(L("Звук звонков с голосами собеседников будет храниться в твоём аккаунте Cloudflare: за него и за согласие тех, кого ты записываешь, отвечаешь ты. Бесплатного хранилища хватит примерно на 4 часа звонков, дальше уходит только текст. Если выключить, новые записи перестанут отправляться."))
                         SettingsCaution(L("Отпечатки голосов относятся к биометрическим данным. Когда включено, они хранятся в твоём аккаунте Cloudflare, и отвечаешь за них ты. Если выключить, они останутся только на этом Mac, а уже отправленные пробудут на сервере, пока их не удалить."))
                     }
                 } else {

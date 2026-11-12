@@ -60,11 +60,11 @@ def _put_voice(srv: remote.Server, rec: dict) -> bool:
     return False
 
 
-def sync_voices(srv: remote.Server, status, enabled: bool = True) -> tuple[int, int, int]:
+def sync_voices(srv: remote.Server, status, enabled: bool = False) -> tuple[int, int, int]:
     """Make the voice prints here and on the server agree. -> (sent, downloaded, deleted).
 
     Deletions made here (voices-deleted.json) always go to the server, even with SOZVON_SYNC_VOICES=0, so a
-    deleted voice is deleted everywhere. With sync on: server tombstones delete the record here unless it
+    deleted voice is deleted everywhere. With sync on (SOZVON_SYNC_VOICES=1, off by default): server tombstones delete the record here unless it
     changed here later, records the server lacks or holds older go up, records missing here or newer there
     come down (never over a newer one here). A failure is a STATUS line; the calls' RESULT numbers stay as
     they are. A wrong password still stops the sync.

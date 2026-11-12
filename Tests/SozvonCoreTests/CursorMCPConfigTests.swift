@@ -38,7 +38,7 @@ final class CursorMCPConfigTests: XCTestCase {
         XCTAssertTrue(has(out))
         let entry = try XCTUnwrap(try servers(out)["sozvon"] as? [String: Any])
         XCTAssertEqual(entry["url"] as? String, url)
-        XCTAssertNotNil(upsert("  \n"), "только пробелы")
+        XCTAssertNotNil(upsert("  \n"), "spaces only")
         let commentsOnly = try XCTUnwrap(upsert("// my servers\n"))
         XCTAssertTrue(commentsOnly.hasPrefix("// my servers\n{") && has(commentsOnly))
     }
@@ -61,9 +61,9 @@ final class CursorMCPConfigTests: XCTestCase {
         XCTAssertEqual(Set(s.keys), ["sozvon", "github"])
         let sozvonAt = try XCTUnwrap(out.range(of: "\"sozvon\"")).lowerBound
         let githubAt = try XCTUnwrap(out.range(of: "\"github\"")).lowerBound
-        XCTAssertLessThan(sozvonAt, githubAt, "первым в mcpServers")
-        XCTAssertTrue(out.contains("    \"sozvon\": {\n      \"url\""), "отступ как у соседей")
-        XCTAssertTrue(out.hasSuffix("  },\n  \"other\": [1, 2.5, true, null]\n}"), "хвост файла не тронут")
+        XCTAssertLessThan(sozvonAt, githubAt, "first in mcpServers")
+        XCTAssertTrue(out.contains("    \"sozvon\": {\n      \"url\""), "indented like its neighbours")
+        XCTAssertTrue(out.hasSuffix("  },\n  \"other\": [1, 2.5, true, null]\n}"), "the rest of the file is untouched")
     }
 
     func testTopObjectWithoutServersGetsThem() throws {
@@ -73,7 +73,7 @@ final class CursorMCPConfigTests: XCTestCase {
         XCTAssertEqual(obj["theme"] as? String, "dark")
         XCTAssertTrue(has(try XCTUnwrap(upsert("{}"))))
         XCTAssertTrue(has(try XCTUnwrap(upsert("{\"mcpServers\": {}}"))))
-        XCTAssertTrue(has(try XCTUnwrap(upsert(#"{"mcpServers":{"a":{"url":"x"}}}"#))), "в одну строку")
+        XCTAssertTrue(has(try XCTUnwrap(upsert(#"{"mcpServers":{"a":{"url":"x"}}}"#))), "on one line")
     }
 
     func testJSONCWithCommentsAndTrailingCommas() throws {
@@ -89,7 +89,7 @@ final class CursorMCPConfigTests: XCTestCase {
           },
         }
         """
-        XCTAssertFalse(CursorMCPConfig.hasEntry(text, name: "sozvon"), "закомментированная запись не считается")
+        XCTAssertFalse(CursorMCPConfig.hasEntry(text, name: "sozvon"), "a commented-out entry does not count")
         let out = try XCTUnwrap(upsert(text))
         XCTAssertTrue(has(out))
         for kept in ["// Cursor MCP servers", "/* block comment with \"quotes\" and { braces } */",
@@ -97,7 +97,7 @@ final class CursorMCPConfigTests: XCTestCase {
             XCTAssertTrue(out.contains(kept), kept)
         }
         let back = try XCTUnwrap(CursorMCPConfig.remove(out, name: "sozvon"))
-        XCTAssertEqual(back, text, "удаление возвращает файл как был")
+        XCTAssertEqual(back, text, "removal returns the file to what it was")
     }
 
     func testExistingEntryUpdatedInPlace() throws {
@@ -113,15 +113,15 @@ final class CursorMCPConfigTests: XCTestCase {
         }
         """
         XCTAssertTrue(CursorMCPConfig.hasEntry(text, name: "sozvon"))
-        XCTAssertFalse(has(text, token: nil), "другой порт")
+        XCTAssertFalse(has(text, token: nil), "another port")
         let out = try XCTUnwrap(upsert(text, token: "NEW"))
         XCTAssertTrue(has(out, token: "NEW") && !has(out, token: "OLD"))
         XCTAssertFalse(out.contains("9999"))
-        XCTAssertEqual(out.components(separatedBy: "\"sozvon\"").count, 2, "одна запись")
+        XCTAssertEqual(out.components(separatedBy: "\"sozvon\"").count, 2, "one entry")
         let a = try XCTUnwrap(out.range(of: "\"a\"")).lowerBound
         let s = try XCTUnwrap(out.range(of: "\"sozvon\"")).lowerBound
-        XCTAssertLessThan(a, s, "на своём месте")
-        XCTAssertEqual(upsert(out, token: "NEW"), out, "повторное подключение ничего не меняет")
+        XCTAssertLessThan(a, s, "in its place")
+        XCTAssertEqual(upsert(out, token: "NEW"), out, "connecting again changes nothing")
         XCTAssertEqual(Set(try servers(out).keys), ["a", "sozvon", "b"])
     }
 
@@ -156,7 +156,7 @@ final class CursorMCPConfigTests: XCTestCase {
         XCTAssertEqual(CursorMCPConfig.remove(first, name: "sozvon"), "{\"mcpServers\": {\"a\": {}}}")
         let only = try XCTUnwrap(CursorMCPConfig.remove(try XCTUnwrap(upsert("")), name: "sozvon"))
         XCTAssertEqual(try servers(only).count, 0)
-        XCTAssertEqual(CursorMCPConfig.remove("{\"x\": 1}", name: "sozvon"), "{\"x\": 1}", "нечего удалять")
+        XCTAssertEqual(CursorMCPConfig.remove("{\"x\": 1}", name: "sozvon"), "{\"x\": 1}", "nothing to remove")
         XCTAssertEqual(CursorMCPConfig.remove("", name: "sozvon"), "")
     }
 
@@ -183,7 +183,7 @@ final class CursorMCPFileTests: TempDirTestCase {
         XCTAssertEqual(MCP.cursorConnection(file: f, token: "T"), .none)
         XCTAssertTrue(MCP.cursorConnect(file: f, token: "T").0)
         let perm = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: f.path)[.posixPermissions] as? NSNumber)
-        XCTAssertEqual(perm.intValue, 0o600, "в файле пароль")
+        XCTAssertEqual(perm.intValue, 0o600, "the file holds a password")
         XCTAssertEqual(MCP.cursorConnection(file: f, token: "T"), .connected)
         XCTAssertEqual(MCP.cursorConnection(file: f, token: "OTHER"), .outdated)
         XCTAssertTrue(MCP.cursorDisconnect(file: f).0)
@@ -203,6 +203,6 @@ final class CursorMCPFileTests: TempDirTestCase {
         let (ok, msg) = MCP.cursorConnect(file: f, token: "T")
         XCTAssertFalse(ok)
         XCTAssertFalse(msg.isEmpty)
-        XCTAssertEqual(try String(contentsOf: f, encoding: .utf8), "{ broken", "файл не тронут")
+        XCTAssertEqual(try String(contentsOf: f, encoding: .utf8), "{ broken", "the file is untouched")
     }
 }

@@ -21,12 +21,12 @@ final class CallAutomationTests: XCTestCase {
 
     func testModeDefaultsAndMigration() {
         let d = defaults()
-        XCTAssertEqual(CallAutomation.mode(d), .ask, "по умолчанию спрашиваем")
+        XCTAssertEqual(CallAutomation.mode(d), .ask, "we ask by default")
         d.set(false, forKey: CallAutomation.legacyPromptKey)
-        XCTAssertEqual(CallAutomation.mode(d), .off, "старый выключатель «Предлагать запись» выключен")
+        XCTAssertEqual(CallAutomation.mode(d), .off, "the old \"Offer to record\" switch is off")
         CallAutomation.setMode(.record, d)
-        XCTAssertEqual(CallAutomation.mode(d), .record, "новый выбор важнее старого")
-        XCTAssertFalse(CallAutomation.autoStop(d), "автостоп по умолчанию выключен")
+        XCTAssertEqual(CallAutomation.mode(d), .record, "the new choice wins over the old one")
+        XCTAssertFalse(CallAutomation.autoStop(d), "auto-stop is off by default")
         d.removePersistentDomain(forName: "sozvon-tests-callauto")
     }
 
@@ -41,29 +41,29 @@ final class CallAutomationTests: XCTestCase {
     func testEndCountdown() {
         var e = CallEndDetector()
         let t0 = Date(timeIntervalSince1970: 1_000)
-        XCTAssertNil(e.update(inCall: false, now: t0), "запись без звонка (встреча в комнате) не останавливается")
+        XCTAssertNil(e.update(inCall: false, now: t0), "a recording without a call (a meeting in a room) is not stopped")
         XCTAssertNil(e.update(inCall: true, now: t0))
         XCTAssertNil(e.update(inCall: true, now: t0 + 60))
         XCTAssertEqual(e.update(inCall: false, now: t0 + 61, grace: 30), 30)
         XCTAssertEqual(e.update(inCall: false, now: t0 + 81, grace: 30), 10)
-        XCTAssertNil(e.update(inCall: true, now: t0 + 82, grace: 30), "приложение снова взяло микрофон: отсчёт сброшен")
+        XCTAssertNil(e.update(inCall: true, now: t0 + 82, grace: 30), "the app took the microphone again: the countdown is reset")
         XCTAssertEqual(e.update(inCall: false, now: t0 + 83, grace: 30), 30)
-        XCTAssertEqual(e.update(inCall: false, now: t0 + 120, grace: 30), 0, "пора остановить")
+        XCTAssertEqual(e.update(inCall: false, now: t0 + 120, grace: 30), 0, "time to stop")
     }
 
     func testShortMicUseDoesNotArm() {
         var e = CallEndDetector()
         let t0 = Date(timeIntervalSince1970: 1_000)
         XCTAssertNil(e.update(inCall: true, now: t0))
-        XCTAssertNil(e.update(inCall: false, now: t0 + 5), "голосовое на 5 секунд во время записи встречи")
-        XCTAssertNil(e.update(inCall: false, now: t0 + 100), "и через 100 секунд тоже не останавливаем")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 5), "a 5 second voice message while a meeting is being recorded")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 100), "and not stopped after 100 seconds either")
     }
 
     func testHoldIsCountedAtReleaseWithoutRefreshesInBetween() {
         var e = CallEndDetector()
         let t0 = Date(timeIntervalSince1970: 1_000)
         XCTAssertNil(e.update(inCall: true, now: t0))
-        XCTAssertEqual(e.update(inCall: false, now: t0 + 600, grace: 30), 30, "держал 10 минут, обновлений между не было")
+        XCTAssertEqual(e.update(inCall: false, now: t0 + 600, grace: 30), 30, "held for 10 minutes with no updates in between")
     }
 
     func testOtherSideStillHeardMeansTheCallGoesOn() {
@@ -71,8 +71,8 @@ final class CallAutomationTests: XCTestCase {
         let t0 = Date(timeIntervalSince1970: 1_000)
         _ = e.update(inCall: true, now: t0)
         XCTAssertEqual(e.update(inCall: false, now: t0 + 60, grace: 30), 30)
-        XCTAssertNil(e.update(inCall: false, otherSideAudible: true, now: t0 + 70, grace: 30), "микрофон выключен, но собеседника слышно")
-        XCTAssertEqual(e.update(inCall: false, now: t0 + 71, grace: 30), 30, "отсчёт заново")
+        XCTAssertNil(e.update(inCall: false, otherSideAudible: true, now: t0 + 70, grace: 30), "the microphone is off, but the other side is audible")
+        XCTAssertEqual(e.update(inCall: false, now: t0 + 71, grace: 30), 30, "the countdown starts over")
         XCTAssertEqual(e.update(inCall: false, now: t0 + 101, grace: 30), 0)
     }
 
@@ -80,7 +80,7 @@ final class CallAutomationTests: XCTestCase {
         var e = CallEndDetector()
         let t0 = Date(timeIntervalSince1970: 1_000)
         XCTAssertNil(e.update(inCall: false, otherSideAudible: true, now: t0))
-        XCTAssertNil(e.update(inCall: false, now: t0 + 100), "музыка на Маке не делает запись звонком")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 100), "music on the Mac does not make a recording a call")
     }
 
     func testKeepRecording() {
@@ -89,11 +89,11 @@ final class CallAutomationTests: XCTestCase {
         _ = e.update(inCall: true, now: t0)
         XCTAssertEqual(e.update(inCall: false, now: t0 + 60, grace: 30), 30)
         e.keepRecording()
-        XCTAssertNil(e.update(inCall: false, now: t0 + 160, grace: 30), "«Продолжить»: не останавливаем")
-        XCTAssertNil(e.update(inCall: true, now: t0 + 161, grace: 30), "новый звонок в той же записи")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 160, grace: 30), "\"Continue\": do not stop")
+        XCTAssertNil(e.update(inCall: true, now: t0 + 161, grace: 30), "a new call in the same recording")
         XCTAssertNil(e.update(inCall: true, now: t0 + 221, grace: 30))
-        XCTAssertNil(e.update(inCall: false, now: t0 + 222, grace: 30), "приложение отпустило микрофон на mute: запись не трогаем")
-        XCTAssertNil(e.update(inCall: false, now: t0 + 400, grace: 30), "до конца этой записи")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 222, grace: 30), "the app released the microphone on mute: the recording is left alone")
+        XCTAssertNil(e.update(inCall: false, now: t0 + 400, grace: 30), "until the end of this recording")
     }
 
     @MainActor
@@ -106,7 +106,7 @@ final class CallAutomationTests: XCTestCase {
         XCTAssertFalse(w.inCall)
         src.clients = [MicClient(pid: 42, bundleID: "us.zoom.xos")]
         w.refresh()
-        XCTAssertTrue(w.inCall, "Zoom держит микрофон, даже до 5 секунд")
+        XCTAssertTrue(w.inCall, "Zoom holds the microphone, even for under 5 seconds")
         src.clients = []
         w.refresh()
         XCTAssertFalse(w.inCall)

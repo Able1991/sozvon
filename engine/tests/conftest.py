@@ -23,7 +23,7 @@ for _k in ("SOZVON_ME", "SOZVON_LLM", "SOZVON_MODEL", "SOZVON_LANGUAGE",
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "slow: настоящий Whisper на синтезированной речи")
+    config.addinivalue_line("markers", "slow: the real Whisper on synthesized speech")
 
 
 @pytest.fixture(autouse=True)

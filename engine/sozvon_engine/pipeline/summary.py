@@ -125,7 +125,7 @@ def build_prompt(transcript: str, me: str, context: str = "", lang: str | None =
     ru = lang == "ru"
     label = "Контекст (для понимания, не пересказывай его)" if ru else "Context (for understanding, do not retell it)"
     others = "Другие участники" if ru else "Other participants"
-    fields = {"me": me, "transcript": transcript, "context": f"\n{label}: {context}" if context else "",
+    fields = {"me": me, "transcript": llm.as_data(transcript, lang), "context": f"\n{label}: {context}" if context else "",
               "people": f"\n{others}: {', '.join(people)}." if people else ""}
     if ru:
         return (REFLECTION_RU if reflection else PROMPT_RU).format(**fields, marks=MARKS_RU.format(times=times) if marks else "")

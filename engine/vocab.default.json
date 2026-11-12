@@ -1,5 +1,5 @@
 {
-  "_comment": "Общий словарь. initial_prompt: короткая база подсказки; terms: общие термины для всех звонков; replacements: общие замены. Термины и замены по проектам лежат в profiles/<проект>.json. Читается при каждом вызове.",
+  "_comment": "The shared vocabulary. initial_prompt: the short base of the Whisper prompt; terms: terms for every call; replacements: replacements for every call. Terms and replacements of a project live in profiles/<project>.json. Read on every run.",
   "initial_prompt": "Деловой созвон на русском языке.",
   "replacements": [],
   "terms": []

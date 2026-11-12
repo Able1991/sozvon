@@ -6,6 +6,7 @@ import type { Env } from "../src/api";
 
 vi.mock("../src/mcp", () => ({ mcpHandler: async () => new Response("mcp") }));
 const { default: worker } = await import("../src/index");
+const { DAILY_BUDGET, MIN_PASSWORD_LENGTH, ipKey, passwordProblem } = await import("../src/auth");
 
 // The Sozvon app keeps the server password in this KV namespace under this key, so a second Mac can read it
 // with the user's Cloudflare token. The Worker must never read or serve it.
@@ -34,7 +35,7 @@ beforeAll(async () => {
       };
     },
   });
-  env = { ...proxy.env, OAUTH_KV: spy, SOZVON_PASSWORD: "pw" };
+  env = { ...proxy.env, OAUTH_KV: spy, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
   return () => proxy.dispose();
 });
 
@@ -61,8 +62,8 @@ describe("the app's password in KV", () => {
     const register = JSON.stringify({ client_name: APP_KEY, redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] });
     const requests: [string, RequestInit?][] = [
       ["/"], ["/calls/x"], ["/sozvon:password"], ["/sozvon%3Apassword"], ["/api/health"],
-      ["/api/calls", { headers: { Authorization: "Bearer pw" } }],
-      ["/api/calls/sozvon:password", { headers: { Authorization: "Bearer pw" } }],
+      ["/api/calls", { headers: { Authorization: "Bearer pw-long-enough-for-tests" } }],
+      ["/api/calls/sozvon:password", { headers: { Authorization: "Bearer pw-long-enough-for-tests" } }],
       ["/.well-known/oauth-authorization-server"], ["/.well-known/oauth-protected-resource"],
       ["/.well-known/oauth-protected-resource/mcp"],
       ["/oauth/register", { method: "POST", body: register, headers: { "Content-Type": "application/json" } }],
@@ -100,5 +101,78 @@ describe("rate limits on the endpoints that write to KV", () => {
     for (let i = 0; i < 20; i++) expect((await fetchAs("/authorize?x=1", { ip: "7.7.7.3" })).status).not.toBe(429);
     expect((await fetchAs("/authorize?x=1", { ip: "7.7.7.3" })).status).toBe(429);
     expect((await fetchAs("/", { ip: "7.7.7.3" })).status).toBe(200); // other pages are not limited
+  });
+  it("counts a whole IPv6 /64 as one address", async () => {
+    for (let i = 0; i < 20; i++) expect((await fetchAs("/authorize?x=1", { ip: `2001:db8:1:2::${i + 1}` })).status).not.toBe(429);
+    expect((await fetchAs("/authorize?x=1", { ip: "2001:db8:1:2:aaaa:bbbb:cccc:dddd" })).status).toBe(429);
+    expect((await fetchAs("/authorize?x=1", { ip: "2001:db8:1:3::1" })).status).not.toBe(429); // another /64
+  });
+  it("refuses what another page makes the browser send to /authorize, without counting it", async () => {
+    const ip = "7.7.7.4";
+    for (let i = 0; i < 30; i++) {
+      const img = await fetchAs("/authorize?x=1", { ip, headers: { "Sec-Fetch-Dest": "image", "Sec-Fetch-Site": "cross-site" } });
+      expect(img.status).toBe(400);
+      const post = await fetchAs("/authorize", { ip, method: "POST", body: new URLSearchParams({ handle: "h", decision: "approve", password: "x" }),
+                                                 headers: { "Sec-Fetch-Dest": "document", "Sec-Fetch-Site": "cross-site" } });
+      expect(post.status).toBe(400);
+    }
+    expect(await env.DB.prepare("SELECT n FROM rate_limits WHERE key = 'authorize:7.7.7.4'").first()).toBeNull();
+    // The owner's own navigation from claude.ai still gets through.
+    const nav = await fetchAs("/authorize?x=1", { ip, headers: { "Sec-Fetch-Dest": "document", "Sec-Fetch-Site": "cross-site" } });
+    expect(nav.status).not.toBe(429);
+    expect(await env.DB.prepare("SELECT n FROM rate_limits WHERE key = 'authorize:7.7.7.4'").first()).toEqual({ n: 1 });
+  });
+  it("has one daily budget across all addresses, which per-IP cleanup never resets", async () => {
+    const now = Date.now();
+    await env.DB.prepare("INSERT OR REPLACE INTO rate_limits VALUES ('global:unauthenticated', ?1, ?2)").bind(DAILY_BUDGET - 1, now - 2 * 3600 * 1000).run();
+    expect((await fetchAs("/authorize?x=1", { ip: "7.7.8.1" })).status).not.toBe(429); // the last one of the day
+    const r = await fetchAs("/authorize?x=1", { ip: "7.7.8.2" });
+    expect(r.status).toBe(429);
+    expect(await r.text()).toContain("today");
+    const body = JSON.stringify({ client_name: "test", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] });
+    const reg = await fetchAs("/oauth/register", { method: "POST", body, ip: "7.7.8.3", headers: { "Content-Type": "application/json" } });
+    expect(reg.status).toBe(429);
+    expect((await fetchAs("/api/health", { ip: "7.7.8.2" })).status).toBe(200); // the rest of the server works
+    // A day after the budget's first request it starts again.
+    await env.DB.prepare("UPDATE rate_limits SET since = ?1 WHERE key = 'global:unauthenticated'").bind(now - 25 * 3600 * 1000).run();
+    expect((await fetchAs("/authorize?x=1", { ip: "7.7.8.2" })).status).not.toBe(429);
+  });
+});
+
+describe("a password too short to be safe", () => {
+  it("is refused everywhere with a clear message", async () => {
+    const weak = { ...env, SOZVON_PASSWORD: "only-19-characters!" };
+    const get = (path: string, headers: Record<string, string> = {}) =>
+      worker.fetch(new Request(`https://sozvon.example.workers.dev${path}`, { headers: { "CF-Connecting-IP": "7.7.9.1", ...headers } }), weak, ctx);
+    const api = await get("/api/calls", { Authorization: "Bearer only-19-characters!" });
+    expect(api.status).toBe(503);
+    expect(((await api.json()) as { error: string }).error).toContain("at least 20 characters");
+    const signIn = await get("/authorize?x=1");
+    expect(signIn.status).toBe(503);
+    expect(await signIn.text()).toContain("at least 20 characters");
+    expect((await get("/api/health")).status).toBe(200);
+  });
+});
+
+describe("ipKey", () => {
+  it("keeps IPv4 and reduces IPv6 to its /64", () => {
+    expect(ipKey("203.0.113.7")).toBe("203.0.113.7");
+    expect(ipKey("local")).toBe("local");
+    expect(ipKey("2001:db8:1:2:3:4:5:6")).toBe("2001:db8:1:2::/64");
+    expect(ipKey("2001:0DB8:0001:0002::1")).toBe("2001:db8:1:2::/64");
+    expect(ipKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(ipKey("2001:db8:0:0:ffff::")).toBe("2001:db8:0:0::/64");
+    expect(ipKey("::1")).toBe("0:0:0:0::/64");
+    expect(ipKey("::ffff:203.0.113.7")).toBe("203.0.113.7");
+  });
+});
+
+describe("passwordProblem", () => {
+  it("accepts what the app and the docs generate, refuses short ones", () => {
+    expect(passwordProblem(undefined)).toContain("not set");
+    expect(passwordProblem("")).toContain("not set");
+    expect(passwordProblem("x".repeat(MIN_PASSWORD_LENGTH - 1))).toContain("too short");
+    expect(passwordProblem("x".repeat(MIN_PASSWORD_LENGTH))).toBeNull();
+    expect(MIN_PASSWORD_LENGTH).toBeLessThanOrEqual(32); // the app's 32 characters and `openssl rand -base64 24` pass
   });
 });

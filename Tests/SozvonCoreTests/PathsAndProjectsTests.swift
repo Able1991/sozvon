@@ -4,15 +4,15 @@ import XCTest
 
 final class PathsTests: TempDirTestCase {
     func testDataDirFromSettings() {
-        XCTAssertEqual(Paths.data.path, data.path, "engineDir из настроек")
-        XCTAssertTrue(Paths.isDevEngine, "свой движок = режим разработчика")
+        XCTAssertEqual(Paths.data.path, data.path, "engineDir from the settings")
+        XCTAssertTrue(Paths.isDevEngine, "a custom engine means developer mode")
         XCTAssertEqual(Paths.calls.path, calls.path)
         XCTAssertEqual(Paths.python.path, data.appendingPathComponent(".venv/bin/python3").path)
     }
 
     func testEngineScriptInBin() {
         XCTAssertEqual(Paths.engineScript("process_call.py").path,
-                       data.appendingPathComponent("bin/process_call.py").path, "bin/ по контракту, без запасного scripts/")
+                       data.appendingPathComponent("bin/process_call.py").path, "bin/ per the contract, no scripts/ fallback")
     }
 
     func testEngineScriptOverride() {
@@ -24,9 +24,9 @@ final class PathsTests: TempDirTestCase {
 final class ProjectTests: TempDirTestCase {
     func testSlugify() {
         XCTAssertEqual(Project.slugify("Acme.io / ВидеоМир"), "acme-io-videomir")
-        XCTAssertEqual(Project.slugify("Щука и Ёж"), "schuka-i-ezh", "кириллица")
-        XCTAssertEqual(Project.slugify("!!!"), "project", "пустой slug")
-        XCTAssertEqual(Project.slugify(String(repeating: "a", count: 100)).count, 40, "slug обрезается")
+        XCTAssertEqual(Project.slugify("Щука и Ёж"), "schuka-i-ezh", "Cyrillic")
+        XCTAssertEqual(Project.slugify("!!!"), "project", "empty slug")
+        XCTAssertEqual(Project.slugify(String(repeating: "a", count: 100)).count, 40, "the slug is cut")
         XCTAssertTrue(Project.isValidSlug(Project.slugify("Любое Название 2")))
     }
 
@@ -47,15 +47,15 @@ final class ProjectTests: TempDirTestCase {
         try acme.save()
         let file = Paths.profiles.appendingPathComponent("acme.json")
         var raw = try json(file)
-        XCTAssertEqual(raw["schema"] as? Int, 1, "схема проекта")
+        XCTAssertEqual(raw["schema"] as? Int, 1, "project schema")
         raw["replacements"] = [["кубер", "Kubernetes"]]
         try JSONSerialization.data(withJSONObject: raw).write(to: file)
         var edited = try XCTUnwrap(Project.all().first)
         edited.people.append("Иван")
         try edited.save()
         raw = try json(file)
-        XCTAssertEqual(raw["replacements"] as? [[String]], [["кубер", "Kubernetes"]], "replacements сохранились")
-        XCTAssertEqual(Project.all().first?.people, ["Анна", "Иван"], "люди обновились")
+        XCTAssertEqual(raw["replacements"] as? [[String]], [["кубер", "Kubernetes"]], "replacements are kept")
+        XCTAssertEqual(Project.all().first?.people, ["Анна", "Иван"], "people are updated")
         XCTAssertEqual(Project.all().first?.shortTitle, "Acme")
     }
 
@@ -95,7 +95,7 @@ final class ProjectTests: TempDirTestCase {
         let calls = [call("Анна, Иван", "acme"), call("Анна, Я", "acme"), call("Олег", "other")]
         let projects = [Project(slug: "acme", title: "Acme", people: ["Анна Петрова", "Пётр"])]
         let people = knownPeople("acme", calls: calls, projects: projects, me: "я")
-        XCTAssertEqual(people, ["Анна", "Иван", "Пётр"], "частые первыми, без себя, «Анна Петрова» не дублирует «Анна»")
+        XCTAssertEqual(people, ["Анна", "Иван", "Пётр"], "frequent ones first, without the user, \"Анна Петрова\" does not duplicate \"Анна\"")
         XCTAssertEqual(knownPeople("", calls: calls, projects: projects, me: ""), [])
     }
 }
@@ -103,7 +103,7 @@ final class ProjectTests: TempDirTestCase {
 final class InstanceLockTests: TempDirTestCase {
     func testSecondCopyRejectedUntilReleased() throws {
         let first = try XCTUnwrap(InstanceLock.acquire(in: data))
-        XCTAssertNil(InstanceLock.acquire(in: data), "вторая копия не берёт замок")
+        XCTAssertNil(InstanceLock.acquire(in: data), "a second copy does not get the lock")
         first.release()
         let again = try XCTUnwrap(InstanceLock.acquire(in: data))
         again.release()
@@ -113,7 +113,7 @@ final class InstanceLockTests: TempDirTestCase {
         let url = data.appendingPathComponent("profiles/acme.json")
         try Project(slug: "acme", title: "Acme").save()
         XCTAssertTrue(FileManager.default.fileExists(atPath: data.appendingPathComponent("profiles/acme.json.lock").path))
-        XCTAssertEqual(Project.all().map(\.slug), ["acme"], "файл замка не считается проектом")
+        XCTAssertEqual(Project.all().map(\.slug), ["acme"], "the lock file does not count as a project")
         // While the "engine" holds the lock, the edit waits; without the lock it goes through immediately.
         let fd = open(FileLock.lockURL(for: url).path, O_RDWR)
         XCTAssertEqual(flock(fd, LOCK_EX), 0)
@@ -123,7 +123,7 @@ final class InstanceLockTests: TempDirTestCase {
             done.fulfill()
         }
         Thread.sleep(forTimeInterval: 0.2)
-        XCTAssertEqual(Project.all().first?.title, "Acme", "правка ждёт замка")
+        XCTAssertEqual(Project.all().first?.title, "Acme", "the edit waits for the lock")
         flock(fd, LOCK_UN)
         close(fd)
         wait(for: [done], timeout: 5)
@@ -156,7 +156,7 @@ final class ProjectTitleTests: XCTestCase {
     }
 
     func testOwnNameIsFine() {
-        XCTAssertNil(Project.titleProblem("ACME", slug: "acme", among: list), "переименование того же проекта")
+        XCTAssertNil(Project.titleProblem("ACME", slug: "acme", among: list), "renaming the same project")
         XCTAssertNil(Project.titleProblem("Northwind", slug: "", among: list))
     }
 }

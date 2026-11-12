@@ -68,14 +68,7 @@ public enum PrivateFile {
         let fd = open(tmp.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
         guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         var ok = fchmod(fd, 0o600) == 0  // umask could narrow but not widen the mode; set it explicitly just in case
-        data.withUnsafeBytes { buf in
-            var off = 0
-            while ok, off < buf.count {
-                let n = Darwin.write(fd, buf.baseAddress! + off, buf.count - off)
-                if n < 0 && errno == EINTR { continue }
-                if n <= 0 { ok = false } else { off += n }
-            }
-        }
+        if ok { ok = writeAll(fd, data) }
         if ok { ok = fsync(fd) == 0 }
         close(fd)
         guard ok, rename(tmp.path, url.path) == 0 else {

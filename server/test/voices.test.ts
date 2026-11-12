@@ -33,12 +33,12 @@ describe("voice validation", () => {
 describe("voices API", () => {
   let env: Env;
   beforeAll(async () => {
-    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw" };
+    env = { DB: await localD1(), OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests" };
   });
   const call = (method: string, path: string, opts: { auth?: string; body?: string; ip?: string } = {}) =>
     handleApi(new Request(`http://localhost${path}`, {
       method, body: opts.body,
-      headers: { "CF-Connecting-IP": opts.ip ?? "2.2.2.2", ...(opts.auth === undefined ? { Authorization: "Bearer pw" } : opts.auth ? { Authorization: opts.auth } : {}) },
+      headers: { "CF-Connecting-IP": opts.ip ?? "2.2.2.2", ...(opts.auth === undefined ? { Authorization: "Bearer pw-long-enough-for-tests" } : opts.auth ? { Authorization: opts.auth } : {}) },
     }), env);
 
   it("reports version 0.4.2", async () => {

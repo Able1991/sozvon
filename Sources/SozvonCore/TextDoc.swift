@@ -115,7 +115,7 @@ public struct TextDoc: Sendable {
         }
     }
 
-    /// Text with markdown emphasis and links; markdown that doesn't parse stays as written.
+    /// Text with markdown emphasis and web links (SummaryLink); markdown that doesn't parse stays as written.
     mutating func addMarkdown(_ role: Role, _ s: String) {
         guard let a = try? AttributedString(markdown: s, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else {
             add(role, s)
@@ -127,7 +127,7 @@ public struct TextDoc: Sendable {
             let n = piece.utf16.count
             var style: InlineStyle = []
             // Attributes by type, not by key path (key paths to these aren't Sendable).
-            let link = run.attributes[AttributeScopes.FoundationAttributes.LinkAttribute.self]
+            let link = SummaryLink.safe(run.attributes[AttributeScopes.FoundationAttributes.LinkAttribute.self], text: piece)
             if let i = run.attributes[AttributeScopes.FoundationAttributes.InlinePresentationIntentAttribute.self] {
                 if i.contains(.stronglyEmphasized) { style.insert(.bold) }
                 if i.contains(.emphasized) { style.insert(.italic) }
@@ -314,5 +314,33 @@ public enum ClickToPlay {
 
     public static func plays(clickCount: Int, modified: Bool, moved: Double, selectionLength: Int) -> Bool {
         clickCount == 1 && !modified && moved < slop && selectionLength == 0
+    }
+}
+
+/// Which links of a summary stay clickable. A summary is written by an assistant from what people said on the call
+/// (and may come from the server), so its links are not the user's own: one click must never mount a network
+/// share, open a local file or start another app through its URL scheme.
+public enum SummaryLink {
+    /// The link to keep for this piece of text, or nil to show the text plain. Only http and https; and when the
+    /// text itself reads as an address, the link has to lead to that same host.
+    public static func safe(_ url: URL?, text: String) -> URL? {
+        guard let url, let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              let host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        if let shown = shownHost(text), bare(shown) != bare(host) { return nil }
+        return url
+    }
+
+    private static func bare(_ host: String) -> String { host.hasPrefix("www.") ? String(host.dropFirst(4)) : host }
+
+    /// The host a visible text names when it reads as a web address ("https://zoom.us/j/1", "zoom.us/j/1").
+    static func shownHost(_ text: String) -> String? {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !t.isEmpty, !t.contains(" ") else { return nil }
+        if let r = t.range(of: "://") { t = String(t[r.upperBound...]) }
+        let host = String(t.prefix { $0 != "/" && $0 != "?" && $0 != "#" && $0 != ":" })
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard labels.count >= 2, let tld = labels.last, tld.count >= 2, tld.allSatisfy(\.isLetter),
+              labels.allSatisfy({ !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" } }) else { return nil }
+        return host
     }
 }
