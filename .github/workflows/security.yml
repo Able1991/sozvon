@@ -73,8 +73,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Fail closed: an API error (rate limit, missing permission) must not count as "no alerts".
+          count() {
+            local out
+            out=$(gh api --paginate "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=$1&tool_name=CodeQL&ref=$GITHUB_REF&per_page=100" --jq '.[].number') || return 1
+            # One alert number per line; anything else is not an answer we understand.
+            [ -z "$out" ] || [[ "$out" =~ ^[0-9]+($'\n'[0-9]+)*$ ]] || return 1
+            if [ -z "$out" ]; then echo 0; else echo "$out" | wc -l | tr -d ' '; fi
+          }
           sleep 10
-          n=$(gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=critical&tool_name=CodeQL&ref=$GITHUB_REF" --jq 'length' 2>/dev/null || echo 0)
-          h=$(gh api "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&severity=high&tool_name=CodeQL&ref=$GITHUB_REF" --jq 'length' 2>/dev/null || echo 0)
+          n=$(count critical) || { echo "::error::could not read CodeQL critical alerts from the API"; exit 1; }
+          h=$(count high) || { echo "::error::could not read CodeQL high alerts from the API"; exit 1; }
           echo "CodeQL: critical=$n high=$h"
           [ "$n" = "0" ] && [ "$h" = "0" ]

@@ -46,7 +46,7 @@
 "Я включил, перезапустить Sozvon" = "I turned it on, relaunch Sozvon";
 "Проекты" = "Projects";
 "Найти проекты через %@" = "Find Projects with %@";
-"Claude посмотрит твои сессии Claude Code и спросит открытые, о чём там работа." = "Claude looks through your Claude Code sessions and asks the open ones what they’re working on.";
+"Claude посмотрит твои сессии Claude Code и соберёт проекты, людей и термины." = "Claude looks through your Claude Code sessions and collects projects, people and terms.";
 "Codex посмотрит прошлые сессии и соберёт проекты, людей и термины." = "Codex looks through past sessions and collects projects, people and terms.";
 "Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины." = "Cursor looks through past chats and collects projects, people and terms.";
 
@@ -126,7 +126,7 @@
 "3,1 ГБ" = "3.1 GB";
 "0,5 ГБ" = "0.5 GB";
 "Быстро и точно. Час звонка за 3-4 минуты на M1." = "Fast and accurate. An hour-long call in 3-4 minutes on M1.";
-"Самая точная, примерно в 2 раза медленнее Turbo." = "Most accurate, about 2× slower than Turbo.";
+"Самая большая Whisper, примерно в 2 раза медленнее Turbo." = "The largest Whisper, about 2× slower than Turbo.";
 "Лёгкая: для Mac с 8 ГБ памяти и экономии места. Точность ниже." = "Lightweight: for Macs with 8 GB of memory or to save space. Less accurate.";
 "Модель распознавания" = "Speech Model";
 "рекомендуем" = "recommended";
@@ -473,7 +473,7 @@
 "Голос сохранён" = "Voice saved";
 "Голоса" = "Voices";
 "Sozvon узнаёт этих людей по голосу в звонках проекта. Голос сохраняется, когда ты точно называешь собеседника в расшифровке." = "Sozvon recognizes these people by voice in this project’s calls. A voice is saved when you name a speaker precisely in a transcript.";
-"Звук звонков с голосами собеседников будет храниться в твоём аккаунте Cloudflare: за него и за согласие тех, кого ты записываешь, отвечаешь ты. Бесплатного хранилища хватит примерно на 80 часов звонков, дальше уходит только текст. Если выключить, новые записи перестанут отправляться." = "Call audio with the other people’s voices will be stored in your Cloudflare account: you are responsible for it and for the consent of the people you record. The free storage holds about 80 hours of calls, after that only text is sent. Turning this off stops new uploads.";
+"Звук звонков с голосами собеседников будет храниться в твоём аккаунте Cloudflare: за него и за согласие тех, кого ты записываешь, отвечаешь ты. Бесплатного хранилища хватит примерно на 4 часа звонков, дальше уходит только текст. Если выключить, новые записи перестанут отправляться." = "Call audio with the other people’s voices will be stored in your Cloudflare account: you are responsible for it and for the consent of the people you record. The free storage holds about 4 hours of calls, after that only text is sent. Turning this off stops new uploads.";
 "Отпечатки голосов относятся к биометрическим данным. Когда включено, они хранятся в твоём аккаунте Cloudflare, и отвечаешь за них ты. Если выключить, они останутся только на этом Mac, а уже отправленные пробудут на сервере, пока их не удалить." = "Voice prints are biometric data. With this on, they are stored in your Cloudflare account and you are responsible for them. Turning it off keeps them only on this Mac; ones already uploaded stay on the server until you delete them.";
 "Я" = "Me";
 "Сохраняю голос…" = "Saving your voice…";

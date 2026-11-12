@@ -173,7 +173,7 @@ final class ProcessingController {
     /// "Queued". It starts by itself once the engine is ready.
     private func notifyIfEngineBlocks(_ dir: URL) {
         guard queue.isWaiting(dir) else { return }
-        let state = EngineState.evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine)
+        let state = EngineState.current
         switch state.waitReason {
         case .engine:
             notify(L("Движок сломан"), L("Расшифровка начнётся, когда движок заработает"), action: .reinstallEngine)
@@ -352,7 +352,7 @@ final class ProcessingController {
     /// Recording keeps working; transcriptions wait for the update to finish. Installs from the setup
     /// assistant go through the same owner (EngineInstaller), so two setup.sh never run at once.
     func updateEngineIfNeeded() {
-        let state = EngineState.evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine)
+        let state = EngineState.current
         let d = UserDefaults.standard
         let retryEcho = state == .ready && EngineState.shouldRetryEchoModel(
             data: Paths.data, isDevEngine: Paths.isDevEngine, lastTry: d.object(forKey: DefaultsKey.echoModelTry) as? Date)

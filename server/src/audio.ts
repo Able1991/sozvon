@@ -12,7 +12,18 @@ import { ensureSchema } from "./db";
 
 export const CHUNK = 1_900_000; // bytes per chunk
 export const MAX_CHUNK_INDEX = 9_999; // about 19 GB per track, far above anything a call records
-export const AUDIO_LIMIT = 4_000_000_000; // bytes of audio in total: D1's free 5 GB also holds the calls' text
+// Bytes of audio in total. Audio shares one D1 database with the calls' text, and D1 caps a database at 500 MB on
+// the free plan (10 GB on Workers Paid; the 5 GB of the free plan are per account, across databases). Past that cap
+// D1 refuses every write, text included, so audio stops well before it: the rest is for the text, the search index
+// and the second copy of a track that a commit holds for a moment.
+export const AUDIO_LIMIT = 350_000_000;
+
+/** The audio cap in bytes: AUDIO_LIMIT, or SOZVON_AUDIO_LIMIT_MB megabytes when that variable is a whole number
+ *  above zero (for a Workers Paid account, whose databases hold 10 GB). */
+export function audioLimit(env: { SOZVON_AUDIO_LIMIT_MB?: string }): number {
+  const mb = (env.SOZVON_AUDIO_LIMIT_MB ?? "").trim();
+  return /^[1-9]\d{0,6}$/.test(mb) ? Number(mb) * 1_000_000 : AUDIO_LIMIT;
+}
 export const TRACKS = ["mic", "system"] as const;
 export type Track = (typeof TRACKS)[number];
 export const SHA_RE = /^[0-9a-f]{64}$/;
@@ -35,9 +46,9 @@ export async function audioBytes(db: D1Database): Promise<number> {
 export class StorageFull extends Error {}
 
 /** Stage one chunk of a track version (sha256 of the whole track). A chunk of another version drops the staged ones.
- *  Throws StorageFull when the audio would pass AUDIO_LIMIT. */
+ *  Throws StorageFull when the audio would pass limit bytes. */
 export async function putChunk(db: D1Database, callId: string, track: Track, idx: number, sha256: string,
-                               data: ArrayBuffer, now = Date.now()): Promise<void> {
+                               data: ArrayBuffer, now = Date.now(), limit = AUDIO_LIMIT): Promise<void> {
   await ensureSchema(db);
   await db.batch([
     db.prepare(`DELETE FROM audio_staging WHERE at < ?1`).bind(now - STALE_MS),
@@ -45,7 +56,7 @@ export async function putChunk(db: D1Database, callId: string, track: Track, idx
   ]);
   const prev = await db.prepare(`SELECT size FROM audio_staging WHERE call_id = ?1 AND track = ?2 AND idx = ?3`)
     .bind(callId, track, idx).first<{ size: number }>();
-  if ((await audioBytes(db)) - (prev?.size ?? 0) + data.byteLength > AUDIO_LIMIT) throw new StorageFull("audio storage is full");
+  if ((await audioBytes(db)) - (prev?.size ?? 0) + data.byteLength > limit) throw new StorageFull("audio storage is full");
   await db.prepare(
     `INSERT INTO audio_staging (call_id, track, idx, sha256, size, at, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
      ON CONFLICT (call_id, track, idx) DO UPDATE SET sha256 = excluded.sha256, size = excluded.size, at = excluded.at,

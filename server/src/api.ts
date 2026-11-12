@@ -1,8 +1,8 @@
 // Sync API for the Sozvon app (docs/SERVER.md, "Sync protocol").
 import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
-import { AUDIO_LIMIT, CHUNK, commitTrack, getChunk, isAudioRemoved, isTrack, listAudio, MAX_CHUNK_INDEX, MAX_START, putChunk,
+import { audioLimit, CHUNK, commitTrack, getChunk, isAudioRemoved, isTrack, listAudio, MAX_CHUNK_INDEX, MAX_START, putChunk,
          removeAudio, SHA_RE, StorageFull } from "./audio";
-import { bearer, checkPassword } from "./auth";
+import { bearer, checkPassword, passwordProblem } from "./auth";
 import { callExists, type CallPayload, callTombstones, deleteCall, deleteNote, deleteVoice, getStored, isTombstoned, listHashes, listVoices, MAX_CHUNKS,
          MAX_NOTES, mergeNotes, type Note, NOTE_ID_RE, putCall, putVoice, SCHEMA, TooManyLines, validNote, type Voice,
          VOICE_DIM, VOICE_ID_RE } from "./db";
@@ -18,6 +18,7 @@ export interface Env {
   DB: D1Database;
   OAUTH_KV: KVNamespace;
   SOZVON_PASSWORD?: string;
+  SOZVON_AUDIO_LIMIT_MB?: string; // optional: megabytes of audio to keep instead of AUDIO_LIMIT (audio.ts)
   OAUTH_PROVIDER?: OAuthHelpers; // set by the OAuth provider for the sign-in page
 }
 
@@ -115,7 +116,13 @@ async function readJson(request: Request, limit: number): Promise<{ body: unknow
 
 /** The error answer for a request without the right password, or null when it has it. */
 async function authError(request: Request, env: Env): Promise<Response | null> {
-  const auth = await checkPassword(env.DB, request, env.SOZVON_PASSWORD, bearer(request));
+  const problem = passwordProblem(env.SOZVON_PASSWORD);
+  if (problem) return error(503, problem);
+  // No bearer token is not an attempt: it is not counted and not slowed down. A page on another site can make the
+  // owner's browser send such requests (it can't add an Authorization header), and they must not lock the owner out.
+  const attempt = bearer(request);
+  if (!attempt) return error(401, "password required");
+  const auth = await checkPassword(env.DB, request, env.SOZVON_PASSWORD, attempt);
   if (auth === "unset") return error(503, "SOZVON_PASSWORD is not set on the server");
   if (auth === "locked") return error(429, "too many wrong passwords, try again in 15 minutes");
   if (auth !== "ok") return error(401, "wrong password");
@@ -277,10 +284,11 @@ async function routeAudio(request: Request, env: Env, id: string, route: "audio"
   if (await isTombstoned(env.DB, id)) return error(410, GONE);
   if (await isAudioRemoved(env.DB, id)) return error(410, AUDIO_GONE);
   if (!(await callExists(env.DB, id))) return error(404, "unknown call");
+  const limit = audioLimit(env);
   try {
-    await putChunk(env.DB, id, track, idx, sha, data);
+    await putChunk(env.DB, id, track, idx, sha, data, Date.now(), limit);
   } catch (e) {
-    if (e instanceof StorageFull) return error(507, `the free storage for audio is full (${AUDIO_LIMIT} bytes)`);
+    if (e instanceof StorageFull) return error(507, `the storage for audio is full (${limit} bytes)`);
     throw e;
   }
   return new Response(null, { status: 204 });

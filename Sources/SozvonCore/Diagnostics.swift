@@ -174,7 +174,7 @@ public struct DiagnosticScrub: Sendable {
     }
 
     private static func regex(_ pattern: String, options: NSRegularExpression.Options = []) -> NSRegularExpression {
-        // swiftlint:disable:next force_try
+        // Only ever called with the constant patterns below: a bad one is a programming error, caught by any test.
         try! NSRegularExpression(pattern: pattern, options: options)
     }
 

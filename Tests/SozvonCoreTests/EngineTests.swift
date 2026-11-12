@@ -22,7 +22,7 @@ final class EngineStateTests: TempDirTestCase {
 
     func testNotInstalledWithoutVenv() {
         XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false), .notInstalled,
-                       "без venv и модели не установлен")
+                       "no venv and no model: not installed")
     }
 
     func testModelMissingAndReady() throws {
@@ -48,21 +48,65 @@ final class EngineStateTests: TempDirTestCase {
         try write("0000000000000000\n", data.appendingPathComponent(".venv-lock"))
         XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false), .needsUpdate)
         XCTAssertTrue(EngineState.needsUpdate.isUsable)
-        XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: true), .ready, "свой движок не обновляем")
+        XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: true), .ready, "a custom engine is not updated")
         try write(EngineState.lockHash(Data("lock v2".utf8)) + "\n", data.appendingPathComponent(".venv-lock"))
         XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false), .ready)
     }
 
+    /// evaluate runs on the main thread on every state change and render: once the files are known it must not
+    /// read or hash them again, and it must still notice every change to them.
+    func testLockFilesAreReadOncePerChange() throws {
+        try makePython()
+        try makeModel(.turbo)
+        let lock = data.appendingPathComponent("uv.lock"), installed = data.appendingPathComponent(".venv-lock")
+        try write("lock v1", lock)
+        try write(EngineState.lockHash(Data("lock v1".utf8)) + "\n", installed)
+        let state = { EngineState.evaluate(data: self.data, model: .turbo, isDevEngine: false) }
+        XCTAssertEqual(state(), .ready)
+        let loads = FileMemo.shared.loads
+        for _ in 0..<5 { XCTAssertEqual(state(), .ready) }
+        XCTAssertEqual(FileMemo.shared.loads, loads, "unchanged files are not read again")
+
+        try write("lock v2", lock)  // same size, new content
+        XCTAssertEqual(state(), .needsUpdate, "a new uv.lock is noticed")
+        XCTAssertEqual(FileMemo.shared.loads, loads + 1, "only the changed file is read")
+        try write(EngineState.lockHash(Data("lock v2".utf8)) + "\n", installed)
+        XCTAssertEqual(state(), .ready, "a new .venv-lock is noticed")
+        // Written in place, as setup.sh does (no new file, same size).
+        let h = try FileHandle(forWritingTo: installed)
+        try h.write(contentsOf: Data("0000000000000000\n".utf8))
+        try h.close()
+        XCTAssertEqual(state(), .needsUpdate, "an in-place rewrite is noticed")
+        try FileManager.default.removeItem(at: installed)
+        XCTAssertEqual(state(), .needsUpdate, "no .venv-lock: the environment is not for this uv.lock")
+        try FileManager.default.removeItem(at: lock)
+        XCTAssertEqual(state(), .ready, "no uv.lock: nothing to compare with")
+    }
+
+    func testFileMemoForgetsAMissingFile() throws {
+        let f = tmp.appendingPathComponent("memo.txt")
+        let memo = FileMemo()
+        XCTAssertNil(memo.value(f) { _ in "x" })
+        try write("a", f)
+        XCTAssertEqual(memo.value(f) { String(decoding: $0, as: UTF8.self) }, "a")
+        XCTAssertEqual(memo.value(f) { _ in "never called" }, "a")
+        XCTAssertEqual(memo.loads, 1)
+        try FileManager.default.removeItem(at: f)
+        XCTAssertNil(memo.value(f) { _ in "x" })
+        try write("b", f)
+        XCTAssertEqual(memo.value(f) { String(decoding: $0, as: UTF8.self) }, "b")
+    }
+
     func testEchoModelMissingUntilItsCompleteMarkerExists() throws {
-        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: false), "движок не поставлен: первая установка сама всё скачает")
+        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: false), "the engine is not installed: the first install downloads everything itself")
         try makePython()
         XCTAssertTrue(EngineState.echoModelMissing(data: data, isDevEngine: false))
-        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: true), "свой движок не докачиваем")
+        XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: true), "nothing is fetched for a custom engine")
         let t0 = Date(timeIntervalSince1970: 1_000_000)
-        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: nil, now: t0), "ещё не пробовали")
-        XCTAssertFalse(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 3600, now: t0), "час назад: каждый запуск не качаем")
-        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 86400, now: t0), "сутки спустя снова")
-        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 + 3600, now: t0), "часы перевели назад")
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: nil, now: t0), "not tried yet")
+        XCTAssertFalse(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 3600, now: t0), "an hour ago: not downloaded on every launch")
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 - 86400, now: t0), "again a day later")
+        XCTAssertTrue(EngineState.shouldRetryEchoModel(data: data, isDevEngine: false, lastTry: t0 + 3600, now: t0), "the clock was set back")
         XCTAssertFalse(EngineState.shouldRetryEchoModel(data: data, isDevEngine: true, lastTry: nil, now: t0))
         try write("", data.appendingPathComponent("models/\(EngineState.echoModelDir)/.complete"))
         XCTAssertFalse(EngineState.echoModelMissing(data: data, isDevEngine: false))
@@ -79,10 +123,10 @@ final class EngineStateTests: TempDirTestCase {
         let env = Engine.environment(base: ["HOME": "/h", "SOZVON_THREADS": "8", "WHISPER_MCP_DIR": "/old"], data: data, calls: calls, gentle: false,
                                      uiLanguage: "en", mcpToken: "t", pyannoteTar: URL(fileURLWithPath: "/b/p.tar.gz"))
         XCTAssertEqual(env["SOZVON_DATA_DIR"], data.path)
-        XCTAssertNil(env["WHISPER_MCP_DIR"], "старое имя больше не передаётся")
+        XCTAssertNil(env["WHISPER_MCP_DIR"], "the old name is no longer passed")
         XCTAssertEqual(env["SOZVON_CALLS_DIR"], calls.path)
         XCTAssertEqual(env["SOZVON_UI_LANG"], "en")
-        XCTAssertNil(env["SOZVON_THREADS"], "без «Не мешать работе» потоки не ограничены")
+        XCTAssertNil(env["SOZVON_THREADS"], "without \"Don't get in the way\" threads are not limited")
         XCTAssertEqual(env["SOZVON_MCP_PORT"], "47816")
         XCTAssertEqual(env["SOZVON_MCP_TOKEN"], "t")
         XCTAssertEqual(env["SOZVON_PYANNOTE_TAR"], "/b/p.tar.gz")
@@ -128,16 +172,16 @@ final class EngineSyncTests: TempDirTestCase {
         let fm = FileManager.default
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("bin/process_call.py"), encoding: .utf8), "main")
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("sozvon_engine/__init__.py"), encoding: .utf8), "lib")
-        XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("sozvon_engine/old.py").path), "папка заменена целиком")
+        XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("sozvon_engine/old.py").path), "the folder is replaced as a whole")
         XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent("server.py").path))
-        XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("pyannote-models-v1.tar.gz").path), "архив не копируется")
+        XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("pyannote-models-v1.tar.gz").path), "the archive is not copied")
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("ENGINE_VERSION"), encoding: .utf8), "abc",
-                       "движок сам читает свою версию")
+                       "the engine reads its own version")
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("sozvon_engine/pipeline/run.py"), encoding: .utf8),
-                       "deep", "вложенные папки копируются целиком")
+                       "deep", "nested folders are copied whole")
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("vocab.json"), encoding: .utf8), "{\"schema\": 1}")
-        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent("profiles/acme.json").path), "проекты не тронуты")
-        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent(".venv/marker").path), "окружение не тронуто")
+        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent("profiles/acme.json").path), "projects are untouched")
+        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent(".venv/marker").path), "the environment is untouched")
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent(".engine-version"), encoding: .utf8), "v1")
         let leftovers = try fm.contentsOfDirectory(atPath: data.path).filter { $0.hasSuffix(".sync-tmp") }
         XCTAssertEqual(leftovers, [])
@@ -152,7 +196,7 @@ final class EngineSyncTests: TempDirTestCase {
         let fm = FileManager.default
         XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("scripts/voiceid.py").path))
         XCTAssertFalse(fm.fileExists(atPath: data.appendingPathComponent("scripts/langid.py").path))
-        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent("scripts/custom.py").path), "чужое не трогаем")
+        XCTAssertTrue(fm.fileExists(atPath: data.appendingPathComponent("scripts/custom.py").path), "what is not ours is left alone")
     }
 
     func testVocabNotOverwrittenAndSameVersionSkipped() throws {
@@ -163,7 +207,7 @@ final class EngineSyncTests: TempDirTestCase {
         try write("changed", bundle.appendingPathComponent("server.py"))
         XCTAssertTrue(EngineSync.sync(from: bundle, to: data, version: "v1"))
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("server.py"), encoding: .utf8), "server",
-                       "та же версия: не копируем")
+                       "same version: no copy")
         XCTAssertTrue(EngineSync.sync(from: bundle, to: data, version: "v2"))
         XCTAssertEqual(try String(contentsOf: data.appendingPathComponent("server.py"), encoding: .utf8), "changed")
     }
@@ -176,8 +220,8 @@ final class EngineSyncTests: TempDirTestCase {
         defer { chmod(locked.path, 0o644) }
         XCTAssertFalse(EngineSync.sync(from: bundle, to: data, version: "v1"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: data.appendingPathComponent(".engine-version").path),
-                       "сбой: метки нет, в следующий раз повторим")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: data.appendingPathComponent("server.py").path), "остальное скопировано")
+                       "failure: no stamp, retried next time")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: data.appendingPathComponent("server.py").path), "the rest is copied")
     }
 }
 
@@ -199,8 +243,8 @@ final class RunResultTests: XCTestCase {
         XCTAssertEqual(RunOutcome.parse(exitCode: 4, lines: ["RESULT: error 4 нет модели"]), .modelMissing("нет модели"))
         XCTAssertEqual(RunOutcome.parse(exitCode: 5, lines: ["RESULT: error 5 битый файл", ""]), .damaged("битый файл"))
         XCTAssertEqual(RunOutcome.parse(exitCode: 1, lines: ["Traceback", "ValueError: x"]),
-                       .failed(code: 1, message: "ValueError: x"), "без RESULT: последняя строка")
-        XCTAssertEqual(RunOutcome.parse(exitCode: 143, lines: []), .failed(code: 143, message: ""), "убит сигналом")
+                       .failed(code: 1, message: "ValueError: x"), "no RESULT: the last line")
+        XCTAssertEqual(RunOutcome.parse(exitCode: 143, lines: []), .failed(code: 143, message: ""), "killed by a signal")
         XCTAssertEqual(RunOutcome.parse(exitCode: -1, lines: ["Не удалось запустить: x"]),
                        .failed(code: -1, message: "Не удалось запустить: x"))
     }
@@ -209,6 +253,6 @@ final class RunResultTests: XCTestCase {
         XCTAssertEqual(RunOutcome.parse(exitCode: 1, lines: ["RESULT: error 4 нет модели"]), .modelMissing("нет модели"))
         XCTAssertEqual(RunOutcome.parse(exitCode: 0, lines: ["RESULT: error 5 битый"]), .damaged("битый"))
         XCTAssertEqual(RunOutcome.parse(exitCode: 0, lines: ["RESULT: error что-то"]), .failed(code: 1, message: "что-то"))
-        XCTAssertEqual(RunOutcome.parse(exitCode: 2, lines: ["RESULT: error 4 x"]), .noAudio("x"), "код завершения главнее")
+        XCTAssertEqual(RunOutcome.parse(exitCode: 2, lines: ["RESULT: error 4 x"]), .noAudio("x"), "the exit code wins")
     }
 }

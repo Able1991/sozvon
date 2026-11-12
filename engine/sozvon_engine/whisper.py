@@ -181,6 +181,9 @@ def log_mel(audio, n_mels: int = 80, padding: int = 0):
     return spec
 
 
+SEED = 0
+
+
 def _transcribe(audio, **kw) -> dict:
     """Test seam: the real mlx_whisper.transcribe call, with the MLX cache kept small and cleared after
     (faster-whisper on Windows, which keeps no cache of its own)."""
@@ -192,6 +195,9 @@ def _transcribe(audio, **kw) -> dict:
     import mlx.core as mx
     import mlx_whisper
     mx.set_cache_limit(MLX_CACHE_LIMIT)
+    # An unsure piece is decoded again with random sampling: a fixed seed makes reprocessing a call give the
+    # same text (the quality does not change, only which of the guesses is taken).
+    mx.random.seed(SEED)
     # mlx_whisper.transcribe is the function; the module of that name holds the spectrogram it calls.
     sys.modules["mlx_whisper.transcribe"].log_mel_spectrogram = log_mel
     try:

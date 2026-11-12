@@ -29,13 +29,7 @@ final class MCPServer: ObservableObject {
         guard process == nil, !stopped else { return }
         guard FileManager.default.isExecutableFile(atPath: Paths.python.path) else { return }
         let header = "\n=== \(ISO8601DateFormatter().string(from: Date())) server.py --http\n"
-        if let h = try? FileHandle(forWritingTo: Paths.mcpLog) {
-            h.seekToEndOfFile()
-            h.write(Data(header.utf8))
-            try? h.close()
-        } else {
-            try? header.write(to: Paths.mcpLog, atomically: true, encoding: .utf8)
-        }
+        AppLog.append(header, to: Paths.mcpLog)
         generation += 1
         let gen = generation
         process = ProcessRunner.run(Paths.python, [Paths.data.appendingPathComponent("server.py").path, "--http"],

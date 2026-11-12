@@ -114,8 +114,9 @@ public struct SettingsValues: Equatable, Sendable {
     /// Own server (optional): address and password.
     public var serverURL = ""
     public var serverPassword = ""
-    /// Voice prints go to the own server too (absent in .env: on).
-    public var syncVoices = true
+    /// Voice prints go to the own server too. Biometric data, so off unless the user turned it on: absent in
+    /// .env is off, and so is any value without a server (older versions wrote `1` there on every save).
+    public var syncVoices = false
     /// Call audio goes to the own server too (absent in .env: on).
     public var syncAudio = true
     /// The summary's language; nil: the conversation's.
@@ -133,10 +134,13 @@ public struct SettingsValues: Equatable, Sendable {
         assistant = kv[Key.llm].flatMap(Assistant.init(rawValue:)) ?? detect()
         serverURL = kv[Key.serverURL] ?? ""
         serverPassword = kv[Key.serverPassword] ?? ""
-        syncVoices = kv[Key.syncVoices] != "0"
+        syncVoices = kv[Key.syncVoices] == "1" && hasServer
         syncAudio = kv[Key.syncAudio] != "0"
         summaryLanguage = kv[Key.summaryLanguage].flatMap(SpeechLanguage.init(rawValue:)).flatMap { $0 == .auto ? nil : $0 }
     }
+
+    /// The own server is set up: a valid address and a password.
+    public var hasServer: Bool { OwnServer.isConfigured(url: serverURL, password: serverPassword) }
 
     /// Keys managed by the app (old names are removed on write).
     public static let managedKeys: Set<String> = [Key.version, Key.me, Key.legacyMe, Key.llm, Key.language,
@@ -155,7 +159,7 @@ public struct SettingsValues: Equatable, Sendable {
         if !url.isEmpty { kv.append((Key.serverURL, url)) }
         let password = serverPassword.trimmingCharacters(in: .whitespacesAndNewlines)
         if !password.isEmpty { kv.append((Key.serverPassword, password)) }
-        kv.append((Key.syncVoices, syncVoices ? "1" : "0"))
+        kv.append((Key.syncVoices, syncVoices && hasServer ? "1" : "0"))
         kv.append((Key.syncAudio, syncAudio ? "1" : "0"))
         kv.append((Key.summaryLanguage, summaryLanguage?.rawValue ?? "auto"))
         return kv
@@ -179,7 +183,7 @@ public final class Settings: ObservableObject {
     @Published public var model: WhisperModel = .turbo
     @Published public var serverURL = ""
     @Published public var serverPassword = ""
-    @Published public var syncVoices = true
+    @Published public var syncVoices = false
     @Published public var syncAudio = true
     @Published public var summaryLanguage: SpeechLanguage?
 
@@ -221,12 +225,14 @@ public final class Settings: ObservableObject {
     }
 
     /// The own server is set up: a valid address and a password.
-    public var hasServer: Bool { OwnServer.isConfigured(url: serverURL, password: serverPassword) }
+    public var hasServer: Bool { values.hasServer }
 
     public func save() { try? write() }
 
     /// Save, reporting failure (Connect Cloudflare must not lose a password it just set on the server).
     public func write() throws {
+        // Without a server nobody chose to send voice prints: the next server connected starts with it off.
+        if syncVoices && !hasServer { syncVoices = false }
         let old = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         try PrivateFile.write(Data(values.render(over: old).utf8), to: url)
     }

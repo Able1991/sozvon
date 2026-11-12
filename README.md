@@ -90,10 +90,10 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 | Model | Size | Languages | Peak memory | Time for a 75 min call | Notes |
 |---|---|---|---|---|---|
 | **Whisper Turbo** (recommended) | 1.6 GB | 99 | 4.0 GB | 36 min | Fast and accurate, uses the project vocabulary |
-| Whisper Large v3 | 3.1 GB | 99 | 4.9 GB | 68 min | Most accurate, about 2x slower |
+| Whisper Large v3 | 3.1 GB | 99 | 4.9 GB | 68 min | The largest Whisper, about 2x slower than Turbo; on the author's calls not noticeably more accurate |
 | Whisper Small | 0.5 GB | 99 | 4.0 GB | 23 min | For Macs with 8 GB of memory |
 | GigaAM v3 (Sber) | 0.2 GB | Russian | 3.2 GB | 20 min | Light and fast, no project vocabulary |
-| Parakeet v3 (NVIDIA) | 0.7 GB | 25 European | 5.2 GB | 21 min | Very fast, no project vocabulary |
+| Parakeet v3 (NVIDIA) | 0.7 GB | 25 European | 4.5 GB | 23 min | Very fast, no project vocabulary |
 
 Peak memory and time: the whole processing of one 75-minute call with two tracks (echo removal, recognition, speaker separation), MacBook Pro M1 Pro with 16 GB, version 0.1.5. About 10 minutes of each run is speaker separation, the same for every model. Version 0.1.4 needed up to 17 GB for the same call with Whisper Turbo.
 
@@ -127,8 +127,8 @@ Ask Claude or ChatGPT about your calls from your phone or the web while the Mac 
 | What goes up | When |
 |---|---|
 | Text of your calls | always |
-| Call audio | Send call audio, on by default. The free plan holds about 80 hours, then only text syncs |
-| Voice prints | Send voice prints, on by default. Other people's voices are then your responsibility, including their consent |
+| Call audio | Send call audio, on by default. The free plan holds about 4 hours, then only text syncs |
+| Voice prints | Only if you turn on Send voice prints (off by default: they are biometric data). Other people's voices are then your responsibility, including their consent |
 
 - **Claude and ChatGPT get text only,** never audio or voice prints. They can list, read and search calls and add or delete notes, but never change or delete a call.
 - **Second Mac.** Connect it to the same server: it downloads your calls with audio, notes and voices, and the connectors stay signed in.
@@ -152,16 +152,16 @@ How it works: [docs/SERVER.md](docs/SERVER.md).
 | Python environment, models | PyPI, huggingface.co | once, during setup |
 | Echo removal model (11 MB) | huggingface.co | once, during setup, or at the first launch after the update that brings it |
 | uv binary (if missing), CPython for `uv sync`, fallback archive of the speaker separation models (release `models-v1`) | github.com | once, during setup |
-| Transcript text for the summary and speaker names | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
+| Transcript text for the summary and speaker names. For this the assistant gets no tools: Claude runs with none at all, Codex without its shell, your MCP servers, plugins and web search, in an empty temporary folder. Cursor has no such switch: it runs in read-only ask mode inside its sandbox, in an empty temporary folder where your MCP servers are not approved | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
 | Whatever the assistant reads through MCP | Anthropic, OpenAI or Cursor | only when you ask it |
-| Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`, or past chats in `~/.cursor/projects`), replies of open sessions. Claude is limited to reading inside `~/.claude`. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads. Cursor runs in read-only ask mode, and its limit to those folders is also only an instruction | Anthropic, OpenAI or Cursor | only when you click Find Projects |
+| Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`, or past chats in `~/.cursor/projects`). Claude is limited to reading inside `~/.claude`; with `SOZVON_DISCOVER_ASK=1` in the engine `.env` it also asks your open Claude Code sessions what they are about. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads. Cursor runs in read-only ask mode, and its limit to those folders is also only an instruction | Anthropic, OpenAI or Cursor | only when you click Find Projects |
 | Updates | github.com: the latest release's appcast.xml, and the new DMG when there is one | once a day; automatic install can be turned off in Settings > About |
 | Transcripts, summaries, notes and call details, so Claude or ChatGPT can answer from your phone | your own server in your own Cloudflare account, never us ([how it works](docs/SERVER.md)) | only if you set one up |
 | Call audio, so a new Mac can play your calls (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send call audio on (the default) |
-| Voice prints, so your other Macs recognize the same voices (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send voice prints on (the default) |
+| Voice prints, so your other Macs recognize the same voices (never shown to Claude or ChatGPT) | your own server in your own Cloudflare account | only with your own server and Send voice prints turned on (off by default) |
 | Cloudflare sign-in and setup: creating the database, the sign-in storage and the Worker in your account | dash.cloudflare.com, api.cloudflare.com | only when you press Connect Cloudflare or Update server |
 
-No telemetry and no servers of our own. Choose "Local only", skip the own server, and nothing except the update check leaves your Mac. Every commit is checked by [Gitleaks](https://github.com/gitleaks/gitleaks), [Semgrep](https://semgrep.dev) and [CodeQL](https://codeql.github.com).
+No telemetry and no servers of our own. Choose "Local only", skip the own server, and nothing except the update check leaves your Mac. Every commit is checked by [Gitleaks](https://github.com/gitleaks/gitleaks), [Semgrep](https://semgrep.dev) and [CodeQL](https://codeql.github.com). Found a vulnerability? Report it privately, see [SECURITY.md](SECURITY.md).
 
 ## How it works
 
@@ -197,4 +197,4 @@ Requires Xcode Command Line Tools and [uv](https://docs.astral.sh/uv/). Optional
 
 ## License
 
-MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0). The Windows engine uses the faster-whisper conversions of Whisper (MIT); `engine/sozvon_engine/assets/whisper-tokenizer.json` is the Whisper tokenizer from `Systran/faster-whisper-small` (MIT). On the CPU the Windows engine can use an ONNX export of the WeSpeaker ResNet34-LM speaker embedding model (authors: Hongji Wang et al., CC BY 4.0, from `pyannote/wespeaker-voxceleb-resnet34-LM`).
+MIT. Models: Whisper (MIT), pyannote (MIT, CC BY 4.0), GigaAM (MIT), Parakeet (CC BY 4.0), LocalVQE (Apache 2.0).

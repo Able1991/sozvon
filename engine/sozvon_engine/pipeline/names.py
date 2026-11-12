@@ -107,7 +107,7 @@ def build_prompt(paras: list, labels: list, candidates: list, given: list, me: s
     return (PROMPT_RU if lang == "ru" else PROMPT_EN).format(
         labels=", ".join(labels), me=me, candidates=", ".join(candidates),
         given=GIVEN[lang].format(names=", ".join(given)) if given else "",
-        speaker=t("speaker"), example=labels[0], transcript=text)
+        speaker=t("speaker"), example=labels[0], transcript=llm.as_data(text, lang))
 
 
 def parse_mapping(out: str):

@@ -47,9 +47,9 @@ def test_who_spoke(tmp_path, fake_embed):  # noqa: F811
 
 def test_one_voice_saved_under_two_names(tmp_path, fake_embed):  # noqa: F811
     """Two names with nearly the same print (one person named wrongly once): matched, but the name is not trusted."""
-    store("Влад", 300, profile="pop")
+    store("Олег", 300, profile="demo")
     twin = voices.unit(np.array(one_hot(3)) * 0.9 + np.array(one_hot(9)) * np.sqrt(1 - 0.81))
-    voices.store("Борис", "pop", False, twin, 10.0)
+    voices.store("Борис", "demo", False, twin, 10.0)
     store("Олег", 500)
     live = tmp_path / ".live"
     live.mkdir()
@@ -57,8 +57,8 @@ def test_one_voice_saved_under_two_names(tmp_path, fake_embed):  # noqa: F811
     (live / "stop").touch()
     assert live_voices.run(live, log=lambda m: None, poll=0.01, parent=os.getppid()) == 0
     out = json.loads((live / "voices.json").read_text())
-    assert [v["name"] for v in out["voices"]] == ["Влад"], "the name with more enrolled speech"
-    assert out["voices"][0]["unsure"] is True and out["voices"][0]["profile"] == "pop"
+    assert [v["name"] for v in out["voices"]] == ["Олег"], "the name with more enrolled speech"
+    assert out["voices"][0]["unsure"] is True and out["voices"][0]["profile"] == "demo"
 
 
 def test_a_clear_voice_is_not_unsure(tmp_path, fake_embed):  # noqa: F811

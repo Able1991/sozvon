@@ -112,7 +112,7 @@ def test_full_call(tmp_path):
     assert meta["names"] == ["Анна"] and meta["topic"] == "запуск"
     assert meta["status"] == "done" and meta["engine"]["model"] == slow_model()
     assert not (call / "summary.md").exists()
-    assert not list(call.glob("*.wav")), "временные wav должны удаляться"
+    assert not list(call.glob("*.wav")), "temporary wav files must be removed"
 
 
 @pytest.mark.skipif(ENGINE is None or not (ENGINE / "hf-cache").is_dir() and not os.environ.get("HF_TOKEN"),

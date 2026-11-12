@@ -22,10 +22,10 @@ final class RecordingMachineTests: XCTestCase {
         XCTAssertEqual(m.state.session?.info.profile, "acme")
         let task = Task<Void, Never> {}
         let s = m.stop(finalize: task)
-        XCTAssertEqual(s?.info.profile, "acme", "остановка отдаёт сессию с ответами")
+        XCTAssertEqual(s?.info.profile, "acme", "stopping returns the session with the answers")
         XCTAssertTrue(m.state.isStopping)
         XCTAssertTrue(m.state.isCapturing)
-        XCTAssertNotNil(m.state.finalizeTask, "задачу дописывания можно дождаться (выход, сбой)")
+        XCTAssertNotNil(m.state.finalizeTask, "the finishing task can be awaited (quit, failure)")
         await m.state.finalizeTask?.value
         XCTAssertTrue(m.finalized())
         XCTAssertEqual(m.state.name, "saved")
@@ -36,9 +36,9 @@ final class RecordingMachineTests: XCTestCase {
     func testDoubleStartRejected() {
         var m = RecordingMachine()
         XCTAssertTrue(m.begin(dir))
-        XCTAssertFalse(m.begin(other), "двойной клик не запускает две записи")
+        XCTAssertFalse(m.begin(other), "a double click does not start two recordings")
         XCTAssertTrue(m.started(session()))
-        XCTAssertFalse(m.begin(other), "во время записи новая не начинается")
+        XCTAssertFalse(m.begin(other), "no new recording starts during a recording")
     }
 
     func testStartFailed() {
@@ -58,15 +58,15 @@ final class RecordingMachineTests: XCTestCase {
 
     func testInvalidTransitions() {
         var m = RecordingMachine()
-        XCTAssertNil(m.stop(finalize: Task {}), "нечего останавливать")
+        XCTAssertNil(m.stop(finalize: Task {}), "nothing to stop")
         XCTAssertFalse(m.finalized())
         XCTAssertFalse(m.updateInfo(CallInfo()))
         XCTAssertFalse(m.dismissSaved(dir))
         m.begin(dir)
-        XCTAssertNil(m.stop(finalize: Task {}), "запуск ещё не закончился")
+        XCTAssertNil(m.stop(finalize: Task {}), "the start has not finished yet")
         m.started(session())
         m.stop(finalize: Task {})
-        XCTAssertNil(m.stop(finalize: Task {}), "второй стоп во время остановки")
+        XCTAssertNil(m.stop(finalize: Task {}), "a second stop while stopping")
         XCTAssertFalse(m.updateInfo(CallInfo()))
     }
 
@@ -76,8 +76,8 @@ final class RecordingMachineTests: XCTestCase {
         m.started(session())
         m.stop(finalize: Task {})
         m.finalized()
-        XCTAssertTrue(m.begin(other), "пока висит вопрос о звонке, можно начать новую запись")
-        XCTAssertFalse(m.dismissSaved(dir), "ответ на старый вопрос не сбрасывает новую запись")
+        XCTAssertTrue(m.begin(other), "a new recording can start while the call question is pending")
+        XCTAssertFalse(m.dismissSaved(dir), "an answer to the old question does not reset the new recording")
         XCTAssertTrue(m.state.isStarting)
     }
 
@@ -207,13 +207,13 @@ final class ProcessingQueueTests: XCTestCase {
 
 final class AudioMathTests: XCTestCase {
     func testGapFiller() {
-        XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 10, framesWritten: 48000, sampleRate: 48000, pts: 11), 0, "без разрыва")
+        XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 10, framesWritten: 48000, sampleRate: 48000, pts: 11), 0, "no gap")
         XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 10, framesWritten: 48000, sampleRate: 48000, pts: 11.2), 0,
-                       "джиттер до 0,25 с не заполняем")
+                       "jitter up to 0.25 s is not filled")
         XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 10, framesWritten: 48000, sampleRate: 48000, pts: 13.5), 120_000,
-                       "2,5 с тишины")
+                       "2.5 s of silence")
         XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 10, framesWritten: 48000, sampleRate: 48000, pts: 10.5), 0,
-                       "пакет из прошлого не заполняем")
+                       "a packet from the past is not filled")
         XCTAssertEqual(GapFiller.silenceFrames(firstPTS: 0, framesWritten: 0, sampleRate: 0, pts: 5), 0)
         XCTAssertEqual(GapFiller.chunks(120_000, maxChunk: 48000), [48000, 48000, 24000])
         XCTAssertEqual(GapFiller.chunks(0, maxChunk: 48000), [])
@@ -225,12 +225,12 @@ final class AudioMathTests: XCTestCase {
         var r = m.update(now: t0, mic: (0.5, t0), system: (0.4, t0))
         XCTAssertEqual(r, .init(mic: 0.5, system: 0.4, systemSilent: 0, micMissing: 0))
         r = m.update(now: t0.addingTimeInterval(1), mic: (0.5, t0.addingTimeInterval(1)), system: (0.001, t0.addingTimeInterval(1)))
-        XCTAssertEqual(r.systemSilent, 0, "тишина только началась")
+        XCTAssertEqual(r.systemSilent, 0, "the silence has only just begun")
         r = m.update(now: t0.addingTimeInterval(21), mic: (0.5, t0.addingTimeInterval(21)), system: (0.001, t0.addingTimeInterval(21)))
         XCTAssertEqual(r.systemSilent, 20)
         r = m.update(now: t0.addingTimeInterval(22), mic: (0.5, t0), system: (0.3, t0.addingTimeInterval(22)))
-        XCTAssertEqual(r.mic, 0, "старый пакет микрофона: уровень 0")
-        XCTAssertEqual(r.systemSilent, 0, "звук вернулся")
+        XCTAssertEqual(r.mic, 0, "an old microphone packet: level 0")
+        XCTAssertEqual(r.systemSilent, 0, "the sound is back")
         r = m.update(now: t0.addingTimeInterval(31), mic: (0.5, t0), system: (0.3, t0.addingTimeInterval(31)))
         XCTAssertEqual(r.micMissing, 9)
     }

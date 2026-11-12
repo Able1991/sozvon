@@ -50,7 +50,7 @@ describe("sign-in POST", () => {
 
   it("a post from another site (no consent cookie) never counts as a wrong password", async () => {
     const { oauth, calls } = fakeOAuth("good");
-    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw", OAUTH_PROVIDER: oauth };
+    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests", OAUTH_PROVIDER: oauth };
     for (let i = 0; i < 12; i++) {
       const r = await post(env, { handle: "forged", decision: "approve", password: "guess" }, "3.3.3.3");
       expect(r.status).toBe(400);
@@ -60,7 +60,7 @@ describe("sign-in POST", () => {
   });
   it("a wrong password in the real form counts and shows a fresh form", async () => {
     const { oauth, calls } = fakeOAuth("good");
-    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw", OAUTH_PROVIDER: oauth };
+    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests", OAUTH_PROVIDER: oauth };
     const r = await post(env, { handle: "good", decision: "approve", password: "wrong" }, "3.3.3.4");
     expect(r.status).toBe(401);
     const html = await r.text();
@@ -72,8 +72,8 @@ describe("sign-in POST", () => {
   });
   it("the right password completes the sign-in", async () => {
     const { oauth, calls } = fakeOAuth("good");
-    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw", OAUTH_PROVIDER: oauth };
-    const r = await post(env, { handle: "good", decision: "approve", password: "pw" }, "3.3.3.5");
+    const env = { DB: db, OAUTH_KV: {} as KVNamespace, SOZVON_PASSWORD: "pw-long-enough-for-tests", OAUTH_PROVIDER: oauth };
+    const r = await post(env, { handle: "good", decision: "approve", password: "pw-long-enough-for-tests" }, "3.3.3.5");
     expect(r.status).toBe(302);
     expect(r.headers.get("Location")).toBe("https://claude.ai/cb?code=x");
     expect(calls).toEqual(["approve good", "complete"]);

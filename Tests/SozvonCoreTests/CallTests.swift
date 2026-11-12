@@ -13,7 +13,7 @@ final class CallDirNameTests: TempDirTestCase {
                                 projects: Project.all())
         XCTAssertEqual(named, "2026-11-04 15-01 · Acme · запуск- этап 1-2 · Анна, Иван")
         let renamed = callDirName(named, CallInfo(profile: "", names: "Олег", topic: ""), projects: Project.all())
-        XCTAssertEqual(renamed, "2026-11-04 15-01 · Олег", "переименование берёт только дату")
+        XCTAssertEqual(renamed, "2026-11-04 15-01 · Олег", "a rename keeps only the date")
     }
 
     func testLengthLimited() {
@@ -21,17 +21,17 @@ final class CallDirNameTests: TempDirTestCase {
     }
 
     func testEdgeCases() {
-        XCTAssertEqual(callDirName("short", CallInfo(topic: "t"), projectTitle: nil), "short · t", "имя короче id")
+        XCTAssertEqual(callDirName("short", CallInfo(topic: "t"), projectTitle: nil), "short · t", "the name is shorter than the id")
         XCTAssertEqual(callDirName("2026-11-04 15-01", CallInfo(topic: "a\nb\tc"), projectTitle: nil),
-                       "2026-11-04 15-01 · a b c", "переводы строк и табуляция")
+                       "2026-11-04 15-01 · a b c", "line breaks and tabs")
         XCTAssertEqual(callDirName("2026-11-04 15-01", CallInfo(topic: "a\\b"), projectTitle: nil),
-                       "2026-11-04 15-01 · a-b", "обратная косая")
+                       "2026-11-04 15-01 · a-b", "backslash")
         XCTAssertEqual(callDirName("2026-11-04 15-01", CallInfo(names: " ,  , "), projectTitle: "  "),
-                       "2026-11-04 15-01", "пустые имена и проект")
+                       "2026-11-04 15-01", "empty names and project")
         XCTAssertEqual(callDirName("2026-11-04 15-01", CallInfo(names: "Анна,Иван ,"), projectTitle: nil),
-                       "2026-11-04 15-01 · Анна, Иван", "имена нормализуются")
+                       "2026-11-04 15-01 · Анна, Иван", "names are normalized")
         XCTAssertEqual(callDirName("2026-11-04 15-01", CallInfo(profile: "gone"), projects: []), "2026-11-04 15-01",
-                       "удалённый проект не попадает в имя")
+                       "a deleted project does not get into the name")
         // Truncation doesn't leave a dangling separator.
         let cut = callDirName("2026-11-04 15-01", CallInfo(names: "Анна", topic: String(repeating: "x", count: 101)),
                               projectTitle: nil)
@@ -63,7 +63,7 @@ final class CallFileTests: TempDirTestCase {
         XCTAssertEqual(c["terms"] as? String, "HPA")
         XCTAssertEqual(c["languages"] as? String, "ru,en")
         XCTAssertEqual(c["summary"] as? Bool, false)
-        XCTAssertEqual((c["engine"] as? [String: String])?["version"], "abc", "поля движка сохранились")
+        XCTAssertEqual((c["engine"] as? [String: String])?["version"], "abc", "the engine's fields are kept")
         XCTAssertEqual(c["status"] as? String, "recorded")
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(".call.json.tmp").path))
 
@@ -118,7 +118,7 @@ final class CallModelTests: TempDirTestCase {
         XCTAssertFalse(c.hasAudio)
         XCTAssertNotNil(c.date)
         XCTAssertGreaterThan(c.bytes, 0)
-        XCTAssertEqual(Call.load(dir)?.bytes, 0, "без withSize папка не обходится")
+        XCTAssertEqual(Call.load(dir)?.bytes, 0, "without withSize the folder is not walked")
     }
 
     func testProjectFromAnotherMacShowsTheServerTitle() throws {
@@ -176,7 +176,7 @@ final class CallFolderTests: TempDirTestCase {
         XCTAssertEqual(CallFolder.id(fromName: "2026-11-04 15-01 · Acme · -2"), "2026-11-04 15-01")
         XCTAssertEqual(CallFolder.id(fromName: "2026-11-04 15-01-2"), "2026-11-04 15-01-2")
         XCTAssertEqual(CallFolder.id(fromName: "2026-11-04 15-01-12 · Acme"), "2026-11-04 15-01-12")
-        XCTAssertEqual(CallFolder.id(fromName: "2026-11-04 15-01-x"), "2026-11-04 15-01", "не число: прежние 16 символов")
+        XCTAssertEqual(CallFolder.id(fromName: "2026-11-04 15-01-x"), "2026-11-04 15-01", "not a number: the first 16 characters as before")
         XCTAssertEqual(CallFolder.id(fromName: "Разное"), "Разное")
     }
 
@@ -209,7 +209,7 @@ final class CallFolderTests: TempDirTestCase {
     func testDiscardRemovesOnlyUnusedFolder() throws {
         let dir = try CallFolder.create(in: calls, at: minute)
         try write("audio", dir.appendingPathComponent("system.m4a"))
-        XCTAssertFalse(CallFolder.discardIfUnused(dir), "с дорожкой не удаляется")
+        XCTAssertFalse(CallFolder.discardIfUnused(dir), "not deleted when it has a track")
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("system.m4a").path))
 
         let empty = try CallFolder.create(in: calls, at: minute)
@@ -299,7 +299,7 @@ final class CallCacheTests: TempDirTestCase {
         XCTAssertEqual(cache.matching("acme", in: [(id: "a", urls: [f]), (id: "b", urls: [calls.appendingPathComponent("none")])]), ["a"])
         try write("другое", f)
         try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: f.path)
-        XCTAssertEqual(cache.text(f), "другое", "новый mtime: перечитали")
+        XCTAssertEqual(cache.text(f), "другое", "new mtime: read again")
         try FileManager.default.removeItem(at: f)
         XCTAssertNil(cache.text(f))
     }

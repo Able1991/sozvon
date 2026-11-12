@@ -69,7 +69,8 @@ jobs:
           xcrun notarytool store-credentials sozvon --key "$RUNNER_TEMP/key.p8" --key-id "$KEY_ID" --issuer "$ISSUER"
           rm "$RUNNER_TEMP/key.p8"
 
-      - name: Build, sign and notarize DMG
+      # Signed and notarized only when the certificate was imported; otherwise build.sh makes an unsigned DMG.
+      - name: Build DMG (signed and notarized when the secrets are set)
         env:
           VERSION: ${{ github.ref_name }}
           NOTARY_PROFILE: ${{ steps.cert.outputs.signed == 'true' && 'sozvon' || '' }}
@@ -126,7 +127,12 @@ jobs:
           {
             echo "**Download [Sozvon.dmg](https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Sozvon.dmg)**, open it and drag Sozvon to Applications. macOS 15 or later on Apple silicon (M1 or newer)."
             echo
-            echo "Signed with a Developer ID and notarized by Apple. SHA-256: \`$(cut -d' ' -f1 build/Sozvon-$V.dmg.sha256)\`"
+            SHA="$(cut -d' ' -f1 "build/Sozvon-$V.dmg.sha256")"
+            if [ "$SIGNED" = "true" ]; then
+              echo "Signed with a Developer ID and notarized by Apple. SHA-256: \`$SHA\`"
+            else
+              echo "Pre-release build: NOT signed with a Developer ID and NOT notarized by Apple, so Gatekeeper blocks it on first launch. SHA-256: \`$SHA\`"
+            fi
             echo
             awk -v v="## $V" '$0 == v {on=1; next} /^## / && on {exit} on' CHANGELOG.md
           } > "$RUNNER_TEMP/notes.md"
