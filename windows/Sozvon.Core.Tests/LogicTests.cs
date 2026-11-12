@@ -279,7 +279,15 @@ public class EnvFileTests : TempFolders
         Assert.Equal(Assistant.Claude, v.Assistant);
         Assert.Equal([SpeechLanguage.Ru], v.Languages);
         Assert.Equal(WhisperModel.Turbo, v.Model);
-        Assert.True(v.SyncVoices);
+        // Voice prints are biometric data: they go to the own server only when turned on, as on the Mac.
+        Assert.False(v.SyncVoices);
+        Assert.False(SettingsValues.FromEnv(new Dictionary<string, string> { ["SOZVON_SYNC_VOICES"] = "yes" }, () => Assistant.None).SyncVoices);
+        // Older versions wrote 1 on every save: without a server that means nothing was ever turned on.
+        Assert.False(SettingsValues.FromEnv(new Dictionary<string, string> { ["SOZVON_SYNC_VOICES"] = "1" }, () => Assistant.None).SyncVoices);
+        Assert.True(SettingsValues.FromEnv(new Dictionary<string, string>
+            { ["SOZVON_SYNC_VOICES"] = "1", ["SOZVON_SERVER_URL"] = "https://s.example" }, () => Assistant.None).SyncVoices);
+        Assert.Contains(("SOZVON_SYNC_VOICES", "0"), new SettingsValues().Pairs());
+        Assert.Contains(("SOZVON_SYNC_VOICES", "0"), new SettingsValues { SyncVoices = true }.Pairs());
         var w = SettingsValues.FromEnv(new Dictionary<string, string>
         {
             ["SOZVON_LANGUAGE"] = "auto", ["SOZVON_MODEL"] = "large-v3", ["SOZVON_LANG_SWITCH"] = "1", ["SOZVON_LLM"] = "bogus", ["SOZVON_SYNC_AUDIO"] = "0",

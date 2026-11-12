@@ -25,7 +25,8 @@ public sealed record SettingsValues
     public WhisperModel Model { get; set; } = WhisperModel.Turbo;
     public string ServerUrl { get; set; } = "";
     public string ServerPassword { get; set; } = "";
-    public bool SyncVoices { get; set; } = true;
+    /// <summary>Voice prints to the own server: biometric data, so only when turned on (as on the Mac).</summary>
+    public bool SyncVoices { get; set; }
     public bool SyncAudio { get; set; } = true;
 
     /// <summary>The summary's language; Auto: the conversation's.</summary>
@@ -41,7 +42,8 @@ public sealed record SettingsValues
         Assistant = Assistants.FromKey(env.GetValueOrDefault(LlmKey)) ?? (detect ?? Assistants.Detect)(),
         ServerUrl = env.GetValueOrDefault(ServerUrlKey, ""),
         ServerPassword = env.GetValueOrDefault(ServerPasswordKey, ""),
-        SyncVoices = env.GetValueOrDefault(SyncVoicesKey) != "0",
+        // Older versions wrote 1 on every save: without a server nothing was turned on.
+        SyncVoices = env.GetValueOrDefault(SyncVoicesKey) == "1" && env.GetValueOrDefault(ServerUrlKey, "").Trim().Length > 0,
         SyncAudio = env.GetValueOrDefault(SyncAudioKey) != "0",
         SummaryLanguage = SpeechLanguages.Real.FirstOrDefault(l => l.Code() == env.GetValueOrDefault(SummaryLanguageKey), SpeechLanguage.Auto),
     };
@@ -57,7 +59,7 @@ public sealed record SettingsValues
         pairs.Add((ModelKey, Model.Key()));
         if (ServerUrl.Trim() is { Length: > 0 } url) pairs.Add((ServerUrlKey, url));
         if (ServerPassword.Trim() is { Length: > 0 } password) pairs.Add((ServerPasswordKey, password));
-        pairs.Add((SyncVoicesKey, SyncVoices ? "1" : "0"));
+        pairs.Add((SyncVoicesKey, SyncVoices && ServerUrl.Trim().Length > 0 ? "1" : "0"));
         pairs.Add((SyncAudioKey, SyncAudio ? "1" : "0"));
         pairs.Add((SummaryLanguageKey, SummaryLanguage.Code()));
         return pairs;
@@ -76,7 +78,7 @@ public sealed record SettingsValues
         if (url.Trim() is { Length: > 0 } address) pairs.Add((ServerUrlKey, address));
         if (password.Trim() is { Length: > 0 } secret) pairs.Add((ServerPasswordKey, secret));
         pairs.Add((SyncAudioKey, syncAudio ? "1" : "0"));
-        pairs.Add((SyncVoicesKey, syncVoices ? "1" : "0"));
+        pairs.Add((SyncVoicesKey, syncVoices && url.Trim().Length > 0 ? "1" : "0"));
         Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
         var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", pairs, [ServerUrlKey, ServerPasswordKey]);
         AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
