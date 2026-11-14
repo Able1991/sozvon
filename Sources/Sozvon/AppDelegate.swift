@@ -270,6 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let lastDir = processing.lastDir
         return MenuSnapshot(recording: recording.state, processing: processing.isProcessing,
                             engineUpdating: processing.isEngineUpdating, engine: engineState, update: AppUpdater.shared.available,
+                            updateReady: AppUpdater.shared.updateReady,
                             hasLastTranscript: processing.lastTranscript != nil,
                             canRedoLast: lastDir.map { !recording.state.isCapturing && !processing.contains($0) } ?? false,
                             panelEnabled: FloatingPanel.enabled, pendingInfo: pendingInfo.pending.count,

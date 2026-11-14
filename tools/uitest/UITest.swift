@@ -599,6 +599,7 @@ let screens: [(String, [String], [String])] = [
     ("Настройки · Распознавание", ["--preview", "settings", "--tab", "1"], []),
     ("Настройки · Ассистенты", ["--preview", "settings", "--tab", "2"], []),
     ("Настройки · Облако", ["--preview", "settings", "--tab", "3"], []),
+    ("Настройки · Обновление скачано", ["--preview", "settings", "--tab", "4", "--update-ready"], []),
     ("Настройки · Настройка не завершена", ["--preview", "settings", "--tab", "0", "--setup-incomplete"], []),
     ("Мастер · Приветствие", ["--preview", "setup", "--tab", "0"], []),
     ("Мастер · Ассистент", ["--preview", "setup", "--tab", "1"], []),

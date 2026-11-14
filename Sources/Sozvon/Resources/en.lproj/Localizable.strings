@@ -841,3 +841,8 @@
 "%@, для русского, скачана и проверена" = "%@, for Russian, downloaded and verified";
 "Python, выбранные модели и разбивка по голосам скачаются один раз. Обычно 5-10 минут." = "Python, the chosen models and speaker separation are downloaded once. Usually 5-10 minutes.";
 "Недостающее докачается, расшифровки и саммари не пострадают. Сейчас: %@." = "What's missing will be downloaded, transcripts and summaries stay as they are. Now: %@.";
+"Перезапустить и обновить до %@" = "Restart to Update to %@";
+"Перезапустить и обновить" = "Restart to Update";
+"Версия %@ скачана" = "Version %@ is downloaded";
+"Sozvon перезапустится, звонки и настройки останутся" = "Sozvon restarts, calls and settings stay";
+"Поставится после записи или расшифровки" = "Installs after the recording or transcription";
