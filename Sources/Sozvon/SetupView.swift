@@ -449,7 +449,7 @@ struct SetupView: View {
     private var model: some View {
         SetupPage(icon: .symbol("waveform.badge.magnifyingglass"), title: L("Модель распознавания"),
                   subtitle: m.repair
-                      ? L("Движок переустановится с выбранной моделью, недостающее докачается. Расшифровки и саммари не пострадают.")
+                      ? L("Недостающее докачается, расшифровки и саммари не пострадают. Сейчас: %@.", "\(m.installedModel.title) · \(m.installedModel.size)")
                       : L("Модель скачается один раз и будет работать на этом Mac. Точнее обычно значит медленнее.")) {
             SetupRadioGroup(selection: $s.model, items: WhisperModel.allCases,
                             accessibilityLabel: L("Модель распознавания")) { md in
@@ -466,12 +466,6 @@ struct SetupView: View {
                     }
                 }
                 .padding(.top, 4)
-            }
-            if m.repair {
-                Text(L("Текущая: %@", "\(m.installedModel.title) · \(m.installedModel.size)"))
-                    .font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4)
             }
         }
     }
@@ -495,6 +489,10 @@ struct SetupView: View {
                         SetupRow(symbol: "chevron.left.forwardslash.chevron.right", title: "Python",
                                  detail: L("Своя копия внутри Sozvon, системный Python не трогается")) { done }
                         SetupRow(symbol: "waveform", title: s.model.title, detail: L("%@, скачана и проверена", s.model.size)) { done }
+                        if let ru = WhisperModel.ruModel(main: s.model, ru: s.modelRu) {
+                            SetupRow(symbol: "character.book.closed", title: ru.title,
+                                     detail: L("%@, для русского, скачана и проверена", ru.size)) { done }
+                        }
                         SetupRow(symbol: "person.2.wave.2", title: L("Разбивка по голосам"),
                                  detail: L("pyannote, работает на GPU этого Mac")) { done }
                     }
@@ -506,7 +504,7 @@ struct SetupView: View {
                           title: m.repair ? L("Переустановка движка") : L("Установка движка"),
                           subtitle: m.repair
                               ? L("Проверяю Python и модели, докачиваю и чиню то, что повреждено или не хватает. Записи и расшифровки не трогаются.")
-                              : L("Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут.")) {
+                              : L("Python, выбранные модели и разбивка по голосам скачаются один раз. Обычно 5-10 минут.")) {
                     installStatus
                 }
             }

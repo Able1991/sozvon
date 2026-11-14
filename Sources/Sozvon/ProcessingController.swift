@@ -352,6 +352,9 @@ final class ProcessingController {
     /// Recording keeps working; transcriptions wait for the update to finish. Installs from the setup
     /// assistant go through the same owner (EngineInstaller), so two setup.sh never run at once.
     func updateEngineIfNeeded() {
+        // Until setup is finished, `needsUpdate` is a first download that was stopped, not an app update: the setup
+        // window owns that install (and can stop it), a background run here would restart it behind its back.
+        guard AppDelegate.setupDone else { return }
         let state = EngineState.current
         let d = UserDefaults.standard
         let retryEcho = state == .ready && EngineState.shouldRetryEchoModel(

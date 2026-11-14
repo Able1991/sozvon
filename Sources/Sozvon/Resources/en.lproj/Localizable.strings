@@ -128,7 +128,6 @@
 "Лёгкая: для Mac с 8 ГБ памяти и экономии места. Точность ниже." = "Lightweight: for Macs with 8 GB of memory or to save space. Less accurate.";
 "Модель распознавания" = "Speech Model";
 "рекомендуем" = "recommended";
-"Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут." = "Python, the Whisper model and speaker separation are downloaded once, 2-4 GB. Usually 5-10 minutes.";
 "Распознавание" = "Recognition";
 "Модель" = "Model";
 "Скачать модель…" = "Download Model…";
@@ -582,7 +581,6 @@
 "Записать заново" = "Record Again";
 /* Setup assistant (design) */
 "Лог установки" = "Install log";
-"Текущая: %@" = "Current: %@";
 "Шаг %@ из %@" = "Step %@ of %@";
 "Скачать и продолжить" = "Download and Continue";
 "Нажал в строке меню, созвонился, остановил. Дальше расшифровка и саммари на этом Mac." = "Click in the menu bar, take the call, stop. Transcript and summary follow, on this Mac.";
@@ -601,7 +599,6 @@
 "Голос" = "Voice";
 "По образцу Sozvon узнаёт тебя в звонках. Можно записать позже в Настройках." = "With a sample, Sozvon recognizes you in calls. You can record it later in Settings.";
 "Записать образец…" = "Record Sample…";
-"Движок переустановится с выбранной моделью, недостающее докачается. Расшифровки и саммари не пострадают." = "The engine is reinstalled with the selected model, anything missing is downloaded. Transcripts and summaries are not affected.";
 "Модель скачается один раз и будет работать на этом Mac. Точнее обычно значит медленнее." = "The model is downloaded once and runs on this Mac. More accurate usually means slower.";
 "скачана" = "downloaded";
 "Python, модель и разбивка по голосам на месте. Первая расшифровка займёт чуть дольше: модель прогревается." = "Python, the model and speaker separation are in place. The first transcription takes a bit longer while the model warms up.";
@@ -841,3 +838,6 @@
 "Русские разговоры через GigaAM" = "Russian conversations with GigaAM";
 "Ещё %@. Whisper определит язык каждой дорожки, русскую расшифрует GigaAM." = "%@ more. Whisper detects each track's language, GigaAM transcribes the Russian ones.";
 "%@ не установлен на этом Mac, команда для установки ниже" = "%@ isn't installed on this Mac, the command to install it is below";
+"%@, для русского, скачана и проверена" = "%@, for Russian, downloaded and verified";
+"Python, выбранные модели и разбивка по голосам скачаются один раз. Обычно 5-10 минут." = "Python, the chosen models and speaker separation are downloaded once. Usually 5-10 minutes.";
+"Недостающее докачается, расшифровки и саммари не пострадают. Сейчас: %@." = "What's missing will be downloaded, transcripts and summaries stay as they are. Now: %@.";

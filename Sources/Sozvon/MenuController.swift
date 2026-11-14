@@ -105,7 +105,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         if s.recording.isRecording { return L("Идёт запись %@", s.recording.session?.elapsed() ?? "") }
         if s.recording.isStarting { return L("Начинаю запись…") }
         if s.recording.isStopping { return L("Сохраняю запись…") }
-        if !s.engine.isUsable { return L("Нужна настройка") }
+        if !s.setupDone || !s.engine.isUsable { return L("Нужна настройка") }
         if s.processing { return L("Расшифровка…") }
         return L("Готов к записи")
     }
