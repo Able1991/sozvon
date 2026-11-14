@@ -51,9 +51,10 @@ public partial class App : Application
         _recording = new RecordingController(_capsule, layout, Shell.AppHost.Current!.Settings, Shell.AppHost.Current.EngineSettings);
         Shell.AppHost.Current!.Attach(_capsule, _recording);
         _recording.Start();
-        if (!layout.IsInstalled)
+        // Setup closed halfway continues on its step; a missing engine or model opens it too (SetupFlow).
+        if (Sozvon.Core.Engine.SetupFlow.OpensAtStart(Sozvon.Core.Engine.SetupProgress.Load(layout.Data), Shell.AppHost.Current.EngineState()))
         {
-            Shell.AppHost.Current!.OpenSetup();
+            Shell.AppHost.Current.OpenSetup();
         }
     }
 

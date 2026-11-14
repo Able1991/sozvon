@@ -75,7 +75,7 @@ public sealed class AppHost
         _startupLanguage = _store.Settings.Language;
         Loc.Initialize(ResolvesToRussian(_startupLanguage));
         _store.Settings.PropertyChanged += OnSettingChanged;
-        _trayState = new TrayViewModel(_repository, _store.Settings, _layout);
+        _trayState = new TrayViewModel(_repository, _store.Settings, _layout, EngineState);
         _tray = new TrayController(this, _trayState);
         _tray.Start();
         _mcp = new McpServer(_layout, _engineSettings.Options, McpEndpoint());
@@ -181,12 +181,31 @@ public sealed class AppHost
 
     public void SetFloatingPanel(bool visible) => _store.Settings.FloatingPanel = visible;
 
-    /// <summary>The wizard runs as its own process, so the tray and the capsule stay as they are meanwhile.</summary>
-    public void OpenSetup()
+    /// <summary>The engine for the model calls are transcribed with; only Ready counts as a finished install (SetupFlow).</summary>
+    public EngineStateKind EngineState() => Sozvon.Core.Engine.EngineState.Evaluate(_layout, _engineSettings.Model);
+
+    /// <summary>
+    /// The wizard runs as its own process, so the tray and the capsule stay as they are meanwhile. Without a step it
+    /// continues where it was closed (SetupFlow.OpenAt); "Finish Setup…" in Settings opens the model choice.
+    /// </summary>
+    /// <param name="model">The model the wizard preselects (its key); null: the one in .env.</param>
+    public void OpenSetup(int? step = null, string? model = null)
     {
         try
         {
-            var setup = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!, "--setup") { UseShellExecute = false });
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            start.ArgumentList.Add("--setup");
+            if (step is { } at)
+            {
+                start.ArgumentList.Add("--step");
+                start.ArgumentList.Add(at.ToString(CultureInfo.InvariantCulture));
+            }
+            if (model is not null)
+            {
+                start.ArgumentList.Add("--model");
+                start.ArgumentList.Add(model);
+            }
+            var setup = System.Diagnostics.Process.Start(start);
             if (setup is not null)
             {
                 // A finished install brings the shared MCP server up; an engine update brings the new server.py.
@@ -194,6 +213,8 @@ public sealed class AppHost
                 // The wizard may have chosen another calls folder: the app follows it, which restarts the server too.
                 setup.Exited += (_, _) => _dispatcher.TryEnqueue(() =>
                 {
+                    // Finished, or closed halfway: the tray says which.
+                    _tray.Refresh();
                     var chosen = Sozvon.Core.Calls.CallsFolder.Current(AppPaths.SettingsFile, AppPaths.DefaultCallsDir,
                         Environment.GetEnvironmentVariable("SOZVON_CALLS_DIR"));
                     if (Sozvon.Core.Calls.CallsFolder.SamePath(chosen, AppPaths.CallsDir))
