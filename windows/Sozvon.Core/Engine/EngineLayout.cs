@@ -95,6 +95,8 @@ public static class EngineEnvironment
         SetOrRemove(env, "SOZVON_LANGUAGE", options.Languages is { } languages ? SpeechLanguages.Serialize(languages) : null);
         SetOrRemove(env, "SOZVON_LANG_SWITCH", options.LanguageSwitch is { } switching ? (switching ? "1" : "0") : null);
         SetOrRemove(env, "SOZVON_MODEL", options.Model?.Key());
+        // The Russian model lives in .env alone (Settings and the wizard write it there): an inherited one would overrule it.
+        env.Remove("SOZVON_MODEL_RU");
         env.Remove(StopEventVariable);
         return env;
     }

@@ -25,6 +25,7 @@ internal sealed class SetupState
             .ToList();
         model ??= saved.GetValueOrDefault("SOZVON_MODEL");
         Model = models.FirstOrDefault(m => m.Key == model) ?? models.First(m => m.Recommended);
+        ModelRu = saved.GetValueOrDefault("SOZVON_MODEL_RU", "");
         // Codex and Cursor are never picked for the user: they run only when chosen.
         var claude = assistants.Any(a => a.Key == "claude" && a.IsInstalled);
         Assistant = saved.GetValueOrDefault("SOZVON_LLM", claude ? "claude" : NoAssistant);
@@ -46,11 +47,22 @@ internal sealed class SetupState
     public SpeechModel Model { get; set; }
     public bool UseGpu { get; set; }
 
+    /// <summary>SOZVON_MODEL_RU: "gigaam" (or "parakeet", set in Settings) for Russian tracks; "": the main model.</summary>
+    public string ModelRu { get; set; }
+
+    /// <summary>The model Russian tracks go to with the chosen main model, as the engine decides it (models.ru_model).</summary>
+    public SpeechModel? RussianModel =>
+        Sozvon.Core.Settings.WhisperModels.FromKey(Model.Key) is { } main
+        && Sozvon.Core.Settings.WhisperModels.RuModel(main, Sozvon.Core.Settings.WhisperModels.FromKey(ModelRu)) is { } ru
+            ? Models.FirstOrDefault(m => m.Key == Sozvon.Core.Settings.WhisperModels.Key(ru))
+            : null;
+
     /// <summary>
     /// Only a fully ready engine: a stopped first install leaves Python without the model, or a venv that doesn't match
-    /// uv.lock (NeedsUpdate), and neither may let the wizard past the download.
+    /// uv.lock (NeedsUpdate), and neither may let the wizard past the download. With a Russian model, both on disk.
     /// </summary>
-    public bool IsEngineReady => SetupFlow.Installed(Engine) && EngineStatus.IsReady(_context, Model);
+    public bool IsEngineReady => SetupFlow.Installed(Engine) && EngineStatus.IsReady(_context, Model)
+        && (RussianModel is not { } ru || EngineStatus.IsDownloaded(_context, ru));
 
     /// <summary>The engine's state for the chosen model, by the app's own rules.</summary>
     public EngineStateKind Engine => WhisperModels.FromKey(Model.Key) is { } model
@@ -64,6 +76,7 @@ internal sealed class SetupState
         ["SOZVON_LLM"] = Assistant,
         ["SOZVON_LANGUAGE"] = Languages.Count == 0 ? Auto : string.Join(',', Languages),
         ["SOZVON_MODEL"] = Model.Key,
+        ["SOZVON_MODEL_RU"] = ModelRu,
         ["SOZVON_SUMMARY_LANGUAGE"] = SummaryLanguage,
     });
 }

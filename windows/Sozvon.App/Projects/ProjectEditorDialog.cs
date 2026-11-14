@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Sozvon.App.Shell;
 using Sozvon.App.VoicePrints;
 using Sozvon.Core.Calls;
+using Sozvon.Core.Settings;
 using static Sozvon.App.Strings.Loc;
 
 namespace Sozvon.App.Projects;
@@ -28,6 +29,7 @@ public sealed partial class ProjectEditorDialog : ContentDialog
     private readonly TextBox _context = Multiline(L("О чём созвоны"), L("Инфраструктура видеоплатформы"), 6);
     private readonly TextBox _people = Multiline(L("Люди"), L("Анна Петрова, Иван"), 6);
     private readonly TextBox _terms = Multiline(L("Термины"), L("Kubernetes, HPA, стримкодер"), 8);
+    private readonly ComboBox _language = new() { Header = L("Язык звонков"), MinWidth = 220 };
     private readonly StackPanel _voiceList = new() { Spacing = 4 };
     private readonly InfoBar _voiceProblem = new() { IsClosable = false, Severity = InfoBarSeverity.Warning };
     private readonly InfoBar _saveProblem = new() { IsClosable = false, Severity = InfoBarSeverity.Error, Title = L("Не получилось сохранить проект") };
@@ -60,6 +62,7 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         AutomationName(_context);
         AutomationName(_people);
         AutomationName(_terms);
+        FillLanguages(project.Languages);
         _title.TextChanged += (_, _) => Update();
 
         var content = new StackPanel { Spacing = 12, MinWidth = 460 };
@@ -69,6 +72,8 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         content.Children.Add(_people);
         content.Children.Add(_terms);
         content.Children.Add(Caption(L("Через запятую. Самое важное первым: в подсказку Whisper влезает около 25 слов.")));
+        // The call window takes it when the project is picked; the model for it follows (Settings, Recognition).
+        content.Children.Add(_language);
         _voicesSection.Children.Add(new TextBlock { Text = L("Голоса"), Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] });
         _voicesSection.Children.Add(_voiceList);
         _voicesSection.Children.Add(_voiceProblem);
@@ -110,6 +115,33 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         return box;
     }
 
+    /// <summary>
+    /// "As in Settings", then one language or Russian and English together, as on the Mac. A language set by hand in the
+    /// profile that is not among them stays as it is, shown as its own line.
+    /// </summary>
+    private void FillLanguages(IReadOnlyList<SpeechLanguage> languages)
+    {
+        var current = languages.Count == 0 ? "" : SpeechLanguages.Serialize(languages.ToList());
+        var values = new List<string> { "" };
+        values.AddRange(Project.LanguageChoices);
+        if (!values.Contains(current))
+        {
+            values.Add(current);
+        }
+        foreach (var value in values)
+        {
+            var title = value.Length == 0
+                ? L("Как в настройках")
+                : string.Join(" + ", SpeechLanguages.Parse(value).Select(Settings.LanguagesButton.Title));
+            _language.Items.Add(new ComboBoxItem { Content = title, Tag = value });
+        }
+        _language.SelectedIndex = values.IndexOf(current);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_language, L("Язык звонков"));
+    }
+
+    private IReadOnlyList<SpeechLanguage> ChosenLanguages =>
+        SpeechLanguages.Parse((_language.SelectedItem as ComboBoxItem)?.Tag as string ?? "");
+
     private static void AutomationName(TextBox box) =>
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(box, (string)box.Header);
 
@@ -144,7 +176,7 @@ public sealed partial class ProjectEditorDialog : ContentDialog
         Update();
         try
         {
-            var project = _project.WithForm(_title.Text, _context.Text, _people.Text, _terms.Text, _profiles);
+            var project = _project.WithForm(_title.Text, _context.Text, _people.Text, _terms.Text, _profiles) with { Languages = ChosenLanguages };
             await Task.Run(() => project.Save(_profiles));
             Saved = project;
         }

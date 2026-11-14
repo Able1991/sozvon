@@ -13,11 +13,12 @@ public static class EngineState
     private const int HashLength = 16;
 
     /// <param name="isDevEngine">The developer's own engine: its environment is not compared with uv.lock.</param>
-    public static EngineStateKind Evaluate(EngineLayout layout, WhisperModel model, bool isDevEngine = false)
+    /// <param name="ruModel">The model for Russian tracks (SOZVON_MODEL_RU): ready only with both models on disk.</param>
+    public static EngineStateKind Evaluate(EngineLayout layout, WhisperModel model, bool isDevEngine = false, WhisperModel? ruModel = null)
     {
         if (!layout.IsInstalled) return EngineStateKind.NotInstalled;
         if (!isDevEngine && NeedsUpdate(layout)) return EngineStateKind.NeedsUpdate;
-        return model.IsDownloaded(layout.Data) ? EngineStateKind.Ready : EngineStateKind.ModelMissing;
+        return WhisperModels.Missing(layout.Data, model, ruModel).Count == 0 ? EngineStateKind.Ready : EngineStateKind.ModelMissing;
     }
 
     public static bool IsUsable(EngineStateKind state) => state is EngineStateKind.Ready or EngineStateKind.NeedsUpdate;

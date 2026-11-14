@@ -86,8 +86,60 @@ public static class WhisperModels
         _ => throw new ArgumentOutOfRangeException(nameof(m)),
     };
 
+    public static string Title(this WhisperModel m) => m switch
+    {
+        WhisperModel.Turbo => "Whisper Turbo",
+        WhisperModel.Large => "Whisper Large v3",
+        WhisperModel.Small => "Whisper Small",
+        WhisperModel.GigaAm => "GigaAM v3",
+        _ => "Parakeet v3",
+    };
+
+    /// <summary>The name without "Whisper" and GigaAM's and Parakeet's version: "Turbo", "GigaAM".</summary>
+    public static string ShortTitle(this WhisperModel m) => m switch
+    {
+        WhisperModel.GigaAm => "GigaAM",
+        WhisperModel.Parakeet => "Parakeet",
+        _ => m.Title().Replace("Whisper ", "", StringComparison.Ordinal),
+    };
+
     /// <summary>Models without Whisper prompting need the voice activity model next to them.</summary>
     public static bool SupportsPrompt(this WhisperModel m) => m is not (WhisperModel.GigaAm or WhisperModel.Parakeet);
+
+    /// <summary>Whisper detects languages; the onnx models (GigaAM, Parakeet) can't.</summary>
+    public static bool IsWhisper(this WhisperModel m) => m.SupportsPrompt();
+
+    /// <summary>
+    /// The model for Russian tracks, as the engine decides it (models.ru_model): only after a Whisper main model, whose
+    /// language detection sorts the tracks, and only GigaAM or Parakeet.
+    /// </summary>
+    public static WhisperModel? RuModel(WhisperModel main, WhisperModel? ru) =>
+        ru is { } r && r != main && main.IsWhisper() && !r.IsWhisper() ? r : null;
+
+    /// <summary>
+    /// Which model "Auto" means for a call in <paramref name="languages"/> (empty: any): Russian alone goes to the Russian
+    /// model, no Russian stays on the main one, several languages are sorted per track (null: by language).
+    /// </summary>
+    public static WhisperModel? Auto(IReadOnlyCollection<SpeechLanguage> languages, WhisperModel main, WhisperModel? ru)
+    {
+        if (RuModel(main, ru) is not { } russian) return main;
+        if (languages.Count == 1 && languages.Contains(SpeechLanguage.Ru)) return russian;
+        if (languages.Count > 0 && !languages.Contains(SpeechLanguage.Ru)) return main;
+        return null;
+    }
+
+    /// <summary>
+    /// "Авто: GigaAM v3", or both models when the tracks are sorted by language, by their short names so the line fits the
+    /// call window: "Авто: GigaAM для русского, Turbo для остального".
+    /// </summary>
+    public static string AutoTitle(IReadOnlyCollection<SpeechLanguage> languages, WhisperModel main, WhisperModel? ru, Func<string, object[], string> l) =>
+        Auto(languages, main, ru) is { } model
+            ? l("Авто: %@", [model.Title()])
+            : l("Авто: %@ для русского, %@ для остального", [RuModel(main, ru)!.Value.ShortTitle(), main.ShortTitle()]);
+
+    /// <summary>The models a run with these settings needs that are not on disk: the main one, then the Russian one.</summary>
+    public static List<WhisperModel> Missing(string dataFolder, WhisperModel main, WhisperModel? ru) =>
+        new[] { main, RuModel(main, ru) }.OfType<WhisperModel>().Where(m => !m.IsDownloaded(dataFolder)).ToList();
 
     public static bool IsDownloaded(this WhisperModel m, string dataFolder)
     {

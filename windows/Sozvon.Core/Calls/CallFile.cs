@@ -102,6 +102,7 @@ public static partial class CallFile
         c["languages"] = SpeechLanguages.Serialize(info.Languages.ToList());
         c["summary"] = info.Summary;
         if (info.Reflection) c["kind"] = "reflection"; else c.Remove("kind");
+        if (info.Model is { } model) c["model"] = model.Key(); else c.Remove("model");
     }
 
     public static bool SetStatus(string dir, CallStatus status) => Update(dir, c => c["status"] = status.Key());
@@ -130,6 +131,7 @@ public static partial class CallFile
         if (c.Text("languages") is { } languages) info.Languages = SpeechLanguages.Parse(languages);
         if (c.Flag("summary") is { } summary) info.Summary = summary;
         info.Reflection = c.Text("kind") == "reflection";
+        if (c.ContainsKey("model")) info.Model = WhisperModels.FromKey(c.Text("model"));
         return info;
     }
 

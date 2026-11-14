@@ -6,6 +6,21 @@
         <Border Style="{StaticResource SetupCard}" Padding="16,4">
             <StackPanel x:Name="Choices" />
         </Border>
+        <!-- A second model for Russian: Whisper tells each track's language, Russian tracks go to GigaAM. -->
+        <Border x:Name="RussianCard" Style="{StaticResource SetupCard}" Padding="16,12">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="RussianTitle" TextWrapping="Wrap" />
+                    <TextBlock x:Name="RussianNote" Style="{StaticResource SetupDetail}" />
+                </StackPanel>
+                <ToggleSwitch x:Name="RussianSwitch" Grid.Column="1" OnContent="{x:Null}" OffContent="{x:Null}" MinWidth="0" Margin="0,0,-12,0"
+                              VerticalAlignment="Center" AutomationProperties.AutomationId="SetupRussianModel" Toggled="OnRussianToggled" />
+            </Grid>
+        </Border>
         <Border x:Name="GpuCard" Style="{StaticResource SetupCard}" Padding="16,12" Visibility="Collapsed">
             <CheckBox x:Name="GpuBox" AutomationProperties.AutomationId="SetupGpu" Click="OnGpuClick">
                 <StackPanel>

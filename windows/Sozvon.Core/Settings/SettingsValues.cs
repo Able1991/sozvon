@@ -8,13 +8,13 @@ public sealed record SettingsValues
 {
     public const int EnvVersion = 1;
     private const string VersionKey = "SOZVON_ENV_VERSION", MeKey = "SOZVON_ME", LlmKey = "SOZVON_LLM",
-        LanguageKey = "SOZVON_LANGUAGE", LangSwitchKey = "SOZVON_LANG_SWITCH", ModelKey = "SOZVON_MODEL",
+        LanguageKey = "SOZVON_LANGUAGE", LangSwitchKey = "SOZVON_LANG_SWITCH", ModelKey = "SOZVON_MODEL", ModelRuKey = "SOZVON_MODEL_RU",
         ServerUrlKey = "SOZVON_SERVER_URL", ServerPasswordKey = "SOZVON_SERVER_PASSWORD",
         SyncVoicesKey = "SOZVON_SYNC_VOICES", SyncAudioKey = "SOZVON_SYNC_AUDIO", SummaryLanguageKey = "SOZVON_SUMMARY_LANGUAGE";
 
     public static readonly IReadOnlySet<string> ManagedKeys = new HashSet<string>
     {
-        VersionKey, MeKey, LlmKey, LanguageKey, LangSwitchKey, ModelKey, ServerUrlKey, ServerPasswordKey,
+        VersionKey, MeKey, LlmKey, LanguageKey, LangSwitchKey, ModelKey, ModelRuKey, ServerUrlKey, ServerPasswordKey,
         SyncVoicesKey, SyncAudioKey, SummaryLanguageKey,
     };
 
@@ -23,6 +23,9 @@ public sealed record SettingsValues
     public IReadOnlyList<SpeechLanguage> Languages { get; set; } = [SpeechLanguage.Ru];
     public bool LanguageSwitch { get; set; }
     public WhisperModel Model { get; set; } = WhisperModel.Turbo;
+
+    /// <summary>Russian tracks go to this model (WhisperModels.RuModel decides when it applies); null: the main one.</summary>
+    public WhisperModel? ModelRu { get; set; }
     public string ServerUrl { get; set; } = "";
     public string ServerPassword { get; set; } = "";
     /// <summary>Voice prints to the own server: biometric data, so only when turned on (as on the Mac).</summary>
@@ -39,6 +42,7 @@ public sealed record SettingsValues
         Languages = SpeechLanguages.Parse(env.GetValueOrDefault(LanguageKey, "ru")),
         LanguageSwitch = env.GetValueOrDefault(LangSwitchKey) == "1",
         Model = WhisperModels.FromKey(env.GetValueOrDefault(ModelKey)) ?? WhisperModel.Turbo,
+        ModelRu = WhisperModels.FromKey(env.GetValueOrDefault(ModelRuKey)),
         Assistant = Assistants.FromKey(env.GetValueOrDefault(LlmKey)) ?? (detect ?? Assistants.Detect)(),
         ServerUrl = env.GetValueOrDefault(ServerUrlKey, ""),
         ServerPassword = env.GetValueOrDefault(ServerPasswordKey, ""),
@@ -57,6 +61,7 @@ public sealed record SettingsValues
         pairs.Add((LanguageKey, SpeechLanguages.Serialize(Languages.ToList())));
         pairs.Add((LangSwitchKey, LanguageSwitch ? "1" : "0"));
         pairs.Add((ModelKey, Model.Key()));
+        if (ModelRu is { } ru) pairs.Add((ModelRuKey, ru.Key()));
         if (ServerUrl.Trim() is { Length: > 0 } url) pairs.Add((ServerUrlKey, url));
         if (ServerPassword.Trim() is { Length: > 0 } password) pairs.Add((ServerPasswordKey, password));
         pairs.Add((SyncVoicesKey, SyncVoices && ServerUrl.Trim().Length > 0 ? "1" : "0"));
@@ -89,6 +94,18 @@ public sealed record SettingsValues
     {
         Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
         var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", [(SummaryLanguageKey, language.Code())], [SummaryLanguageKey]);
+        AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
+    }
+
+    /// <summary>
+    /// Only SOZVON_MODEL_RU, as Settings saves it: the engine's install reads it from .env to download the model, and its
+    /// runs to use it. Null ("Same model") removes the line.
+    /// </summary>
+    public static void SaveModelRu(string envPath, WhisperModel? model)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(envPath)!);
+        var set = model is { } m ? new List<(string, string)> { (ModelRuKey, m.Key()) } : [];
+        var text = EnvFile.Merge(SharedFile.ReadText(envPath) ?? "", set, [ModelRuKey]);
         AtomicFile.Write(envPath, new UTF8Encoding(false).GetBytes(text));
     }
 

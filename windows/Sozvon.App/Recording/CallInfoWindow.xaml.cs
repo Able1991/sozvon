@@ -13,6 +13,7 @@ using Sozvon.App.Shell;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
 using Sozvon.Core.Foundation;
+using Sozvon.Core.Settings;
 using Windows.System;
 using WinRT.Interop;
 using static Sozvon.App.Strings.Loc;
@@ -45,6 +46,7 @@ public sealed partial class CallInfoWindow : Window
     private IReadOnlyList<Call> _pastCalls = [];
     private ProjectChoice? _selected;
     private int? _countdown;
+    private bool _fillingModels;
     private Windows.Graphics.PointInt32? _placed;
 
     internal CallInfoWindow(CallInfoRequest request, EngineLayout layout, EngineSettings engine, AppSettings settings)
@@ -69,12 +71,22 @@ public sealed partial class CallInfoWindow : Window
             ? L("Через %@, текст уйдёт в %@", AssistantTitle(assistant), AssistantVendor(assistant))
             : L("Помощник не выбран в настройках");
 
-        Show(request.Initial with { Summary = request.Initial.Summary && SummaryBox.IsEnabled });
+        var initial = request.Initial with { Summary = request.Initial.Summary && SummaryBox.IsEnabled };
+        // The project's language comes with the project (guessed or kept from the last call), unless the call already has its own.
+        if (initial.Languages.SequenceEqual(engine.Languages))
+        {
+            initial = initial with { Languages = Project.CallLanguages(_projects.FirstOrDefault(p => p.Slug == initial.Profile), initial.Languages) };
+        }
+        Show(initial);
         _shown = Typed();
         Root.Loaded += OnLoaded;
         Closed += OnClosed;
         _settings.PropertyChanged += OnSettingChanged;
-        LanguagesBox.LanguagesChanged += (_, _) => StopCountdownIfEdited();
+        LanguagesBox.LanguagesChanged += (_, _) =>
+        {
+            FillModels(SelectedModel);
+            StopCountdownIfEdited();
+        };
         _clock.Tick += (_, _) => Tick();
     }
 
@@ -122,6 +134,7 @@ public sealed partial class CallInfoWindow : Window
         TermsBox.Text = info.Terms;
         LanguagesBox.Languages = info.Languages;
         SummaryBox.IsChecked = info.Summary;
+        FillModels(info.Model);
         FillProjects(info.Profile);
     }
 
@@ -134,7 +147,36 @@ public sealed partial class CallInfoWindow : Window
         Languages = LanguagesBox.Languages,
         Summary = SummaryBox.IsChecked == true,
         Reflection = KindChoice.SelectedIndex == 1,
+        Model = SelectedModel,
     };
+
+    /// <summary>The model picked by hand for this call; null: Auto.</summary>
+    private WhisperModel? SelectedModel => (ModelBox.SelectedItem as ComboBoxItem)?.Tag as WhisperModel?;
+
+    /// <summary>
+    /// "Auto" names the model the call will get from its language (and the settings' model for Russian); then the downloaded
+    /// models to pick by hand, which call.json "model" keeps. Built again when the languages change: Auto's name follows them.
+    /// </summary>
+    private void FillModels(WhisperModel? chosen)
+    {
+        _fillingModels = true;
+        ModelBox.Items.Clear();
+        ModelBox.Items.Add(new ComboBoxItem { Content = WhisperModels.AutoTitle(LanguagesBox.Languages, _engine.Model, _engine.ModelRu, L) });
+        foreach (var model in Enum.GetValues<WhisperModel>().Where(m => m.IsDownloaded(_layout.Data) || m == chosen))
+        {
+            ModelBox.Items.Add(new ComboBoxItem { Content = model.Title(), Tag = model });
+        }
+        ModelBox.SelectedIndex = Math.Max(0, ModelBox.Items.Cast<ComboBoxItem>().ToList().FindIndex(i => i.Tag as WhisperModel? == chosen && chosen is not null));
+        _fillingModels = false;
+    }
+
+    private void OnModelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_fillingModels)
+        {
+            StopCountdownIfEdited();
+        }
+    }
 
     private void FillProjects(string profile)
     {
@@ -252,6 +294,13 @@ public sealed partial class CallInfoWindow : Window
             return;
         }
         _selected = choice;
+        // The project's language comes with it; one without keeps what the form says.
+        var languages = Project.CallLanguages(_projects.FirstOrDefault(p => p.Slug == choice.Slug), LanguagesBox.Languages);
+        if (!languages.SequenceEqual(LanguagesBox.Languages))
+        {
+            LanguagesBox.Languages = languages;
+            FillModels(SelectedModel);
+        }
         StopCountdownIfEdited();
         ShowSuggestions();
     }
