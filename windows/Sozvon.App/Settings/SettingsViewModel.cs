@@ -145,7 +145,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Also when the Recognition tab is shown: a download in the setup may have finished meanwhile.</summary>
     public void ShowModels()
     {
-        foreach (var name in new[] { nameof(RussianModelError), nameof(HasRussianModelError), nameof(OffersRussianModel), nameof(HasRussianModel),
+        foreach (var name in new[] { nameof(RussianModelIndex), nameof(RussianModelError), nameof(HasRussianModelError), nameof(OffersRussianModel), nameof(HasRussianModel),
                                      nameof(RussianModelTitle), nameof(RussianModelMissing), nameof(RussianModelStatus), nameof(OnlyRussian),
                                      nameof(ChoosesLanguages) })
         {
