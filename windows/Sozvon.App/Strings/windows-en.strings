@@ -184,3 +184,6 @@
 
 /* Settings, Recognition: the model for Russian; the setup downloads what is missing. Windows sentence case. */
 "Скачать модель…" = "Download model…";
+
+/* Call info window: the model for this call, Auto or a downloaded one picked by hand. */
+"Модель:" = "Model:";
