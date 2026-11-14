@@ -1,12 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.6
 
 - **Whisper for English, GigaAM for Russian, in one setup.** With a Whisper model chosen, setup and Settings, Recognition offer GigaAM for Russian (0.2 GB more). Whisper detects each track's language and Russian tracks go to GigaAM. Projects can have a call language, which the call window takes when the project is picked; the window shows which model Auto means and can pick another downloaded model for one call.
-- **Setup can't be left half done.** The download step can't be skipped: Back stops it and returns to the model choice, what was downloaded stays. Closing the window and opening it again continues on the same step. Stopping a first download no longer let setup finish without a model.
+- **Setup can't be left half done.** The download step can't be skipped: Back stops it and returns to the model choice. Closing the window and opening it again continues on the same step. Stopping a first download no longer let setup finish without a model.
 - **"Finish Setup…" in Settings.** If the model is still missing after setup, General says so with one button; while a download runs, Settings shows what it is doing instead of a greyed-out button.
 - **How to install an assistant.** "Not installed" next to Claude Code, Codex or Cursor now comes with the command that installs it, a Copy button and Check Again, in setup and in Settings. An assistant that isn't installed can't be chosen.
 - **Smaller fixes.** GigaAM shows "Russian only" instead of a language picker; an old MCP server error is shown only while the server doesn't answer.
+- **Voice prints stay on this Mac unless you ask.** Sending voice prints to your own server is now off by default: they are biometric data of other people. If your server already received them, the setting stays as it was; turn it on or off in Settings, Cloud.
+- **Assistants run with less around them.** Codex runs without your config, MCP servers and plugins, in an empty temporary folder; the call text is passed to Claude, Codex and Cursor as marked data, not as instructions.
+- **Own server hardening.** A request without a password gets 401, repeated wrong passwords are slowed down per network, passwords need at least 20 characters, and long recordings are capped so the free database never fills up.
 
 ## 0.1.5
 
