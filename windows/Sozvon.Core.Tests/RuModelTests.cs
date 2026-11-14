@@ -46,8 +46,10 @@ public sealed class RuModelTests : TempFolders
     {
         Assert.Equal("Авто: GigaAM v3", WhisperModels.AutoTitle([SpeechLanguage.Ru], WhisperModel.Turbo, WhisperModel.GigaAm, L));
         Assert.Equal("Авто: Whisper Turbo", WhisperModels.AutoTitle([SpeechLanguage.En], WhisperModel.Turbo, WhisperModel.GigaAm, L));
-        Assert.Equal("Авто: GigaAM v3 для русского, Whisper Turbo для остального",
+        Assert.Equal("Авто: GigaAM для русского, Turbo для остального",
             WhisperModels.AutoTitle([SpeechLanguage.Ru, SpeechLanguage.En], WhisperModel.Turbo, WhisperModel.GigaAm, L));
+        Assert.Equal("Авто: Parakeet для русского, Large v3 для остального",
+            WhisperModels.AutoTitle([], WhisperModel.Large, WhisperModel.Parakeet, L));
         Assert.Equal("Авто: Whisper Large v3", WhisperModels.AutoTitle([SpeechLanguage.Ru, SpeechLanguage.En], WhisperModel.Large, null, L));
     }
 
