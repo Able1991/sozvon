@@ -35,7 +35,7 @@ public static class SetupFlow
 
     /// <summary>
     /// The step to open on: the one it was closed on, except past the download without a ready engine, then the model
-    /// choice (the download can't be skipped; what was downloaded stays and the download continues).
+    /// choice (the download can't be skipped; finished files stay, a file cut off midway downloads again from the start).
     /// </summary>
     public static int Resume(int? saved, EngineStateKind engine) => saved switch
     {

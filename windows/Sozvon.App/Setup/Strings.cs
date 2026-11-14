@@ -129,7 +129,8 @@ internal static class Strings
         ["Скачать и продолжить"] = "Download and continue",
 
         ["Установка движка"] = "Install the engine",
-        ["Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут."] = "Python, the Whisper model and speaker separation are downloaded once, 2-4 GB. Usually 5-10 minutes.",
+        ["Python, выбранные модели и разбивка по голосам скачаются один раз. Обычно 5-10 минут."] = "Python, the chosen models and speaker separation are downloaded once. Usually 5-10 minutes.",
+        ["Для русского, %@, скачана и проверена"] = "For Russian, %@, downloaded and verified",
         ["Движок установлен"] = "Engine installed",
         ["Python, модель и разбивка по голосам на месте. Первая расшифровка займёт чуть дольше: модель прогревается."] = "Python, the model and speaker separation are in place. The first transcription takes a bit longer while the model warms up.",
         ["Начинаю установку…"] = "Starting the installation…",
@@ -139,7 +140,7 @@ internal static class Strings
         ["Открыть журнал"] = "Open log",
         ["Продолжить установку"] = "Resume install",
         ["Повторить"] = "Try again",
-        ["Установка остановлена. Скачанное сохранится, продолжить можно в любой момент."] = "Install stopped. What's downloaded is kept; you can resume anytime.",
+        ["Установка остановлена. Скачанные файлы останутся, недокачанный скачается заново."] = "Install stopped. Finished files are kept; an unfinished one downloads again.",
         ["Своя копия внутри Sozvon, системный Python не трогается"] = "Its own copy inside Sozvon, the system Python is not touched",
         ["%@, скачана и проверена"] = "%@, downloaded and verified",
         ["Разбивка по голосам"] = "Speaker separation",

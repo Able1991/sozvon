@@ -44,7 +44,7 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         OpenLogButton.Content = Strings.L("Открыть журнал");
         FailedBar.Title = Strings.L("Что-то пошло не так.");
         FailedBar.Message = Strings.L("Лог лежит в setup.log в папке данных.");
-        StoppedBar.Message = Strings.L("Установка остановлена. Скачанное сохранится, продолжить можно в любой момент.");
+        StoppedBar.Message = Strings.L("Установка остановлена. Скачанные файлы останутся, недокачанный скачается заново.");
     }
 
     public event Action? Changed;
@@ -53,11 +53,11 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
 
     public string Subtitle => Strings.L(_current == InstallPhase.Done
         ? "Python, модель и разбивка по голосам на месте. Первая расшифровка займёт чуть дольше: модель прогревается."
-        : "Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут.");
+        : "Python, выбранные модели и разбивка по голосам скачаются один раз. Обычно 5-10 минут.");
 
     /// <summary>
     /// The download can't be skipped, only taken back: no Stop, Continue only once everything is there, Back stops the
-    /// download and returns to the model choice (what was downloaded stays).
+    /// download and returns to the model choice (finished files stay; a model file cut off midway downloads again from the start).
     /// </summary>
     public SetupFooter Footer => SetupFlow.Footer(_current) switch
     {
@@ -74,7 +74,7 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         {
             return;
         }
-        // Back, then forward again at once: the stopped install ends first, then the same model continues.
+        // Back, then forward again at once: the stopped install ends first, then the same model downloads again (a file cut off midway starts over).
         if (_run is { IsCompleted: false } stopping)
         {
             await stopping;
@@ -185,6 +185,11 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         DoneRows.Children.Clear();
         DoneRows.Children.Add(new DoneRow("", "Python", Strings.L("Своя копия внутри Sozvon, системный Python не трогается"), true));
         DoneRows.Children.Add(new DoneRow("", _state.Model.Title, Strings.L("%@, скачана и проверена", _state.Model.Size), true));
+        if (_state.RussianModel is { } ru)
+        {
+            // The second model, for Russian tracks: setup downloads it too, and the engine is ready only with both.
+            DoneRows.Children.Add(new DoneRow("", ru.Title, Strings.L("Для русского, %@, скачана и проверена", ru.Size), true));
+        }
         DoneRows.Children.Add(new DoneRow("", Strings.L("Разбивка по голосам"),
             Strings.L(hasDiarization ? "pyannote, работает на этом компьютере" : "Модели не скачались, расшифровка будет без разбивки по голосам"), hasDiarization));
         if (ChosenAssistant is { } chosen && _checks.Result(chosen) is { } check)
