@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using Sozvon.Core.Foundation;
+using Sozvon.Core.Settings;
 
 namespace Sozvon.Core.Calls;
 
@@ -21,6 +22,16 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
 
     public IReadOnlyList<string> People => PeopleList ?? [];
     public IReadOnlyList<string> Terms => TermsList ?? [];
+
+    /// <summary>Languages of the project's calls (profile <c>languages</c>, "ru,en"); empty: the settings' ones.</summary>
+    public IReadOnlyList<SpeechLanguage> Languages { get; init; } = [];
+
+    /// <summary>The editor's "Call language": one language, or Russian and English together, as on the Mac.</summary>
+    public static readonly IReadOnlyList<string> LanguageChoices = ["ru", "en", "ru,en", "uk", "de", "es"];
+
+    /// <summary>The languages a call takes when <paramref name="project"/> is picked: its own, or <paramref name="current"/> without them.</summary>
+    public static IReadOnlyList<SpeechLanguage> CallLanguages(Project? project, IReadOnlyList<SpeechLanguage> current) =>
+        project is { Languages.Count: > 0 } p ? p.Languages : current;
 
     /// <summary>Short name for the folder name and the list: "Acme / Holding" becomes "Acme".</summary>
     public string ShortTitle => Title.Split(" / ")[0];
@@ -54,7 +65,7 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
     /// </summary>
     public bool SameAs(Project other) =>
         Slug == other.Slug && Title == other.Title && Context == other.Context
-        && People.SequenceEqual(other.People) && Terms.SequenceEqual(other.Terms);
+        && People.SequenceEqual(other.People) && Terms.SequenceEqual(other.Terms) && Languages.SequenceEqual(other.Languages);
 
     /// <summary>Different people across the projects, ignoring case: the "10 человек" of the list's summary.</summary>
     public static int PeopleCount(IEnumerable<Project> list) =>
@@ -71,7 +82,10 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
     {
         var slug = Path.GetFileNameWithoutExtension(path);
         if (!IsValidSlug(slug) || JsonFile.Read(path) is not { } o) return null;
-        return new Project(slug, o.Text("title") ?? slug, o.Text("context") ?? "", o.Texts("people") ?? [], o.Texts("terms") ?? []);
+        return new Project(slug, o.Text("title") ?? slug, o.Text("context") ?? "", o.Texts("people") ?? [], o.Texts("terms") ?? [])
+        {
+            Languages = SpeechLanguages.Parse(o.Text("languages") ?? ""),
+        };
     }
 
     /// <summary>Why a title cannot be saved for the project <paramref name="slug"/> ("" for a new one); null when it can.</summary>
@@ -122,6 +136,7 @@ public sealed record Project(string Slug, string Title, string Context = "", IRe
             o["context"] = Context;
             o["people"] = People.ToJsonArray();
             o["terms"] = Terms.ToJsonArray();
+            if (Languages.Count > 0) o["languages"] = SpeechLanguages.Serialize(Languages.ToList()); else o.Remove("languages");
             if (!o.ContainsKey("replacements")) o["replacements"] = new JsonArray();
             JsonFile.WriteAtomic(path, o);
             return true;

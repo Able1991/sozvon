@@ -20,10 +20,13 @@ public sealed record CallInfo
     /// <summary>The user alone, thinking out loud (call.json <c>kind</c>).</summary>
     public bool Reflection { get; set; }
 
+    /// <summary>A model chosen for this call (call.json <c>model</c>); null: auto, by the settings and the call's language.</summary>
+    public WhisperModel? Model { get; set; }
+
     public bool Equals(CallInfo? other) =>
         other is not null && Profile == other.Profile && Names == other.Names && Topic == other.Topic
         && Terms == other.Terms && Summary == other.Summary && Reflection == other.Reflection
-        && Languages.SequenceEqual(other.Languages);
+        && Model == other.Model && Languages.SequenceEqual(other.Languages);
 
     public override int GetHashCode() => HashCode.Combine(Profile, Names, Topic, Terms, Summary, Reflection);
 }
