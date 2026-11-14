@@ -158,3 +158,25 @@ public sealed class RuModelTests : TempFolders
         Assert.Equal([SpeechLanguage.Ru], Project.CallLanguages(null, [SpeechLanguage.Ru]));
     }
 }
+
+/// <summary>Every new text of the two models has English, from the Mac's table or the Windows one (sentence case there).</summary>
+public sealed class RuModelWordingTests
+{
+    private static readonly string[] Keys =
+    [
+        "Для русского", "Whisper определяет язык дорожки, русскую расшифровывает эта модель", "Та же модель", "Только русский",
+        "Скачана", "Не скачана", "не скачана", "Скачать модель…", "Модель:", "Авто: %@", "Авто: %@ для русского, %@ для остального",
+        "Авто выбирает модель по языку звонка, его можно поменять в настройках распознавания", "Язык звонков", "Как в настройках",
+    ];
+
+    [Fact]
+    public void EveryTextHasEnglish()
+    {
+        var mac = File.ReadLines(Path.Combine(Repo.Root(), "Sources", "Sozvon", "Resources", "en.lproj", "Localizable.strings"))
+            .Select(line => System.Text.RegularExpressions.Regex.Match(line, "^\"(.*)\" = \"(.*)\";$")).Where(m => m.Success)
+            .Select(m => m.Groups[1].Value).ToHashSet();
+        var windows = ProjectsWordingTests.WindowsEnglish();
+        Assert.All(Keys, key => Assert.True(windows.ContainsKey(key) || mac.Contains(key), key));
+        Assert.Equal("Download model…", windows["Скачать модель…"]);
+    }
+}
