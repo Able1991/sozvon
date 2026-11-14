@@ -52,8 +52,7 @@
                     <InfoBar x:Name="SetupIncompleteBar" AutomationProperties.AutomationId="SetupIncomplete" Margin="0,20,0,0" Severity="Warning"
                              IsClosable="False" IsOpen="False" Title="{s:L K='Настройка не завершена'}">
                         <InfoBar.ActionButton>
-                            <Button AutomationProperties.AutomationId="FinishSetup" Content="{s:L K='Завершить настройку…'}"
-                                    Style="{StaticResource AccentButtonStyle}" Click="OnFinishSetup" />
+                            <Button AutomationProperties.AutomationId="FinishSetup" Content="{s:L K='Завершить настройку…'}" Click="OnFinishSetup" />
                         </InfoBar.ActionButton>
                     </InfoBar>
                     <local:SettingsRow x:Name="SetupInstallingRow" AutomationProperties.AutomationId="SetupInstalling" Margin="0,20,0,0"
