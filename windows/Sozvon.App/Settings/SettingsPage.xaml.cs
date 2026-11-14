@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Sozvon.App.VoicePrints;
 using Microsoft.UI.Xaml.Input;
+using Sozvon.Core.Engine;
 using Sozvon.Core.Server;
 using Sozvon.Core.Settings;
 using Windows.Storage.Pickers;
@@ -19,6 +20,7 @@ public sealed partial class SettingsPage : UserControl
     /// <summary>The last tab change came from a key on the tabs, not the mouse.</summary>
     private bool _tabsByKeyboard;
     private readonly Action _showVoices;
+    private readonly DispatcherTimer _setupTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
     /// <param name="showVoices">"Manage…": the Voices page with every saved voice.</param>
     public SettingsPage(SettingsViewModel viewModel, MyVoice myVoice, Action showVoices)
@@ -33,9 +35,16 @@ public sealed partial class SettingsPage : UserControl
             myVoice.Store.Changed += OnVoicesChanged;
             ShowOtherVoices();
             Appeared();
+            ShowSetup();
+            _setupTimer.Start();
         };
-        Unloaded += (_, _) => myVoice.Store.Changed -= OnVoicesChanged;
-        PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
+        Unloaded += (_, _) =>
+        {
+            myVoice.Store.Changed -= OnVoicesChanged;
+            _setupTimer.Stop();
+        };
+        // The wizard installs in its own process: its progress is read from the data folder while the page is open.
+        _setupTimer.Tick += (_, _) => ShowSetup();
         AddModels();
         AddAssistants();
         AddSummaryLanguages();
@@ -75,6 +84,37 @@ public sealed partial class SettingsPage : UserControl
     /// Windows keeps (open at sign-in, maybe switched off in Task Manager meanwhile) is read again.
     /// </summary>
     public void Appeared() => ViewModel.SignIn.Refresh();
+
+    /// <summary>
+    /// Top of General: setup left halfway says what is missing, with "Finish Setup…"; a running install shows its step
+    /// (the "==> " lines of setup.log) instead of a greyed-out button.
+    /// </summary>
+    private void ShowSetup()
+    {
+        if (Shell.AppHost.Current is not { } host)
+        {
+            return;
+        }
+        var engine = host.EngineState();
+        var log = SetupLog.PathIn(ViewModel.DataFolder);
+        var installing = SetupLog.IsBeingWritten(log);
+        var banner = SetupFlow.Banner(engine, installing);
+        SetupIncompleteBar.IsOpen = banner == SetupBanner.Incomplete;
+        SetupIncompleteBar.Message = SetupFlow.Problem(engine) switch
+        {
+            SetupProblem.EngineMissing => L("Движок не установлен, звонки не расшифруются"),
+            SetupProblem.ModelMissing => L("Модель %@ не скачана, звонки не расшифруются", ModelTitle(host.EngineSettings.Model)),
+            _ => "",
+        };
+        SetupInstallingRow.Visibility = banner == SetupBanner.Installing ? Visibility.Visible : Visibility.Collapsed;
+        SetupInstallingRing.IsActive = banner == SetupBanner.Installing;
+        SetupInstallingRow.Description = installing ? SetupLog.Phase(SetupLog.Tail(log)) : "";
+        PythonStatus.Text = L(ViewModel.EngineInstalled ? "Установлен" : "Не установлен");
+    }
+
+    /// <summary>The model choice and the download, with the model Settings says is missing.</summary>
+    private void OnFinishSetup(object sender, RoutedEventArgs e) =>
+        Shell.AppHost.Current?.OpenSetup(SetupFlow.ModelStep, Shell.AppHost.Current.EngineSettings.Model.Key());
 
     /// <summary>In enum order: the box's index is the model. A model that is not on disk cannot be chosen: the engine would refuse the call.</summary>
     private void AddModels()

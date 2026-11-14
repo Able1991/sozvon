@@ -6,7 +6,7 @@ using Microsoft.Windows.AppLifecycle;
 namespace Sozvon.App.Setup;
 
 /// <summary>
-/// Opens the wizard when the app was started with --setup [--data-dir folder] [--engine folder]. Without --data-dir it
+/// Opens the wizard when the app was started with --setup [--data-dir folder] [--engine folder] [--step n] [--model key]. Without --data-dir it
 /// works on the app's own folder, SOZVON_DATA_DIR included: the app opens it with --setup alone and the wizard of a
 /// test run or a second profile must not install into the user's real folder.
 /// </summary>
@@ -55,7 +55,9 @@ public static partial class SetupLauncher
             Application.Current.Exit();
             return true;
         }
-        _window = new SetupWindow(new SetupContext(data, Path.GetFullPath(engine)));
+        // --step: "Finish Setup…" in Settings opens the model choice; without it the wizard continues where it was closed.
+        var step = int.TryParse(ArgumentAfter(args, "--step"), out var given) ? given : (int?)null;
+        _window = new SetupWindow(new SetupContext(data, Path.GetFullPath(engine)), step, ArgumentAfter(args, "--model"));
         _window.Activate();
         return true;
     }

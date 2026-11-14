@@ -48,6 +48,18 @@
         <ScrollViewer x:Name="Pane" Grid.Row="3" ViewChanged="OnPaneScrolled" IsTabStop="True" AutomationProperties.Name="{s:L K='Настройки'}">
             <Grid MaxWidth="1000" Padding="0,0,16,24">
                 <StackPanel x:Name="General" Spacing="4">
+                    <!-- Setup left halfway (a download stopped): what is missing and one way out; while an install runs, its step. -->
+                    <InfoBar x:Name="SetupIncompleteBar" AutomationProperties.AutomationId="SetupIncomplete" Margin="0,20,0,0" Severity="Warning"
+                             IsClosable="False" IsOpen="False" Title="{s:L K='Настройка не завершена'}">
+                        <InfoBar.ActionButton>
+                            <Button AutomationProperties.AutomationId="FinishSetup" Content="{s:L K='Завершить настройку…'}"
+                                    Style="{StaticResource AccentButtonStyle}" Click="OnFinishSetup" />
+                        </InfoBar.ActionButton>
+                    </InfoBar>
+                    <local:SettingsRow x:Name="SetupInstallingRow" AutomationProperties.AutomationId="SetupInstalling" Margin="0,20,0,0"
+                                       Visibility="Collapsed" Header="{s:L K='Скачиваю движок и модель…'}">
+                        <ProgressRing x:Name="SetupInstallingRing" Width="16" Height="16" IsActive="False" />
+                    </local:SettingsRow>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Профиль'}" />
                     <local:SettingsRow Header="{s:L K='Как тебя подписывать'}" Description="{s:L K='Имя пишется в расшифровке рядом с твоими репликами'}">
                         <TextBox Width="260" Text="{x:Bind ViewModel.DisplayName, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Как тебя подписывать'}" />

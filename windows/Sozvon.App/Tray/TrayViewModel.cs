@@ -16,11 +16,13 @@ public sealed partial class TrayViewModel : ObservableObject
     private readonly CallRepository _repository;
     private readonly AppSettings _settings;
     private readonly EngineLayout _layout;
+    private readonly Func<EngineStateKind> _engine;
     private readonly TrayState? _previewState;
     private readonly DateTime _startedAt = DateTime.Now;
 
-    public TrayViewModel(CallRepository repository, AppSettings settings, EngineLayout layout)
+    public TrayViewModel(CallRepository repository, AppSettings settings, EngineLayout layout, Func<EngineStateKind> engine)
     {
+        _engine = engine;
         _repository = repository;
         _settings = settings;
         _layout = layout;
@@ -45,6 +47,9 @@ public sealed partial class TrayViewModel : ObservableObject
 
     [ObservableProperty] public partial TrayState State { get; private set; }
 
+    /// <summary>The engine can transcribe: set up, but its model may still be missing (then "Finish Setup…" instead of "Start Recording").</summary>
+    public bool EngineUsable { get; private set; } = true;
+
     public string StatusText => State switch
     {
         TrayState.Recording => Loc.L("Идёт запись %@", CallFormat.Clock((Recording?.IsRecording == true ? Recording.Elapsed : DateTime.Now - _startedAt).TotalSeconds)) + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
@@ -63,8 +68,12 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public void Refresh()
     {
-        // The same check as Settings' "Python" row and the recorder: the venv and the marker of a finished install.
-        State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : _layout.IsInstalled ? TrayState.Ready : TrayState.SetupNeeded);
+        // The same check as Settings' "Python" row and the recorder (the venv and the marker of a finished install), and a
+        // setup closed halfway: "Finish Setup…" continues it on the step it was closed on.
+        var engine = _engine();
+        EngineUsable = _previewState is not null || EngineState.IsUsable(engine);
+        var setupNeeded = !_layout.IsInstalled || !SetupFlow.IsDone(SetupProgress.Load(_layout.Data), engine);
+        State = _previewState ?? (Recording?.IsRecording == true ? TrayState.Recording : setupNeeded ? TrayState.SetupNeeded : TrayState.Ready);
         var calls = _repository.Scan();
         WaitingForDescription = calls.Count(c => c.IsWaitingForDescription);
         var latest = calls.FirstOrDefault(c => c.Status == CallStatus.Done && !c.IsDemo);

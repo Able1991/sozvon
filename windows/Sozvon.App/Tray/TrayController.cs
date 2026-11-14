@@ -83,7 +83,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         if (state.State == TrayState.SetupNeeded)
         {
             AddSeparator(menu);
-            AddAction(menu, "Завершить настройку…", host.OpenSetup);
+            AddAction(menu, "Завершить настройку…", () => host.OpenSetup());
             AddSeparator(menu);
             AddAction(menu, "Выход", host.Exit);
             return menu;
@@ -96,6 +96,11 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
             AddAction(menu, "Остановить и расшифровать", () => host.Recording?.Stop());
             AddAction(menu, "Отметить важное", () => host.Recording?.Mark());
             AddAction(menu, "Проект и собеседники…", () => host.Recording?.EditInfo());
+        }
+        else if (!state.EngineUsable)
+        {
+            // Set up, but the model is gone or was never downloaded: a recording could not be transcribed.
+            AddAction(menu, "Завершить настройку…", () => host.OpenSetup());
         }
         else
         {
