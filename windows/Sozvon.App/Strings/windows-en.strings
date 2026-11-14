@@ -187,3 +187,9 @@
 
 /* Call info window: the model for this call, Auto or a downloaded one picked by hand. */
 "Модель:" = "Model:";
+/* Settings, Assistants: how to install an assistant whose program is missing (the Mac's block, with PowerShell and this computer). */
+"Как установить помощника" = "How to install an assistant";
+"«Не установлен» значит, что на этом компьютере нет программы помощника. Вставь команду в PowerShell, потом открой новое окно PowerShell, один раз запусти программу и войди в свой аккаунт. Саммари идут по твоей подписке." = "\"Not installed\" means the assistant's program isn't on this computer. Paste the command into PowerShell, then open a new PowerShell window, run the program once and sign in to your account. Summaries use your subscription.";
+"%@ не установлен на этом компьютере, команда для установки ниже" = "%@ isn't installed on this computer, the command to install it is below";
+"Скопировать команду для %@" = "Copy the command for %@";
+"Проверить снова" = "Check again";

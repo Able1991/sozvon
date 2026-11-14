@@ -178,6 +178,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 OnPropertyChanged(nameof(SummaryWarning));
                 OnPropertyChanged(nameof(HasSummaryWarning));
                 OnPropertyChanged(nameof(HasSummaryAssistant));
+                ShowInstalled();
                 // As on the Mac: a newly chosen assistant is asked at once whether it answers.
                 Checks.Run(_engine.Assistant);
                 ShowChecks();
@@ -227,8 +228,36 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool CanCheckSummary => !SummaryCheckRunning;
 
+    /// <summary>The assistants whose program is not on this computer; read again by "Check again".</summary>
+    public IReadOnlyList<Assistant> MissingAssistants { get; private set; } = AssistantInstall.Missing(AssistantHome.FromEnvironment());
+
+    /// <summary>The chosen assistant's program is missing: no check to run, the install command instead.</summary>
+    public bool SummaryAssistantMissing => HasSummaryAssistant && MissingAssistants.Contains(_engine.Assistant);
+
+    public bool SummaryCheckVisible => HasSummaryAssistant && !SummaryAssistantMissing;
+
+    /// <summary>Instead of "doesn't answer": a missing program is not a failed check, the command is right below.</summary>
+    public string SummaryNotInstalled => SummaryAssistantMissing ? Loc.L(AssistantInstall.NotInstalledText, AssistantCli.Title(_engine.Assistant)) : "";
+
+    /// <summary>"Check again" under the install commands: the programs looked for again, the chosen one asked again.</summary>
+    public void RecheckAssistants()
+    {
+        MissingAssistants = AssistantInstall.Missing(AssistantHome.FromEnvironment());
+        ShowInstalled();
+        Checks.Run(_engine.Assistant);
+        ShowChecks();
+    }
+
+    private void ShowInstalled()
+    {
+        foreach (var name in new[] { nameof(MissingAssistants), nameof(SummaryAssistantMissing), nameof(SummaryCheckVisible), nameof(SummaryNotInstalled) })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
     /// <summary>What the summary assistant's CLI said, with the hint how to fix it; empty when it answered or was not checked.</summary>
-    public string SummaryCheckProblem => HasSummaryAssistant ? Checks.Problem(_engine.Assistant) ?? "" : "";
+    public string SummaryCheckProblem => SummaryCheckVisible ? Checks.Problem(_engine.Assistant) ?? "" : "";
 
     public bool HasSummaryCheckProblem => SummaryCheckProblem.Length > 0;
 

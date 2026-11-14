@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using Sozvon.Core.Assistants;
+using Kind = Sozvon.Core.Settings.Assistant;
 
 namespace Sozvon.App.Setup;
 
@@ -11,12 +13,27 @@ internal static class MachineTools
 {
     private const int NvidiaTimeoutMilliseconds = 5000;
 
-    public static IReadOnlyList<Assistant> FindAssistants() =>
-    [
-        new("claude", "Claude Code", Strings.L("Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале."), Find("claude") is not null),
-        new("codex", "Codex", Strings.L("Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex."), Find("codex") is not null),
-        new("cursor", "Cursor", Strings.L("Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."), Find("cursor-agent") is not null),
-    ];
+    /// <summary>As Settings looks for them (PATH and the folders the vendors' installers use), read again by "Check again".</summary>
+    public static IReadOnlyList<Assistant> FindAssistants()
+    {
+        var home = AssistantHome.FromEnvironment();
+        bool Installed(Kind kind) => AssistantCli.Find(kind, home) is not null;
+        return
+        [
+            new("claude", "Claude Code", Strings.L("Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале."), Installed(Kind.Claude)),
+            new("codex", "Codex", Strings.L("Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex."), Installed(Kind.Codex)),
+            new("cursor", "Cursor", Strings.L("Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."), Installed(Kind.Cursor)),
+        ];
+    }
+
+    /// <summary>The wizard's key (SOZVON_LLM) as the assistant of Settings.</summary>
+    public static Kind KindOf(string key) => key switch
+    {
+        "claude" => Kind.Claude,
+        "codex" => Kind.Codex,
+        "cursor" => Kind.Cursor,
+        _ => Kind.None,
+    };
 
     /// <summary>The name of the first NVIDIA card, or null when nvidia-smi is missing or finds none.</summary>
     public static string? FindNvidiaCard()

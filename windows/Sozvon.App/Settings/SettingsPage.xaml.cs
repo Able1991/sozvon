@@ -127,17 +127,40 @@ public sealed partial class SettingsPage : UserControl
         }
     }
 
-    /// <summary>In enum order, as on the Mac: one whose command line tool is missing says so and can still be chosen.</summary>
+    /// <summary>
+    /// In enum order, as on the Mac: one whose program is missing says "not installed" and can't be chosen (it stays
+    /// chosen if it already was), and the commands that install it are below the choice.
+    /// </summary>
     private void AddAssistants()
     {
-        var home = Sozvon.Core.Assistants.AssistantHome.FromEnvironment();
+        foreach (var _ in Enum.GetValues<Assistant>())
+        {
+            AssistantBox.Items.Add(new ComboBoxItem());
+        }
+        ShowAssistants();
+        AssistantBox.SelectedIndex = ViewModel.SummaryAssistantIndex;
+        AssistantBox.SelectionChanged += (_, _) => ShowAssistants();
+        InstallHelp.Initialize(L);
+        InstallHelp.Show(ViewModel.MissingAssistants,
+            Sozvon.Core.Assistants.AssistantInstall.OpenInSettings((Assistant)ViewModel.SummaryAssistantIndex, ViewModel.MissingAssistants));
+        InstallHelp.Recheck += (_, _) =>
+        {
+            ViewModel.RecheckAssistants();
+            ShowAssistants();
+            InstallHelp.Show(ViewModel.MissingAssistants);
+        };
+    }
+
+    private void ShowAssistants()
+    {
         foreach (var assistant in Enum.GetValues<Assistant>())
         {
+            var item = (ComboBoxItem)AssistantBox.Items[(int)assistant];
             var title = assistant == Assistant.None ? L("Без саммари") : Sozvon.Core.Assistants.AssistantCli.Title(assistant);
-            var missing = assistant != Assistant.None && Sozvon.Core.Assistants.AssistantCli.Find(assistant, home) is null;
-            AssistantBox.Items.Add(new ComboBoxItem { Content = title + (missing ? L(" (не найден)") : "") });
+            var missing = ViewModel.MissingAssistants.Contains(assistant);
+            item.Content = title + (missing ? L(" (не установлен)") : "");
+            item.IsEnabled = !missing || (int)assistant == ViewModel.SummaryAssistantIndex;
         }
-        AssistantBox.SelectedIndex = ViewModel.SummaryAssistantIndex;
     }
 
     /// <summary>The conversation's language first, as on the Mac, then the real languages in the canonical order.</summary>
