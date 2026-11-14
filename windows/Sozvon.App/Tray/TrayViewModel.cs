@@ -54,6 +54,8 @@ public sealed partial class TrayViewModel : ObservableObject
     {
         TrayState.Recording => Loc.L("Идёт запись %@", CallFormat.Clock((Recording?.IsRecording == true ? Recording.Elapsed : DateTime.Now - _startedAt).TotalSeconds)) + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
         TrayState.SetupNeeded => Loc.L("Нужна настройка"),
+        // Set up, but the model is missing: the menu offers "Finish Setup…", so it is not "ready" either.
+        _ when !EngineUsable => Loc.L("Нужна настройка"),
         // As the Mac's menu: the engine has work, though a recording can still start.
         _ when !IsPreview && Recording?.Processor.HasWork == true => Loc.L("Расшифровка…"),
         _ => Loc.L("Готов к записи"),
@@ -63,6 +65,7 @@ public sealed partial class TrayViewModel : ObservableObject
     {
         TrayState.Recording => Loc.L("Идёт запись") + (IsPreview ? " · " + Loc.L("предпросмотр") : ""),
         TrayState.SetupNeeded => Loc.L("Нужна настройка"),
+        _ when !EngineUsable => Loc.L("Нужна настройка"),
         _ => Loc.L("Готов к записи"),
     };
 
