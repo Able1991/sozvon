@@ -181,3 +181,6 @@
 
 /* Tray: the result of a run, as the Mac says it; the Mac's line about screen recording does not apply. */
 "Ни одна дорожка не записалась. Проверь доступ к микрофону в параметрах Windows." = "Neither track recorded anything. Check microphone access in Windows Settings.";
+
+/* Settings, Recognition: the model for Russian; the setup downloads what is missing. Windows sentence case. */
+"Скачать модель…" = "Download model…";

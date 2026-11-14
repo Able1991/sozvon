@@ -37,6 +37,7 @@ public sealed partial class SettingsPage : UserControl
         Unloaded += (_, _) => myVoice.Store.Changed -= OnVoicesChanged;
         PythonStatus.Text = L(viewModel.EngineInstalled ? "Установлен" : "Не установлен");
         AddModels();
+        AddRussianModels();
         AddAssistants();
         AddSummaryLanguages();
         CallLanguagesBox.Languages = ViewModel.CallLanguages;
@@ -109,14 +110,23 @@ public sealed partial class SettingsPage : UserControl
         SummaryLanguageBox.SelectedIndex = ViewModel.SummaryLanguageIndex;
     }
 
-    private static string ModelTitle(WhisperModel model) => model switch
+    private static string ModelTitle(WhisperModel model) => model.Title();
+
+    /// <summary>
+    /// "Для русского": unlike the main model, one not on disk can be chosen. Until it is downloaded the engine keeps
+    /// Russian on the main model, and the engine block says so with "Download model…".
+    /// </summary>
+    private void AddRussianModels()
     {
-        WhisperModel.Turbo => "Whisper Turbo",
-        WhisperModel.Large => "Whisper Large v3",
-        WhisperModel.Small => "Whisper Small",
-        WhisperModel.GigaAm => "GigaAM v3",
-        _ => "Parakeet v3",
-    };
+        foreach (var model in SettingsViewModel.RussianModels)
+        {
+            var title = model is { } m ? ModelTitle(m) + (m.IsDownloaded(ViewModel.DataFolder) ? "" : " · " + L("не скачана")) : L("Та же модель");
+            RussianModelBox.Items.Add(new ComboBoxItem { Content = title });
+        }
+    }
+
+    /// <summary>The setup downloads what .env names, the model for Russian included; the Recognition tab reads the disk again when it is shown.</summary>
+    private void OnDownloadModel(object sender, RoutedEventArgs e) => Shell.AppHost.Current?.OpenSetup();
 
     private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
     {
@@ -143,6 +153,7 @@ public sealed partial class SettingsPage : UserControl
         else if (tag == nameof(Recognition))
         {
             _ = ViewModel.Integrations.RefreshServerAsync();
+            ViewModel.ShowModels();
         }
         else if (tag == nameof(Cloud))
         {

@@ -97,6 +97,62 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
+    /// <summary>"Для русского": the same model, GigaAM or Parakeet, in the order of <see cref="RussianModels"/>.</summary>
+    public static IReadOnlyList<WhisperModel?> RussianModels { get; } = [null, WhisperModel.GigaAm, WhisperModel.Parakeet];
+
+    public int RussianModelIndex
+    {
+        get => Math.Max(0, RussianModels.ToList().IndexOf(_engine.ModelRu));
+        set
+        {
+            if (value < 0 || value >= RussianModels.Count || RussianModels[value] == _engine.ModelRu) return;
+            try
+            {
+                _engine.ModelRu = RussianModels[value];
+                RussianModelError = "";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                RussianModelError = e.Message;
+            }
+            OnPropertyChanged();
+            ShowModels();
+        }
+    }
+
+    /// <summary>Why .env could not take the model for Russian; empty when it did.</summary>
+    public string RussianModelError { get; private set; } = "";
+
+    public bool HasRussianModelError => RussianModelError.Length > 0;
+
+    /// <summary>Only after a Whisper model: its language detection sorts the tracks.</summary>
+    public bool OffersRussianModel => _engine.Model.IsWhisper();
+
+    /// <summary>The engine block's line for the second model: shown while Russian tracks go to one.</summary>
+    public bool HasRussianModel => _engine.RussianModel is not null;
+
+    public string RussianModelTitle => _engine.RussianModel?.Title() ?? "";
+
+    public bool RussianModelMissing => _engine.RussianModel is { } ru && !ru.IsDownloaded(_layout.Data);
+
+    public string RussianModelStatus => Loc.L(RussianModelMissing ? "Не скачана" : "Скачана");
+
+    /// <summary>GigaAM knows only Russian: no languages to pick and no detection.</summary>
+    public bool OnlyRussian => _engine.Model == WhisperModel.GigaAm;
+
+    public bool ChoosesLanguages => !OnlyRussian;
+
+    /// <summary>Also when the Recognition tab is shown: a download in the setup may have finished meanwhile.</summary>
+    public void ShowModels()
+    {
+        foreach (var name in new[] { nameof(RussianModelError), nameof(HasRussianModelError), nameof(OffersRussianModel), nameof(HasRussianModel),
+                                     nameof(RussianModelTitle), nameof(RussianModelMissing), nameof(RussianModelStatus), nameof(OnlyRussian),
+                                     nameof(ChoosesLanguages) })
+        {
+            OnPropertyChanged(name);
+        }
+    }
+
     public bool LanguageSwitching
     {
         get => _engine.LanguageSwitch;
@@ -411,6 +467,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(PhoneFolderText));
             OnPropertyChanged(nameof(HasPhoneFolder));
+        }
+        else if (e.PropertyName == nameof(AppSettings.SpeechModelChoice))
+        {
+            ShowModels();
         }
         else if (e.PropertyName == nameof(AppSettings.CallStartAction))
         {

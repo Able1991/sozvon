@@ -18,6 +18,19 @@ public sealed class EngineSettings(AppSettings settings, string envFile)
 
     public WhisperModel Model => settings.SpeechModelChoice ?? Wizard.Model;
 
+    /// <summary>
+    /// SOZVON_MODEL_RU lives only in .env: the engine's install reads it there to download the model, and every run to
+    /// use it. Settings and the wizard write the same line. Null: the main model for Russian too.
+    /// </summary>
+    public WhisperModel? ModelRu
+    {
+        get => Wizard.ModelRu;
+        set => SettingsValues.SaveModelRu(envFile, value);
+    }
+
+    /// <summary>The model Russian tracks go to now, as the engine decides it; null when there is none.</summary>
+    public WhisperModel? RussianModel => WhisperModels.RuModel(Model, ModelRu);
+
     public IReadOnlyList<SpeechLanguage> Languages =>
         settings.CallLanguagesChoice is { } chosen ? SpeechLanguages.Parse(chosen) : Wizard.Languages;
 

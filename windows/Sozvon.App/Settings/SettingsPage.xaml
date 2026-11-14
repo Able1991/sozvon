@@ -155,16 +155,38 @@
                     <local:SettingsRow Header="{s:L K='Модель распознавания'}">
                         <ComboBox x:Name="ModelBox" Width="240" SelectedIndex="{x:Bind ViewModel.SpeechModelIndex, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Модель распознавания'}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Языки звонков'}">
-                        <local:LanguagesButton x:Name="CallLanguagesBox" />
+                    <local:SettingsRow Header="{s:L K='Для русского'}" Description="{s:L K='Whisper определяет язык дорожки, русскую расшифровывает эта модель'}"
+                                       Visibility="{x:Bind ViewModel.OffersRussianModel, Mode=OneWay}">
+                        <ComboBox x:Name="RussianModelBox" Width="240" SelectedIndex="{x:Bind ViewModel.RussianModelIndex, Mode=TwoWay}"
+                                  AutomationProperties.Name="{s:L K='Для русского'}" />
                     </local:SettingsRow>
-                    <local:SettingsRow Header="{s:L K='Переключение языка посреди речи'}" Description="{s:L K='Язык определяется для каждой фразы, медленнее на 20-30%'}">
+                    <InfoBar IsOpen="{x:Bind ViewModel.HasRussianModelError, Mode=OneWay}" Severity="Error" IsClosable="False"
+                             Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.RussianModelError, Mode=OneWay}" />
+                    <local:SettingsRow Header="{s:L K='Языки звонков'}">
+                        <Grid>
+                            <local:LanguagesButton x:Name="CallLanguagesBox" Visibility="{x:Bind ViewModel.ChoosesLanguages, Mode=OneWay}" />
+                            <!-- GigaAM knows only Russian: no languages to pick and no detection. -->
+                            <TextBlock Text="{s:L K='Только русский'}" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Visibility="{x:Bind ViewModel.OnlyRussian, Mode=OneWay}" />
+                        </Grid>
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Переключение языка посреди речи'}" Description="{s:L K='Язык определяется для каждой фразы, медленнее на 20-30%'}"
+                                       Visibility="{x:Bind ViewModel.ChoosesLanguages, Mode=OneWay}">
                         <ToggleSwitch IsOn="{x:Bind ViewModel.LanguageSwitching, Mode=TwoWay}" AutomationProperties.Name="{s:L K='Переключение языка посреди речи'}" />
                     </local:SettingsRow>
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Движок'}" />
                     <local:SettingsRow Header="Python">
                         <TextBlock x:Name="PythonStatus" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </local:SettingsRow>
+                    <local:SettingsRow Header="{s:L K='Для русского'}" Description="{x:Bind ViewModel.RussianModelTitle, Mode=OneWay}"
+                                       Visibility="{x:Bind ViewModel.HasRussianModel, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind ViewModel.RussianModelStatus, Mode=OneWay}" />
+                            <!-- The setup downloads what .env asks for: both models. -->
+                            <Button Content="{s:L K='Скачать модель…'}" Click="OnDownloadModel" Visibility="{x:Bind ViewModel.RussianModelMissing, Mode=OneWay}"
+                                    AutomationProperties.AutomationId="DownloadRussianModel" />
+                        </StackPanel>
                     </local:SettingsRow>
                     <local:SettingsRow Header="{s:L K='MCP-сервер'}" Description="{x:Bind ViewModel.Integrations.ServerFailure, Mode=OneWay}">
                         <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
