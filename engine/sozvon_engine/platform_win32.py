@@ -393,7 +393,8 @@ def call_folder_name(name: str, cid: str, calls_dir: Path) -> str:
 #
 # CreateProcess looks in the current folder before PATH, and a call folder or a phone folder can hold anything, so no
 # program is ever started by its short name. A batch file would go through cmd.exe, where the characters of a call's
-# text are commands, so none is ever started at all: npm's .cmd wrapper is read and node runs its script directly.
+# text are commands, so none is ever started at all: npm's .cmd wrapper is read and node runs its script directly, and
+# Cursor's cursor-agent.cmd as the node.exe and index.js its PowerShell script would run.
 
 _SYSTEM_TOOLS = ("curl", "nvidia-smi")
 _NPM_TARGET = re.compile(r'"%~?dp0%?\\([^"]+)"\s+%\*')
@@ -449,6 +450,33 @@ def _node_for(wrapper: Path) -> str:
     raise FileNotFoundError("node")
 
 
+_CURSOR_LAUNCHER = re.compile(r'-File "%SCRIPT_DIR%\\cursor-agent\.ps1" %\*')
+_CURSOR_VERSION = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})(?:-(\d{2})-(\d{2})-(\d{2}))?-[a-f0-9]+$")
+
+
+def _cursor_argv(folder: Path) -> list:
+    """Cursor's launcher (cursor.com/install?win32=true): cursor-agent.cmd starts cursor-agent.ps1 next to it, which runs
+    index.js with node.exe from the same folder or else from the newest versions\\YYYY.MM.DD[-HH-MM-SS]-commit. The same
+    two files are started here, both inside the launcher's folder."""
+    def complete(d: Path):
+        return [str(d / "node.exe"), str(d / "index.js")] if (d / "node.exe").is_file() and (d / "index.js").is_file() else None
+
+    if beside := complete(folder):
+        return beside
+    versions = []
+    if (folder / "versions").is_dir():
+        for d in (folder / "versions").iterdir():
+            m = _CURSOR_VERSION.match(d.name)
+            if m and d.is_dir():
+                # As cursor-agent.ps1: by the date; on the same date the build time (or the name) decides.
+                date = int(m[1]) * 10000 + int(m[2]) * 100 + int(m[3])
+                built = int(m[4] + m[5] + m[6]) if m[4] else -1
+                versions.append((date, built, d.name, d))
+    if versions and (newest := complete(max(versions)[3])):
+        return newest
+    raise FileNotFoundError(f"{folder}: no complete Cursor version")
+
+
 def cli_argv(path: str) -> list:
     """How to start a command line tool found by find_cli. FileNotFoundError if it cannot be started safely."""
     file = Path(path)
@@ -456,6 +484,8 @@ def cli_argv(path: str) -> list:
     if suffix == ".exe":
         return [str(file)]
     if suffix == ".cmd":
+        if _CURSOR_LAUNCHER.search(file.read_text(encoding="utf-8", errors="replace")):
+            return _cursor_argv(file.parent.resolve())
         script = _npm_script(file)
         return [_node_for(file), str(script)]
     raise FileNotFoundError(f"{path}: only .exe and npm's .cmd wrappers are started")
