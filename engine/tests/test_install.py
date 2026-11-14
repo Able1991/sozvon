@@ -125,7 +125,7 @@ def test_main_installs_everything(tmp_path, monkeypatch, capsys):
     assert (tmp_path / ".venv-lock").read_text().strip() == hashlib.sha256(b"lock").hexdigest()[:16]
     assert (tmp_path / ".installed").read_text().strip().isdigit()
     out = capsys.readouterr().out.splitlines()
-    assert out[0] == "==> Скачиваю модель small (один раз)" and out[-1] == "==> Готово"
+    assert out[0] == "==> Скачиваю модель Whisper Small (один раз)" and out[-1] == "==> Готово"
 
 
 def echo_entry(monkeypatch, good=b"weights"):

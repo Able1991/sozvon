@@ -68,3 +68,12 @@ def ru_model(main: str, ru: str) -> str | None:
     if not ru or ru == main or ru not in MODELS or main not in MODELS or is_onnx(main) or not is_onnx(ru):
         return None
     return ru
+
+
+TITLES = {"turbo": "Whisper Turbo", "large-v3": "Whisper Large v3", "small": "Whisper Small",
+          "gigaam": "GigaAM v3", "parakeet": "Parakeet v3"}
+
+
+def title(name: str) -> str:
+    """The name people see (the app's WhisperModel.title), not the models.json key."""
+    return TITLES.get(name, name)

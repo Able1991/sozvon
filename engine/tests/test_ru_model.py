@@ -93,3 +93,7 @@ def test_install_downloads_both_models(tmp_path, monkeypatch):
     (tmp_path / "hf-cache").mkdir()
     install.main([str(tmp_path)])
     assert got == ["turbo", "gigaam"]
+
+
+def test_every_model_has_a_title():
+    assert set(models.TITLES) == set(models.MODELS)

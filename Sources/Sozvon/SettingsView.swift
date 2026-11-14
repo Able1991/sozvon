@@ -1437,14 +1437,22 @@ struct SetupIncompleteSection: View {
             }
         } else if let why = Self.problem(state) {
             Section {
-                LabeledContent {
-                    Button(L("Завершить настройку…")) { s.save(); finishSetup() }
-                        .buttonStyle(.borderedProminent)
-                } label: {
-                    Label(L("Настройка не завершена"), systemImage: "exclamationmark.triangle.fill")
+                // Icon on its own, title and reason as one block, the button centered on the row: a settings row,
+                // not a banner.
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title2)
                         .foregroundStyle(.orange)
-                    Text(why)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L("Настройка не завершена"))
+                        Text(why).font(.callout).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Button(L("Завершить настройку…")) { s.save(); finishSetup() }
                 }
+                .accessibilityElement(children: .contain)
             }
         }
     }

@@ -173,11 +173,11 @@ def main(argv=None, downloader: Downloader = hf_download, fetch: Fetcher = curl_
         os.environ["HF_TOKEN"] = settings.hf_token
 
     model = settings.model if settings.model in models.MODELS else models.DEFAULT_MODEL
-    step(t("install_model", model=model))
+    step(t("install_model", model=models.title(model)))
     ensure_model(engine.root, model, downloader)
     ru = models.ru_model(model, settings.model_ru)
     if ru:
-        step(t("install_model", model=ru))
+        step(t("install_model", model=models.title(ru)))
         ensure_model(engine.root, ru, downloader)
 
     ensure_echo_model(engine.root, downloader)
