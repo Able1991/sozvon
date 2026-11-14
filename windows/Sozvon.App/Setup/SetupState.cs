@@ -21,6 +21,7 @@ internal sealed class SetupState
             .ToList();
         var model = saved.GetValueOrDefault("SOZVON_MODEL");
         Model = models.FirstOrDefault(m => m.Key == model) ?? models.First(m => m.Recommended);
+        ModelRu = saved.GetValueOrDefault("SOZVON_MODEL_RU", "");
         // Codex and Cursor are never picked for the user: they run only when chosen.
         var claude = assistants.Any(a => a.Key == "claude" && a.IsInstalled);
         Assistant = saved.GetValueOrDefault("SOZVON_LLM", claude ? "claude" : NoAssistant);
@@ -42,7 +43,18 @@ internal sealed class SetupState
     public SpeechModel Model { get; set; }
     public bool UseGpu { get; set; }
 
-    public bool IsEngineReady => EngineStatus.IsReady(_context, Model);
+    /// <summary>SOZVON_MODEL_RU: "gigaam" (or "parakeet", set in Settings) for Russian tracks; "": the main model.</summary>
+    public string ModelRu { get; set; }
+
+    /// <summary>The model Russian tracks go to with the chosen main model, as the engine decides it (models.ru_model).</summary>
+    public SpeechModel? RussianModel =>
+        Sozvon.Core.Settings.WhisperModels.FromKey(Model.Key) is { } main
+        && Sozvon.Core.Settings.WhisperModels.RuModel(main, Sozvon.Core.Settings.WhisperModels.FromKey(ModelRu)) is { } ru
+            ? Models.FirstOrDefault(m => m.Key == Sozvon.Core.Settings.WhisperModels.Key(ru))
+            : null;
+
+    /// <summary>Ready only with both models on disk: the install downloads the Russian one too.</summary>
+    public bool IsEngineReady => EngineStatus.IsReady(_context, Model) && (RussianModel is not { } ru || EngineStatus.IsDownloaded(_context, ru));
 
     public void Save() => EnvFile.Write(_context.EnvFile, new Dictionary<string, string>
     {
@@ -51,6 +63,7 @@ internal sealed class SetupState
         ["SOZVON_LLM"] = Assistant,
         ["SOZVON_LANGUAGE"] = Languages.Count == 0 ? Auto : string.Join(',', Languages),
         ["SOZVON_MODEL"] = Model.Key,
+        ["SOZVON_MODEL_RU"] = ModelRu,
         ["SOZVON_SUMMARY_LANGUAGE"] = SummaryLanguage,
     });
 }

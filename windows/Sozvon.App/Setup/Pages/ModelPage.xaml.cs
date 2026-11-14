@@ -19,6 +19,12 @@ public sealed partial class ModelPage : UserControl, ISetupPage
         {
             AddChoice(model);
         }
+        var gigaam = state.Models.FirstOrDefault(m => m.Key == "gigaam");
+        RussianTitle.Text = Strings.L("Русские разговоры через GigaAM");
+        RussianNote.Text = Strings.L("Ещё %@. Whisper определит язык каждой дорожки, русскую расшифрует GigaAM.", gigaam?.Size ?? "");
+        AutomationProperties.SetName(RussianSwitch, RussianTitle.Text);
+        RussianSwitch.IsOn = state.ModelRu == "gigaam";
+        ShowRussian();
         if (nvidiaCard is not null)
         {
             GpuCard.Visibility = Visibility.Visible;
@@ -66,9 +72,24 @@ public sealed partial class ModelPage : UserControl, ISetupPage
         choice.Checked += (_, _) =>
         {
             _state.Model = model;
+            ShowRussian();
             Changed?.Invoke();
         };
         Choices.Children.Add(choice);
+    }
+
+    /// <summary>Only after a Whisper model: GigaAM and Parakeet can't tell the languages of the tracks apart.</summary>
+    private void ShowRussian() =>
+        RussianCard.Visibility = _state.Model.Vad is null ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnRussianToggled(object sender, RoutedEventArgs e)
+    {
+        var chosen = RussianSwitch.IsOn ? "gigaam" : (_state.ModelRu == "gigaam" ? "" : _state.ModelRu);
+        if (chosen != _state.ModelRu)
+        {
+            _state.ModelRu = chosen;
+            Changed?.Invoke();
+        }
     }
 
     private void OnGpuClick(object sender, RoutedEventArgs e)

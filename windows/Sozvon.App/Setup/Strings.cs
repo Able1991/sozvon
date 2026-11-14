@@ -116,6 +116,8 @@ internal static class Strings
         ["Лёгкая: для компьютеров с 8 ГБ памяти и экономии места. Точность ниже."] = "Lightweight: for PCs with 8 GB of memory or to save space. Less accurate.",
         ["Только русский, от Сбера. Лёгкая и быстрая, но без словаря проектов."] = "Russian only, by Sber. Light and fast, but no project vocabulary.",
         ["25 европейских языков, от NVIDIA. Очень быстрая, но без словаря проектов."] = "25 European languages, by NVIDIA. Very fast, but no project vocabulary.",
+        ["Русские разговоры через GigaAM"] = "Russian conversations with GigaAM",
+        ["Ещё %@. Whisper определит язык каждой дорожки, русскую расшифрует GigaAM."] = "%@ more. Whisper detects each track’s language, GigaAM transcribes the Russian ones.",
         ["Ускорить на видеокарте NVIDIA"] = "Accelerate with an NVIDIA GPU",
         ["Найдена %@. Скачается ещё несколько ГБ. Без ускорения всё работает на процессоре, только медленнее."] = "Found %@. Several more GB will be downloaded. Without it, everything works on the processor, only slower.",
         ["Скачать и продолжить"] = "Download and continue",
