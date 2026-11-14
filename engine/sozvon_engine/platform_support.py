@@ -56,7 +56,11 @@ def tool_bin_dirs() -> list[Path]:
     """Extra folders to look for user-installed CLIs (claude, codex...) when they are not on PATH,
     as happens for an app launched from the Dock."""
     if SYSTEM == "win32":
-        return [Path.home() / ".local" / "bin"]
+        # Where the vendors' Windows installers put them (the app's AssistantInstall.Command): each adds its folder to
+        # the user's PATH, but an app started before the install, and the engine it starts, keep the old PATH.
+        local = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        roaming = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+        return [Path.home() / ".local" / "bin", local / "Programs" / "OpenAI" / "Codex" / "bin", local / "cursor-agent", roaming / "npm"]
     return [Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")]
 
 

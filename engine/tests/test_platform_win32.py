@@ -863,7 +863,73 @@ def test_a_cmd_file_that_is_no_npm_shim_is_refused(monkeypatch, npm_dir):
     assert ps.find_cli("claude", [npm_dir]) is None
 
 
-NASTY = 'Анна: & echo pwned > pwned.txt | %PATH% "кавычки" <x> ^ `id` $(id) ✓\nвторая строка'
+def test_the_vendors_install_folders_are_searched(monkeypatch, tmp_path):
+    """Claude's, Codex's and Cursor's Windows installers (the app's AssistantInstall.Command) put the programs here and
+    add the folder to the user's PATH, which an app started before the install does not see."""
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "AppData" / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "AppData" / "Roaming"))
+    monkeypatch.setattr(ps, "SYSTEM", "win32")
+    local = tmp_path / "AppData" / "Local"
+    assert ps.tool_bin_dirs() == [tmp_path / ".local" / "bin", local / "Programs" / "OpenAI" / "Codex" / "bin",
+                                  local / "cursor-agent", tmp_path / "AppData" / "Roaming" / "npm"]
+    monkeypatch.setenv("PATH", "")
+    codex = local / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe"
+    codex.parent.mkdir(parents=True)
+    codex.write_bytes(b"x")
+    assert ps.find_cli("codex", ps.tool_bin_dirs()) == str(codex)
+
+
+CURSOR_CMD = r"""@echo off
+setlocal enabledelayedexpansion
+set "CURSOR_INVOKED_AS=%~nx0"
+
+REM Get the directory of this script
+set "SCRIPT_DIR=%~dp0"
+REM Remove trailing backslash
+if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+
+%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%\cursor-agent.ps1" %*
+"""
+
+
+def _cursor(root: Path, *versions: str) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "cursor-agent.cmd").write_text(CURSOR_CMD, encoding="utf-8")
+    (root / "cursor-agent.ps1").write_text("", encoding="utf-8")
+    for v in versions:
+        (root / "versions" / v).mkdir(parents=True)
+        (root / "versions" / v / "node.exe").write_bytes(b"x")
+        (root / "versions" / v / "index.js").write_text("", encoding="utf-8")
+    return root / "cursor-agent.cmd"
+
+
+def test_cursors_launcher_runs_the_newest_version_with_its_own_node(monkeypatch, tmp_path):
+    """Neither cmd.exe nor PowerShell: the node.exe and index.js that cursor-agent.ps1 would run."""
+    monkeypatch.setenv("PATH", "")
+    root = tmp_path / "cursor-agent"
+    _cursor(root)
+    assert ps.find_cli("cursor-agent", [root]) is None  # no version yet: nothing to run
+    shim = _cursor(root, "2026.9.30-0a1b2c3", "2026.11.13-eacade1", "2026.10.2-ffff000")
+    (root / "versions" / "2027.1.1-staged.new").mkdir()
+    assert ps.find_cli("cursor-agent", [root]) == str(shim)
+    newest = root.resolve() / "versions" / "2026.11.13-eacade1"
+    assert ps.cli_argv(str(shim)) == [str(newest / "node.exe"), str(newest / "index.js")]
+
+
+def test_on_the_same_date_the_build_time_decides(tmp_path):
+    shim = _cursor(tmp_path / "cursor-agent", "2026.11.13-eacade1", "2026.11.13-09-15-00-bbbb111", "2026.11.13-18-40-12-aaaa000")
+    assert Path(ps.cli_argv(str(shim))[0]).parent.name == "2026.11.13-18-40-12-aaaa000"
+
+
+def test_an_incomplete_cursor_version_is_not_started(tmp_path):
+    shim = _cursor(tmp_path / "cursor-agent", "2026.11.13-eacade1")
+    (tmp_path / "cursor-agent" / "versions" / "2026.11.13-eacade1" / "index.js").unlink()
+    with pytest.raises(FileNotFoundError):
+        ps.cli_argv(str(shim))
+
+
+NASTY ='Анна: & echo pwned > pwned.txt | %PATH% "кавычки" <x> ^ `id` $(id) ✓\nвторая строка'
 
 
 def _assistant(monkeypatch, npm_dir, tmp_path, name="claude"):
