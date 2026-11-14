@@ -97,11 +97,16 @@ public sealed record SetupProgress(int? Step, bool? Done)
         return new(Integer(json["step"]), json["done"] is JsonValue done && done.TryGetValue<bool>(out var d) ? d : null);
     }
 
-    public static void SaveStep(string dataFolder, int step) =>
-        JsonFile.WriteAtomic(PathIn(dataFolder), new JsonObject { ["step"] = step, ["done"] = false });
+    public static void SaveStep(string dataFolder, int step) => Write(dataFolder, new JsonObject { ["step"] = step, ["done"] = false });
 
-    public static void SaveDone(string dataFolder) =>
-        JsonFile.WriteAtomic(PathIn(dataFolder), new JsonObject { ["done"] = true });
+    public static void SaveDone(string dataFolder) => Write(dataFolder, new JsonObject { ["done"] = true });
+
+    /// <summary>The first step of a first run comes before the installer made the data folder.</summary>
+    private static void Write(string dataFolder, JsonObject content)
+    {
+        Directory.CreateDirectory(dataFolder);
+        JsonFile.WriteAtomic(PathIn(dataFolder), content);
+    }
 
     private static int? Integer(JsonNode? node) => node is JsonValue value && value.TryGetValue<int>(out var i) ? i : null;
 }

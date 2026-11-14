@@ -3,13 +3,12 @@ using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Sozvon.Core.Engine;
 
 namespace Sozvon.App.Setup.Pages;
 
 public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
 {
-    private enum InstallState { Running, Failed, Stopped, Done }
-
     private const string PhasePrefix = "==> ";
     private const int MaxLogLines = 400;
     private const string AssistantGlyph = "";
@@ -21,8 +20,9 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
 
     /// <summary>Whether the assistant chosen two steps back answers, now that the engine can ask it (as the Mac's wizard).</summary>
     private readonly Settings.AssistantChecks _checks;
-    private InstallState _current = InstallState.Stopped;
+    private InstallPhase _current = InstallPhase.Stopped;
     private bool _stopRequested;
+    private Task? _run;
 
     internal EnginePage(SetupContext context, SetupState state)
     {
@@ -35,7 +35,7 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
             () => new Sozvon.Core.Engine.EngineOptions(Strings.EngineLanguage), Strings.L);
         _checks.Changed += (_, _) =>
         {
-            if (_current == InstallState.Done)
+            if (_current == InstallPhase.Done)
             {
                 ShowDoneRows();
             }
@@ -48,52 +48,71 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
     }
 
     public event Action? Changed;
-    public string Glyph => _current switch { InstallState.Done => "", InstallState.Failed => "", _ => "" };
-    public string Title => Strings.L(_current == InstallState.Done ? "Движок установлен" : "Установка движка");
+    public string Glyph => _current switch { InstallPhase.Done => "", InstallPhase.Failed => "", _ => "" };
+    public string Title => Strings.L(_current == InstallPhase.Done ? "Движок установлен" : "Установка движка");
 
-    public string Subtitle => Strings.L(_current == InstallState.Done
+    public string Subtitle => Strings.L(_current == InstallPhase.Done
         ? "Python, модель и разбивка по голосам на месте. Первая расшифровка займёт чуть дольше: модель прогревается."
         : "Python, модель Whisper и разбивка по голосам скачаются один раз, 2-4 ГБ. Обычно 5-10 минут.");
 
-    public SetupFooter Footer => _current switch
+    /// <summary>
+    /// The download can't be skipped, only taken back: no Stop, Continue only once everything is there, Back stops the
+    /// download and returns to the model choice (what was downloaded stays).
+    /// </summary>
+    public SetupFooter Footer => SetupFlow.Footer(_current) switch
     {
-        InstallState.Running => new(false, Strings.L("Остановить"), PrimaryIsAccent: false),
-        InstallState.Done => new(false, Strings.L("Продолжить")),
-        _ => new(true, Strings.L("Продолжить установку")),
+        { Action: InstallAction.Retry } => new(true, Strings.L("Повторить")),
+        { Action: InstallAction.ContinueInstall } => new(true, Strings.L("Продолжить установку")),
+        { Enabled: var enabled } => new(true, Strings.L("Продолжить"), enabled),
     };
 
-    public void OnShown()
+    public void OnShown() => _ = ShowAsync();
+
+    private async Task ShowAsync()
     {
-        if (_current == InstallState.Running)
+        if (_current == InstallPhase.Running && !_stopRequested)
         {
             return;
         }
+        // Back, then forward again at once: the stopped install ends first, then the same model continues.
+        if (_run is { IsCompleted: false } stopping)
+        {
+            await stopping;
+        }
         if (_state.IsEngineReady && !_state.UseGpu)
         {
-            Show(InstallState.Done);
+            Show(InstallPhase.Done);
         }
         else
         {
-            _ = InstallAsync();
+            _run = InstallAsync();
         }
     }
 
     public bool Primary()
     {
-        switch (_current)
+        if (_current == InstallPhase.Done)
         {
-            case InstallState.Done:
-                return true;
-            case InstallState.Running:
-                _stopRequested = true;
-                _installer.Stop();
-                return false;
-            default:
-                _ = InstallAsync();
-                return false;
+            return true;
+        }
+        if (_current != InstallPhase.Running)
+        {
+            _run = InstallAsync();
+        }
+        return false;
+    }
+
+    /// <summary>Back to the model choice: the download stops.</summary>
+    public void Stop()
+    {
+        if (_current == InstallPhase.Running)
+        {
+            _stopRequested = true;
+            _installer.Stop();
         }
     }
 
+    /// <summary>The window closed: a download in progress stops, the next start continues on the model step.</summary>
     public void Dispose() => _installer.Stop();
 
     private async Task InstallAsync()
@@ -102,7 +121,7 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         _log.Clear();
         LogText.Text = "";
         PhaseText.Text = Strings.L("Начинаю установку…");
-        Show(InstallState.Running);
+        Show(InstallPhase.Running);
 
         var succeeded = false;
         try
@@ -119,7 +138,7 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         {
             _checks.Run(chosen);
         }
-        Show(succeeded ? InstallState.Done : _stopRequested ? InstallState.Stopped : InstallState.Failed);
+        Show(succeeded ? InstallPhase.Done : _stopRequested ? InstallPhase.Stopped : InstallPhase.Failed);
     }
 
     private Sozvon.Core.Settings.Assistant? ChosenAssistant =>
@@ -140,16 +159,16 @@ public sealed partial class EnginePage : UserControl, ISetupPage, IDisposable
         LogScroll.ChangeView(null, double.MaxValue, null, disableAnimation: true);
     }
 
-    private void Show(InstallState state)
+    private void Show(InstallPhase state)
     {
         _current = state;
-        RunningCard.Visibility = state == InstallState.Running ? Visibility.Visible : Visibility.Collapsed;
-        FailedBar.IsOpen = state == InstallState.Failed;
-        StoppedBar.IsOpen = state == InstallState.Stopped;
-        LogExpander.Visibility = state != InstallState.Done && (state == InstallState.Running || _log.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
-        LogExpander.IsExpanded |= state == InstallState.Failed;
-        DoneCard.Visibility = state == InstallState.Done ? Visibility.Visible : Visibility.Collapsed;
-        if (state == InstallState.Done)
+        RunningCard.Visibility = state == InstallPhase.Running ? Visibility.Visible : Visibility.Collapsed;
+        FailedBar.IsOpen = state == InstallPhase.Failed;
+        StoppedBar.IsOpen = state == InstallPhase.Stopped;
+        LogExpander.Visibility = state != InstallPhase.Done && (state == InstallPhase.Running || _log.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
+        LogExpander.IsExpanded |= state == InstallPhase.Failed;
+        DoneCard.Visibility = state == InstallPhase.Done ? Visibility.Visible : Visibility.Collapsed;
+        if (state == InstallPhase.Done)
         {
             if (ChosenAssistant is { } chosen)
             {

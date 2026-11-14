@@ -1,3 +1,6 @@
+using Sozvon.Core.Engine;
+using Sozvon.Core.Settings;
+
 namespace Sozvon.App.Setup;
 
 /// <summary>What the user chose in the wizard, kept in the .env of the data folder.</summary>
@@ -8,7 +11,8 @@ internal sealed class SetupState
 
     private readonly SetupContext _context;
 
-    public SetupState(SetupContext context, IReadOnlyList<SpeechModel> models, IReadOnlyList<Assistant> assistants)
+    /// <param name="model">The model to preselect ("Finish Setup…" in Settings: the one it says is missing); null: the saved one.</param>
+    public SetupState(SetupContext context, IReadOnlyList<SpeechModel> models, IReadOnlyList<Assistant> assistants, string? model = null)
     {
         _context = context;
         Models = models;
@@ -19,7 +23,7 @@ internal sealed class SetupState
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(language => language != Auto)
             .ToList();
-        var model = saved.GetValueOrDefault("SOZVON_MODEL");
+        model ??= saved.GetValueOrDefault("SOZVON_MODEL");
         Model = models.FirstOrDefault(m => m.Key == model) ?? models.First(m => m.Recommended);
         // Codex and Cursor are never picked for the user: they run only when chosen.
         var claude = assistants.Any(a => a.Key == "claude" && a.IsInstalled);
@@ -42,7 +46,16 @@ internal sealed class SetupState
     public SpeechModel Model { get; set; }
     public bool UseGpu { get; set; }
 
-    public bool IsEngineReady => EngineStatus.IsReady(_context, Model);
+    /// <summary>
+    /// Only a fully ready engine: a stopped first install leaves Python without the model, or a venv that doesn't match
+    /// uv.lock (NeedsUpdate), and neither may let the wizard past the download.
+    /// </summary>
+    public bool IsEngineReady => SetupFlow.Installed(Engine) && EngineStatus.IsReady(_context, Model);
+
+    /// <summary>The engine's state for the chosen model, by the app's own rules.</summary>
+    public EngineStateKind Engine => WhisperModels.FromKey(Model.Key) is { } model
+        ? EngineState.Evaluate(new EngineLayout(_context.DataFolder, ""), model)
+        : EngineStateKind.NotInstalled;
 
     public void Save() => EnvFile.Write(_context.EnvFile, new Dictionary<string, string>
     {

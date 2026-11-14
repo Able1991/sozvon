@@ -5,6 +5,7 @@ using Sozvon.App.Capsule;
 using Sozvon.App.Settings;
 using Sozvon.App.Setup.Pages;
 using Sozvon.App.Shell;
+using Sozvon.Core.Engine;
 using Windows.Foundation;
 using WinRT.Interop;
 
@@ -16,9 +17,15 @@ public sealed partial class SetupWindow : Window
     private const int LogicalWidth = 600, LogicalHeight = 680;
     private readonly ISetupPage[] _pages;
     private readonly Border[] _pips;
+    private readonly SetupContext _context;
+
+    /// <summary>Setup was finished before (opened from Settings or the tray to download a model): its steps are not saved.</summary>
+    private readonly bool _repair;
     private int _index;
 
-    internal SetupWindow(SetupContext context)
+    /// <param name="step">The step to open on; null: where setup was closed (SetupFlow.OpenAt).</param>
+    /// <param name="model">The model to preselect; null: the one in .env.</param>
+    internal SetupWindow(SetupContext context, int? step = null, string? model = null)
     {
         // Added here and not in the window's own resources: the pages resolve these styles when they are created.
         Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("ms-appx:///Setup/SetupStyles.xaml") });
@@ -26,7 +33,8 @@ public sealed partial class SetupWindow : Window
         ConfigureWindow();
         WindowTheme.Apply(this, Root, new SettingsStore(context.SettingsFile).Settings.Theme);
 
-        var state = new SetupState(context, ModelCatalog.Load(context.ModelsManifest), MachineTools.FindAssistants());
+        _context = context;
+        var state = new SetupState(context, ModelCatalog.Load(context.ModelsManifest), MachineTools.FindAssistants(), model);
         _pages =
         [
             new WelcomePage(),
@@ -53,7 +61,9 @@ public sealed partial class SetupWindow : Window
                 page.Dispose();
             }
         };
-        Show(0);
+        var progress = SetupProgress.Load(context.DataFolder);
+        _repair = SetupFlow.IsDone(progress, state.Engine);
+        Show(Math.Clamp(step ?? SetupFlow.OpenAt(progress, state.Engine), 0, _pages.Length - 1));
         Root.Loaded += (_, _) => FitTallestStep();
     }
 
@@ -120,6 +130,7 @@ public sealed partial class SetupWindow : Window
     private void Show(int index)
     {
         Present(index);
+        SaveStep(index);
         _pages[index].OnShown();
         Refresh();
     }
@@ -153,7 +164,36 @@ public sealed partial class SetupWindow : Window
         PrimaryButton.Style = footer.PrimaryIsAccent ? (Style)Application.Current.Resources["AccentButtonStyle"] : null;
     }
 
-    private void OnBack(object sender, RoutedEventArgs e) => Show(_index - 1);
+    /// <summary>The step this window is on, for the next time it opens (SetupFlow.Resume). Not after setup was finished once.</summary>
+    private void SaveStep(int index)
+    {
+        if (!_repair)
+        {
+            Save(() => SetupProgress.SaveStep(_context.DataFolder, index));
+        }
+    }
+
+    private static void Save(Action save)
+    {
+        try
+        {
+            save();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Only where the next start opens; this run goes on.
+        }
+    }
+
+    private void OnBack(object sender, RoutedEventArgs e)
+    {
+        // From the download, Back stops it and returns to the model choice.
+        if (_pages[_index] is EnginePage engine)
+        {
+            engine.Stop();
+        }
+        Show(_index - 1);
+    }
 
     private void OnPrimary(object sender, RoutedEventArgs e)
     {
@@ -173,6 +213,7 @@ public sealed partial class SetupWindow : Window
 
         if (_index == _pages.Length - 1)
         {
+            Save(() => SetupProgress.SaveDone(_context.DataFolder));
             Close();
         }
         else
