@@ -18,6 +18,8 @@ final class EngineInstaller: ObservableObject {
     /// Who is currently running setup.sh; nil means no install is running.
     @Published private(set) var owner: Owner?
     var isRunning: Bool { owner != nil }
+    /// The current step of the running install ("==> " lines of setup.sh), for Settings.
+    @Published private(set) var phase = ""
 
     /// Install started and finished (the transcription queue waits, then resumes).
     var willStart: () -> Void = {}
@@ -31,10 +33,15 @@ final class EngineInstaller: ObservableObject {
              done: @escaping @MainActor (Bool) -> Void = { _ in }) -> Bool {
         guard self.owner == nil else { return false }
         self.owner = owner
+        phase = ""
         willStart()
-        process = Engine.setup(onLine: onLine) { [weak self] ok in
+        process = Engine.setup(onLine: { [weak self] line in
+            if line.hasPrefix("==> ") { self?.phase = String(line.dropFirst(4)) }
+            onLine?(line)
+        }) { [weak self] ok in
             guard let self else { return }
             self.owner = nil
+            self.phase = ""
             self.process = nil
             done(ok)
             self.didFinish(owner, ok)

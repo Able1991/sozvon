@@ -30,12 +30,13 @@ public enum EngineState: Equatable, Sendable {
 
     /// The state for this app's data folder and the selected model.
     @MainActor public static var current: EngineState {
-        evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine)
+        evaluate(data: Paths.data, model: Settings.shared.model, isDevEngine: Paths.isDevEngine,
+                 ruModel: WhisperModel.ruModel(main: Settings.shared.model, ru: Settings.shared.modelRu))
     }
 
     /// Cheap enough for the main thread: this runs on every recording or queue change, menu rebuild and render of
     /// the setup assistant. uv.lock is read and hashed once per change of the file (FileMemo), not once per call.
-    public static func evaluate(data: URL, model: WhisperModel, isDevEngine: Bool) -> EngineState {
+    public static func evaluate(data: URL, model: WhisperModel, isDevEngine: Bool, ruModel: WhisperModel? = nil) -> EngineState {
         let fm = FileManager.default
         guard fm.isExecutableFile(atPath: data.appendingPathComponent(".venv/bin/python3").path) else { return .notInstalled }
         if !isDevEngine, let expected = FileMemo.shared.value(data.appendingPathComponent("uv.lock"), lockHash) {
@@ -44,7 +45,9 @@ public enum EngineState: Equatable, Sendable {
             }
             if installed != expected { return .needsUpdate }
         }
-        return model.isDownloaded(in: data) ? .ready : .modelMissing(model)
+        if !model.isDownloaded(in: data) { return .modelMissing(model) }
+        if let ruModel, !ruModel.isDownloaded(in: data) { return .modelMissing(ruModel) }
+        return .ready
     }
 
     /// Folder of the echo suppressor's weights under `models/` (engine/models.json, key "aec").

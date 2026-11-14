@@ -102,5 +102,7 @@ enum SettingsPreview {
     static var engineError = false
     /// `--tall`: no height cap, so a whole pane fits in one snapshot.
     static var tall = false
+    /// `--setup-incomplete`: the model isn't downloaded after setup (General shows "Finish Setup…").
+    static var setupIncomplete = false
 }
 #endif

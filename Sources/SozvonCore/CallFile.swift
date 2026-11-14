@@ -19,6 +19,8 @@ public struct CallInfo: Equatable, Sendable {
     public var languages: [SpeechLanguage]
     /// The user alone, thinking out loud (call.json `kind`): one speaker and its own kind of summary.
     public var reflection = false
+    /// A model chosen for this call (call.json `model`); nil: auto, by the settings and the call's language.
+    public var model: WhisperModel?
 
     public init(profile: String = "", names: String = "", topic: String = "", terms: String = "",
                 summary: Bool = true, languages: [SpeechLanguage] = [.ru]) {
@@ -166,6 +168,7 @@ public enum CallFile {
         c["languages"] = SpeechLanguage.serialize(i.languages)
         c["summary"] = i.summary
         c["kind"] = i.reflection ? "reflection" : nil
+        c["model"] = i.model?.rawValue
     }
 
     @discardableResult
@@ -202,6 +205,7 @@ public enum CallFile {
         if let l = c["languages"] as? String { i.languages = SpeechLanguage.parse(l) }
         if let s = c["summary"] as? Bool { i.summary = s }
         i.reflection = c["kind"] as? String == "reflection"
+        i.model = (c["model"] as? String).flatMap(WhisperModel.init(rawValue:))
         return i
     }
 }

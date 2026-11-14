@@ -62,6 +62,8 @@ class CallSpec:
     id: str
     me: str
     model: str = models.DEFAULT_MODEL
+    # Russian tracks go here (settings SOZVON_MODEL_RU); None: everything on `model`.
+    ru_model: str | None = None
     profile: str = ""
     names: list = field(default_factory=list)
     topic: str = ""
@@ -151,13 +153,18 @@ def build_spec(d: Path, call: dict, args: argparse.Namespace, settings: config.S
     if profile and not profiles.valid_slug(profile):
         log(t("log_bad_profile", profile=profile))
         profile = ""
+    # A model chosen for this call (call.json "model") is used as is; otherwise the settings, Russian tracks
+    # on the Russian model.
+    chosen = _str(call.get("model"))
+    model, ru = (chosen, None) if chosen in models.MODELS else (settings.model, models.ru_model(settings.model, settings.model_ru))
+    project_languages = _str(profiles.load(profile).get("languages")) if profile else ""
     return CallSpec(
         dir=d, id=call["id"],
         me=me,
-        model=settings.model,
+        model=model, ru_model=ru,
         profile=profile, names=names,
         topic=_str(merged.get("topic")), terms=_str(merged.get("terms")),
-        languages=_str(merged.get("languages")) or settings.languages,
+        languages=_str(merged.get("languages")) or project_languages or settings.languages,
         speakers=speakers_n,
         speakers_given=speakers_given,
         switch=bool(args.switch) or settings.lang_switch,
@@ -225,6 +232,10 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
         raise EngineError(Exit.BAD_INPUT, t("err_no_audio"))
     model_path = check_model(spec.model, data)
     onnx = models.is_onnx(spec.model)
+    if spec.ru_model and not models.is_downloaded(data, spec.ru_model):
+        # Not downloaded yet (setup is fetching it): the main model takes the Russian tracks too.
+        log(t("err_model_missing", model=spec.ru_model))
+        spec.ru_model = None
 
     vocab = vocabs.load()
     prof = profiles.load(spec.profile)
@@ -254,7 +265,7 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
 
         segs, langs = transcribe_stage.transcribe_tracks(
             tracks, data_dir=data, model=spec.model, model_path=model_path, allowed=allowed,
-            switch=spec.switch, prompts=prompt_set, log=log)
+            switch=spec.switch, prompts=prompt_set, log=log, ru_model=spec.ru_model)
         whisper.release_model()   # 1.5 GB the voices, the summary and the listening file do not need
         asr_onnx.release()        # the same for Parakeet and GigaAM
         paras = arrange(spec, prof, tracks, segs, settings)
@@ -291,7 +302,8 @@ def complete(spec: CallSpec, people: list) -> None:
     # Nothing to say: an old value goes away.
     optional = {"warnings": spec.warnings, "speaker_tracks": spec.speaker_tracks}
     calls.update_call(spec.dir, status="done", participants=people,
-                      engine={"version": paths.engine_version(), "model": spec.model},
+                      engine={"version": paths.engine_version(), "model": spec.model,
+                              **({"ru_model": spec.ru_model} if spec.ru_model else {})},
                       drop=tuple(k for k, v in optional.items() if not v), **{k: v for k, v in optional.items() if v})
     remote.push_after_transcription(spec.dir, log)  # own server, if set up: a failure is only a warning
 

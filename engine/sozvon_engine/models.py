@@ -61,3 +61,12 @@ def local_whisper(data_dir, name: str) -> str | None:
     if kind(name) != "whisper" or not is_downloaded(data_dir, name):
         return None
     return str(model_dir(data_dir, name))
+
+
+def ru_model(main: str, ru: str) -> str | None:
+    """The model for Russian tracks when it is not the main one. Only after a Whisper main model, whose language
+    detection sorts the tracks (an onnx model can't tell languages), and only an onnx one (GigaAM): a second Whisper
+    gives nothing the main one doesn't."""
+    if not ru or ru == main or ru not in MODELS or main not in MODELS or is_onnx(main) or not is_onnx(ru):
+        return None
+    return ru

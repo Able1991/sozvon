@@ -63,6 +63,7 @@ the ones marked "manual" below):
 | `SOZVON_LANG_SWITCH` | `1`: detect the language of each phrase |
 | `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`, `HF_ENDPOINT`, `UV_DEFAULT_INDEX`, `PIP_INDEX_URL`, `UV_PYTHON`, `UV_PYTHON_INSTALL_MIRROR`, `SOZVON_SYSTEM_CERTS` | corporate network, see the docs section "Corporate network". Only these keys are taken from `.env` by `setup.sh` and exported by `runtime.prepare()`; the environment wins. By default `setup.sh` runs uv with `UV_SYSTEM_CERTS=1` and the engine injects `truststore` (macOS Keychain); a certificate file or `SOZVON_SYSTEM_CERTS=0` turns that off in the engine. With a package index (also `index-url` from `pip.conf`) `setup.sh` installs the locked versions from `uv export` with hashes instead of `uv sync --frozen`. Manual |
 | `SOZVON_MODEL` | key from `models.json`: `turbo`, `large-v3`, `small`, `gigaam`, `parakeet` |
+| `SOZVON_MODEL_RU` | optional model for Russian tracks: `gigaam` or `parakeet`, used only when `SOZVON_MODEL` is a Whisper model (it detects each track's language; Russian tracks go to this one). Empty: everything on `SOZVON_MODEL` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |
 | `SOZVON_DISCOVER_ASK` | `1`: project discovery with Claude may also list and message the open Claude Code sessions (`ListAgents`, `SendMessage`). Off by default: what discovery reads in `~/.claude` holds text from other people, and those tools reach sessions that may be allowed more. Manual |
@@ -194,7 +195,7 @@ Mac last sent per call (ids of calls no longer here are dropped):
 
 `bin/discover_projects.py` discovers projects. `server.py` runs MCP over stdio, `server.py --http`
 runs the shared server on `127.0.0.1:$SOZVON_MCP_PORT` with a bearer token. `models.py <data> <model>` downloads a model.
-`install.py <data>` (called by `setup.sh` after `uv sync`) installs the model from `SOZVON_MODEL`,
+`install.py <data>` (called by `setup.sh` after `uv sync`) installs the model from `SOZVON_MODEL` (and `SOZVON_MODEL_RU` when it applies),
 the speaker separation models and the `.venv-lock`, `.installed`, `.no-diarization` markers; progress lines
 start with `==> `.
 
@@ -251,8 +252,8 @@ does not change, so the id is stable (MCP tools look calls up by it).
   "audio_removed_at": "2026-12-04T09:00:00Z",
   "audio": {"mic_start": 3764879.93, "system_start": 3764879.64, "mic_seconds": 1755.6, "system_seconds": 1755.8},
   "profile": "acme", "names": ["Anna"], "participants": ["Anna Petrova", "Ivan"], "topic": "launch", "terms": "",
-  "languages": "ru,en", "summary": true,
-  "engine": {"version": "aad392548a91a7b4", "model": "turbo"},
+  "languages": "ru,en", "summary": true, "model": "large-v3",
+  "engine": {"version": "aad392548a91a7b4", "model": "turbo", "ru_model": "gigaam"},
   "warnings": [{"step": "summary", "error": "claude: rate limit"}],
   "demo": true,
   "queued_at": "2026-11-05T09:12:44.250Z", "queued_summary_only": true, "retries": 1,
@@ -263,7 +264,11 @@ does not change, so the id is stable (MCP tools look calls up by it).
 ```
 
 The app creates the file when recording stops (`status: recorded`, `audio`) and adds the answers
-from the "What Was the Call About?" window (`profile`, `names`, `topic`, `terms`, `languages`, `summary`).
+from the "What Was the Call About?" window (`profile`, `names`, `topic`, `terms`, `languages`, `summary`, `model`).
+`model` is a model chosen for this call by hand: it is used as is, without the Russian model; absent or unknown means
+auto (`SOZVON_MODEL` with `SOZVON_MODEL_RU`). Without `languages` the call takes its project's `languages`
+(`profiles/<slug>.json`, same format), then `SOZVON_LANGUAGE`; the app fills the call's languages from the project when
+the project is picked. `engine.ru_model` is set when Russian tracks went to the Russian model.
 The engine sets `processing`, then `done` and `engine` (version from `ENGINE_VERSION` next to `server.py`,
 otherwise from `.engine-version`). Fields set by command-line arguments are also written by the engine
 to `call.json`: those are the values the call was transcribed with. The engine does not overwrite a corrupted `call.json` (exit code 2).

@@ -184,20 +184,10 @@ final class SummaryLanguageSettingTests: XCTestCase {
     }
 }
 
-/// The summary language: absent or "auto" is the conversation's; a chosen one goes to the engine as SOZVON_SUMMARY_LANGUAGE.
-final class SummaryLanguageSettingTests: XCTestCase {
-    func testByDefaultTheSummaryFollowsTheConversation() {
-        let v = SettingsValues(env: [:], detect: { .none })
-        XCTAssertNil(v.summaryLanguage)
-        XCTAssertTrue(v.pairs.contains { $0 == (SettingsValues.Key.summaryLanguage, "auto") })
-    }
-
-    func testAChosenLanguageIsSavedAndRead() {
-        var v = SettingsValues(env: [:], detect: { .none })
-        v.summaryLanguage = .ru
-        XCTAssertTrue(v.pairs.contains { $0 == (SettingsValues.Key.summaryLanguage, "ru") })
-        XCTAssertEqual(SettingsValues(env: [SettingsValues.Key.summaryLanguage: "ru"], detect: { .none }).summaryLanguage, .ru)
-        XCTAssertNil(SettingsValues(env: [SettingsValues.Key.summaryLanguage: "auto"], detect: { .none }).summaryLanguage)
-        XCTAssertNil(SettingsValues(env: [SettingsValues.Key.summaryLanguage: "klingon"], detect: { .none }).summaryLanguage)
+final class AssistantInstallTests: XCTestCase {
+    func testEveryAssistantWithACLIHasAnInstallCommand() {
+        for a in Assistant.allCases {
+            XCTAssertEqual(a.installCommand == nil, a.cli == nil, "\(a): an install hint exactly for the CLIs")
+        }
     }
 }

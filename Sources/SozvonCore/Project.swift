@@ -10,6 +10,8 @@ public struct Project: Identifiable, Hashable, Sendable {
     public var context: String
     public var people: [String]
     public var terms: [String]
+    /// Languages of the project's calls (profile `languages`, "ru,en"); [] = the settings' ones.
+    public var languages: [SpeechLanguage] = []
     public var id: String { slug }
 
     public init(slug: String, title: String, context: String = "", people: [String] = [], terms: [String] = []) {
@@ -38,8 +40,10 @@ public struct Project: Identifiable, Hashable, Sendable {
         let slug = url.deletingPathExtension().lastPathComponent
         guard isValidSlug(slug), let d = try? Data(contentsOf: url),
               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
-        return Project(slug: slug, title: o["title"] as? String ?? slug, context: o["context"] as? String ?? "",
-                       people: o["people"] as? [String] ?? [], terms: o["terms"] as? [String] ?? [])
+        var p = Project(slug: slug, title: o["title"] as? String ?? slug, context: o["context"] as? String ?? "",
+                        people: o["people"] as? [String] ?? [], terms: o["terms"] as? [String] ?? [])
+        p.languages = SpeechLanguage.parse(o["languages"] as? String ?? "")
+        return p
     }
 
     /// Why a title can't be saved in the project editor.
@@ -106,6 +110,7 @@ public struct Project: Identifiable, Hashable, Sendable {
             o["context"] = context
             o["people"] = people
             o["terms"] = terms
+            o["languages"] = languages.isEmpty ? nil : SpeechLanguage.serialize(languages)
             if o["replacements"] == nil { o["replacements"] = [Any]() }
             let d = try JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys])
             try d.write(to: url, options: .atomic)
