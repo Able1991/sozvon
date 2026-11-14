@@ -197,7 +197,7 @@
                     <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryLanguageError, Mode=OneWay}" Severity="Error" IsClosable="False"
                              Title="{s:L K='Настройки не сохранились'}" Message="{x:Bind ViewModel.SummaryLanguageError, Mode=OneWay}" />
                     <local:SettingsRow Header="{s:L K='Проверка'}" Description="{s:L K='Тот же запрос, что для саммари, в одно слово'}"
-                                       Visibility="{x:Bind ViewModel.HasSummaryAssistant, Mode=OneWay}">
+                                       Visibility="{x:Bind ViewModel.SummaryCheckVisible, Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.SummaryCheckRunning, Mode=OneWay}"
                                           Visibility="{x:Bind ViewModel.SummaryCheckRunning, Mode=OneWay}" />
@@ -219,8 +219,11 @@
                     <TextBlock Style="{StaticResource Foot}" Text="{x:Bind ViewModel.SummaryFooter, Mode=OneWay}" />
                     <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryCheckProblem, Mode=OneWay}" Severity="Warning" IsClosable="False"
                              AutomationProperties.AutomationId="SummaryCheckProblem" Message="{x:Bind ViewModel.SummaryCheckProblem, Mode=OneWay}" />
+                    <InfoBar IsOpen="{x:Bind ViewModel.SummaryAssistantMissing, Mode=OneWay}" Severity="Warning" IsClosable="False"
+                             AutomationProperties.AutomationId="SummaryNotInstalled" Message="{x:Bind ViewModel.SummaryNotInstalled, Mode=OneWay}" />
                     <InfoBar IsOpen="{x:Bind ViewModel.HasSummaryWarning, Mode=OneWay}" Severity="Warning" IsClosable="False"
                              Message="{x:Bind ViewModel.SummaryWarning, Mode=OneWay}" />
+                    <local:AssistantInstallHelp x:Name="InstallHelp" Margin="0,4,0,0" />
 
                     <TextBlock Style="{StaticResource SectionHeader}" Text="{s:L K='Подключения'}" />
                     <ItemsControl ItemsSource="{x:Bind ViewModel.Integrations.Rows}">

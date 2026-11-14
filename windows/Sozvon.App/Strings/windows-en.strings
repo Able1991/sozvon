@@ -181,3 +181,10 @@
 
 /* Tray: the result of a run, as the Mac says it; the Mac's line about screen recording does not apply. */
 "Ни одна дорожка не записалась. Проверь доступ к микрофону в параметрах Windows." = "Neither track recorded anything. Check microphone access in Windows Settings.";
+
+/* Settings, Assistants: how to install an assistant whose program is missing (the Mac's block, with PowerShell and this computer). */
+"Как установить помощника" = "How to install an assistant";
+"«Не установлен» значит, что на этом компьютере нет программы помощника. Вставь команду в PowerShell, потом открой новое окно PowerShell, один раз запусти программу и войди в свой аккаунт. Саммари идут по твоей подписке." = "\"Not installed\" means the assistant's program isn't on this computer. Paste the command into PowerShell, then open a new PowerShell window, run the program once and sign in to your account. Summaries use your subscription.";
+"%@ не установлен на этом компьютере, команда для установки ниже" = "%@ isn't installed on this computer, the command to install it is below";
+"Скопировать команду для %@" = "Copy the command for %@";
+"Проверить снова" = "Check again";

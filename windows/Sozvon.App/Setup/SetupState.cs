@@ -35,7 +35,8 @@ internal sealed class SetupState
     public string SummaryLanguage { get; set; }
 
     public IReadOnlyList<SpeechModel> Models { get; }
-    public IReadOnlyList<Assistant> Assistants { get; }
+    /// <summary>Read again by "Check again" on the assistant step.</summary>
+    public IReadOnlyList<Assistant> Assistants { get; set; }
     public string Name { get; set; }
     public List<string> Languages { get; set; }
     public string Assistant { get; set; }

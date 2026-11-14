@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Sozvon.Core.Assistants;
 
 namespace Sozvon.App.Setup.Pages;
 
@@ -15,11 +16,16 @@ public sealed partial class AssistantPage : UserControl, ISetupPage
     {
         InitializeComponent();
         _state = state;
-        foreach (var assistant in state.Assistants)
+        ShowChoices();
+        // As on the Mac: unfolded by itself only when no assistant is installed, otherwise it shares the page with the choice.
+        InstallHelp.Initialize(Strings.L);
+        InstallHelp.Show(Missing(), AssistantInstall.OpenInSetup(Missing()));
+        InstallHelp.Recheck += (_, _) =>
         {
-            AddChoice(assistant.Key, assistant.Title, Strings.L(assistant.IsInstalled ? "установлен" : "не найден"), assistant.Description, assistant.IsInstalled);
-        }
-        AddChoice(SetupState.NoAssistant, Strings.L("Без саммари"), "", Strings.L("Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."), true);
+            _state.Assistants = MachineTools.FindAssistants();
+            ShowChoices();
+            InstallHelp.Show(Missing());
+        };
         WarningBar.Title = Strings.L("Не проверено на Windows");
         SummaryLanguageLabel.Text = Strings.L("Язык саммари");
         AutomationProperties.SetName(SummaryLanguageBox, Strings.L("Язык саммари"));
@@ -64,6 +70,20 @@ public sealed partial class AssistantPage : UserControl, ISetupPage
     {
         _state.Save();
         return true;
+    }
+
+    private IReadOnlyList<Sozvon.Core.Settings.Assistant> Missing() =>
+        [.. _state.Assistants.Where(a => !a.IsInstalled).Select(a => MachineTools.KindOf(a.Key))];
+
+    /// <summary>The choices, built again after "Check again": a newly installed assistant can then be picked.</summary>
+    private void ShowChoices()
+    {
+        Choices.Children.Clear();
+        foreach (var assistant in _state.Assistants)
+        {
+            AddChoice(assistant.Key, assistant.Title, Strings.L(assistant.IsInstalled ? "установлен" : "не установлен"), assistant.Description, assistant.IsInstalled);
+        }
+        AddChoice(SetupState.NoAssistant, Strings.L("Без саммари"), "", Strings.L("Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."), true);
     }
 
     private void AddChoice(string key, string title, string note, string detail, bool enabled)
