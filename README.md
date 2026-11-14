@@ -97,6 +97,18 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 
 Peak memory and time: the whole processing of one 75-minute call with two tracks (echo removal, recognition, speaker separation), MacBook Pro M1 Pro with 16 GB, version 0.1.5. About 10 minutes of each run is speaker separation, the same for every model. Version 0.1.4 needed up to 17 GB for the same call with Whisper Turbo.
 
+**On Windows.** The same 75-minute call, laptop with an Intel Core i7-8750H (6 cores), 16 GB of memory and an NVIDIA GeForce GTX 1070 Max-Q (8 GB), Windows 11. Peak memory is the working set of the engine and its child processes; video memory is what the run took on the card.
+
+| Model | With NVIDIA acceleration: time | memory | video memory | Processor only: time | memory |
+|---|---|---|---|---|---|
+| **Whisper Turbo** | 56 min | 3.8 GB | 3.5 GB | 170 min | 4.6 GB |
+| Whisper Large v3 | 148 min¹ | 5.9 GB | 6.9 GB | not measured | |
+| Whisper Small | 31 min | 4.8 GB | 1.3 GB | 119 min | 4.4 GB |
+| GigaAM v3 | 25 min² | 2.0 GB | 1.0 GB | 89 min | 1.9 GB |
+| Parakeet v3 | 29 min² | 3.7 GB | 1.0 GB | 91 min | 3.6 GB |
+
+¹ Part of this run shared the computer with other work. ² GigaAM and Parakeet always recognize on the processor; the card does the echo removal and speaker separation. Processor-only runs spent about 65 minutes of each on speaker separation; the faster speaker model for the processor (installed by setup since then) takes about 40 % off that part.
+
 Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 MB, installed with the app). Switch models in Settings → Recognition. The same tab has "Transcribe at low priority": transcription yields to other apps.
 
 **Two models: Whisper and GigaAM for Russian.** With a Whisper model chosen, setup and Settings → Recognition offer a second model for Russian ("Russian conversations with GigaAM", 0.2 GB more). Whisper detects each track's language, Russian tracks go to GigaAM, the rest stay on Whisper. A project can have its own call language: picking the project in the call window sets the language, and the model follows. The call window shows which model Auto means and lets you pick another downloaded one for that call.
