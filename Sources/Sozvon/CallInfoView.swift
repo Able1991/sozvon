@@ -50,6 +50,7 @@ struct CallInfoView: View {
             TextField(L("Ключевые слова") + ":", text: $info.terms, prompt: Text(L("HMAC, invoice.paid, песочница")))
                 .help(L("Названия, термины, имена"))
             LabeledContent(L("Язык") + ":") { SZWLanguagesPopup(title: L("Язык"), selection: $info.languages) }
+            modelPicker
             LabeledContent(L("Саммари") + ":") {
                 Toggle(isOn: $info.summary) {
                     Text(assistant == .none ? L("Помощник не выбран в настройках")
@@ -87,9 +88,19 @@ struct CallInfoView: View {
                 if let c = countdown { countdown = c - 1 }
             }
         }
+        // The project's language comes with the project (picked by hand or guessed).
+        .onChange(of: info.profile) { _, slug in
+            if let p = projects.first(where: { $0.slug == slug }), !p.languages.isEmpty { info.languages = p.languages }
+        }
+        .onAppear {
+            if let p = project, !p.languages.isEmpty, info.languages == Settings.shared.languages { info.languages = p.languages }
+        }
         .onChange(of: info) { old, new in
             var before = old
             if assistant == .none { before.summary = new.summary }  // set by onAppear, not by the user
+            // The project's language put in by onAppear, not by the user: the countdown goes on.
+            if old.profile == new.profile, let p = project, !p.languages.isEmpty, new.languages == p.languages,
+               old.languages == Settings.shared.languages { before.languages = new.languages }
             if before != new { countdown = nil }
         }
         .sheet(item: $newProject) { p in
@@ -101,6 +112,23 @@ struct CallInfoView: View {
                 }
             }
         }
+    }
+
+    /// "Auto" names the model the call will get from its language; the downloaded models can be picked by hand.
+    private var modelPicker: some View {
+        let s = Settings.shared
+        let auto = WhisperModel.auto(languages: info.languages, main: s.model, ru: s.modelRu)
+        let autoTitle = auto.map { L("Авто: %@", $0.title) }
+            ?? L("Авто: %@ для русского, %@ для остального", s.modelRu?.title ?? "", s.model.title)
+        return Picker(L("Модель") + ":", selection: $info.model) {
+            Text(autoTitle).tag(WhisperModel?.none)
+            Divider()
+            ForEach(WhisperModel.allCases.filter { $0.isDownloaded || $0 == info.model }, id: \.self) { m in
+                Text(m.title).tag(WhisperModel?.some(m))
+            }
+        }
+        .fixedSize()
+        .help(L("Авто выбирает модель по языку звонка, его можно поменять в настройках распознавания"))
     }
 
     /// A system pop-up menu: "No Project", the projects with their color dots, and "New Project…" that opens the editor.

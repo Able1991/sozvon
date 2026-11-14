@@ -57,6 +57,17 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
 
     public var isAvailable: Bool { cli == nil || cliPath != nil }
 
+    /// Terminal command that installs the CLI where `searchDirs` finds it (~/.local/bin or Homebrew). An npm install
+    /// under nvm lands elsewhere, and its node isn't on an app's PATH: these are the installers to suggest.
+    public var installCommand: String? {
+        switch self {
+        case .claude: return "curl -fsSL https://claude.ai/install.sh | bash"
+        case .codex: return "brew install --cask codex"
+        case .cursor: return "curl https://cursor.com/install -fsS | bash"
+        case .none: return nil
+        }
+    }
+
     /// Default assistant: the first installed of Claude Code, Codex, Cursor.
     public static func detect() -> Assistant {
         [Assistant.claude, .codex, .cursor].first { $0.isAvailable } ?? .none
@@ -114,6 +125,24 @@ public enum WhisperModel: String, CaseIterable, Identifiable, Sendable {
     }
     /// Models without Whisper prompting: project terms don't work, only auto-replacements.
     public var supportsPrompt: Bool { self != .gigaam && self != .parakeet }
+    /// Whisper detects languages; the onnx models (GigaAM, Parakeet) can't.
+    public var isWhisper: Bool { supportsPrompt }
+
+    /// The model for Russian tracks, as the engine decides it (models.ru_model): only after a Whisper main model,
+    /// whose language detection sorts the tracks, and only GigaAM or Parakeet.
+    public static func ruModel(main: WhisperModel, ru: WhisperModel?) -> WhisperModel? {
+        guard let ru, ru != main, main.isWhisper, !ru.isWhisper else { return nil }
+        return ru
+    }
+
+    /// Which model "Auto" means for a call in `languages` ([] = any): Russian only goes to the Russian model,
+    /// several languages are sorted per track (`nil`: by language), no Russian stays on the main one.
+    public static func auto(languages: [SpeechLanguage], main: WhisperModel, ru: WhisperModel?) -> WhisperModel? {
+        guard let ru = ruModel(main: main, ru: ru) else { return main }
+        if languages == [.ru] { return ru }
+        if !languages.isEmpty && !languages.contains(.ru) { return main }
+        return nil
+    }
 
     public var isDownloaded: Bool { isDownloaded(in: Paths.data) }
 

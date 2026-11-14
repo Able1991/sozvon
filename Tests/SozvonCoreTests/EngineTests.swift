@@ -256,3 +256,60 @@ final class RunResultTests: XCTestCase {
         XCTAssertEqual(RunOutcome.parse(exitCode: 2, lines: ["RESULT: error 4 x"]), .noAudio("x"), "the exit code wins")
     }
 }
+
+final class SetupFlowTests: XCTestCase {
+    func testOnlyAReadyEngineCountsAsInstalled() {
+        XCTAssertTrue(SetupFlow.installed(.ready))
+        XCTAssertFalse(SetupFlow.installed(.needsUpdate),
+                       "a stopped first install leaves a venv without a model and without .venv-lock: not installed")
+        XCTAssertFalse(SetupFlow.installed(.modelMissing(.gigaam)))
+        XCTAssertFalse(SetupFlow.installed(.notInstalled))
+    }
+
+    func testResumeStep() {
+        let model = SetupFlow.modelStep
+        XCTAssertEqual(SetupFlow.resume(saved: nil, engine: .notInstalled), 0, "never opened: from the start")
+        XCTAssertEqual(SetupFlow.resume(saved: 2, engine: .notInstalled), 2, "before the model step: the same step")
+        XCTAssertEqual(SetupFlow.resume(saved: model + 2, engine: .ready), model + 2, "engine ready: the same step")
+        XCTAssertEqual(SetupFlow.resume(saved: model + 1, engine: .needsUpdate), model,
+                       "closed during the download: back to the model choice, the download continues from there")
+        XCTAssertEqual(SetupFlow.resume(saved: model + 2, engine: .modelMissing(.turbo)), model)
+    }
+}
+
+final class RuModelTests: TempDirTestCase {
+    func testRuModelOnlyAfterWhisper() {
+        XCTAssertEqual(WhisperModel.ruModel(main: .turbo, ru: .gigaam), .gigaam)
+        XCTAssertNil(WhisperModel.ruModel(main: .gigaam, ru: .gigaam))
+        XCTAssertNil(WhisperModel.ruModel(main: .parakeet, ru: .gigaam), "onnx can't tell languages apart")
+        XCTAssertNil(WhisperModel.ruModel(main: .turbo, ru: .large))
+        XCTAssertNil(WhisperModel.ruModel(main: .turbo, ru: nil))
+    }
+
+    func testAutoModelForACall() {
+        XCTAssertEqual(WhisperModel.auto(languages: [.ru], main: .turbo, ru: .gigaam), .gigaam)
+        XCTAssertEqual(WhisperModel.auto(languages: [.en], main: .turbo, ru: .gigaam), .turbo)
+        XCTAssertNil(WhisperModel.auto(languages: [.ru, .en], main: .turbo, ru: .gigaam), "by the language of each track")
+        XCTAssertNil(WhisperModel.auto(languages: [], main: .turbo, ru: .gigaam))
+        XCTAssertEqual(WhisperModel.auto(languages: [.ru], main: .turbo, ru: nil), .turbo)
+    }
+
+    func testBothModelsMustBeDownloaded() throws {
+        let py = data.appendingPathComponent(".venv/bin/python3")
+        try write("#!/bin/sh\n", py)
+        chmod(py.path, 0o755)
+        try write("", data.appendingPathComponent("models/\(WhisperModel.turbo.dir)/.complete"))
+        XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false, ruModel: .gigaam), .modelMissing(.gigaam))
+        try write("", data.appendingPathComponent("models/\(WhisperModel.gigaam.dir)/.complete"))
+        try write("", data.appendingPathComponent("models/silero-vad-onnx/.complete"))
+        XCTAssertEqual(EngineState.evaluate(data: data, model: .turbo, isDevEngine: false, ruModel: .gigaam), .ready)
+    }
+
+    func testSettingsKeepTheRuModel() {
+        var s = SettingsValues()
+        s.modelRu = .gigaam
+        XCTAssertTrue(s.pairs.contains { $0 == (SettingsValues.Key.modelRu, "gigaam") })
+        s.modelRu = nil
+        XCTAssertFalse(s.pairs.contains { $0.0 == SettingsValues.Key.modelRu })
+    }
+}

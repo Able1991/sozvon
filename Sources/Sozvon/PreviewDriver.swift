@@ -74,6 +74,7 @@ enum PreviewDriver {
             // --engine-error: the MCP server does not answer (SettingsEngineError board); --tall: no height cap.
             SettingsPreview.engineError = args.contains("--engine-error")
             SettingsPreview.tall = args.contains("--tall")
+            SettingsPreview.setupIncomplete = args.contains("--setup-incomplete")
             app.showSettings(tab: tab)
             NSApp.activate(ignoringOtherApps: true)
         case "calls":

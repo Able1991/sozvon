@@ -96,6 +96,7 @@ public struct SettingsValues: Equatable, Sendable {
         public static let language = "SOZVON_LANGUAGE"
         public static let langSwitch = "SOZVON_LANG_SWITCH"
         public static let model = "SOZVON_MODEL"
+        public static let modelRu = "SOZVON_MODEL_RU"
         public static let serverURL = "SOZVON_SERVER_URL"
         public static let serverPassword = "SOZVON_SERVER_PASSWORD"
         public static let syncVoices = "SOZVON_SYNC_VOICES"
@@ -111,6 +112,8 @@ public struct SettingsValues: Equatable, Sendable {
     /// The language may switch mid-speech for one person: detect it for each phrase.
     public var languageSwitch = false
     public var model: WhisperModel = .turbo
+    /// Russian tracks go to this model (WhisperModel.ruModel decides when it applies); nil: the main one.
+    public var modelRu: WhisperModel?
     /// Own server (optional): address and password.
     public var serverURL = ""
     public var serverPassword = ""
@@ -131,6 +134,7 @@ public struct SettingsValues: Equatable, Sendable {
         languages = SpeechLanguage.parse(kv[Key.language] ?? "ru")
         languageSwitch = kv[Key.langSwitch] == "1"
         model = kv[Key.model].flatMap(WhisperModel.init(rawValue:)) ?? .turbo
+        modelRu = kv[Key.modelRu].flatMap(WhisperModel.init(rawValue:))
         assistant = kv[Key.llm].flatMap(Assistant.init(rawValue:)) ?? detect()
         serverURL = kv[Key.serverURL] ?? ""
         serverPassword = kv[Key.serverPassword] ?? ""
@@ -144,7 +148,7 @@ public struct SettingsValues: Equatable, Sendable {
 
     /// Keys managed by the app (old names are removed on write).
     public static let managedKeys: Set<String> = [Key.version, Key.me, Key.legacyMe, Key.llm, Key.language,
-                                                  Key.langSwitch, Key.model, Key.serverURL,
+                                                  Key.langSwitch, Key.model, Key.modelRu, Key.serverURL,
                                                   Key.serverPassword, Key.syncVoices, Key.syncAudio, Key.summaryLanguage]
 
     public var pairs: [(String, String)] {
@@ -155,6 +159,7 @@ public struct SettingsValues: Equatable, Sendable {
         kv.append((Key.language, SpeechLanguage.serialize(languages)))
         kv.append((Key.langSwitch, languageSwitch ? "1" : "0"))
         kv.append((Key.model, model.rawValue))
+        if let modelRu { kv.append((Key.modelRu, modelRu.rawValue)) }
         let url = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if !url.isEmpty { kv.append((Key.serverURL, url)) }
         let password = serverPassword.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -181,6 +186,7 @@ public final class Settings: ObservableObject {
     @Published public var languages: [SpeechLanguage] = [.ru]
     @Published public var languageSwitch = false
     @Published public var model: WhisperModel = .turbo
+    @Published public var modelRu: WhisperModel?
     @Published public var serverURL = ""
     @Published public var serverPassword = ""
     @Published public var syncVoices = false
@@ -201,6 +207,7 @@ public final class Settings: ObservableObject {
         v.languages = languages
         v.languageSwitch = languageSwitch
         v.model = model
+        v.modelRu = modelRu
         v.serverURL = serverURL
         v.serverPassword = serverPassword
         v.syncVoices = syncVoices
@@ -217,6 +224,7 @@ public final class Settings: ObservableObject {
         languages = v.languages
         languageSwitch = v.languageSwitch
         model = v.model
+        modelRu = v.modelRu
         serverURL = v.serverURL
         serverPassword = v.serverPassword
         syncVoices = v.syncVoices

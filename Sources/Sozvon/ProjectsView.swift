@@ -24,6 +24,9 @@ struct ProjectEditor: View {
         others = Project.all().filter { $0.slug != project.slug }
     }
 
+    /// One language, or Russian and English together: what a project's calls usually are.
+    private static let languageChoices = ["ru", "en", "ru,en", "uk", "de", "es"]
+
     private var titleProblem: Project.TitleProblem? {
         Project.titleProblem(project.title, slug: project.slug, among: others)
     }
@@ -52,6 +55,17 @@ struct ProjectEditor: View {
             Text(L("Через запятую. Самое важное первым: в подсказку Whisper влезает около 25 слов."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            // The call window takes it when the project is picked; the model for it follows (Settings → Recognition).
+            Picker(L("Язык звонков") + ":", selection: Binding(
+                get: { SpeechLanguage.serialize(project.languages) == "auto" ? "" : SpeechLanguage.serialize(project.languages) },
+                set: { project.languages = SpeechLanguage.parse($0) })) {
+                Text(L("Как в настройках")).tag("")
+                Divider()
+                ForEach(Self.languageChoices, id: \.self) { v in
+                    Text(SpeechLanguage.summary(SpeechLanguage.parse(v))).tag(v)
+                }
+            }
+            .fixedSize()
             if !projectVoices.isEmpty {
                 LabeledContent(L("Голоса") + ":") {
                     VStack(alignment: .leading, spacing: 6) {

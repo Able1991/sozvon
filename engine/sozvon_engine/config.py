@@ -17,6 +17,7 @@ KEYS = {
     "languages": ("SOZVON_LANGUAGE",),
     "lang_switch": ("SOZVON_LANG_SWITCH",),
     "model": ("SOZVON_MODEL",),
+    "model_ru": ("SOZVON_MODEL_RU",),
     "smart_names": ("SOZVON_SMART_NAMES",),
     "hf_token": ("HF_TOKEN",),
     "codex_model": ("SOZVON_CODEX_MODEL",),
@@ -43,6 +44,8 @@ class Settings:
     languages: str = "ru"
     lang_switch: bool = False
     model: str = "turbo"
+    # Russian tracks go to this model (models.ru_model decides when it applies); "" is the main one.
+    model_ru: str = ""
     smart_names: bool = True
     hf_token: str = ""
     codex_model: str = ""
@@ -98,6 +101,7 @@ def load(env_file: Path | None = None, environ=None) -> Settings:
         languages=raw["languages"] or defaults.languages,
         lang_switch=(raw["lang_switch"] or "").lower() in TRUE,
         model=raw["model"] or defaults.model,
+        model_ru=raw["model_ru"] or "",
         smart_names=(raw["smart_names"] or "1").lower() not in {"0", "false", "no", "off"},
         hf_token=raw["hf_token"] or "",
         codex_model=raw["codex_model"] or "",

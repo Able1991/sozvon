@@ -77,7 +77,7 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 
 **Updates** install themselves: once a day Sozvon downloads a new version in the background and installs it when there is no recording, call or open window. Versions before 0.1.2 need one manual update.
 
-**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional.
+**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional. If an assistant shows as not installed, setup and Settings → Assistants have "How to Install an Assistant" with the command for each: `curl -fsSL https://claude.ai/install.sh | bash`, `brew install --cask codex`, `curl https://cursor.com/install -fsS | bash`. Sozvon looks for them in `~/.local/bin` and Homebrew; a copy installed with npm under nvm is not found.
 
 <p align="center">
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-setup-model-dark.png"><img src="docs/images/en-setup-model.png" width="360" alt="Choosing a model"></picture>
@@ -98,6 +98,8 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 Peak memory and time: the whole processing of one 75-minute call with two tracks (echo removal, recognition, speaker separation), MacBook Pro M1 Pro with 16 GB, version 0.1.5. About 10 minutes of each run is speaker separation, the same for every model. Version 0.1.4 needed up to 17 GB for the same call with Whisper Turbo.
 
 Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 MB, installed with the app). Switch models in Settings → Recognition. The same tab has "Transcribe at low priority": transcription yields to other apps.
+
+**Two models: Whisper and GigaAM for Russian.** With a Whisper model chosen, setup and Settings → Recognition offer a second model for Russian ("Russian conversations with GigaAM", 0.2 GB more). Whisper detects each track's language, Russian tracks go to GigaAM, the rest stay on Whisper. A project can have its own call language: picking the project in the call window sets the language, and the model follows. The call window shows which model Auto means and lets you pick another downloaded one for that call.
 
 ## Claude Code, Codex and Cursor (MCP)
 
