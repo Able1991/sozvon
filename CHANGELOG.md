@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Whisper for English, GigaAM for Russian, in one setup.** With a Whisper model chosen, setup and Settings, Recognition offer GigaAM for Russian (0.2 GB more). Whisper detects each track's language and Russian tracks go to GigaAM. Projects can have a call language, which the call window takes when the project is picked; the window shows which model Auto means and can pick another downloaded model for one call.
+- **Setup can't be left half done.** The download step can't be skipped: Back stops it and returns to the model choice, what was downloaded stays. Closing the window and opening it again continues on the same step. Stopping a first download no longer let setup finish without a model.
+- **"Finish Setup…" in Settings.** If the model is still missing after setup, General says so with one button; while a download runs, Settings shows what it is doing instead of a greyed-out button.
+- **How to install an assistant.** "Not installed" next to Claude Code, Codex or Cursor now comes with the command that installs it, a Copy button and Check Again, in setup and in Settings. An assistant that isn't installed can't be chosen.
+- **Smaller fixes.** GigaAM shows "Russian only" instead of a language picker; an old MCP server error is shown only while the server doesn't answer.
+
 ## 0.1.5
 
 - **Choose where calls are kept.** The setup assistant asks for the calls folder (`~/Documents/Calls` by default), and Settings, Recognition, Files can change it later. Your calls can move along: renamed on the same disk; copied to another disk, checked against the original, and only then the original goes to the Trash.

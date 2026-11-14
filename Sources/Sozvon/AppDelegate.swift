@@ -111,16 +111,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // nothing past the model step makes sense: start from the model then.
         if resume == nil, UserDefaults.standard.object(forKey: Self.setupDoneKey) != nil, !Self.setupDone,
            UserDefaults.standard.object(forKey: SetupModel.stepKey) != nil {
-            let saved = UserDefaults.standard.integer(forKey: SetupModel.stepKey)
-            resume = engineState.isUsable ? saved : min(saved, SetupModel.Step.model.rawValue)
+            resume = SetupFlow.resume(saved: UserDefaults.standard.integer(forKey: SetupModel.stepKey), engine: engineState)
         }
         // Installs from before the flag existed: set up if the engine works and setup isn't being resumed.
         if UserDefaults.standard.object(forKey: Self.setupDoneKey) == nil {
             Self.setupDone = engineState.isUsable && resume == nil
             stateChanged()
         }
-        if !Self.setupDone || !engineState.isUsable || resume != nil {
-            showSetup(step: resume.flatMap(SetupModel.Step.init(rawValue:)) ?? .welcome)
+        if let resume {
+            showSetup(step: SetupModel.Step(rawValue: resume) ?? .welcome)
+        } else if !Self.setupDone || !engineState.isUsable {
+            openSetup()
         } else if !Permissions.mic || !Permissions.screen {
             // Set up, but a required permission is missing (never granted, or macOS dropped it after an update):
             // ask now, not when a call has already started and the recording can't. System audio is left out:
@@ -144,8 +145,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if SOZVON_PREVIEW
         if CommandLine.arguments.contains("--preview") { return true }  // screenshots and UI tests open any screen
         #endif
-        showSetup()
+        openSetup()
         return false
+    }
+
+    /// "Finish Setup…" (menu, Settings, anything that needs setup): an unfinished setup continues on the step it
+    /// was closed on; after setup, a missing engine or model opens the model choice and comes back to Settings.
+    func openSetup() {
+        if Self.setupDone {
+            showSetup(step: .model, repair: true)
+        } else {
+            let saved = UserDefaults.standard.object(forKey: SetupModel.stepKey) == nil
+                ? nil : UserDefaults.standard.integer(forKey: SetupModel.stepKey)
+            showSetup(step: SetupModel.Step(rawValue: SetupFlow.resume(saved: saved, engine: engineState)) ?? .welcome)
+        }
     }
 
     /// A second copy of Sozvon (different .app path, so LSMultipleInstancesProhibited doesn't catch it):
@@ -172,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             toggleRecording: { [weak self] in self?.recording.toggle() },
             editInfo: { [weak self] in self?.editInfo() },
             mark: { [weak self] in self?.recording.mark() },
-            showSetup: { [weak self] in self?.showSetup() },
+            showSetup: { [weak self] in self?.openSetup() },
             openLast: { [weak self] in
                 guard let self, let dir = self.processing.lastTranscript?.deletingLastPathComponent() ?? self.processing.lastDir else { return }
                 self.showCalls(select: dir)
@@ -204,7 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         processing.onAnswered = { [weak self] dir in self?.recording.dismissSaved(dir) }
         processing.onChange = { [weak self] in self?.stateChanged() }
-        processing.showSetup = { [weak self] step in self?.showSetup(step: step) }
+        processing.showSetup = { [weak self] _ in self?.openSetup() }
         calls.onRetranscribe = { [weak self] call in
             guard let self, !self.calls.isRecording(call.url) else { NSSound.beep(); return }
             self.processing.retranscribe(call.url)
@@ -335,6 +348,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 self?.stateChanged()
             }
+        }, onClose: {
+            // Closed mid-download: stop it. Reopening continues on the model step, the download resumes from there.
+            EngineInstaller.shared.cancel(.setup)
         })
     }
 

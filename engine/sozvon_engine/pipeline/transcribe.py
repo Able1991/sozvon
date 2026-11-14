@@ -62,8 +62,9 @@ def onnx_track(wav: Path, data_dir, model: str, replacements: list) -> list:
 
 
 def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | None, allowed,
-                      switch: bool, prompts: Prompts, log: Log) -> tuple[dict, dict]:
-    """All tracks. -> ({key: segments}, {key: track language})."""
+                      switch: bool, prompts: Prompts, log: Log, ru_model: str | None = None) -> tuple[dict, dict]:
+    """All tracks. -> ({key: segments}, {key: track language}). ru_model: Russian tracks go to it (an onnx model),
+    the others stay on Whisper."""
     segs, langs = {}, {}
     if asr_onnx.is_onnx(model):
         log(t("log_onnx_no_prompt", model=model))
@@ -88,6 +89,11 @@ def transcribe_tracks(tracks: dict, *, data_dir, model: str, model_path: str | N
             if not (switch and allowed and len(allowed) > 1):
                 audio = None   # only relabel needs it again; Whisper decodes the file itself
         langs[key] = lang
+        if ru_model and lang == "ru":
+            log(t("log_transcribing_model", track=key, model=ru_model))
+            segs[key] = onnx_track(wav, data_dir, ru_model, prompts.replacements)
+            log(t("log_segments", track=key, n=len(segs[key])))
+            continue
         log(t("log_transcribing", track=key))
         segs[key] = whisper_track(wav, model_path, lang, prompts, log)
         if vad.available(data_dir):

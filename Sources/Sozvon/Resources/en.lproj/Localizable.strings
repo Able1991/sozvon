@@ -31,7 +31,6 @@
 "Саммари" = "Summary";
 "Помощник для саммари" = "Summary Assistant";
 "установлен" = "installed";
-"не найден" = "not found";
 "Пара деталей" = "A Few Details";
 "Как тебя подписывать" = "Your name";
 "Аня" = "Anna";
@@ -83,7 +82,6 @@
 "Найти через %@" = "Find with %@";
 
 /* Settings */
-" (не найден)" = " (not found)";
 "Движок" = "Engine";
 "Показать в Finder" = "Show in Finder";
 "Язык интерфейса" = "Language";
@@ -822,3 +820,24 @@
 "Нынешняя папка звонков лежит внутри неё. Выбери другую папку." = "The current calls folder is inside it. Pick another folder.";
 "Это папка движка Sozvon: при переустановке звонки пропали бы. Выбери другую." = "This is the Sozvon engine folder: a reinstall would take the calls with it. Pick another one.";
 "Сменить папку…" = "Change Folder…";
+"Только русский" = "Russian only";
+" (не установлен)" = " (not installed)";
+"Настройка не завершена" = "Setup isn't finished";
+"Движок не установлен, звонки не расшифруются" = "The engine isn't installed, calls won't be transcribed";
+"Модель %@ не скачана, звонки не расшифруются" = "%@ isn't downloaded, calls won't be transcribed";
+"Скачиваю движок и модель…" = "Downloading the engine and the model…";
+"«Не установлен» значит, что на этом Mac нет программы помощника. Вставь команду в Терминал, потом один раз запусти программу и войди в свой аккаунт. Саммари идут по твоей подписке." = "\"Not installed\" means the assistant's app isn't on this Mac. Paste the command into Terminal, then run the app once and sign in to your account. Summaries use your subscription.";
+"Проверить снова" = "Check Again";
+"Как установить помощника" = "How to Install an Assistant";
+"не установлен" = "not installed";
+"Авто: %@" = "Auto: %@";
+"Авто: %@ для русского, %@ для остального" = "Auto: %@ for Russian, %@ for the rest";
+"Авто выбирает модель по языку звонка, его можно поменять в настройках распознавания" = "Auto picks the model by the call's language, set in Recognition settings";
+"Язык звонков" = "Call language";
+"Как в настройках" = "As in Settings";
+"Та же модель" = "Same model";
+"Для русского" = "For Russian";
+"Whisper определяет язык дорожки, русскую расшифровывает эта модель" = "Whisper detects each track's language, Russian ones go to this model";
+"Русские разговоры через GigaAM" = "Russian conversations with GigaAM";
+"Ещё %@. Whisper определит язык каждой дорожки, русскую расшифрует GigaAM." = "%@ more. Whisper detects each track's language, GigaAM transcribes the Russian ones.";
+"%@ не установлен на этом Mac, команда для установки ниже" = "%@ isn't installed on this Mac, the command to install it is below";

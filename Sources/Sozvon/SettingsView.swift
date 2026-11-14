@@ -217,7 +217,7 @@ struct SettingsView: View {
 
     var body: some View {
         switch tab {
-        case .general: GeneralPane(onPanelChange: onPanelChange)
+        case .general: GeneralPane(finishSetup: reinstall, onPanelChange: onPanelChange)
         case .recognition: RecognitionPane(reinstall: reinstall)
         case .assistants: AssistantsPane()
         case .server: ServerView()
@@ -229,6 +229,7 @@ struct SettingsView: View {
 // MARK: General
 
 private struct GeneralPane: View {
+    let finishSetup: () -> Void
     let onPanelChange: () -> Void
     @ObservedObject private var s = Settings.shared
     // Read straight from the defaults: the capsule's hide button turns the panel off while Settings is open.
@@ -272,6 +273,7 @@ private struct GeneralPane: View {
 
     var body: some View {
         Form {
+            SetupIncompleteSection(finishSetup: finishSetup)
             Section(L("Профиль")) {
                 LabeledContent {
                     TextField(L("Как тебя подписывать"), text: $s.name, prompt: Text(L("Аня")))
@@ -605,6 +607,10 @@ private struct RecognitionPane: View {
     /// While an engine install or update is running, don't start another.
     @ObservedObject private var installer = EngineInstaller.shared
     @State private var gentle = Engine.gentle
+    /// The main model, or the one for Russian, still to download.
+    private var modelsMissing: Bool {
+        !s.model.isDownloaded || (WhisperModel.ruModel(main: s.model, ru: s.modelRu).map { !$0.isDownloaded } ?? false)
+    }
 
     var body: some View {
         Form {
@@ -614,16 +620,38 @@ private struct RecognitionPane: View {
                         Text(verbatim: m.title + " · " + m.size).tag(m)
                     }
                 }
-                if !s.model.isDownloaded {
-                    LabeledContent(L("Модель не скачана")) {
-                        Button(L("Скачать модель…")) { s.save(); reinstall() }
-                            .disabled(installer.isRunning)
+                if s.model.isWhisper {
+                    Picker(selection: $s.modelRu) {
+                        Text(L("Та же модель")).tag(WhisperModel?.none)
+                        ForEach(WhisperModel.allCases.filter { !$0.isWhisper }, id: \.self) { m in
+                            Text(verbatim: m.title + " · " + m.size).tag(WhisperModel?.some(m))
+                        }
+                    } label: {
+                        Text(L("Для русского"))
+                        Text(L("Whisper определяет язык дорожки, русскую расшифровывает эта модель"))
                     }
                 }
-                LabeledContent(L("Языки звонков")) {
-                    LanguagesMenu(title: L("Языки звонков"), selection: $s.languages)
+                if modelsMissing {
+                    if installer.isRunning {
+                        // Not a grey button without a reason: say what is being downloaded right now.
+                        InstallProgressRow()
+                    } else {
+                        LabeledContent(L("Модель не скачана")) {
+                            Button(L("Скачать модель…")) { s.save(); reinstall() }
+                        }
+                    }
                 }
-                if s.languages.count != 1 {
+                if s.model == .gigaam {
+                    // GigaAM knows only Russian: no languages to pick and no detection.
+                    LabeledContent(L("Языки звонков")) {
+                        Text(L("Только русский")).foregroundStyle(.secondary)
+                    }
+                } else {
+                    LabeledContent(L("Языки звонков")) {
+                        LanguagesMenu(title: L("Языки звонков"), selection: $s.languages)
+                    }
+                }
+                if s.languages.count != 1 && s.model != .gigaam {
                     Toggle(isOn: $s.languageSwitch) {
                         Text(L("Переключение языка посреди речи"))
                         Text(L("Язык определяется для каждой фразы, медленнее на 20-30%"))
@@ -632,7 +660,7 @@ private struct RecognitionPane: View {
             } header: {
                 Text(L("Модель"))
             } footer: {
-                SettingsFooter(s.model.subtitle + " " + (s.languages.count == 1
+                SettingsFooter(s.model == .gigaam ? s.model.subtitle : s.model.subtitle + " " + (s.languages.count == 1
                     ? L("Можно отметить несколько: язык будет определяться среди них. Для конкретного звонка меняется в окне после записи.")
                     : L("Язык определяется для каждой дорожки. Со сменой посреди речи ещё и для каждой фразы, это медленнее на 20-30%.")))
             }
@@ -651,6 +679,7 @@ private struct RecognitionPane: View {
         .onChange(of: s.languages) { s.save() }
         .onChange(of: s.languageSwitch) { s.save() }
         .onChange(of: s.model) { s.save() }
+        .onChange(of: s.modelRu) { s.save() }
         .onChange(of: gentle) { _, v in Engine.gentle = v }
     }
 }
@@ -705,6 +734,14 @@ struct EngineSection: View {
                 Text(L("Модель"))
                 Text(s.model.title)
             }
+            if let ru = WhisperModel.ruModel(main: s.model, ru: s.modelRu) {
+                LabeledContent {
+                    SZSettingsStatus(text: ru.isDownloaded ? L("Скачана") : L("Не скачана"), ok: ru.isDownloaded)
+                } label: {
+                    Text(L("Для русского"))
+                    Text(ru.title)
+                }
+            }
             LabeledContent {
                 HStack(spacing: 10) {
                     if let mcp {
@@ -736,7 +773,8 @@ struct EngineSection: View {
         } header: {
             Text(L("Движок"))
         } footer: {
-            if let f = serverFailure { SettingsWarning(f) }
+            // An earlier exit next to a server that answers now only confuses: shown while it doesn't answer.
+            if let f = serverFailure, let mcp, mcp != .listening { SettingsWarning(f) }
         }
 
         Section(L("Файлы")) {
@@ -790,17 +828,23 @@ struct EngineSection: View {
 private struct AssistantsPane: View {
     @ObservedObject private var s = Settings.shared
     @ObservedObject private var checks = AssistantChecks.shared
+    /// Bumped by "Check Again": the CLI lookup runs on every render.
+    @State private var recheck = 0
+    private var missing: [Assistant] { _ = recheck; return Assistant.allCases.filter { !$0.isAvailable } }
 
     var body: some View {
         Form {
             Section {
                 Picker(L("Помощник для саммари"), selection: $s.assistant) {
                     ForEach(Assistant.allCases) { a in
-                        Text(a.title + (a.isAvailable ? "" : L(" (не найден)"))).tag(a)
+                        Text(a.title + (a.isAvailable ? "" : L(" (не установлен)"))).tag(a)
+                            .selectionDisabled(!a.isAvailable && a != s.assistant)
                     }
                 }
                 if s.assistant != .none {
                     SummaryLanguagePicker(selection: $s.summaryLanguage)
+                }
+                if s.assistant != .none && s.assistant.isAvailable {
                     LabeledContent {
                         HStack(spacing: 10) {
                             AssistantCheckStatus(assistant: s.assistant)
@@ -817,7 +861,18 @@ private struct AssistantsPane: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 6) {
                     SettingsFooter(s.assistant.subtitle)
-                    if let why = checks.problem(s.assistant) { SettingsWarning(why) }
+                    // A missing CLI is not a failed check: say what it is, the command is right below.
+                    if s.assistant != .none && !s.assistant.isAvailable {
+                        SettingsWarning(L("%@ не установлен на этом Mac, команда для установки ниже", s.assistant.title))
+                    } else if let why = checks.problem(s.assistant) { SettingsWarning(why) }
+                }
+            }
+            if !missing.isEmpty {
+                Section {
+                    AssistantInstallHelp(assistants: missing, open: s.assistant != .none && !s.assistant.isAvailable) {
+                        recheck += 1
+                        checks.run(s.assistant)
+                    }
                 }
             }
             IntegrationsSection()
@@ -1363,5 +1418,111 @@ private struct AccountPicker: View {
         .padding(20)
         .frame(width: 380)
         .onAppear { selection = accounts.first }
+    }
+}
+
+// MARK: Unfinished setup
+
+/// The engine or the model isn't there after setup (a download stopped halfway): what is going on and one way out,
+/// on top of General, the first pane Settings opens on.
+struct SetupIncompleteSection: View {
+    let finishSetup: () -> Void
+    @ObservedObject private var s = Settings.shared
+    @ObservedObject private var installer = EngineInstaller.shared
+
+    var body: some View {
+        if installer.isRunning {
+            if !SetupFlow.installed(state) {
+                Section { InstallProgressRow() }
+            }
+        } else if let why = Self.problem(state) {
+            Section {
+                LabeledContent {
+                    Button(L("Завершить настройку…")) { s.save(); finishSetup() }
+                        .buttonStyle(.borderedProminent)
+                } label: {
+                    Label(L("Настройка не завершена"), systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(why)
+                }
+            }
+        }
+    }
+
+    private var state: EngineState {
+        #if SOZVON_PREVIEW
+        // Snapshots run on a data folder without an engine: the section only where the board asks for it.
+        if CommandLine.arguments.contains("--preview") { return SettingsPreview.setupIncomplete ? .modelMissing(.gigaam) : .ready }
+        #endif
+        return EngineState.current
+    }
+
+    static func problem(_ state: EngineState) -> String? {
+        switch state {
+        case .notInstalled: return L("Движок не установлен, звонки не расшифруются")
+        case .modelMissing(let m): return L("Модель %@ не скачана, звонки не расшифруются", m.title)
+        case .ready, .needsUpdate: return nil
+        }
+    }
+}
+
+/// A running engine install, in Settings: a spinner and the step it is on.
+struct InstallProgressRow: View {
+    @ObservedObject private var installer = EngineInstaller.shared
+
+    var body: some View {
+        LabeledContent {
+            ProgressView().controlSize(.small)
+        } label: {
+            Text(L("Скачиваю движок и модель…"))
+            if !installer.phase.isEmpty { Text(installer.phase) }
+        }
+    }
+}
+
+// MARK: Installing an assistant
+
+/// Assistants that aren't on this Mac: what "not installed" means, the command that installs each (copied with
+/// one click) and a re-check. Folded by default: in the setup assistant it shares the page with the choice.
+struct AssistantInstallHelp: View {
+    let assistants: [Assistant]
+    var onRecheck: () -> Void = {}
+    @State private var open: Bool
+    @State private var copied: Assistant?
+
+    /// `open`: unfolded from the start (the chosen assistant, or every one, is missing).
+    init(assistants: [Assistant], open: Bool = false, onRecheck: @escaping () -> Void = {}) {
+        self.assistants = assistants
+        self.onRecheck = onRecheck
+        _open = State(initialValue: open)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $open) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(L("«Не установлен» значит, что на этом Mac нет программы помощника. Вставь команду в Терминал, потом один раз запусти программу и войди в свой аккаунт. Саммари идут по твоей подписке."))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(assistants) { a in
+                    if let cmd = a.installCommand {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text(a.title).frame(width: 96, alignment: .leading)
+                            Text(verbatim: cmd).monospaced().textSelection(.enabled)
+                                .lineLimit(1).truncationMode(.middle)
+                            Spacer(minLength: 8)
+                            Button(copied == a ? L("Скопировано") : L("Скопировать")) {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(cmd, forType: .string)
+                                copied = a
+                            }
+                        }
+                    }
+                }
+                Button(L("Проверить снова"), action: onRecheck)
+            }
+            .padding(.top, 6)
+        } label: {
+            Text(L("Как установить помощника"))
+        }
     }
 }

@@ -77,7 +77,7 @@
 
 **Обновления** приходят сами: раз в день Sozvon скачивает новую версию в фоне и ставит её, когда нет записи, звонка и открытых окон. Версии до 0.1.2 один раз обнови вручную.
 
-**Требования:** Mac на Apple Silicon (M1 и новее), macOS 15 Sequoia или новее. Для саммари и поиска проектов: установленный [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) или [Cursor CLI](https://cursor.com/cli), необязательно.
+**Требования:** Mac на Apple Silicon (M1 и новее), macOS 15 Sequoia или новее. Для саммари и поиска проектов: установленный [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) или [Cursor CLI](https://cursor.com/cli), необязательно. Если помощник показан как «не установлен», в мастере и в «Настройки → Ассистенты» есть «Как установить помощника» с командой для каждого: `curl -fsSL https://claude.ai/install.sh | bash`, `brew install --cask codex`, `curl https://cursor.com/install -fsS | bash`. Sozvon ищет их в `~/.local/bin` и в папках Homebrew, копию из npm под nvm он не найдёт.
 
 <p align="center">
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/ru-setup-model-dark.png"><img src="docs/images/ru-setup-model.png" width="360" alt="Выбор модели"></picture>
@@ -96,6 +96,8 @@
 | Parakeet v3 (NVIDIA) | 0,7 ГБ | 25 европейских | Очень быстрая, без словаря проектов |
 
 Разбивка по голосам: [pyannote](https://github.com/pyannote/pyannote-audio) (31 МБ, ставится вместе с приложением). Модель меняется в «Настройки → Распознавание». Там же «Расшифровывать с низким приоритетом»: расшифровка уступает другим программам.
+
+**Две модели: Whisper и GigaAM для русского.** Если выбрана модель Whisper, мастер и «Настройки → Распознавание» предлагают вторую модель для русского («Русские разговоры через GigaAM», ещё 0,2 ГБ). Whisper определяет язык каждой дорожки, русские уходят в GigaAM, остальные остаются на Whisper. У проекта можно задать язык звонков: при выборе проекта в окне звонка язык подставится сам, а за ним и модель. В окне звонка видно, какую модель значит «Авто», и можно выбрать другую из скачанных для этого звонка.
 
 ## Claude Code, Codex и Cursor (MCP)
 

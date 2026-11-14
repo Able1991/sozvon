@@ -183,3 +183,11 @@ final class SummaryLanguageSettingTests: XCTestCase {
         XCTAssertNil(SettingsValues(env: [SettingsValues.Key.summaryLanguage: "klingon"], detect: { .none }).summaryLanguage)
     }
 }
+
+final class AssistantInstallTests: XCTestCase {
+    func testEveryAssistantWithACLIHasAnInstallCommand() {
+        for a in Assistant.allCases {
+            XCTAssertEqual(a.installCommand == nil, a.cli == nil, "\(a): an install hint exactly for the CLIs")
+        }
+    }
+}

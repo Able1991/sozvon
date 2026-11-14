@@ -158,7 +158,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>Mac на Apple Silicon (M1 и новее).</li>
         <li>macOS 15 Sequoia или новее.</li>
         <li>2-5 ГБ свободного места.</li>
-        <li>По желанию, для саммари и поиска проектов: <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> или <a href="https://cursor.com/cli">Cursor CLI</a>.</li>
+        <li>По желанию, для саммари и поиска проектов: <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> или <a href="https://cursor.com/cli">Cursor CLI</a>. Если помощник показан как «не установлен», в мастере и в «Настройки → Ассистенты» есть «Как установить помощника» с командой для каждого: <code>curl -fsSL https://claude.ai/install.sh | bash</code>, <code>brew install --cask codex</code>, <code>curl https://cursor.com/install -fsS | bash</code>. Sozvon ищет их в <code>~/.local/bin</code> и в папках Homebrew, копию из npm под nvm он не найдёт.</li>
       </ul>
       <h3 id="install-steps">Установка по шагам</h3>
       <ol class="howto">
@@ -539,6 +539,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Parakeet v3</td><td>0,7 ГБ</td><td>25 европейских языков, быстрая, без терминов проекта.</td></tr>
       </table>
       <p>Модель меняется в «Настройки», вкладка «Распознавание». Новая модель скачивается один раз. Разбивка по голосам (pyannote, 31 МБ) ставится вместе с приложением для любой модели.</p>
+      <p><b>Две модели: Whisper и GigaAM для русского.</b> Если выбрана модель Whisper, мастер и «Настройки → Распознавание» предлагают вторую модель для русского («Русские разговоры через GigaAM», ещё 0,2 ГБ). Whisper определяет язык каждой дорожки, русские уходят в GigaAM, остальные остаются на Whisper. У проекта можно задать язык звонков: при выборе проекта в окне звонка язык подставится сам, а за ним и модель. В окне звонка видно, какую модель значит «Авто», и можно выбрать другую из скачанных для этого звонка.</p>
       <p><b>Несколько языков.</b> В «Языках звонков» можно отметить несколько: язык определяется для каждой дорожки. Если собеседники переходят с языка на язык посреди разговора, включи «Язык может меняться посреди речи», тогда язык определяется для каждой фразы, это медленнее на 20-30%.</p>
 
       <h2 id="summary">Саммари</h2>
@@ -824,7 +825,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>A Mac with Apple silicon (M1 or later).</li>
         <li>macOS 15 Sequoia or later.</li>
         <li>2-5 GB of free space.</li>
-        <li>Optional, for summaries and project discovery: <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> or <a href="https://cursor.com/cli">Cursor CLI</a>.</li>
+        <li>Optional, for summaries and project discovery: <a href="https://claude.com/code">Claude Code</a>, <a href="https://github.com/openai/codex">Codex CLI</a> or <a href="https://cursor.com/cli">Cursor CLI</a>. If an assistant shows as not installed, setup and Settings → Assistants have "How to Install an Assistant" with the command for each: <code>curl -fsSL https://claude.ai/install.sh | bash</code>, <code>brew install --cask codex</code>, <code>curl https://cursor.com/install -fsS | bash</code>. Sozvon looks for them in <code>~/.local/bin</code> and Homebrew; a copy installed with npm under nvm is not found.</li>
       </ul>
       <h3 id="en-install-steps">Step by step</h3>
       <ol class="howto">
@@ -1205,6 +1206,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <tr><td>Parakeet v3</td><td>0.7 GB</td><td>25 European languages, fast, no project terms.</td></tr>
       </table>
       <p>Switch in Settings, Recognition tab. A new model downloads once. Speaker separation (pyannote, 31 MB) ships with the app for every model.</p>
+      <p><b>Two models: Whisper and GigaAM for Russian.</b> With a Whisper model chosen, setup and Settings → Recognition offer a second model for Russian ("Russian conversations with GigaAM", 0.2 GB more). Whisper detects each track's language, Russian tracks go to GigaAM, the rest stay on Whisper. A project can have its own call language: picking the project in the call window sets the language, and the model follows. The call window shows which model Auto means and lets you pick another downloaded one for that call.</p>
       <p><b>Several languages.</b> Pick several in Call languages and the language is detected per track. If people switch languages mid-conversation, turn on mid-sentence switching: the language is then detected per phrase, 20-30% slower.</p>
 
       <h2 id="en-summary">Summaries</h2>

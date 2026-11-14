@@ -36,6 +36,7 @@ final class SetupModel: ObservableObject {
     init(step: Step = .welcome, repair: Bool = false) {
         self.step = step
         self.repair = repair
+        assert(Step.model.rawValue == SetupFlow.modelStep, "SetupFlow.modelStep follows the step order")
         if repair { installed = false }
         children = [permissions.objectWillChange.sink { [weak self] in self?.objectWillChange.send() },
                     discovery.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }]
@@ -136,8 +137,9 @@ final class SetupModel: ObservableObject {
         try? p.run()
     }
 
+    /// Only a fully ready engine: a stopped first install leaves Python without the model (`.needsUpdate`).
     static var engineReady: Bool {
-        EngineState.current.isUsable
+        SetupFlow.installed(EngineState.current)
     }
 
     /// Stop the install with all its child processes (uv, curl, python).
@@ -179,6 +181,8 @@ struct SetupView: View {
     @ObservedObject private var checks = AssistantChecks.shared
     @ObservedObject private var folder = CallsFolderChanger.shared
     @State private var voiceSheet = false
+    /// Bumped by "Check Again" on the assistant step: the radio group re-reads which CLIs are installed.
+    @State private var recheck = 0
     /// Height of the transparent title bar the page extends under: the hosting window adds it on top of
     /// the view's height.
     private static let titlebar = NSWindow.frameRect(forContentRect: .zero, styleMask: [.titled]).height
@@ -238,7 +242,14 @@ struct SetupView: View {
             if m.step == .install && !m.installing && !m.installed {
                 Button(L("Назад")) { m.step = .model }
             }
-        } else if m.step != .welcome && m.step != .permissions && !(m.step == .install && (m.installing || m.installed)) {
+        } else if m.step == .install {
+            // The download can't be skipped, only taken back: Back stops it and returns to the model choice.
+            // What was downloaded stays, the same model continues from there.
+            Button(L("Назад")) {
+                if m.installing { m.cancel() }
+                m.step = .model
+            }
+        } else if m.step != .welcome && m.step != .permissions {
             Button(L("Назад")) { m.step = SetupModel.Step(rawValue: m.step.rawValue - 1)! }
         }
     }
@@ -258,8 +269,14 @@ struct SetupView: View {
                 } else {
                     defaultButton(L("Продолжить")) { m.step = .permissions }
                 }
-            } else if m.installing {
+            } else if m.installing && m.repair {
                 Button(L("Остановить")) { m.cancel() }.keyboardShortcut(.cancelAction)
+            } else if m.installing || (installer.owner == .background && !m.repair) {
+                // Next only once the model is there.
+                defaultButton(L("Продолжить")) {}.disabled(true)
+            } else if m.failed && !m.repair {
+                defaultButton(L("Повторить")) { m.install() }
+                    .disabled(installer.isRunning)
             } else {
                 defaultButton(m.failed || m.cancelled ? L("Продолжить установку") : L("Установить")) { m.install() }
                     .disabled(installer.isRunning)
@@ -331,8 +348,14 @@ struct SetupView: View {
             SetupRadioGroup(selection: $s.assistant, items: Assistant.allCases, isEnabled: \.isAvailable,
                             accessibilityLabel: L("Помощник для саммари")) { a in
                 SetupChoiceLabel(title: Self.title(a),
-                                 note: a == .none ? nil : (a.isAvailable ? L("установлен") : L("не найден")),
+                                 note: a == .none ? nil : (a.isAvailable ? L("установлен") : L("не установлен")),
                                  text: Self.subtitle(a))
+            }
+            let missing = Assistant.allCases.filter { !$0.isAvailable }
+            if !missing.isEmpty {
+                AssistantInstallHelp(assistants: missing, open: missing.count == Assistant.allCases.count - 1) { recheck += 1 }
+                    .id(recheck)
+                    .padding(.top, 4)
             }
             if s.assistant != .none {
                 SetupGroup {
@@ -431,6 +454,18 @@ struct SetupView: View {
             SetupRadioGroup(selection: $s.model, items: WhisperModel.allCases,
                             accessibilityLabel: L("Модель распознавания")) { md in
                 SetupChoiceLabel(title: md.title, note: Self.badge(md), text: md.subtitle)
+            }
+            // A second model for Russian: Whisper tells each track's language, Russian tracks go to GigaAM.
+            if s.model.isWhisper {
+                SetupGroup {
+                    SetupRow(title: L("Русские разговоры через GigaAM"),
+                             detail: L("Ещё %@. Whisper определит язык каждой дорожки, русскую расшифрует GigaAM.", WhisperModel.gigaam.size)) {
+                        Toggle("", isOn: Binding(get: { s.modelRu == .gigaam }, set: { s.modelRu = $0 ? .gigaam : nil }))
+                            .toggleStyle(.switch).labelsHidden()
+                            .accessibilityLabel(L("Русские разговоры через GigaAM"))
+                    }
+                }
+                .padding(.top, 4)
             }
             if m.repair {
                 Text(L("Текущая: %@", "\(m.installedModel.title) · \(m.installedModel.size)"))
