@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **OpenCode and ZCode as summary assistants.** Two more CLIs alongside Claude Code, Codex and Cursor: they write the summary, name speakers, run reflections and discover projects. OpenCode runs its read-only plan agent with the request on stdin and the model from `SOZVON_OPENCODE_MODEL` (`provider/model`); ZCode is the CLI inside the ZCode app, run on the app's own Node, in its read-only plan mode, with the request as an attached file (it reads no stdin, and the transcript must not land in `ps`). Both work in an empty temporary folder.
+- **Managed MCP connections for OpenCode and ZCode.** Connect edits `~/.config/opencode/opencode.json` (then runs `opencode reload`, the background service keeps its own copy) and `~/.zcode/cli/config.json` with `protocolVersion: "auto"` — the ZCode client refused to negotiate the protocol date FastMCP speaks. Status is read from the files; Disconnect removes the entry. OpenCode has no `mcp remove`, so the file is the way in and out.
+- **The ZCode check no longer fake-fails.** A one-word request through Electron measures ~2 minutes, so the check timeout for ZCode is 300 s instead of 120.
 - **A downloaded update says so.** When a new version is already downloaded and waits for a quiet moment, the menu says "Restart to Update to X" and Settings, About shows "Version X is downloaded" with a Restart to Update button, instead of a greyed-out Check.
 
 ## 0.1.6

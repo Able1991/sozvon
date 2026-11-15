@@ -6,6 +6,8 @@
 "Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic." = "Summaries and project discovery, including asking your open sessions. Text is sent to Anthropic.";
 "Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI." = "Summaries and project discovery from past sessions. Text is sent to OpenAI.";
 "Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели." = "Summaries and project discovery from past Cursor chats. Text is sent to Cursor and the model chosen there.";
+"Саммари и поиск проектов. Текст уходит к провайдеру, выбранному в OpenCode." = "Summaries and project discovery. Text is sent to the provider chosen in OpenCode.";
+"Саммари и поиск проектов. Текст уходит в Z.AI." = "Summaries and project discovery. Text is sent to Z.AI.";
 "Без саммари. Ничего не покидает Mac." = "No summaries. Nothing leaves your Mac.";
 "Русский" = "Russian";
 "Українська" = "Ukrainian";
@@ -48,6 +50,8 @@
 "Claude посмотрит твои сессии Claude Code и соберёт проекты, людей и термины." = "Claude looks through your Claude Code sessions and collects projects, people and terms.";
 "Codex посмотрит прошлые сессии и соберёт проекты, людей и термины." = "Codex looks through past sessions and collects projects, people and terms.";
 "Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины." = "Cursor looks through past chats and collects projects, people and terms.";
+"OpenCode посмотрит твои сессии Claude Code и соберёт проекты, людей и термины." = "OpenCode looks through your Claude Code sessions and collects projects, people and terms.";
+"ZCode посмотрит прошлые сессии и соберёт проекты, людей и термины." = "ZCode looks through past sessions and collects projects, people and terms.";
 
 /* After a call */
 "Проект" = "Project";
@@ -190,6 +194,8 @@
 /* MCP */
 "Не найден %@" = "%@ not found";
 "Не получилось разобрать ~/.cursor/mcp.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.cursor/mcp.json. Add Sozvon by hand: use the Copy button below.";
+"Не получилось разобрать ~/.zcode/cli/config.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.zcode/cli/config.json. Add Sozvon by hand: use the Copy button below.";
+"Не получилось разобрать ~/.config/opencode/opencode.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.config/opencode/opencode.json. Add Sozvon by hand: use the Copy button below.";
 "Подключён" = "Connected";
 "Отключить" = "Disconnect";
 "Подключить" = "Connect";
@@ -593,6 +599,8 @@
 "Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале." = "Text goes to Anthropic. Later, ask about your calls right in the terminal.";
 "Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex." = "Text goes to OpenAI. Later, ask about your calls in Codex.";
 "Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor." = "Text goes to Cursor and the model chosen there. Later, ask about your calls in Cursor.";
+"Текст уходит к провайдеру, выбранному в OpenCode. Потом можно спрашивать о звонках в OpenCode." = "Text goes to the provider chosen in OpenCode. Later, ask about your calls in OpenCode.";
+"Текст уходит в Z.AI. Потом можно спрашивать о звонках в ZCode." = "Text goes to Z.AI. Later, ask about your calls in ZCode.";
 "Только расшифровка. Ничего не покидает Mac. Можно включить позже в Настройках." = "Transcripts only. Nothing leaves your Mac. You can turn summaries on later in Settings.";
 "Имя пишется в расшифровке рядом с твоими репликами. Языки помогают модели не путать слова." = "Your name appears in the transcript next to your lines. Languages keep the model from mixing up words.";
 "Расшифровка уступает твоим программам: при звонке она не мешает Zoom и браузеру." = "Transcription yields to your apps: during a call it does not slow down Zoom or the browser.";

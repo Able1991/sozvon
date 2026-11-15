@@ -1017,7 +1017,7 @@ private struct DemoCallsSection: View {
 /// Claude Code, Codex and Cursor: connect Sozvon as an MCP server so the assistant can see calls.
 /// Assistant CLIs (and the Cursor config edit) run off the main thread so the window doesn't freeze.
 struct IntegrationsSection: View {
-    nonisolated static let assistants: [Assistant] = [.claude, .codex, .cursor]
+    nonisolated static let assistants: [Assistant] = [.claude, .codex, .cursor, .opencode, .zcode]
 
     /// nil until the first check of all assistants has finished.
     @State private var connections: [Assistant: MCP.Connection]?
@@ -1034,6 +1034,8 @@ struct IntegrationsSection: View {
             connection(.claude)
             connection(.codex)
             connection(.cursor)
+            connection(.opencode)
+            connection(.zcode)
         } header: {
             Text(L("Подключения"))
         } footer: {
@@ -1053,6 +1055,8 @@ struct IntegrationsSection: View {
             command(.claude)
             command(.codex)
             command(.cursor)
+            command(.opencode)
+            command(.zcode)
         } header: {
             Text(L("Подключить вручную"))
         } footer: {
@@ -1088,9 +1092,11 @@ struct IntegrationsSection: View {
         }
     }
 
-    /// Cursor has no `mcp add`: its row shows the file the entry goes into.
+    /// Cursor has no `mcp add`: its row shows the file the entry goes into. ZCode is the same file style:
+    /// Sozvon edits ~/.zcode/cli/config.json itself.
     private static func shortCommand(_ a: Assistant) -> String {
         a == .cursor ? "~/.cursor/mcp.json: \"\(MCP.name)\": \(MCP.url)"
+            : a == .zcode ? "~/.zcode/cli/config.json: \"\(MCP.name)\": \(MCP.url)"
             : (a.cli ?? "") + " mcp add \(MCP.name) \(MCP.url)"
     }
 

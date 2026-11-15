@@ -1,4 +1,4 @@
-"""Discover projects via Claude Code (or Codex CLI, or Cursor CLI) and turn them into Sozvon profiles.
+"""Discover projects via Claude Code (or Codex CLI, Cursor CLI, OpenCode or ZCode) and turn them into Sozvon profiles.
 
 Claude looks at local Claude Code sessions (~/.claude/projects: folder names,
 CLAUDE.md, memory). With SOZVON_DISCOVER_ASK=1 it also asks the open sessions what
@@ -16,6 +16,9 @@ Codex and Cursor can't ask sessions: they look at their own past sessions
 (~/.codex/sessions, ~/.cursor/projects) and ~/.claude/projects instead.
 Codex runs in a read-only sandbox, Cursor in read-only ask mode with its sandbox on;
 text they read goes to OpenAI or to Cursor and the model chosen there.
+OpenCode (read-only plan agent) and ZCode (plan mode) look at ~/.claude/projects
+too, plus OpenCode's own data folder and ~/.zcode for ZCode; OpenCode keeps its past
+sessions in a SQLite base, so only ~/.claude/projects has readable session text there.
 """
 import json
 import re
@@ -76,10 +79,21 @@ CURSOR_EXTRA = """
 целиком не читай) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
 """
 
-EXTRA = {"codex": CODEX_EXTRA, "cursor": CURSOR_EXTRA}
+OPENCODE_EXTRA = """
+Посмотри также ~/.claude/projects, если есть: свои прошлые сессии OpenCode держит
+в SQLite-базе, текст из неё не читай. Только эта папка. Читай выборочно.
+"""
+
+ZCODE_EXTRA = """
+Посмотри также ~/.zcode (там прошлые сессии ZCode: читай выборочно, файлы целиком
+не тяни) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
+"""
+
+EXTRA = {"codex": CODEX_EXTRA, "cursor": CURSOR_EXTRA, "opencode": OPENCODE_EXTRA, "zcode": ZCODE_EXTRA}
 
 # Working folder per backend: the CLI's private folder, not home.
-CLI_DIRS = {"claude": ".claude", "codex": ".codex", "cursor": ".cursor"}
+CLI_DIRS = {"claude": ".claude", "codex": ".codex", "cursor": ".cursor",
+            "opencode": ".local/share/opencode", "zcode": ".zcode"}
 
 
 def build_prompt(name: str, ask: bool = False) -> str:

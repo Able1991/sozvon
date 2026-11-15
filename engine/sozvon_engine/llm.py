@@ -1,10 +1,12 @@
-"""Cloud assistant for summaries and project discovery: Claude Code, Codex CLI or Cursor CLI.
+"""Cloud assistant for summaries and project discovery: Claude Code, Codex CLI, Cursor CLI, OpenCode or ZCode.
 
-Choice: SOZVON_LLM = auto | claude | codex | cursor | none (default auto: the first
-installed of claude, codex, cursor). Uses the user's subscription in the respective CLI.
-Text goes to Anthropic (claude), OpenAI (codex) or Cursor and the model chosen there (cursor).
+Choice: SOZVON_LLM = auto | claude | codex | cursor | opencode | zcode | none (default auto: the first
+installed of claude, codex, cursor-agent, opencode, ZCode). Uses the user's subscription in the respective CLI.
+Text goes to Anthropic (claude), OpenAI (codex), Cursor and the model chosen there (cursor), to the provider
+chosen in OpenCode (opencode) or to Z.AI (zcode).
 """
 import json
+import os
 import re
 import shlex
 import shutil
@@ -62,25 +64,47 @@ def _exec(cmd, prompt: str, **kw) -> subprocess.CompletedProcess:
     return r
 
 
-# Backend name -> CLI binary, in auto-detection order.
-BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent"}
+# Backend name -> CLI binary, in auto-detection order. ZCode's value is the display name: its CLI is not
+# a PATH binary, _path() finds it (a `zcode` shim, then the app bundle).
+BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent", "opencode": "opencode", "zcode": "ZCode"}
+
+# Where macOS apps live: the ZCode CLI ships inside the ZCode app when there is no `zcode` on PATH.
+APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
+
+
+def _zcode_bundle() -> str | None:
+    """zcode.cjs inside the ZCode app, when the app is there with its own Node (Contents/MacOS/ZCode)."""
+    for root in APP_DIRS:
+        contents = root / "ZCode.app/Contents"
+        cjs = contents / "Resources/glm/zcode.cjs"
+        if cjs.is_file() and (contents / "MacOS/ZCode").is_file():
+            return str(cjs)
+    return None
+
+
+def _path(name: str) -> str | None:
+    if name == "zcode":
+        return _find("zcode") or _zcode_bundle()
+    return _find(BINARIES[name])
 
 
 def backend(settings: config.Settings | None = None, only: str | None = None):
-    """-> ('claude'|'codex'|'cursor', path) or (None, None). only: that one assistant, whatever the settings say."""
+    """-> ('claude'|'codex'|'cursor'|'opencode'|'zcode', path) or (None, None). only: that one assistant,
+    whatever the settings say."""
     want = only or (settings or config.load()).llm
     if want == "none":
         return None, None
     order = [want] if want in BINARIES else list(BINARIES)
     for name in order:
-        path = _find(BINARIES[name])
+        path = _path(name)
         if path:
             return name, path
     return None, None
 
 
 def vendor(name) -> str:
-    return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor"}.get(name, "")
+    return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor", "opencode": "OpenCode",
+            "zcode": "Z.AI"}.get(name, "")
 
 
 # The call text inside a request: fenced, and followed by the rule that it is data. A participant (or whoever wrote
@@ -121,7 +145,9 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     also let it list and message the user's open Claude Code sessions.
 
     A summary (not agentic) gets no tools from Claude, no shell and no MCP servers from Codex, and Cursor's
-    read-only ask mode inside its sandbox; Codex and Cursor work in an empty temporary folder, not in `cwd`.
+    read-only ask mode inside its sandbox; OpenCode's read-only plan agent answers with the request on stdin;
+    zcode runs in its read-only plan mode. Codex, Cursor, OpenCode and zcode work in an empty temporary
+    folder, not in `cwd`.
 
     on_event(name, input): called on every agent step (claude only), for progress.
     -> (answer text, backend name, error or "").
@@ -167,6 +193,12 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
 
     if name == "cursor":
         return _cursor(path, prompt, agentic, timeout, settings)
+
+    if name == "opencode":
+        return _opencode(path, prompt, cwd, agentic, timeout, settings)
+
+    if name == "zcode":
+        return _zcode(path, prompt, cwd, agentic, timeout, settings)
 
     # codex exec: read-only sandbox, no session persistence, answer written to a file.
     # --ignore-user-config: ~/.codex/config.toml is not loaded, so none of the user's MCP servers (`-c
@@ -255,6 +287,88 @@ def _cursor(path, prompt, agentic, timeout, settings):
     return out, "cursor", ""
 
 
+def _opencode(path, prompt, cwd, agentic, timeout, settings):
+    """opencode run: the request goes by stdin, the answer comes back as NDJSON events (--format json),
+    the read-only plan agent (no --auto: nothing is approved on its own). A summary runs in an empty
+    temporary folder, project discovery in `cwd` (the CLI's private folder, set by discover.py).
+    """
+    cmd = [path, "run", "--agent", "plan", "--format", "json"]
+    if settings.opencode_model:
+        cmd += ["--model", settings.opencode_model]
+    tmp = None if agentic else tempfile.mkdtemp(prefix="sozvon-opencode-")
+    work = str(cwd) if agentic else tmp
+    try:
+        try:
+            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=work)
+        except subprocess.TimeoutExpired:
+            return None, "opencode", "timeout"
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+    out = _opencode_text(r.stdout)
+    if r.returncode != 0 or not out:
+        return None, "opencode", (r.stderr or r.stdout)[-500:]
+    return out, "opencode", ""
+
+
+def _opencode_text(stdout: str) -> str:
+    """The answer from opencode's --format json stream: the text of every text event, in order."""
+    parts = []
+    for line in stdout.splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "text":
+            parts.append(str(ev.get("part", {}).get("text", "")))
+    return "".join(parts).strip()
+
+
+# The request itself goes as an attached file, never as the argument: zcode reads no stdin, and a transcript
+# in argv would show up in `ps`.
+ZCODE_FILE_PROMPT = ("Read the attached file and do exactly what it says. "
+                     "Reply only with the answer it asks for, nothing else.")
+
+
+def _zcode(path, prompt, cwd, agentic, timeout, settings):
+    """zcode -p in plan mode, its read-only posture (writes and the shell wait for an approval nobody gives;
+    there is nothing to read in the empty temporary folder). The CLI is zcode.cjs inside the ZCode app, run
+    on the app's own Node via ELECTRON_RUN_AS_NODE=1; a `zcode` shim on PATH runs as is. No --model: the
+    model is the account's, chosen in the app.
+
+    agentic (project discovery): the short prompt goes as the argument, cwd is the CLI's private folder
+    (set by discover.py). Otherwise the prompt is written to request.md and attached.
+    """
+    if path.endswith(".cjs"):
+        electron = Path(path).parents[2] / "MacOS" / "ZCode"
+        cmd, env = [str(electron), path], {**os.environ, "ELECTRON_RUN_AS_NODE": "1"}
+    else:
+        cmd, env = [path], None
+    tmp = None
+    try:
+        if agentic:
+            work, arg = Path(cwd), prompt
+        else:
+            tmp = tempfile.mkdtemp(prefix="sozvon-zcode-")
+            work = Path(tmp)
+            (work / "request.md").write_text(prompt, encoding="utf-8")
+            arg = ZCODE_FILE_PROMPT
+        cmd += ["-p", arg, "--mode", "plan", "--cwd", str(work)]
+        if not agentic:
+            cmd += ["--attach", str(work / "request.md")]
+        try:
+            r = _exec(cmd, prompt, stdin=subprocess.DEVNULL, timeout=timeout, cwd=str(work), env=env)
+        except subprocess.TimeoutExpired:
+            return None, "zcode", "timeout"
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+    out = r.stdout.strip()
+    if r.returncode != 0 or not out:
+        return None, "zcode", (r.stderr or r.stdout)[-500:]
+    return out, "zcode", ""
+
+
 def _claude_stream(cmd, prompt, cwd, timeout, on_event):
     """claude -p in streaming mode: agent steps go to on_event, the answer text comes at the end."""
     cmd = cmd + ["--output-format", "stream-json", "--verbose"]
@@ -302,6 +416,9 @@ CHECK_PROMPT = "Reply with the single word OK."
 
 def check(name: str, timeout: int = 120) -> tuple[bool, str]:
     """Does this assistant answer, through the very command a summary uses? -> (ok, its answer or the error)."""
+    if name == "zcode":
+        # Electron startup, a session, the plan-mode round trip: a one-word request measures ~2 minutes.
+        timeout = max(timeout, 300)
     import tempfile as _t
     with _t.TemporaryDirectory(prefix="sozvon-check-") as d:
         out, _, err = run(CHECK_PROMPT, Path(d), timeout=timeout, only=name)

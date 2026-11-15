@@ -19,6 +19,7 @@ def bins(tmp_path, monkeypatch):
     d = tmp_path / "bin"
     d.mkdir()
     monkeypatch.setattr(llm, "BIN_DIRS", [d])
+    monkeypatch.setattr(llm, "APP_DIRS", [])  # no real app bundles (ZCode): the tests bring their own
     monkeypatch.setenv("PATH", f"{d}:/usr/bin:/bin")
     monkeypatch.delenv("SOZVON_LLM", raising=False)
     return d
@@ -31,10 +32,11 @@ def test_nothing_installed(bins):
 
 
 def test_errors_follow_the_app_language(bins, monkeypatch):
-    assert llm.run("x", bins)[2] == "не найден ни claude, ни codex, ни cursor-agent CLI"
+    assert llm.run("x", bins)[2] == "не найден ни claude, ни codex, ни cursor-agent, ни opencode CLI, ни приложение ZCode"
     assert llm.run("x", bins, only="cursor")[2] == "не найден cursor-agent CLI"
+    assert llm.run("x", bins, only="zcode")[2] == "не найден ZCode CLI"
     monkeypatch.setenv("SOZVON_UI_LANG", "en")
-    assert llm.run("x", bins)[2] == "none of the claude, codex and cursor-agent CLIs was found"
+    assert llm.run("x", bins)[2] == "none of the claude, codex, cursor-agent and opencode CLIs was found, and no ZCode app"
     assert llm.run("x", bins, only="cursor")[2] == "the cursor-agent CLI was not found"
     assert llm.check("codex") == (False, "the codex CLI was not found")
 
@@ -169,6 +171,40 @@ def test_auto_falls_back_to_cursor(bins):
     assert llm.backend()[0] == "codex", "codex before cursor"
 
 
+def test_auto_falls_back_to_opencode(bins):
+    fake_cli(bins, "opencode", "echo hi")
+    assert llm.backend()[0] == "opencode"
+    fake_cli(bins, "cursor-agent", "echo hi")
+    assert llm.backend()[0] == "cursor", "cursor before opencode"
+
+
+def test_auto_falls_back_to_the_zcode_bundle(bins, tmp_path, monkeypatch):
+    bundle = zcode_bundle_fake(tmp_path)
+    monkeypatch.setattr(llm, "APP_DIRS", [tmp_path / "Applications"])
+    assert llm.backend() == ("zcode", str(bundle / "Resources/glm/zcode.cjs"))
+    fake_cli(bins, "cursor-agent", "echo hi")
+    assert llm.backend()[0] == "cursor", "everything on PATH before the bundle"
+
+
+def zcode_bundle_fake(tmp_path, script: str | None = None) -> Path:
+    """A fake ZCode app: zcode.cjs inside it, and MacOS/ZCode that runs the given script the way
+    Electron-as-node would: the cjs path arrives as the first argument and is dropped."""
+    bundle = tmp_path / "Applications" / "ZCode.app" / "Contents"
+    (bundle / "Resources/glm").mkdir(parents=True)
+    (bundle / "Resources/glm/zcode.cjs").write_text("// fake")
+    (bundle / "MacOS").mkdir()
+    electron = bundle / "MacOS/ZCode"
+    electron.write_text("#!/bin/bash\nshift\n" + (f'exec bash "{script}" "$@"' if script else "exit 0\n"))
+    electron.chmod(electron.stat().st_mode | stat.S_IEXEC)
+    return bundle
+
+
+def test_zcode_without_shim_and_bundle_is_not_found(bins, tmp_path, monkeypatch):
+    monkeypatch.setattr(llm, "APP_DIRS", [tmp_path])
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    assert llm.backend() == (None, None)
+
+
 def test_explicit_cursor(bins, monkeypatch):
     fake_cli(bins, "claude", "echo hi")
     fake_cli(bins, "cursor-agent", "echo hi")
@@ -289,6 +325,121 @@ def test_other_cursor_errors_are_not_retried(bins, tmp_path, monkeypatch):
     assert out is None and "Authentication" in err and log.read_text().count("call") == 1
 
 
+# opencode: the request goes by stdin, the answer comes back as NDJSON events (--format json); the read-only
+# plan agent, and --auto (approve everything by itself) is never passed.
+
+def test_opencode_gets_prompt_on_stdin_and_answers_from_json_events(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    monkeypatch.setenv("SOZVON_OPENCODE_MODEL", "anthropic/claude-sonnet-4")
+    log, stdin = tmp_path / "args", tmp_path / "stdin"
+    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; cat > {stdin}
+echo '{{"type":"step_start"}}'
+echo 'not json at all'
+echo '{{"type":"text","part":{{"text":"ответ "}}}}'
+echo '{{"type":"text","part":{{"text":"частями"}}}}'
+echo '{{"type":"step_finish"}}'""")
+    out, name, err = llm.run("ПРОМПТ", tmp_path)
+    assert (out, name, err) == ("ответ частями", "opencode", "")
+    assert stdin.read_text() == "ПРОМПТ", "the request goes by stdin, not as an argument"
+    args = log.read_text().splitlines()
+    assert args[:7] == ["run", "--agent", "plan", "--format", "json", "--model", "anthropic/claude-sonnet-4"]
+    assert "auto" not in " ".join(args), "nothing is approved on its own"
+
+
+def test_opencode_without_the_model_flag_and_in_an_empty_folder(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    monkeypatch.delenv("SOZVON_OPENCODE_MODEL", raising=False)
+    log, cwd, seen = tmp_path / "args", tmp_path / "cwd", tmp_path / "seen"
+    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; pwd > {cwd}; ls -A > {seen}; cat >/dev/null
+echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
+    assert llm.run("x", tmp_path)[0] == "ok"
+    args = log.read_text().splitlines()
+    assert "--model" not in args and args[args.index("--agent") + 1] == "plan"
+    assert Path(cwd.read_text().strip()).resolve() != tmp_path.resolve()
+    assert seen.read_text() == "" and not Path(cwd.read_text().strip()).exists(), "an empty temporary folder, removed"
+
+
+def test_opencode_agentic_runs_where_told(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    log, cwd = tmp_path / "args", tmp_path / "cwd"
+    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; pwd > {cwd}; cat >/dev/null
+echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
+    assert llm.run("найди проекты", tmp_path, agentic=True)[0] == "ok"
+    args = log.read_text().splitlines()
+    assert "--model" not in args
+    assert Path(cwd.read_text().strip()).resolve() == tmp_path.resolve(), "project discovery works where told"
+
+
+def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    fake_cli(bins, "opencode", "cat >/dev/null; echo boom >&2; exit 4")
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and name == "opencode" and "boom" in err
+
+
+# zcode: stdin is not read, so the request goes as an attached file, and --mode plan keeps it read-only.
+# A `zcode` shim on PATH runs as is; the CLI inside the app bundle runs on the app's own Node
+# (ELECTRON_RUN_AS_NODE=1, the cjs path arrives as the runner's first argument).
+
+ZCODE_FAKE = """printf '%s\\n' "$@" > {log}
+pwd > {cwd}
+f=""; prev=""
+for a in "$@"; do if [ "$prev" = "--attach" ]; then f="$a"; fi; prev="$a"; done
+cp "$f" {req}; echo "ответ на: $(cat "$f")"
+"""
+
+
+def test_zcode_summary_prompt_goes_through_the_attached_file(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    files = {k: tmp_path / k for k in ("log", "cwd", "req")}
+    fake_cli(bins, "zcode", ZCODE_FAKE.format(**files))
+    long_prompt = "РАСШИФРОВКА " * 20000
+    out, name, err = llm.run(long_prompt, tmp_path)
+    assert name == "zcode" and err == "" and out == "ответ на: " + long_prompt.strip()
+    args = files["log"].read_text().splitlines()
+    assert args[:2] == ["-p", llm.ZCODE_FILE_PROMPT]
+    assert args[args.index("--mode") + 1] == "plan"
+    work = Path(args[args.index("--cwd") + 1])
+    assert args[args.index("--attach") + 1] == str(work / "request.md")
+    assert files["req"].read_text() == long_prompt
+    assert "РАСШИФРОВКА" not in "".join(args), "the call text is not in the arguments"
+    assert work.resolve() != tmp_path.resolve() and not work.exists(), "the temporary folder is removed"
+
+
+def test_zcode_agentic_passes_the_prompt_as_the_argument(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    log = tmp_path / "args"
+    fake_cli(bins, "zcode", f'printf \'%s\\n\' "$@" > {log}; cat >/dev/null; echo agentic-ok')
+    assert llm.run("найди проекты", tmp_path, agentic=True)[0] == "agentic-ok"
+    args = log.read_text().splitlines()
+    assert args[args.index("-p") + 1] == "найди проекты", "the short discovery prompt goes as the argument"
+    assert "--attach" not in args and args[args.index("--cwd") + 1] == str(tmp_path)
+
+
+def test_zcode_bundle_runs_on_the_apps_own_node(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    log = tmp_path / "args"
+    fake = tmp_path / "cli.sh"
+    fake.write_text(f'''[ "$ELECTRON_RUN_AS_NODE" = "1" ] || {{ echo "no ELECTRON_RUN_AS_NODE" >&2; exit 9; }}
+printf '%s\\n' "$@" > {log}
+echo ответ''')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    bundle = zcode_bundle_fake(tmp_path, script=str(fake))
+    monkeypatch.setattr(llm, "APP_DIRS", [tmp_path / "Applications"])
+    out, name, err = llm.run("x", tmp_path)
+    assert (out, name, err) == ("ответ", "zcode", "")
+    args = log.read_text().splitlines()
+    assert args[0] == "-p", "the electron runner dropped the cjs path"
+    assert "--mode" in args and args[args.index("--mode") + 1] == "plan"
+
+
+def test_zcode_failure_returns_error(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    fake_cli(bins, "zcode", "echo boom >&2; exit 5")
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and name == "zcode" and "boom" in err
+
+
 # Every assistant call leaves one line in <data>/assistant.log (the diagnostics zip takes it): which CLI, how it
 # was called, how it ended. Never the request itself: a transcript, or a project prompt passed as an argument.
 
@@ -373,6 +524,8 @@ def test_a_check_of_an_outdated_cli_says_to_update_it(bins):
     ("claude", "claude", "Invalid API key · Please run /login", "/login"),
     ("cursor", "cursor-agent", "Error: Authentication required. Please run 'agent login' first", "cursor-agent login"),
     ("codex", "codex", "Not logged in. Run codex login", "codex login"),
+    ("opencode", "opencode", "Authentication required. Run opencode auth login", "opencode auth login"),
+    ("zcode", "zcode", "Not logged in. Please run zcode login", "zcode login"),
 ])
 def test_a_check_of_a_logged_out_cli_says_how_to_log_in(bins, monkeypatch, name, binary, error, hint):
     fake_cli(bins, binary, f"cat >/dev/null; echo '{error}' >&2; exit 1")
@@ -391,3 +544,21 @@ def test_as_data_fences_the_text_and_says_it_is_not_instructions():
     assert rule == llm.DATA_RULE["en"]
     assert block.count("</transcript>") == 1 and block.count("<transcript>") == 1 and block.endswith("\n</transcript>")
     assert "transcript>" not in block[len("<transcript>"):-len("</transcript>")].lower().replace(" ", "")
+
+
+def test_zcode_check_gets_a_longer_timeout(bins, monkeypatch):
+    # A one-word request through Electron measures ~2 minutes: the default 120 s would fake-fail it.
+    seen = {}
+    fake_cli(bins, "zcode", "cat >/dev/null; echo OK")
+    fake_cli(bins, "claude", "cat >/dev/null; echo OK")
+    orig = llm.run
+
+    def spy(prompt, cwd, **kw):
+        seen.update(kw)
+        return orig(prompt, cwd, **kw)
+
+    monkeypatch.setattr(llm, "run", spy)
+    assert llm.check("zcode")[0]
+    assert seen["timeout"] == 300
+    assert llm.check("claude")[0]
+    assert seen["timeout"] == 120, "other assistants keep the default"

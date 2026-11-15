@@ -273,8 +273,8 @@ MESSAGES = {
     "install_done": ("Готово", "Done"),
 
     # Errors raised inside the engine: they reach process.log, call.json warnings and the assistant check
-    "err_llm_no_cli": ("не найден ни claude, ни codex, ни cursor-agent CLI",
-                       "none of the claude, codex and cursor-agent CLIs was found"),
+    "err_llm_no_cli": ("не найден ни claude, ни codex, ни cursor-agent, ни opencode CLI, ни приложение ZCode",
+                       "none of the claude, codex, cursor-agent and opencode CLIs was found, and no ZCode app"),
     "err_llm_cli_missing": ("не найден {cli} CLI", "the {cli} CLI was not found"),
     "err_llm_empty": ("пустой ответ", "empty answer"),
     "err_llm_outdated": ("Похоже, {cli} устарел, обнови: {how}", "{cli} looks outdated, update it: {how}"),
@@ -284,9 +284,14 @@ MESSAGES = {
     "llm_login_claude": ("запусти claude в Терминале и набери /login", "run claude in Terminal and type /login"),
     "llm_login_codex": ("codex login", "codex login"),
     "llm_login_cursor": ("cursor-agent login", "cursor-agent login"),
+    "llm_login_opencode": ("запусти opencode auth login в Терминале", "run opencode auth login in Terminal"),
+    "llm_login_zcode": ("запусти zcode login в Терминале или войди в приложение ZCode",
+                        "run zcode login in Terminal or sign in to the ZCode app"),
     "llm_update_claude": ("claude update", "claude update"),
     "llm_update_codex": ("brew upgrade codex или npm i -g @openai/codex", "brew upgrade codex or npm i -g @openai/codex"),
     "llm_update_cursor": ("cursor-agent update", "cursor-agent update"),
+    "llm_update_opencode": ("opencode upgrade", "opencode upgrade"),
+    "llm_update_zcode": ("обнови приложение ZCode", "update the ZCode app"),
     "err_no_pyannote": ("нет моделей pyannote: переустанови движок", "no pyannote models: reinstall the engine"),
     "err_json_not_object": ("ожидался JSON-объект", "a JSON object was expected"),
 }
