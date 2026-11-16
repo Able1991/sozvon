@@ -592,7 +592,7 @@ private struct PermissionsSection: View {
             row(L("Запись экрана"),
                 p.screen ? L("Через неё Sozvon слышит микрофон. Картинка не записывается")
                     : L("Включи Sozvon в списке, потом перезапусти"), ok: p.screen) {
-                Button(L("Разрешить")) { p.requestScreen() }
+                Button(L("Разрешить")) { Task { await p.requestScreen() } }
                 Button(L("Перезапустить")) { Permissions.relaunch() }
             }
             row(L("Запись системного аудио"), SystemAudioCopy.detail(p), ok: p.systemAudio == .granted) {

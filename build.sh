@@ -141,7 +141,7 @@ PLIST
 
 if [ -z "${SIGN_ID:-}" ]; then
   IDS=$(security find-identity -v -p codesigning 2>/dev/null || true)
-  SIGN_ID=$(echo "$IDS" | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"' || true)
+  SIGN_ID=$(echo "$IDS" | grep -o '"Developer ID Application[^"]*"\|"Apple Development[^"]*"' | head -1 | tr -d '"' || true)
   if [ -z "$SIGN_ID" ] && security find-identity -p codesigning 2>/dev/null | grep -q '"Sozvon Local Signing"'; then
     SIGN_ID="Sozvon Local Signing"
   fi
@@ -150,12 +150,14 @@ fi
 echo "==> Signing: $SIGN_ID"
 ENTITLEMENTS="$SRC/Sozvon.entitlements"
 if [[ "$SIGN_ID" == Developer\ ID* ]]; then TS=(--timestamp); else TS=(--timestamp=none); fi
+# Hardened runtime only for Developer ID: with an ad-hoc signature it makes Sparkle refuse to start ("different Team IDs").
+RT=""; [[ "$SIGN_ID" == Developer\ ID* ]] && RT="--options runtime"
 # Inside out, no --deep: Sparkle's helpers, the framework, then the app (Sparkle's signing docs).
 SPK="$APP/Contents/Frameworks/Sparkle.framework"
 for f in "$SPK/Versions/B/Autoupdate" "$SPK/Versions/B/Updater.app" "$SPK"; do
-  codesign --force --options runtime "${TS[@]}" --sign "$SIGN_ID" "$f"
+  codesign --force $RT "${TS[@]}" --sign "$SIGN_ID" "$f"
 done
-codesign --force --options runtime "${TS[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
+codesign --force $RT "${TS[@]}" --entitlements "$ENTITLEMENTS" --sign "$SIGN_ID" "$APP"
 codesign --verify --strict --deep "$APP"
 echo "Built: $APP ($VERSION, build $BUILD)"
 
@@ -164,6 +166,13 @@ case "$MODE" in
     rm -rf "$HOME/Applications/Sozvon.app"
     cp -R "$APP" "$HOME/Applications/"
     echo "Installed: ~/Applications/Sozvon.app"
+    if [[ "$SIGN_ID" == "-" ]]; then
+      # Ad-hoc: every build is signed with a new signature, so the ScreenCapture TCC grant stops matching
+      # the new binary (the switch in System Settings stays on but the API says no). Reset it so the app
+      # gets a fresh prompt on the next launch; with a real signing identity the grant survives rebuilds.
+      tccutil reset ScreenCapture io.github.able1991.sozvon >/dev/null 2>&1 || true
+      echo "ScreenCapture permission reset: approve the prompt on the next launch."
+    fi
     ;;
   dmg)
     # Order: the .app is notarized and stapled before packaging (the ticket inside the .app works

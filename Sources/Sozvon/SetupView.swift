@@ -558,7 +558,7 @@ struct SetupView: View {
                          detail: p.screen ? L("Через неё Sozvon слышит микрофон. Картинка не записывается")
                              : L("Включи Sozvon в списке, потом перезапусти"),
                          detailSymbol: p.screen ? nil : "exclamationmark.triangle.fill") {
-                    permissionStatus(p.screen) { p.requestScreen() }
+                    permissionStatus(p.screen) { Task { await p.requestScreen() } }
                 }
                 SetupRow(symbol: "speaker.wave.2", title: L("Запись системного аудио"),
                          detail: SystemAudioCopy.detail(p),

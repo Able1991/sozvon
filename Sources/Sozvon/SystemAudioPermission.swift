@@ -110,8 +110,10 @@ final class RecordingPermissions: ObservableObject {
     }
 
     func requestScreen() {
-        Permissions.requestScreen()
-        refresh()
+        Task {
+            await Permissions.requestScreen()
+            refresh()
+        }
     }
 
     /// Never asked: a short tap brings up the prompt. Denied, or asked and still unknown: the switch is in

@@ -2,6 +2,7 @@
 
 import AppKit
 import AVFoundation
+import ScreenCaptureKit
 import SozvonCore
 import SwiftUI
 
@@ -20,17 +21,26 @@ enum Permissions {
         }
     }
 
-    /// The first time only the system prompt (it has its own "Open System Settings" button): the call returns
-    /// false right away while the prompt is up, and opening the pane too put two windows on screen at once.
-    /// Asked before (macOS shows the prompt once): straight to the pane.
-    static func requestScreen() {
-        let key = "screenCaptureAsked"
-        if !UserDefaults.standard.bool(forKey: key) {
-            UserDefaults.standard.set(true, forKey: key)
-            _ = CGRequestScreenCaptureAccess()
-            return
+    /// Asking through ScreenCaptureKit: its first call shows the system dialog and puts Sozvon into the
+    /// pane list. CGRequestScreenCaptureAccess on macOS 15+ often returns false silently — no dialog,
+    /// no entry in the list.
+    ///
+    /// The dialog belongs to the active app, so from a non-activating setup panel the system dismisses
+    /// it right away: activate Sozvon first. It can still vanish while undecided — re-ask until the
+    /// user really chooses: a choice (or "Open System Settings") keeps the dialog on screen for a
+    /// while, so a quick probe return means nobody answered yet. After "Запретить" macOS stops
+    /// prompting, the re-asks return at once and the loop falls through to the pane.
+    static func requestScreen() async {
+        if CGPreflightScreenCaptureAccess() { return }
+        NSApp.activate(ignoringOtherApps: true)
+        for _ in 0..<3 {
+            let started = Date()
+            _ = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+            if CGPreflightScreenCaptureAccess() { return }
+            if Date().timeIntervalSince(started) > 3 { break }
+            try? await Task.sleep(for: .seconds(1))
         }
-        if !CGRequestScreenCaptureAccess() { openPane("Privacy_ScreenCapture") }
+        if !CGPreflightScreenCaptureAccess() { openPane("Privacy_ScreenCapture") }
     }
 
     static func openPane(_ pane: String) {
