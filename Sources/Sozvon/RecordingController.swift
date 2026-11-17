@@ -307,9 +307,11 @@ final class RecordingController {
                    action: .openSoundSettings)
         }
         // Digital zeros from the system track (a FaceTime call moved the audio, the tap went deaf): a new tap
-        // within seconds, not after the two minutes a quiet call gets. Always a tap: ScreenCaptureKit can't
-        // hear FaceTime, so it stands in only when the tap can't start (recapture falls back by itself).
-        if zeroWatch.update(now: now, zero: fresh(m.system) && m.system.zero) == .newTap {
+        // within seconds, not after the two minutes a quiet call gets. Only while the tap is the capture:
+        // ScreenCaptureKit's zeros are just a quiet moment (its death shows up as didStopWithError), and
+        // recapturing on them would churn the stream every few seconds of silence.
+        if recorder.systemCapture == .tap,
+           zeroWatch.update(now: now, zero: fresh(m.system) && m.system.zero) == .newTap {
             Task { await recorder.recapture(.system) }
         }
         onLevels()

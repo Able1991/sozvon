@@ -96,25 +96,37 @@ final class TrackWriter: @unchecked Sendable {
                 RecorderLog.write("\(url.lastPathComponent) already exists, not overwriting")
                 return
             }
-            let settings: [String: Any] = [
+            let base: [String: Any] = [
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: inFmt.sampleRate,
                 AVNumberOfChannelsKey: inFmt.channelCount,
-                AVEncoderBitRateKey: 64000 * Int(inFmt.channelCount),
+                // 64 kbps per channel is beyond AAC's range at call-mode headset rates (16 kHz mono —
+                // a Bluetooth microphone during a call): the encoder refused the file and the track
+                // stayed empty. Cap it by the sample rate; if even that is refused, let the encoder pick.
+                AVEncoderBitRateKey: Int(inFmt.channelCount) * min(64000, 2 * Int(inFmt.sampleRate)),
             ]
-            do {
-                let f = try AVAudioFile(forWriting: url, settings: settings,
-                                        commonFormat: inFmt.commonFormat, interleaved: inFmt.isInterleaved)
-                file = f
-                created = true
-                format = f.processingFormat
-                firstPTS = pts
-                firstAt = Date()
-            } catch {
-                // Not again on every packet: the track stays empty for this recording.
-                refused = true
-                RecorderLog.write("cannot open \(url.lastPathComponent): \(error), not writing this track")
-                return
+            let variants = [base, base.filter { $0.key != AVEncoderBitRateKey }]
+            for (attempt, settings) in variants.enumerated() {
+                do {
+                    let f = try AVAudioFile(forWriting: url, settings: settings,
+                                            commonFormat: inFmt.commonFormat, interleaved: inFmt.isInterleaved)
+                    file = f
+                    created = true
+                    format = f.processingFormat
+                    firstPTS = pts
+                    firstAt = Date()
+                    if attempt > 0 {
+                        RecorderLog.write("\(url.lastPathComponent): the encoder refused the bit rate, opened without it")
+                    }
+                    break
+                } catch where attempt < variants.count - 1 {
+                    continue
+                } catch {
+                    // Not again on every packet: the track stays empty for this recording.
+                    refused = true
+                    RecorderLog.write("cannot open \(url.lastPathComponent): \(error), not writing this track")
+                    return
+                }
             }
         }
         guard let file, let format, let firstPTS else { return }
@@ -459,6 +471,24 @@ final class SystemTap: @unchecked Sendable {
         return uid.takeRetainedValue() as String
     }
 
+    /// Whether the default output is a Bluetooth device. As soon as a call opens its microphone, the
+    /// headset drops into call mode and its output really runs at 16 kHz, while the tap and the
+    /// aggregate keep their 48000 format — the track comes out as sped-up garbage. ScreenCaptureKit
+    /// delivers the real rate instead.
+    static func outputIsBluetooth() -> Bool {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                              mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr,
+              device != kAudioObjectUnknown else { return false }
+        addr.mSelector = kAudioDevicePropertyTransportType
+        var transport = UInt32(0)
+        size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &transport) == noErr else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
     /// Channels of each buffer the aggregate's IO block gets as input (for recorder.log).
     private static func inputBufferChannels(_ device: AudioObjectID) -> [Int] {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
@@ -568,6 +598,10 @@ final class Recorder: NSObject, SCStreamDelegate {
     private func makeTap(_ sink: AudioSink) -> SystemTap? {
         if SystemAudioPermission.status == .denied {
             RecorderLog.write("system audio: the permission is off, ScreenCaptureKit instead of a process tap")
+            return nil
+        }
+        if SystemTap.outputIsBluetooth() {
+            RecorderLog.write("system audio: the output is Bluetooth, ScreenCaptureKit instead of a process tap")
             return nil
         }
         do {
