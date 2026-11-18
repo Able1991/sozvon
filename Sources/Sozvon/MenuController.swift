@@ -49,6 +49,8 @@ struct MenuSnapshot {
     var engine: EngineState
     /// A new version found and not installed yet.
     var update: String?
+    /// That version is already downloaded: one restart installs it.
+    var updateReady = false
     var hasLastTranscript: Bool
     var canRedoLast: Bool
     var panelEnabled: Bool
@@ -132,7 +134,8 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(h)
         header = h
         if let update = s.update {
-            add(L("Доступна версия %@…", update), "arrow.down.circle.fill", tint: .systemBlue, actions.openUpdate)
+            add(s.updateReady ? L("Перезапустить и обновить до %@", update) : L("Доступна версия %@…", update),
+                s.updateReady ? "arrow.clockwise.circle.fill" : "arrow.down.circle.fill", tint: .systemBlue, actions.openUpdate)
             menu.addItem(.separator())
         }
         if !s.setupDone && !s.recording.isCapturing {
