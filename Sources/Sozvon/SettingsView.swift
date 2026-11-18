@@ -462,12 +462,27 @@ private struct AboutPane: View {
                     Text(L("Скачивает новую версию сам и ставит, когда нет записи, звонка и открытых окон"))
                 }
                 .disabled(!AboutUpdates.shown)
-                LabeledContent {
-                    Button(L("Проверить")) { AppUpdater.shared.checkNow() }
-                        .disabled(!AboutUpdates.shown || !updates.canCheck)
-                } label: {
-                    Text(L("Проверить обновления"))
-                    Text(updates.status)
+                if let v = updates.ready {
+                    // Downloaded and waiting for a quiet moment: say so and offer the restart, not a greyed Check.
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(L("Версия %@ скачана", v))
+                            Text(updates.canRestart ? L("Sozvon перезапустится, звонки и настройки останутся")
+                                 : L("Поставится после записи или расшифровки"))
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 12)
+                        Button(L("Перезапустить и обновить")) { AppUpdater.shared.checkNow(); updates.refresh() }
+                            .disabled(!updates.canRestart)
+                    }
+                } else {
+                    LabeledContent {
+                        Button(L("Проверить")) { AppUpdater.shared.checkNow() }
+                            .disabled(!AboutUpdates.shown || !updates.canCheck)
+                    } label: {
+                        Text(L("Проверить обновления"))
+                        Text(updates.status)
+                    }
                 }
                 LabeledContent(L("Что нового")) {
                     Link(L("Список изменений"), destination: Updates.releasesURL)
@@ -498,6 +513,8 @@ private struct AboutPane: View {
         }
         .formStyle(.grouped)
         .onAppear { updates.refresh() }
+        // A download can finish, or a recording end, while the pane is open.
+        .onReceive(Timer.publish(every: 3, on: .main, in: .common).autoconnect()) { _ in updates.refresh() }
         .sheet(isPresented: $diagnostics) { DiagnosticsSheet() }
     }
 
@@ -519,6 +536,10 @@ private final class AboutUpdates: ObservableObject {
     }
     @Published var canCheck = AppUpdater.shared.canCheck
     @Published var status = ""
+    /// A downloaded update waiting for a quiet moment: its version.
+    @Published var ready: String?
+    /// Not during a recording or a transcription (a restart would cut it).
+    @Published var canRestart = true
 
     /// Screenshots (preview build) show the pane as in a release; the updater itself stays off there.
     static var shown: Bool {
@@ -539,6 +560,11 @@ private final class AboutUpdates: ObservableObject {
     }
 
     func refresh() {
+        ready = AppUpdater.shared.updateReady ? AppUpdater.shared.available : nil
+        #if SOZVON_PREVIEW
+        if CommandLine.arguments.contains("--update-ready") { ready = "0.1.7" }
+        #endif
+        canRestart = Updates.canCheckNow(AppUpdater.shared.activity())
         automatic = AppUpdater.shared.automatic
         canCheck = AppUpdater.shared.canCheck || !AppUpdater.isSupported && Self.shown
         if !Self.shown {

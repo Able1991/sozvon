@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **A downloaded update says so.** When a new version is already downloaded and waits for a quiet moment, the menu says "Restart to Update to X" and Settings, About shows "Version X is downloaded" with a Restart to Update button, instead of a greyed-out Check.
+
 ## 0.1.6
 
 - **Whisper for English, GigaAM for Russian, in one setup.** With a Whisper model chosen, setup and Settings, Recognition offer GigaAM for Russian (0.2 GB more). Whisper detects each track's language and Russian tracks go to GigaAM. Projects can have a call language, which the call window takes when the project is picked; the window shows which model Auto means and can pick another downloaded model for one call.
