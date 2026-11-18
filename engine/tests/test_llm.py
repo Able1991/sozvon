@@ -355,12 +355,14 @@ def test_opencode_without_the_model_flag_and_in_an_empty_folder(bins, tmp_path, 
     monkeypatch.setenv("SOZVON_LLM", "opencode")
     monkeypatch.delenv("SOZVON_OPENCODE_MODEL", raising=False)
     log, cwd, seen = tmp_path / "args", tmp_path / "cwd", tmp_path / "seen"
-    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; pwd > {cwd}; ls -A > {seen}; cat >/dev/null
+    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; pwd > {cwd}; ls -A > {seen}; echo "$PWD" > {cwd}.env; cat >/dev/null
 echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
     assert llm.run("x", tmp_path)[0] == "ok"
     args = log.read_text().splitlines()
     assert "--model" not in args and args[args.index("--agent") + 1] == "sozvon"
     assert Path(cwd.read_text().strip()).resolve() != tmp_path.resolve()
+    assert Path(cwd.read_text().strip()).resolve() == Path((tmp_path / "cwd.env").read_text().strip()).resolve(), \
+        "OpenCode reads the project directory from PWD, not getcwd: PWD must point at the work folder"
     assert seen.read_text() == "opencode.json\n", "only the run's own config is there"
     assert not Path(cwd.read_text().strip()).exists(), "the temporary folder is removed"
 

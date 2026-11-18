@@ -309,16 +309,20 @@ def _opencode(path, prompt, cwd, agentic, timeout, settings):
     empty temporary folder for a summary, Sozvon's private folder for project discovery — so the
     user's own config is never touched and the deny cannot be widened by it. --archived keeps the
     session out of the assistant's session lists.
+    OpenCode resolves the project directory from the PWD environment variable, not from getcwd()
+    (verified on 2.3.0: a bare subprocess cwd leaves it looking wherever the engine was started
+    from and the agent is "not found"), so PWD is pointed at the working folder explicitly.
     """
     cmd = [path, "run", "--agent", "sozvon", "--archived", "--format", "json"]
     if settings.opencode_model:
         cmd += ["--model", settings.opencode_model]
     tmp = None if agentic else tempfile.mkdtemp(prefix="sozvon-opencode-")
     work = Path(cwd) if agentic else Path(tmp)
+    env = {**os.environ, "PWD": str(work)}
     try:
         try:
             (work / "opencode.json").write_text(_opencode_config(agentic), encoding="utf-8")
-            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=str(work))
+            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=str(work), env=env)
         except subprocess.TimeoutExpired:
             return None, "opencode", "timeout"
     finally:
