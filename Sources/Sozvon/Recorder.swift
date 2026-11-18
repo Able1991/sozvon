@@ -672,6 +672,9 @@ final class Recorder: NSObject, SCStreamDelegate {
         self.sink = sink
         self.filter = filter
         watchOutputDevice()
+        // The headset may have dropped into call mode between makeTap's check and the listeners:
+        // AirPods switch right when the microphone opens, and a missed switch records garbage, not zeros.
+        await recaptureSystemIfNeeded()
         return systemCapture
     }
 
@@ -763,9 +766,17 @@ final class Recorder: NSObject, SCStreamDelegate {
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
                 guard let self else { return }
-                RecorderLog.write("system audio: the output device changed")
                 self.watchOutputRate()
-                await self.recaptureSystemIfNeeded()
+                // A tap is pinned to the old output's UID: it follows every device change, as before
+                // (an unplugged headset stops its IO without zeros, so nothing else would notice).
+                // ScreenCaptureKit follows the default output by itself: switched only when the call
+                // mode starts or ends. Off for another reason (permission, the tap failing): left alone.
+                if self.tap != nil {
+                    RecorderLog.write("system audio: the output device changed")
+                    await self.recapture(.system)
+                } else {
+                    await self.recaptureSystemIfNeeded()
+                }
             }
         }
         outputListener = block
@@ -797,7 +808,10 @@ final class Recorder: NSObject, SCStreamDelegate {
 
     /// Switches the system capture only when the call-mode state and the capture disagree, so a
     /// rate notification never churns a capture that is already right.
+    /// Only while the tap or the call mode decides the capture: with the permission off or a tap that
+    /// failed, ScreenCaptureKit stays and notifications never replace its stream.
     private func recaptureSystemIfNeeded() async {
+        guard sink != nil, tap != nil || lastScreenWhy == .callMode else { return }
         let callMode = SystemTap.outputInCallMode()
         if callMode == (tap == nil) { return }  // SCK in call mode, a tap otherwise: already right
         await recapture(.system)

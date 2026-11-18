@@ -320,10 +320,13 @@ def _opencode_config(agentic: bool) -> str:
     base policy and the global config, and the last matching rule wins — so a final deny-all is a
     hard deny of every tool (v2 agents otherwise start from allow-all, and the built-in "plan"
     agent still allows the shell, web fetches and MCP). Project discovery gets the read-only
-    trio, like Claude's Read/Glob/Grep set."""
-    allow_read = [{"action": a, "resource": "*", "effect": "allow"} for a in ("read", "glob", "grep")]
-    rules = allow_read + [{"action": "*", "resource": "*", "effect": "deny"}] if agentic \
-        else [{"action": "*", "resource": "*", "effect": "deny"}]
+    trio, like Claude's Read/Glob/Grep set, after the deny (the last match wins, so the allows must
+    come last), plus reads outside the working folder for ~/.claude/projects only."""
+    rules = [{"action": "*", "resource": "*", "effect": "deny"}]
+    if agentic:
+        rules += [{"action": a, "resource": "*", "effect": "allow"} for a in ("read", "glob", "grep")]
+        rules.append({"action": "external_directory", "resource": f"{Path.home() / '.claude' / 'projects'}*",
+                      "effect": "allow"})
     return json.dumps({"agents": {"sozvon": {"description": "Sozvon: answer the request, no tools",
                                              "mode": "primary", "permissions": rules}}}, indent=2) + "\n"
 
@@ -382,8 +385,8 @@ ZCODE_FILE_PROMPT = ("Read the attached file and do exactly what it says. "
 # therefore removed for the run (--disallowed-tools; verified: the model no longer sees them).
 # MCP servers from ~/.zcode/cli/config.json load for every run and zcode matches tool names
 # exactly (no wildcard), so Sozvon's own tools are listed out; another configured server stays
-# reachable — a zcode limitation, not configurable per run. Read/Glob/Grep stay, like Cursor's
-# read-only ask mode.
+# reachable — a zcode limitation, not configurable per run, so a run refuses while another server is
+# enabled there (_zcode_other_mcp). Read/Glob/Grep stay, like Cursor's read-only ask mode.
 SOZVON_MCP_TOOLS = ("transcribe", "list_models", "show_vocab", "add_replacement", "remove_replacement",
                     "add_terms", "list_profiles", "preview_prompt", "list_calls", "get_call",
                     "search_calls", "get_commitments", "get_person", "add_note", "delete_note")
@@ -406,12 +409,33 @@ def _zcode_forget_session(directory: str) -> None:
         import sqlite3
         with sqlite3.connect(db, timeout=5) as con:
             con.execute("PRAGMA foreign_keys=ON")
-            rows = con.execute("SELECT id FROM session WHERE directory = ?", (directory,)).fetchall()
+            # Node reports the resolved path (/private/var/... for a /var/... temp folder): match both.
+            dirs = sorted({directory, os.path.realpath(directory)})
+            rows = con.execute(f"SELECT id FROM session WHERE directory IN ({','.join('?' * len(dirs))})",
+                               dirs).fetchall()
             for (sid,) in rows:
                 con.execute("DELETE FROM session WHERE id = ?", (sid,))
             con.commit()
     except Exception:  # noqa: BLE001 - history cleanup never fails a summary
         pass
+
+
+def _zcode_other_mcp() -> list[str]:
+    """Enabled MCP servers in ~/.zcode/cli/config.json other than Sozvon's. zcode loads them for every
+    run and can't turn them off per run, and their tool names are unknown, so --disallowed-tools can't
+    list them: a call transcript (untrusted text) could make the model use them. An unreadable config
+    counts as one unknown server."""
+    f = Path.home() / ".zcode" / "cli" / "config.json"
+    if not f.is_file():
+        return []
+    try:
+        servers = (json.loads(f.read_text(encoding="utf-8")).get("mcp") or {}).get("servers") or {}
+    except (OSError, ValueError, AttributeError):
+        return [str(f)]
+    if not isinstance(servers, dict):
+        return [str(f)]
+    return sorted(n for n, v in servers.items()
+                  if n != "sozvon" and not (isinstance(v, dict) and v.get("enabled") is False))
 
 
 def _zcode(path, prompt, cwd, agentic, timeout, settings):
@@ -427,13 +451,16 @@ def _zcode(path, prompt, cwd, agentic, timeout, settings):
     folder (set by discover.py; its sessions are ours to delete). Otherwise the prompt is written
     to request.md and attached.
     """
+    other = _zcode_other_mcp()
+    if other:
+        return None, "zcode", t("err_zcode_other_mcp", servers=", ".join(other))
     if path.endswith(".cjs"):
         electron = Path(path).parents[2] / "MacOS" / "ZCode"
         entry = _zcode_entry(Path(path))
         cmd, env = [str(electron), str(entry)], {**os.environ, "ELECTRON_RUN_AS_NODE": "1"}
     else:
         cmd, env = [path], None
-    tmp = None
+    tmp, work = None, None
     try:
         if agentic:
             work, arg = Path(cwd), prompt
@@ -453,7 +480,8 @@ def _zcode(path, prompt, cwd, agentic, timeout, settings):
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
-    _zcode_forget_session(str(work))
+        if work is not None:
+            _zcode_forget_session(str(work))  # a timed-out run leaves its session too
     out = r.stdout.strip()
     if r.returncode != 0 or not out:
         return None, "zcode", (r.stderr or r.stdout)[-500:]

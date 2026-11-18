@@ -277,6 +277,10 @@ MESSAGES = {
                        "none of the claude, codex, cursor-agent and opencode CLIs was found, and no ZCode app"),
     "err_llm_cli_missing": ("не найден {cli} CLI", "the {cli} CLI was not found"),
     "err_llm_empty": ("пустой ответ", "empty answer"),
+    "err_zcode_other_mcp": ("в ZCode включены другие MCP-серверы ({servers}): текст звонка мог бы ими воспользоваться. "
+                            "Выключи их в ~/.zcode/cli/config.json (\"enabled\": false) или выбери другого ассистента",
+                            "other MCP servers are enabled in ZCode ({servers}), and the call text could use them. "
+                            "Turn them off in ~/.zcode/cli/config.json (\"enabled\": false) or pick another assistant"),
     "err_llm_outdated": ("Похоже, {cli} устарел, обнови: {how}", "{cli} looks outdated, update it: {how}"),
     "err_cursor_no_sandbox": ("На этом Mac не работает песочница Cursor, а без неё Sozvon не запускает Cursor. Выбери Claude или Codex в настройках",
                               "Cursor's sandbox does not run on this Mac, and Sozvon does not use Cursor without it. Choose Claude or Codex in Settings"),

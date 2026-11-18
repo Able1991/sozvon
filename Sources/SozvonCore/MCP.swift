@@ -283,7 +283,7 @@ public enum MCP {
     public static var opencodeConfig: URL { Paths.home.appendingPathComponent(".config/opencode/opencode.json") }
     /// OpenCode reads opencode.json and opencode.jsonc, both loaded with the jsonc winning; a user
     /// with comments in the config has this file.
-    public static var opencodeConfigC: URL { opencodeConfig.appendingPathExtension("jsonc") }
+    public static var opencodeConfigC: URL { Paths.home.appendingPathComponent(".config/opencode/opencode.jsonc") }
 
     /// The file Connect edits: the jsonc when there is one, otherwise the json.
     public static var opencodeTarget: URL {

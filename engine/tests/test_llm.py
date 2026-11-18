@@ -1,5 +1,6 @@
 """Choosing and calling Claude Code / Codex / Cursor / OpenCode / ZCode (with fake binaries)."""
 import json
+import os
 import stat
 from pathlib import Path
 
@@ -377,9 +378,12 @@ echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
     assert "--model" not in args
     assert Path(cwd.read_text().strip()).resolve() == tmp_path.resolve(), "project discovery works where told"
     rules = json.loads((tmp_path / "opencode.json").read_text())["agents"]["sozvon"]["permissions"]
-    allow = {r["action"] for r in rules if r["effect"] == "allow"}
-    deny = [r for r in rules if r["effect"] == "deny"]
-    assert allow == {"read", "glob", "grep"} and deny == [{"action": "*", "resource": "*", "effect": "deny"}]
+    # The last matching rule wins: the deny-all comes first, the read-only allows after it.
+    assert rules[0] == {"action": "*", "resource": "*", "effect": "deny"}
+    assert all(r["effect"] == "allow" for r in rules[1:])
+    assert {r["action"] for r in rules[1:]} == {"read", "glob", "grep", "external_directory"}
+    ext = next(r for r in rules if r["action"] == "external_directory")
+    assert ext["resource"].startswith(str(Path.home() / ".claude" / "projects"))
 
 
 def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
@@ -650,3 +654,57 @@ def test_zcode_check_gets_a_longer_timeout(bins, monkeypatch):
     assert seen["timeout"] == 300
     assert llm.check("claude")[0]
     assert seen["timeout"] == 120, "other assistants keep the default"
+
+
+def test_zcode_refuses_while_other_mcp_servers_are_enabled(bins, tmp_path, monkeypatch):
+    """zcode loads every MCP server of its config for each run, with tool names --disallowed-tools
+    can't know: while another server is enabled there, no summary runs (the call text is untrusted)."""
+    home = tmp_path / "home"
+    cfg = home / ".zcode/cli/config.json"
+    cfg.parent.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    ran = tmp_path / "ran"
+    fake_cli(bins, "zcode", f"touch {ran}; echo ok")
+    cfg.write_text(json.dumps({"mcp": {"servers": {"sozvon": {"url": "x"}, "gmail": {"url": "y"},
+                                                   "off": {"url": "z", "enabled": False}}}}))
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and name == "zcode" and "gmail" in err and "off" not in err
+    assert not ran.exists(), "zcode is not started at all"
+    cfg.write_text(json.dumps({"mcp": {"servers": {"sozvon": {"url": "x"}, "off": {"enabled": False}}}}))
+    assert llm.run("x", tmp_path)[0] == "ok", "Sozvon's own server and disabled ones are fine"
+    cfg.write_text("{not json")
+    assert llm.run("x", tmp_path)[0] is None, "an unreadable config refuses too"
+
+
+def test_zcode_forget_session_matches_the_resolved_path(tmp_path, monkeypatch):
+    """Node reports /private/var/... for a /var/... temp folder: both spellings are matched."""
+    import sqlite3
+    home = tmp_path / "home"
+    db = home / ".zcode/cli/db/db.sqlite"
+    db.parent.mkdir(parents=True)
+    real = tmp_path / "real-run"
+    real.mkdir()
+    link = tmp_path / "link-run"
+    link.symlink_to(real)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT NOT NULL)")
+    con.execute("INSERT INTO session VALUES ('mine', ?)", (os.path.realpath(real),))
+    con.execute("INSERT INTO session VALUES ('users', '/Users/someone/project')")
+    con.commit()
+    con.close()
+    monkeypatch.setenv("HOME", str(home))
+    llm._zcode_forget_session(str(link))
+    con = sqlite3.connect(db)
+    assert {r[0] for r in con.execute("SELECT id FROM session")} == {"users"}
+    con.close()
+
+
+def test_zcode_timeout_still_forgets_the_session(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    seen = []
+    monkeypatch.setattr(llm, "_zcode_forget_session", lambda d: seen.append(d))
+    fake_cli(bins, "zcode", "sleep 5")
+    out, name, err = llm.run("x", tmp_path, timeout=1)
+    assert out is None and err == "timeout"
+    assert len(seen) == 1 and "sozvon-zcode-" in seen[0]

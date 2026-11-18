@@ -39,7 +39,7 @@ echo "==> Bundling engine"
 rsync -a --delete \
   --exclude 'tests/' --exclude '.venv/' --exclude '__pycache__/' --exclude '*.pyc' --exclude '.pytest_cache/' \
   --exclude '.DS_Store' --exclude 'ENGINE_VERSION' --exclude 'pyannote-models-v1.tar.gz' \
-  --exclude 'index.db*' \
+  --exclude 'index.db*' --exclude '*.log' --exclude 'cli-home-*/' \
   engine/ "$RES/engine/"
 # Engine version: first 16 hex chars of sha256 over all copied files' contents, in path order.
 # The app uses it to tell that the code in the data folder needs updating.
