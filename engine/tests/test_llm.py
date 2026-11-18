@@ -491,6 +491,36 @@ echo ответ''')
     assert "--mode" in args and args[args.index("--mode") + 1] == "plan"
 
 
+def test_zcode_bundle_entry_runs_from_sozvons_copy_with_the_provider_config(bins, tmp_path, monkeypatch):
+    """The CLI finds zcode-builtin.json next to its realpath-resolved entrypoint (<dir>/provider/ or
+    5 up + config/provider/); from glm/ in the app that lands at /config, so the run must use a copy
+    of zcode.cjs with the provider config beside it, refreshed when the app updates."""
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    monkeypatch.setenv("SOZVON_DATA_DIR", str(tmp_path / "data"))
+    entrylog = tmp_path / "entry"
+    fake = tmp_path / "cli.sh"
+    fake.write_text(f'''printf '%s\\n' "$ENTRY" > {entrylog}
+head -1 "$ENTRY"''')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    bundle = zcode_bundle_fake(tmp_path)
+    electron = bundle / "MacOS/ZCode"
+    electron.write_text(f'#!/bin/bash\nentry="$1"; shift\nENTRY="$entry" exec bash "{fake}" "$@"')
+    electron.chmod(electron.stat().st_mode | stat.S_IEXEC)
+    provider = bundle / "Resources/config/provider"
+    provider.mkdir(parents=True)
+    (provider / "zcode-builtin.json").write_text('{"provider": "glm"}')
+    monkeypatch.setattr(llm, "APP_DIRS", [tmp_path / "Applications"])
+    out, name, err = llm.run("x", tmp_path)
+    assert (out, name, err) == ("// fake", "zcode", "")
+    entry = Path(entrylog.read_text().strip())
+    home = tmp_path / "data/zcode-cli"
+    assert entry == home / "zcode.cjs", "runs from Sozvon's copy, not the app bundle"
+    assert (home / "provider/zcode-builtin.json").read_text() == '{"provider": "glm"}'
+    (bundle / "Resources/glm/zcode.cjs").write_text("// fake v2")
+    llm.run("x", tmp_path)
+    assert entry.read_text() == "// fake v2", "the copy follows app updates"
+
+
 def test_zcode_failure_returns_error(bins, tmp_path, monkeypatch):
     monkeypatch.setenv("SOZVON_LLM", "zcode")
     fake_cli(bins, "zcode", "echo boom >&2; exit 5")

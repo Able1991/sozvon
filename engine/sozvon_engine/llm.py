@@ -82,6 +82,31 @@ def _zcode_bundle() -> str | None:
     return None
 
 
+def _zcode_entry(cjs: Path) -> Path:
+    """A runnable copy of the app's zcode.cjs with its built-in provider config discoverable.
+
+    The CLI locates zcode-builtin.json relative to the realpath-resolved entrypoint:
+    <entry dir>/provider/zcode-builtin.json, else 5 levels up + config/provider/. From glm/
+    inside the app bundle the fallback lands at /config, which does not exist, so the app
+    copy never starts ("无法定位 CLI ZCode Built-in Provider Config"). So Sozvon keeps its own
+    copy, refreshed when the app's file changes, and runs that instead.
+    """
+    provider = next((p for p in (cjs.parent / "provider/zcode-builtin.json",
+                                 cjs.parent.parent / "config/provider/zcode-builtin.json")
+                     if p.is_file()), None)
+    if provider is None:
+        return cjs
+    home = paths.data_dir() / "zcode-cli"
+    home.mkdir(parents=True, exist_ok=True)
+    entry, copied = home / "zcode.cjs", home / "provider/zcode-builtin.json"
+    copied.parent.mkdir(parents=True, exist_ok=True)
+    for src, dst in ((cjs, entry), (provider, copied)):
+        if not dst.exists() or (dst.stat().st_size, dst.stat().st_mtime) != \
+           (src.stat().st_size, src.stat().st_mtime):
+            shutil.copy2(src, dst)
+    return entry
+
+
 def _path(name: str) -> str | None:
     if name == "zcode":
         return _find("zcode") or _zcode_bundle()
@@ -392,7 +417,9 @@ def _zcode_forget_session(directory: str) -> None:
 def _zcode(path, prompt, cwd, agentic, timeout, settings):
     """zcode -p in plan mode with the dangerous tools removed for this run only (--disallowed-tools
     changes no saved settings). The CLI is zcode.cjs inside the ZCode app, run on the app's own Node
-    via ELECTRON_RUN_AS_NODE=1; a `zcode` shim on PATH runs as is. No --model: the model is the
+    via ELECTRON_RUN_AS_NODE=1 — from Sozvon's copy of the cjs, so the built-in provider config
+    next to the entrypoint is found (the in-app path resolves to /config, which does not exist);
+    a `zcode` shim on PATH runs as is. No --model: the model is the
     account's, chosen in the app. Afterwards the session is deleted from zcode's db: no summaries
     in the assistant's history.
 
@@ -402,7 +429,8 @@ def _zcode(path, prompt, cwd, agentic, timeout, settings):
     """
     if path.endswith(".cjs"):
         electron = Path(path).parents[2] / "MacOS" / "ZCode"
-        cmd, env = [str(electron), path], {**os.environ, "ELECTRON_RUN_AS_NODE": "1"}
+        entry = _zcode_entry(Path(path))
+        cmd, env = [str(electron), str(entry)], {**os.environ, "ELECTRON_RUN_AS_NODE": "1"}
     else:
         cmd, env = [path], None
     tmp = None
