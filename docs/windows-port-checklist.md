@@ -82,8 +82,37 @@ Status: **done** (checked on a real Windows machine), **synthetic** (a real run,
 | A file held open by an antivirus or a player | done, replacing waits up to 3 s |
 | Console code page | done |
 | Text mode writes a prompt's line ends as CRLF on stdin (every character intact, harmless for summaries) | known, left as is |
-| Sleep and wake, the profile being unloaded | not verified, stage 2 |
+| Sleep and wake | the recording stops and is saved before sleep or hibernation, the form waits for the wake (e467da9; checked with the suspend notice posted to a test instance). A real lid close: needs Boris |
+| The profile being unloaded | not verified |
 | Calls live outside OneDrive by default | done |
+
+## Capture: devices and failures
+
+Checked by tests with fake devices and real ffmpeg, plus a read-only scan of this laptop's outputs. Nothing here changed a Windows setting, so every row that needs a device plugged, pulled or switched is on Boris's manual list.
+
+| Case | How the recorder handles it | Status |
+|---|---|---|
+| Default microphone or output changed (Sound settings, the volume flyout, an app) | Windows' notice for the default device reopens the stream; the new one runs before the old closes, the overlap is cut, a hole becomes silence | tests; real switch: needs Boris |
+| USB headset, USB mic, HDMI or DisplayPort audio plugged in or pulled mid-call | A lost device (`AUDCLNT_E_DEVICE_INVALIDATED`) is reopened on the new default at the next step, the gap becomes silence | tests; real: needs Boris |
+| Bluetooth headset: Stereo and Hands-Free are two outputs; a call that opens the mic plays to Hands-Free while the default stays Stereo and goes quiet | The other side is also captured from a second output where a program plays right now (the communications device first), started at its first packet and mixed into `system.m4a` at the stop or recovery on the shared clock (83e07ff). An idle output is never opened, so Sozvon never puts a headset into call mode itself | tests (choice, placement, real ffmpeg mix, crash recovery); real headset in Zoom, Telegram, Teams and a browser call: needs Boris |
+| A call app set to its own speaker, not the default | Same second output: any output other than the default with a program's session running | tests; real: needs Boris |
+| Headset battery dies, reconnects | Lost device, then the default's notice: reopened both ways | tests; real: needs Boris |
+| No output at all, then one comes back | The track retries every second and writes silence; «Их не слышно» after its usual time | tests |
+| No microphone at the start, or one held in exclusive mode (`AUDCLNT_E_DEVICE_IN_USE`) | The recording starts anyway; «Тебя не слышно» after 8 s; the track takes a mic as soon as one opens. Only microphone access refused in Windows privacy settings stops the start (83e07ff) | tests; real: needs Boris |
+| Endpoint disabled in Sound settings | Lost device, reopened on the new default | by code; real: needs Boris |
+| Sample rate, bit depth or channels of a device changed (8-192 kHz, mono arrays, 5.1 and 7.1) | Every stream asks Windows for 48 kHz float with `AUTOCONVERTPCM`, so Windows resamples and downmixes; the files are always 48 kHz and the AAC encoder (ffmpeg, after the call) never sees another rate. The Mac's 16 kHz encoder failure can't happen here | by code + tests of the fixed format; a device at 16 kHz Hands-Free: needs Boris |
+| Spatial sound, enhancements, virtual devices (VB-Cable, Voicemeeter, NVIDIA Broadcast, Krisp) | Loopback hears the default output's mix whatever it is; a virtual mic is recorded like any other (raw only if it offers raw) | not verified: needs Boris if he uses one |
+| Loopback sends no packets while nothing plays | Silence is written up to 0.25 s behind the clock, packets are placed by their timestamps, drift is taken out one frame at a time | tests (1 h drift in TrackTimeline tests) |
+| Microphone muted by a key, by the app, by privacy settings mid-recording | Digital silence: capture again after 2 min, then the warning; privacy off: the stream fails, reopen is refused, «Тебя не слышно» after 8 s. Nothing stops | tests; real: needs Boris |
+| Audio service restarted (`AUDCLNT_E_SERVICE_NOT_RUNNING`) | Opens retry every second; after ten refusals, or when Windows can't give a device list, the track asks for the devices again (83e07ff) | tests |
+| Any other capture error | Costs that stream a second, never the track | tests |
+| A track that can't be written (full disk, drive gone, folder removed) | Told at once in a toast and the capsule, the other track goes on; both lost: the recording stops and saves what there is | tests of the rule; a real full disk: not checked |
+| Sleep, hibernation, lid close | Saved as a stop before sleep (e467da9) | test instance; real: needs Boris |
+| Screen lock | Nothing changes, the recording goes on | by code |
+| Fast user switching, RDP | Not handled specially: a stream Windows takes away is reopened when it gives it back | not verified: needs Boris |
+| App killed mid-recording | The spooled tracks (and the second output, if it was used) are finished at the next start and the call is queued | tests |
+| Two quick start/stop cycles, Start while the previous one is finalizing | Start is ignored until the previous call is saved and its form is up | by code + earlier UIA run |
+| Very long recording | The spool has no 4 GB limit (streaming WAV size), about 0.7 GB an hour for the mic and 1.4 GB for the other side | tests of the header; a 2 h run: not checked |
 
 ## Known problems
 
