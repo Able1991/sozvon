@@ -38,7 +38,7 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 - **Separate tracks.** You and the other side are recorded apart, and remote speakers are told apart by voice.
 - **Names from the conversation.** The assistant works them out ("Masha, how are you?").
 - **Knows voices.** Save your voice in 20 seconds. Name someone once, and later calls of that project name them by themselves. Voice prints are biometric data: they stay on your Mac (and your own server, if you use one), and you can delete any of them.
-- **Summary** in the language of the call: overview, decisions, action items with owners, open questions. Optional, through Claude Code, Codex or Cursor on your own subscription.
+- **Summary** in the language of the call: overview, decisions, action items with owners, open questions. Optional, through Claude Code, Codex, Cursor, OpenCode or ZCode on your own subscription.
 - **Projects.** People, terms and replacements per client, so names and jargon are spelled right.
 - **Multiple languages** in one call.
 
@@ -77,7 +77,7 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 
 **Updates** install themselves: once a day Sozvon downloads a new version in the background and installs it when there is no recording, call or open window. Versions before 0.1.2 need one manual update.
 
-**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex) or [Cursor CLI](https://cursor.com/cli) installed, optional. If an assistant shows as not installed, setup and Settings → Assistants have "How to Install an Assistant" with the command for each: `curl -fsSL https://claude.ai/install.sh | bash`, `brew install --cask codex`, `curl https://cursor.com/install -fsS | bash`. Sozvon looks for them in `~/.local/bin` and Homebrew; a copy installed with npm under nvm is not found.
+**Requirements:** a Mac with Apple silicon (M1 or later), macOS 15 Sequoia or later. For summaries and project discovery: [Claude Code](https://claude.com/code), [Codex CLI](https://github.com/openai/codex), [Cursor CLI](https://cursor.com/cli), [OpenCode](https://opencode.ai) or [ZCode](https://zcode.z.ai) installed, optional. If an assistant shows as not installed, setup and Settings → Assistants have "How to Install an Assistant" with the command for each: `curl -fsSL https://claude.ai/install.sh | bash`, `brew install --cask codex`, `curl https://cursor.com/install -fsS | bash`, `brew install opencode`, `brew install --cask zcode`. Sozvon looks for them in `~/.local/bin` and Homebrew; a copy installed with npm under nvm is not found.
 
 <p align="center">
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-setup-model-dark.png"><img src="docs/images/en-setup-model.png" width="360" alt="Choosing a model"></picture>
@@ -101,9 +101,11 @@ Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 M
 
 **Two models: Whisper and GigaAM for Russian.** With a Whisper model chosen, setup and Settings → Recognition offer a second model for Russian ("Russian conversations with GigaAM", 0.2 GB more). Whisper detects each track's language, Russian tracks go to GigaAM, the rest stay on Whisper. A project can have its own call language: picking the project in the call window sets the language, and the model follows. The call window shows which model Auto means and lets you pick another downloaded one for that call.
 
-## Claude Code, Codex and Cursor (MCP)
+## Claude Code, Codex, Cursor, OpenCode and ZCode (MCP)
 
-Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cursor Sozvon adds its entry to `~/.cursor/mcp.json` itself, keeping comments and other servers; the Cursor app and Cursor CLI both read that file. While running, Sozvon keeps one shared MCP server on `127.0.0.1` for all sessions (about 40 MB). The assistant gets these tools:
+Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cursor Sozvon adds its entry to `~/.cursor/mcp.json` itself, keeping comments and other servers; the Cursor app and Cursor CLI both read that file. For OpenCode (`~/.config/opencode/opencode.json` or `opencode.jsonc`) and ZCode (`~/.zcode/cli/config.json`) Sozvon edits the config itself, like Cursor's. While running, Sozvon keeps one shared MCP server on `127.0.0.1` for all sessions (about 40 MB). The assistant gets these tools:
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-assistants-dark.png"><img src="docs/images/en-assistants.png" width="420" alt="Settings, Assistants"></picture></p>
 
 | Tool | What it does |
 |---|---|
@@ -117,6 +119,8 @@ Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cur
 | `transcribe` | transcribe any audio or video file |
 | `list_profiles`, `add_terms`, `add_replacement`, `remove_replacement` | projects, terms and replacements |
 | `list_models`, `show_vocab`, `preview_prompt` | models, the vocabulary and the hint the model gets |
+
+Assistant models are set in `~/Library/Application Support/Sozvon/.env`: `SOZVON_SUMMARY_MODEL` (Claude, default `sonnet`), `SOZVON_CODEX_MODEL`, `SOZVON_CURSOR_MODEL`, `SOZVON_OPENCODE_MODEL` (`provider/model`; empty: the model chosen in that CLI). ZCode has no model flag: the model is chosen in the ZCode app. Details: [documentation](https://able1991.github.io/sozvon/docs.html#summary).
 
 Manual setup and details: [documentation](https://able1991.github.io/sozvon/docs.html#mcp). The server requires the token from `~/Library/Application Support/Sozvon/.mcp-token`.
 
@@ -154,7 +158,7 @@ How it works: [docs/SERVER.md](docs/SERVER.md).
 | Python environment, models | PyPI, huggingface.co | once, during setup |
 | Echo removal model (11 MB) | huggingface.co | once, during setup, or at the first launch after the update that brings it |
 | uv binary (if missing), CPython for `uv sync`, fallback archive of the speaker separation models (release `models-v1`) | github.com | once, during setup |
-| Transcript text for the summary and speaker names. For this the assistant gets no tools: Claude runs with none at all, Codex without its shell, your MCP servers, plugins and web search, in an empty temporary folder. Cursor has no such switch: it runs in read-only ask mode inside its sandbox, in an empty temporary folder where your MCP servers are not approved | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it | only if an assistant is selected |
+| Transcript text for the summary and speaker names. For this the assistant gets no tools: Claude runs with none at all, Codex without its shell, your MCP servers, plugins and web search, in an empty temporary folder. Cursor has no such switch: it runs in read-only ask mode inside its sandbox, in an empty temporary folder where your MCP servers are not approved. OpenCode runs an agent that denies every tool; ZCode runs in plan mode with the shell, edits, web and Sozvon's own tools removed, and refuses while other MCP servers are enabled in its config; both in an empty temporary folder; the request itself never lands in their arguments (it goes by stdin or an attached file) | Anthropic (Claude Code), OpenAI (Codex) or Cursor and the model chosen in it; OpenCode and the provider chosen in it; Z.AI (ZCode) | only if an assistant is selected |
 | Whatever the assistant reads through MCP | Anthropic, OpenAI or Cursor | only when you ask it |
 | Project discovery: project folder names, memory notes in `~/.claude` (or sessions in `~/.codex`, or past chats in `~/.cursor/projects`). Claude is limited to reading inside `~/.claude`; with `SOZVON_DISCOVER_ASK=1` in the engine `.env` it also asks your open Claude Code sessions what they are about. Codex runs in a `read-only` sandbox: it blocks writes but not reads, and the model itself decides what it reads. Cursor runs in read-only ask mode, and its limit to those folders is also only an instruction | Anthropic, OpenAI or Cursor | only when you click Find Projects |
 | Updates | github.com: the latest release's appcast.xml, and the new DMG when there is one | once a day; automatic install can be turned off in Settings > About |

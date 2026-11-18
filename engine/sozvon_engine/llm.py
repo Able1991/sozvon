@@ -1,10 +1,12 @@
-"""Cloud assistant for summaries and project discovery: Claude Code, Codex CLI or Cursor CLI.
+"""Cloud assistant for summaries and project discovery: Claude Code, Codex CLI, Cursor CLI, OpenCode or ZCode.
 
-Choice: SOZVON_LLM = auto | claude | codex | cursor | none (default auto: the first
-installed of claude, codex, cursor). Uses the user's subscription in the respective CLI.
-Text goes to Anthropic (claude), OpenAI (codex) or Cursor and the model chosen there (cursor).
+Choice: SOZVON_LLM = auto | claude | codex | cursor | opencode | zcode | none (default auto: the first
+installed of claude, codex, cursor-agent, opencode, ZCode). Uses the user's subscription in the respective CLI.
+Text goes to Anthropic (claude), OpenAI (codex), Cursor and the model chosen there (cursor), to the provider
+chosen in OpenCode (opencode) or to Z.AI (zcode).
 """
 import json
+import os
 import re
 import shlex
 import shutil
@@ -62,25 +64,72 @@ def _exec(cmd, prompt: str, **kw) -> subprocess.CompletedProcess:
     return r
 
 
-# Backend name -> CLI binary, in auto-detection order.
-BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent"}
+# Backend name -> CLI binary, in auto-detection order. ZCode's value is the display name: its CLI is not
+# a PATH binary, _path() finds it (a `zcode` shim, then the app bundle).
+BINARIES = {"claude": "claude", "codex": "codex", "cursor": "cursor-agent", "opencode": "opencode", "zcode": "ZCode"}
+
+# Where macOS apps live: the ZCode CLI ships inside the ZCode app when there is no `zcode` on PATH.
+APP_DIRS = (Path("/Applications"), Path.home() / "Applications")
+
+
+def _zcode_bundle() -> str | None:
+    """zcode.cjs inside the ZCode app, when the app is there with its own Node (Contents/MacOS/ZCode)."""
+    for root in APP_DIRS:
+        contents = root / "ZCode.app/Contents"
+        cjs = contents / "Resources/glm/zcode.cjs"
+        if cjs.is_file() and (contents / "MacOS/ZCode").is_file():
+            return str(cjs)
+    return None
+
+
+def _zcode_entry(cjs: Path) -> Path:
+    """A runnable copy of the app's zcode.cjs with its built-in provider config discoverable.
+
+    The CLI locates zcode-builtin.json relative to the realpath-resolved entrypoint:
+    <entry dir>/provider/zcode-builtin.json, else 5 levels up + config/provider/. From glm/
+    inside the app bundle the fallback lands at /config, which does not exist, so the app
+    copy never starts ("无法定位 CLI ZCode Built-in Provider Config"). So Sozvon keeps its own
+    copy, refreshed when the app's file changes, and runs that instead.
+    """
+    provider = next((p for p in (cjs.parent / "provider/zcode-builtin.json",
+                                 cjs.parent.parent / "config/provider/zcode-builtin.json")
+                     if p.is_file()), None)
+    if provider is None:
+        return cjs
+    home = paths.data_dir() / "zcode-cli"
+    home.mkdir(parents=True, exist_ok=True)
+    entry, copied = home / "zcode.cjs", home / "provider/zcode-builtin.json"
+    copied.parent.mkdir(parents=True, exist_ok=True)
+    for src, dst in ((cjs, entry), (provider, copied)):
+        if not dst.exists() or (dst.stat().st_size, dst.stat().st_mtime) != \
+           (src.stat().st_size, src.stat().st_mtime):
+            shutil.copy2(src, dst)
+    return entry
+
+
+def _path(name: str) -> str | None:
+    if name == "zcode":
+        return _find("zcode") or _zcode_bundle()
+    return _find(BINARIES[name])
 
 
 def backend(settings: config.Settings | None = None, only: str | None = None):
-    """-> ('claude'|'codex'|'cursor', path) or (None, None). only: that one assistant, whatever the settings say."""
+    """-> ('claude'|'codex'|'cursor'|'opencode'|'zcode', path) or (None, None). only: that one assistant,
+    whatever the settings say."""
     want = only or (settings or config.load()).llm
     if want == "none":
         return None, None
     order = [want] if want in BINARIES else list(BINARIES)
     for name in order:
-        path = _find(BINARIES[name])
+        path = _path(name)
         if path:
             return name, path
     return None, None
 
 
 def vendor(name) -> str:
-    return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor"}.get(name, "")
+    return {"claude": "Anthropic", "codex": "OpenAI", "cursor": "Cursor", "opencode": "OpenCode",
+            "zcode": "Z.AI"}.get(name, "")
 
 
 # The call text inside a request: fenced, and followed by the rule that it is data. A participant (or whoever wrote
@@ -120,8 +169,13 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     """Run a request. agentic=True: allow reading files (project discovery). ask_sessions (Claude, agentic only):
     also let it list and message the user's open Claude Code sessions.
 
-    A summary (not agentic) gets no tools from Claude, no shell and no MCP servers from Codex, and Cursor's
-    read-only ask mode inside its sandbox; Codex and Cursor work in an empty temporary folder, not in `cwd`.
+    A summary (not agentic) gets no tools at all: Claude runs with --tools "", Codex without shell
+    and MCP, Cursor in read-only ask mode, OpenCode as a dedicated agent whose single permission
+    rule denies every action (shell, edits, web, MCP included), and ZCode with the shell, edit,
+    write, subagent and Sozvon-MCP tools removed outright (--disallowed-tools; its --mode plan
+    alone does not stop the shell). Codex, Cursor, OpenCode and zcode work in an empty temporary
+    folder, not in `cwd`; OpenCode and zcode sessions are kept out of the assistants' histories
+    (--archived / deleted from zcode's session db).
 
     on_event(name, input): called on every agent step (claude only), for progress.
     -> (answer text, backend name, error or "").
@@ -167,6 +221,12 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
 
     if name == "cursor":
         return _cursor(path, prompt, agentic, timeout, settings)
+
+    if name == "opencode":
+        return _opencode(path, prompt, cwd, agentic, timeout, settings)
+
+    if name == "zcode":
+        return _zcode(path, prompt, cwd, agentic, timeout, settings)
 
     # codex exec: read-only sandbox, no session persistence, answer written to a file.
     # --ignore-user-config: ~/.codex/config.toml is not loaded, so none of the user's MCP servers (`-c
@@ -255,6 +315,178 @@ def _cursor(path, prompt, agentic, timeout, settings):
     return out, "cursor", ""
 
 
+def _opencode_config(agentic: bool) -> str:
+    """The project config defining the run's agent. Agent permission rules are appended after the
+    base policy and the global config, and the last matching rule wins — so a final deny-all is a
+    hard deny of every tool (v2 agents otherwise start from allow-all, and the built-in "plan"
+    agent still allows the shell, web fetches and MCP). Project discovery gets the read-only
+    trio, like Claude's Read/Glob/Grep set, after the deny (the last match wins, so the allows must
+    come last), plus reads outside the working folder for ~/.claude/projects only."""
+    rules = [{"action": "*", "resource": "*", "effect": "deny"}]
+    if agentic:
+        rules += [{"action": a, "resource": "*", "effect": "allow"} for a in ("read", "glob", "grep")]
+        rules.append({"action": "external_directory", "resource": f"{Path.home() / '.claude' / 'projects'}*",
+                      "effect": "allow"})
+    return json.dumps({"agents": {"sozvon": {"description": "Sozvon: answer the request, no tools",
+                                             "mode": "primary", "permissions": rules}}}, indent=2) + "\n"
+
+
+def _opencode(path, prompt, cwd, agentic, timeout, settings):
+    """opencode run: the request goes by stdin, the answer comes back as NDJSON events (--format json).
+    The run's agent ("sozvon") is defined in an opencode.json written into the working folder — an
+    empty temporary folder for a summary, Sozvon's private folder for project discovery — so the
+    user's own config is never touched and the deny cannot be widened by it. --archived keeps the
+    session out of the assistant's session lists.
+    OpenCode resolves the project directory from the PWD environment variable, not from getcwd()
+    (verified on 2.3.0: a bare subprocess cwd leaves it looking wherever the engine was started
+    from and the agent is "not found"), so PWD is pointed at the working folder explicitly.
+    """
+    cmd = [path, "run", "--agent", "sozvon", "--archived", "--format", "json"]
+    if settings.opencode_model:
+        cmd += ["--model", settings.opencode_model]
+    tmp = None if agentic else tempfile.mkdtemp(prefix="sozvon-opencode-")
+    work = Path(cwd) if agentic else Path(tmp)
+    env = {**os.environ, "PWD": str(work)}
+    try:
+        try:
+            (work / "opencode.json").write_text(_opencode_config(agentic), encoding="utf-8")
+            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=str(work), env=env)
+        except subprocess.TimeoutExpired:
+            return None, "opencode", "timeout"
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+    out = _opencode_text(r.stdout)
+    if r.returncode != 0 or not out:
+        return None, "opencode", (r.stderr or r.stdout)[-500:]
+    return out, "opencode", ""
+
+
+def _opencode_text(stdout: str) -> str:
+    """The answer from opencode's --format json stream: the text of every text event, in order."""
+    parts = []
+    for line in stdout.splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("type") == "text":
+            parts.append(str(ev.get("part", {}).get("text", "")))
+    return "".join(parts).strip()
+
+
+# The request itself goes as an attached file, never as the argument: zcode reads no stdin, and a transcript
+# in argv would show up in `ps`.
+ZCODE_FILE_PROMPT = ("Read the attached file and do exactly what it says. "
+                     "Reply only with the answer it asks for, nothing else.")
+
+# zcode's --mode plan does not make a headless run read-only: checked on zcode 0.17.1, `zcode -p
+# --mode plan` ran a shell command through the Bash tool without asking. The dangerous tools are
+# therefore removed for the run (--disallowed-tools; verified: the model no longer sees them).
+# MCP servers from ~/.zcode/cli/config.json load for every run and zcode matches tool names
+# exactly (no wildcard), so Sozvon's own tools are listed out; another configured server stays
+# reachable — a zcode limitation, not configurable per run, so a run refuses while another server is
+# enabled there (_zcode_other_mcp). Read/Glob/Grep stay, like Cursor's read-only ask mode.
+SOZVON_MCP_TOOLS = ("transcribe", "list_models", "show_vocab", "add_replacement", "remove_replacement",
+                    "add_terms", "list_profiles", "preview_prompt", "list_calls", "get_call",
+                    "search_calls", "get_commitments", "get_person", "add_note", "delete_note")
+ZCODE_DISALLOWED = ("Bash", "bash", "js", "Edit", "Write", "Agent", "Task", "TaskStop", "Skill",
+                    "CreateWorkflow", "AmendWorkflow", "FillWorkflowHole", "CronPauseSelf",
+                    "OffPeakCreate", "TodoWrite", "EnterPlanMode", "ExitPlanMode", "WebFetch", "WebSearch",
+                    *(f"mcp__sozvon__{t}" for t in SOZVON_MCP_TOOLS))
+
+
+def _zcode_forget_session(directory: str) -> None:
+    """`zcode -p` persists every session in ~/.zcode/cli/db/db.sqlite (no flag against it), so the
+    request would stay in the assistant's history. The session is unambiguously ours: its directory
+    is the empty temp folder of the run (Sozvon's private folder for project discovery), never a
+    user folder. Deleting the row cascades to its messages and parts. Best effort: a locked or
+    missing db never fails a summary."""
+    db = Path.home() / ".zcode" / "cli" / "db" / "db.sqlite"
+    if not db.is_file():
+        return
+    try:
+        import sqlite3
+        with sqlite3.connect(db, timeout=5) as con:
+            con.execute("PRAGMA foreign_keys=ON")
+            # Node reports the resolved path (/private/var/... for a /var/... temp folder): match both.
+            rows = con.execute("SELECT id FROM session WHERE directory = ? OR directory = ?",
+                               (directory, os.path.realpath(directory))).fetchall()
+            for (sid,) in rows:
+                con.execute("DELETE FROM session WHERE id = ?", (sid,))
+            con.commit()
+    except Exception:  # noqa: BLE001 - history cleanup never fails a summary
+        pass
+
+
+def _zcode_other_mcp() -> list[str]:
+    """Enabled MCP servers in ~/.zcode/cli/config.json other than Sozvon's. zcode loads them for every
+    run and can't turn them off per run, and their tool names are unknown, so --disallowed-tools can't
+    list them: a call transcript (untrusted text) could make the model use them. An unreadable config
+    counts as one unknown server."""
+    f = Path.home() / ".zcode" / "cli" / "config.json"
+    if not f.is_file():
+        return []
+    try:
+        servers = (json.loads(f.read_text(encoding="utf-8")).get("mcp") or {}).get("servers") or {}
+    except (OSError, ValueError, AttributeError):
+        return [str(f)]
+    if not isinstance(servers, dict):
+        return [str(f)]
+    return sorted(n for n, v in servers.items()
+                  if n != "sozvon" and not (isinstance(v, dict) and v.get("enabled") is False))
+
+
+def _zcode(path, prompt, cwd, agentic, timeout, settings):
+    """zcode -p in plan mode with the dangerous tools removed for this run only (--disallowed-tools
+    changes no saved settings). The CLI is zcode.cjs inside the ZCode app, run on the app's own Node
+    via ELECTRON_RUN_AS_NODE=1 — from Sozvon's copy of the cjs, so the built-in provider config
+    next to the entrypoint is found (the in-app path resolves to /config, which does not exist);
+    a `zcode` shim on PATH runs as is. No --model: the model is the
+    account's, chosen in the app. Afterwards the session is deleted from zcode's db: no summaries
+    in the assistant's history.
+
+    agentic (project discovery): the short prompt goes as the argument, cwd is Sozvon's private
+    folder (set by discover.py; its sessions are ours to delete). Otherwise the prompt is written
+    to request.md and attached.
+    """
+    other = _zcode_other_mcp()
+    if other:
+        return None, "zcode", t("err_zcode_other_mcp", servers=", ".join(other))
+    if path.endswith(".cjs"):
+        electron = Path(path).parents[2] / "MacOS" / "ZCode"
+        entry = _zcode_entry(Path(path))
+        cmd, env = [str(electron), str(entry)], {**os.environ, "ELECTRON_RUN_AS_NODE": "1"}
+    else:
+        cmd, env = [path], None
+    tmp, work = None, None
+    try:
+        if agentic:
+            work, arg = Path(cwd), prompt
+        else:
+            tmp = tempfile.mkdtemp(prefix="sozvon-zcode-")
+            work = Path(tmp)
+            (work / "request.md").write_text(prompt, encoding="utf-8")
+            arg = ZCODE_FILE_PROMPT
+        cmd += ["-p", arg, "--mode", "plan", "--cwd", str(work),
+                "--disallowed-tools", ",".join(ZCODE_DISALLOWED)]
+        if not agentic:
+            cmd += ["--attach", str(work / "request.md")]
+        try:
+            r = _exec(cmd, prompt, stdin=subprocess.DEVNULL, timeout=timeout, cwd=str(work), env=env)
+        except subprocess.TimeoutExpired:
+            return None, "zcode", "timeout"
+    finally:
+        if tmp:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if work is not None:
+            _zcode_forget_session(str(work))  # a timed-out run leaves its session too
+    out = r.stdout.strip()
+    if r.returncode != 0 or not out:
+        return None, "zcode", (r.stderr or r.stdout)[-500:]
+    return out, "zcode", ""
+
+
 def _claude_stream(cmd, prompt, cwd, timeout, on_event):
     """claude -p in streaming mode: agent steps go to on_event, the answer text comes at the end."""
     cmd = cmd + ["--output-format", "stream-json", "--verbose"]
@@ -302,6 +534,9 @@ CHECK_PROMPT = "Reply with the single word OK."
 
 def check(name: str, timeout: int = 120) -> tuple[bool, str]:
     """Does this assistant answer, through the very command a summary uses? -> (ok, its answer or the error)."""
+    if name == "zcode":
+        # Electron startup, a session, the plan-mode round trip: a one-word request measures ~2 minutes.
+        timeout = max(timeout, 300)
     import tempfile as _t
     with _t.TemporaryDirectory(prefix="sozvon-check-") as d:
         out, _, err = run(CHECK_PROMPT, Path(d), timeout=timeout, only=name)

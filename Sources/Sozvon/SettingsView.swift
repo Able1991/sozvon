@@ -592,8 +592,12 @@ private struct PermissionsSection: View {
             row(L("Запись экрана"),
                 p.screen ? L("Через неё Sozvon слышит микрофон. Картинка не записывается")
                     : L("Включи Sozvon в списке, потом перезапусти"), ok: p.screen) {
-                Button(L("Разрешить")) { p.requestScreen() }
-                Button(L("Перезапустить")) { Permissions.relaunch() }
+                if p.askingScreen {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button(L("Разрешить")) { Task { await p.requestScreen() } }
+                    Button(L("Перезапустить")) { Permissions.relaunch() }
+                }
             }
             row(L("Запись системного аудио"), SystemAudioCopy.detail(p), ok: p.systemAudio == .granted) {
                 if p.checkingSystemAudio {
@@ -935,6 +939,7 @@ struct SummaryLanguagePicker: View {
     @Published private(set) var results: [Assistant: AssistantCheck] = [:]
 
     func runOnce(_ a: Assistant) {
+        if Assistant.previewInstalled { return }
         if results[a] == nil { run(a) }
     }
 
@@ -1014,10 +1019,11 @@ private struct DemoCallsSection: View {
     }
 }
 
-/// Claude Code, Codex and Cursor: connect Sozvon as an MCP server so the assistant can see calls.
-/// Assistant CLIs (and the Cursor config edit) run off the main thread so the window doesn't freeze.
+/// Claude Code, Codex, Cursor, OpenCode and ZCode: connect Sozvon as an MCP server so the
+/// assistant can see calls. Assistant CLIs (and the config-file edits) run off the main thread
+/// so the window doesn't freeze.
 struct IntegrationsSection: View {
-    nonisolated static let assistants: [Assistant] = [.claude, .codex, .cursor]
+    nonisolated static let assistants: [Assistant] = [.claude, .codex, .cursor, .opencode, .zcode]
 
     /// nil until the first check of all assistants has finished.
     @State private var connections: [Assistant: MCP.Connection]?
@@ -1034,6 +1040,8 @@ struct IntegrationsSection: View {
             connection(.claude)
             connection(.codex)
             connection(.cursor)
+            connection(.opencode)
+            connection(.zcode)
         } header: {
             Text(L("Подключения"))
         } footer: {
@@ -1053,6 +1061,8 @@ struct IntegrationsSection: View {
             command(.claude)
             command(.codex)
             command(.cursor)
+            command(.opencode)
+            command(.zcode)
         } header: {
             Text(L("Подключить вручную"))
         } footer: {
@@ -1088,9 +1098,12 @@ struct IntegrationsSection: View {
         }
     }
 
-    /// Cursor has no `mcp add`: its row shows the file the entry goes into.
+    /// Cursor has no `mcp add`: its row shows the file the entry goes into. ZCode and OpenCode are
+    /// the same file style: Sozvon edits their configs itself.
     private static func shortCommand(_ a: Assistant) -> String {
         a == .cursor ? "~/.cursor/mcp.json: \"\(MCP.name)\": \(MCP.url)"
+            : a == .zcode ? "~/.zcode/cli/config.json: \"\(MCP.name)\": \(MCP.url)"
+            : a == .opencode ? (a.cli ?? "") + " mcp add \(MCP.name) --url \(MCP.url)"
             : (a.cli ?? "") + " mcp add \(MCP.name) \(MCP.url)"
     }
 
@@ -1116,9 +1129,16 @@ struct IntegrationsSection: View {
                 Button(L("Отключить…")) {
                     guard confirmDisconnect(a) else { return }
                     perform {
-                        guard a == .cursor else { MCP.disconnect(a); return "" }
-                        let (ok, out) = MCP.cursorDisconnect()
-                        return ok ? "" : out
+                        // The file-based assistants edit the config themselves and can fail
+                        // (unparseable file): surface the error. The CLI ones report to their
+                        // own console on failure.
+                        if a == .cursor || a == .zcode || a == .opencode {
+                            let (ok, out) = a == .cursor ? MCP.cursorDisconnect()
+                                : a == .zcode ? MCP.zcodeDisconnect() : MCP.opencodeDisconnect()
+                            return ok ? "" : out
+                        }
+                        MCP.disconnect(a)
+                        return ""
                     }
                 }
                 .disabled(busy)
