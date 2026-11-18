@@ -672,6 +672,7 @@ final class Recorder: NSObject, SCStreamDelegate {
         self.sink = sink
         self.filter = filter
         watchOutputDevice()
+        watchInputDevice()
         // The headset may have dropped into call mode between makeTap's check and the listeners:
         // AirPods switch right when the microphone opens, and a missed switch records garbage, not zeros.
         await recaptureSystemIfNeeded()
@@ -684,7 +685,39 @@ final class Recorder: NSObject, SCStreamDelegate {
     /// delivering this source, so the track gets no hole; the overlap is dropped by TrackWriter.
     /// Returns whether the new capture started.
     @discardableResult
-    func recapture(_ source: Source) async -> Bool {
+    func recapture(_ source: Source) async -> Bool { await serialized(source, forced: true) }
+
+    /// One capture change per source at a time. Device and rate notifications come in bursts (a
+    /// headset going away fires the output, its rate and the input at once), and two overlapping
+    /// starts of ScreenCaptureKit made macOS stall for 10 s. A request that comes in meanwhile is kept
+    /// and run once after the current one; a forced one (a device change, the controller's watches)
+    /// wins over a mere call-mode recheck.
+    private var busy: Set<Source> = []
+    private var pending: [Source: Bool] = [:]
+
+    private func serialized(_ source: Source, forced: Bool) async -> Bool {
+        if busy.contains(source) {
+            pending[source] = (pending[source] ?? false) || forced
+            return false
+        }
+        busy.insert(source)
+        defer { busy.remove(source) }
+        var ok = await step(source, forced: forced)
+        while let again = pending.removeValue(forKey: source) {
+            ok = await step(source, forced: again)
+        }
+        return ok
+    }
+
+    private func step(_ source: Source, forced: Bool) async -> Bool {
+        if forced { return await recaptureNow(source) }
+        // A call-mode recheck: only while the tap or the call mode decides the capture.
+        guard source == .system, sink != nil, tap != nil || lastScreenWhy == .callMode else { return false }
+        if SystemTap.outputInCallMode() == (tap == nil) { return true }  // already right
+        return await recaptureNow(.system)
+    }
+
+    private func recaptureNow(_ source: Source) async -> Bool {
         guard let sink, let filter else { return false }
         if source == .system {
             let made = makeTap(sink)
@@ -748,6 +781,27 @@ final class Recorder: NSObject, SCStreamDelegate {
         }
     }
 
+    private var inputListener: AudioObjectPropertyListenerBlock?
+    private static var inputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    /// The default microphone changed (a headset connected or gone): capture it again right away.
+    /// ScreenCaptureKit keeps the device it opened, so a vanished Bluetooth mic left the track silent
+    /// until the two-minute silence restart and the "can't hear you" warning.
+    private func watchInputDevice() {
+        guard inputListener == nil else { return }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self, self.sink != nil else { return }
+                RecorderLog.write("microphone: the input device changed")
+                await self.recapture(.mic)
+            }
+        }
+        inputListener = block
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.inputAddress, .main, block)
+    }
+
     private var outputListener: AudioObjectPropertyListenerBlock?
     private var rateListener: AudioObjectPropertyListenerBlock?
     private var watchedOutput = AudioObjectID(kAudioObjectUnknown)
@@ -808,16 +862,18 @@ final class Recorder: NSObject, SCStreamDelegate {
 
     /// Switches the system capture only when the call-mode state and the capture disagree, so a
     /// rate notification never churns a capture that is already right.
-    /// Only while the tap or the call mode decides the capture: with the permission off or a tap that
-    /// failed, ScreenCaptureKit stays and notifications never replace its stream.
+    /// Switches the system capture only when the call-mode state and the capture disagree, and only
+    /// while the tap or the call mode decides it: with the permission off or a tap that failed,
+    /// ScreenCaptureKit stays and notifications never replace its stream.
     private func recaptureSystemIfNeeded() async {
-        guard sink != nil, tap != nil || lastScreenWhy == .callMode else { return }
-        let callMode = SystemTap.outputInCallMode()
-        if callMode == (tap == nil) { return }  // SCK in call mode, a tap otherwise: already right
-        await recapture(.system)
+        _ = await serialized(.system, forced: false)
     }
 
     private func unwatchOutputDevice() {
+        if let block = inputListener {
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.inputAddress, .main, block)
+            inputListener = nil
+        }
         if let block = outputListener {
             AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
             outputListener = nil

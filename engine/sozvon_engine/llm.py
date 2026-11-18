@@ -410,9 +410,8 @@ def _zcode_forget_session(directory: str) -> None:
         with sqlite3.connect(db, timeout=5) as con:
             con.execute("PRAGMA foreign_keys=ON")
             # Node reports the resolved path (/private/var/... for a /var/... temp folder): match both.
-            dirs = sorted({directory, os.path.realpath(directory)})
-            rows = con.execute(f"SELECT id FROM session WHERE directory IN ({','.join('?' * len(dirs))})",
-                               dirs).fetchall()
+            rows = con.execute("SELECT id FROM session WHERE directory = ? OR directory = ?",
+                               (directory, os.path.realpath(directory))).fetchall()
             for (sid,) in rows:
                 con.execute("DELETE FROM session WHERE id = ?", (sid,))
             con.commit()
