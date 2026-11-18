@@ -13,6 +13,9 @@ internal sealed class SessionFiles(string callDirectory)
     public string Journal => Path.Combine(Folder, "session.json");
     public string MicWav => Path.Combine(Folder, "mic.wav");
     public string SystemWav => Path.Combine(Folder, "system.wav");
+
+    /// <summary>The second output (Bluetooth Hands-Free, a call app's own speaker): mixed into system.m4a at the end.</summary>
+    public string SecondOutputWav => Path.Combine(Folder, "system-2.wav");
     public string MicEncoding => Path.Combine(Folder, "mic.encoding.m4a");
     public string SystemEncoding => Path.Combine(Folder, "system.encoding.m4a");
     public string MicFinal => Path.Combine(CallDirectory, "mic.m4a");
@@ -30,7 +33,8 @@ internal sealed record SessionJournal(
     [property: JsonPropertyName("started_at")] DateTimeOffset StartedAt,
     [property: JsonPropertyName("mic_start")] double? MicStart,
     [property: JsonPropertyName("system_start")] double? SystemStart,
-    [property: JsonPropertyName("marks")] IReadOnlyList<double> Marks)
+    [property: JsonPropertyName("marks")] IReadOnlyList<double> Marks,
+    [property: JsonPropertyName("second_output_start")] double? SecondOutputStart = null)
 {
     public void Save(string path)
     {

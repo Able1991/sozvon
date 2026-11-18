@@ -74,7 +74,7 @@ public static class CaptureSessions
         return pids;
     }
 
-    private static void AddActive(IMMDevice device, HashSet<int> pids)
+    internal static void AddActive(IMMDevice device, HashSet<int> pids)
     {
         device.Activate(ref s_sessionManager2, ClsctxAll, IntPtr.Zero, out object instance);
         var manager = (IAudioSessionManager2)instance;

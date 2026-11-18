@@ -27,7 +27,7 @@ public static class RecordingRecovery
     /// <summary>A live recording holds its spool files open for writing, which refuses this exclusive open.</summary>
     private static bool IsBeingRecorded(SessionFiles files)
     {
-        foreach (string wav in new[] { files.MicWav, files.SystemWav })
+        foreach (string wav in new[] { files.MicWav, files.SystemWav, files.SecondOutputWav })
         {
             if (!File.Exists(wav)) continue;
             try

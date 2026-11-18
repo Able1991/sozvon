@@ -92,7 +92,9 @@ internal sealed class RecordingWatch(double startedAt)
     private double? _micMissingSince;
     private double? _micSilentSince;
 
-    public WatchResult Update(double now, TrackMeter mic, TrackMeter system)
+    /// <param name="micFailedAt">When the microphone's file stopped being written, if it did: warned at once.</param>
+    /// <param name="systemFailedAt">The same for the other side's file.</param>
+    public WatchResult Update(double now, TrackMeter mic, TrackMeter system, double? micFailedAt = null, double? systemFailedAt = null)
     {
         bool micFresh = IsFresh(mic, now);
         bool systemFresh = IsFresh(system, now);
@@ -118,11 +120,23 @@ internal sealed class RecordingWatch(double startedAt)
         }
 
         TrackWarning? warning = null;
-        if (micMissing >= MicMissingWarnAfter || _micWatch.Warns(micSilent)) warning = new TrackWarning(RecordingTrack.Microphone, micSilent);
+        if (micFailedAt is double micFailed) warning = new TrackWarning(RecordingTrack.Microphone, Seconds(micFailed, now));
+        else if (systemFailedAt is double systemFailed) warning = new TrackWarning(RecordingTrack.System, Seconds(systemFailed, now));
+        else if (micMissing >= MicMissingWarnAfter || _micWatch.Warns(micSilent)) warning = new TrackWarning(RecordingTrack.Microphone, micSilent);
         else if (_systemWatch.Warns(systemSilent)) warning = new TrackWarning(RecordingTrack.System, systemSilent);
 
         var levels = new RecorderLevels(micFresh ? Levels.Display(mic.Rms) : 0, systemFresh ? Levels.Display(system.Rms) : 0, warning);
         return new WatchResult(levels, micAction == SilenceWatch.Action.Restart, systemAction == SilenceWatch.Action.Restart, alerts);
+    }
+
+    /// <summary>The other side heard on two outputs: the louder of the fresh ones.</summary>
+    public static TrackMeter Louder(TrackMeter a, TrackMeter b, double now)
+    {
+        bool aFresh = IsFresh(a, now), bFresh = IsFresh(b, now);
+        if (aFresh && bFresh) return a.Rms >= b.Rms ? a : b;
+        if (aFresh) return a;
+        if (bFresh) return b;
+        return (a.LastPacketAt ?? double.MinValue) >= (b.LastPacketAt ?? double.MinValue) ? a : b;
     }
 
     private static bool IsFresh(TrackMeter meter, double now) =>

@@ -226,11 +226,144 @@ public sealed class TrackRecorderTests : IDisposable
         Assert.All(samples, s => Assert.Equal(0.5f, s));
     }
 
-    private (TrackRecorder Track, TrackSpool Spool, string Wav) Create(bool settlesAtStart = false)
+    [Fact]
+    public async Task ASecondOutputWritesNothingUntilItsFirstPacketAndStartsThere()
+    {
+        var (track, spool, wav) = Create(anchorsAtStart: false);
+        track.Prepare();
+        for (int i = 0; i < 30; i++)
+        {
+            _now += 0.1;
+            track.SafeStep();
+        }
+        Assert.Null(track.Origin);
+
+        _devices.Endpoint.Enqueue(frames: Rate / 2, start: 1003.0, value: 0.5f);
+        _now = 1003.5;
+        track.SafeStep();
+        _now = 1005.0;
+        track.SafeStep();
+        track.Finish(1005.0);
+        track.Release();
+        await spool.CloseAsync();
+
+        Assert.Equal(1003.0, track.Origin);
+        float[] samples = ReadSamples(wav);
+        Assert.Equal(0.5f, samples[0]);
+        Assert.Equal(0f, samples[Rate]);
+        Assert.Equal((int)Math.Round((2.0 - TrackTimeline.HoleSeconds) * Rate), samples.Length);
+    }
+
+    [Fact]
+    public async Task ASecondOutputThatWasNeverUsedLeavesAnEmptyFile()
+    {
+        var (track, spool, wav) = Create(anchorsAtStart: false);
+        track.Prepare();
+        _now += 5;
+        track.SafeStep();
+        track.Finish(_now);
+        track.Release();
+        await spool.CloseAsync();
+
+        Assert.Null(track.Origin);
+        Assert.Empty(ReadSamples(wav));
+    }
+
+    [Fact]
+    public async Task AnUnexpectedErrorCostsTheStreamASecondNotTheTrack()
+    {
+        var (track, spool, wav) = Create();
+        track.Prepare();
+        _devices.Endpoint.Enqueue(frames: Rate, start: 1000.0, value: 0.5f);
+        _now = 1001.0;
+        track.SafeStep();
+
+        FakeEndpoint broken = _devices.Endpoint;
+        broken.Explode = true;
+        _now = 1001.2;
+        track.SafeStep();
+        Assert.True(broken.Disposed);
+
+        _devices.NewEndpoint();
+        _now = 1001.5;
+        track.SafeStep();
+        Assert.Equal(0, _devices.Endpoint.Opened);
+        _now = 1002.3;
+        track.SafeStep();
+        Assert.Equal(1, _devices.Endpoint.Opened);
+        _devices.Endpoint.Enqueue(frames: Rate / 2, start: 1002.3, value: 0.25f);
+        _now = 1003.0;
+        track.SafeStep();
+        track.Finish(1003.0);
+        track.Release();
+        await spool.CloseAsync();
+
+        Assert.Empty(_failures);
+        float[] samples = ReadSamples(wav);
+        Assert.Equal(0f, samples[(int)(1.5 * Rate)]);
+        Assert.Equal(0.25f, samples[(int)(2.3 * Rate) + 10]);
+    }
+
+    [Fact]
+    public async Task RefusedOpensAskForTheDevicesAgain()
+    {
+        int created = 0;
+        string wav = Path.Combine(_folder, "renew.wav");
+        var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
+        var track = new TrackRecorder("test", 1, () =>
+        {
+            created++;
+            return _devices;
+        }, spool, _ => { }, _failures.Add, () => _now, settlesAtStart: false);
+        _devices.Available = false;
+        track.Prepare();
+        for (int i = 0; i < 11; i++)
+        {
+            _now += 1.1;
+            track.SafeStep();
+        }
+        track.Release();
+        await spool.CloseAsync();
+
+        Assert.Equal(2, created);
+    }
+
+    [Fact]
+    public async Task ADeviceListWindowsCantGiveYetIsAskedForAgain()
+    {
+        bool serviceUp = false;
+        string wav = Path.Combine(_folder, "service.wav");
+        var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
+        var track = new TrackRecorder("test", 1, () => serviceUp
+            ? _devices
+            : throw new System.Runtime.InteropServices.COMException("audio service not running", unchecked((int)0x88890010)),
+            spool, _ => { }, _failures.Add, () => _now, settlesAtStart: false);
+        track.Prepare();
+        _now += 0.1;
+        track.SafeStep();
+        Assert.NotNull(await track.FirstOpen);
+
+        serviceUp = true;
+        _now += 1.1;
+        track.SafeStep();
+        _devices.Endpoint.Enqueue(frames: Rate / 10, start: _now, value: 0.5f);
+        _now += 0.1;
+        track.SafeStep();
+        track.Finish(_now);
+        track.Release();
+        await spool.CloseAsync();
+
+        Assert.Equal(1, _devices.Endpoint.Opened);
+        Assert.Empty(_failures);
+        Assert.Contains(0.5f, ReadSamples(wav));
+    }
+
+    private (TrackRecorder Track, TrackSpool Spool, string Wav) Create(bool settlesAtStart = false, bool anchorsAtStart = true)
     {
         string wav = Path.Combine(_folder, $"{Guid.NewGuid():N}.wav");
         var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
-        var track = new TrackRecorder("test", 1, () => _devices, spool, _ => { }, _failures.Add, () => _now, settlesAtStart);
+        var track = new TrackRecorder("test", 1, () => _devices, spool, _ => { }, _failures.Add, () => _now, settlesAtStart,
+            anchorsAtStart);
         return (track, spool, wav);
     }
 
@@ -293,6 +426,9 @@ public sealed class TrackRecorderTests : IDisposable
 
         public bool Lose { get; set; }
 
+        /// <summary>A driver's error nobody planned for.</summary>
+        public bool Explode { get; set; }
+
         public int Opened { get; set; }
 
         public void Enqueue(int frames, double start, float value) => _packets.Enqueue((frames, start, value));
@@ -300,6 +436,7 @@ public sealed class TrackRecorderTests : IDisposable
         public bool TryRead(ref float[] buffer, out CapturePacket packet)
         {
             if (Lose) throw new EndpointLostException("gone");
+            if (Explode) throw new InvalidOperationException("driver said no");
             packet = default;
             if (!_packets.TryDequeue(out var next)) return false;
             if (buffer.Length < next.Frames) buffer = new float[next.Frames];

@@ -17,18 +17,20 @@ internal static class RecordingFinalizer
     {
         var encoder = new AacEncoder(ffmpegPath);
         double micSeconds = Seconds(files.MicWav, RecordingFormat.MicChannels);
-        double systemSeconds = Seconds(files.SystemWav, RecordingFormat.SystemChannels);
+        SystemTrack system = OtherSide(files, journal);
 
         await Task.WhenAll(
-            PlaceAsync(encoder, files.MicWav, files.MicEncoding, files.MicFinal, MicKilobitsPerSecond, micSeconds, cancellationToken),
-            PlaceAsync(encoder, files.SystemWav, files.SystemEncoding, files.SystemFinal, SystemKilobitsPerSecond, systemSeconds, cancellationToken))
+            PlaceAsync(encoder, [new EncoderInput(files.MicWav, 0)], files.MicEncoding, files.MicFinal, MicKilobitsPerSecond, micSeconds,
+                cancellationToken),
+            PlaceAsync(encoder, system.Inputs, files.SystemEncoding, files.SystemFinal, SystemKilobitsPerSecond, system.Seconds,
+                cancellationToken))
             .ConfigureAwait(false);
 
         var audio = new AudioTimes(
             micSeconds > 0 ? journal.MicStart ?? journal.SystemStart ?? 0 : null,
-            systemSeconds > 0 ? journal.SystemStart ?? journal.MicStart ?? 0 : null,
+            system.Seconds > 0 ? system.Start : null,
             micSeconds,
-            systemSeconds);
+            system.Seconds);
 
         double? earliest = new[] { audio.MicStart, audio.SystemStart }.Min();
         IReadOnlyList<double> marks = CallMarks.Offsets(markClockTimes, earliest);
@@ -38,11 +40,34 @@ internal static class RecordingFinalizer
         return new RecordingResult(audio, marks, microphoneRaw);
     }
 
-    private static async Task PlaceAsync(AacEncoder encoder, string wav, string encoding, string final, int kilobitsPerSecond,
-        double seconds, CancellationToken cancellationToken)
+    internal readonly record struct SystemTrack(IReadOnlyList<EncoderInput> Inputs, double Start, double Seconds);
+
+    /// <summary>
+    /// The other side: the default output's loopback and, when a call played elsewhere too, the second output's, each
+    /// placed at its own start. The second output without a known start (a crash before its first save) is left out.
+    /// </summary>
+    internal static SystemTrack OtherSide(SessionFiles files, SessionJournal journal)
+    {
+        var parts = new List<(string Wav, double Start, double Seconds)>();
+        double mainSeconds = Seconds(files.SystemWav, RecordingFormat.SystemChannels);
+        if (mainSeconds > 0) parts.Add((files.SystemWav, journal.SystemStart ?? journal.MicStart ?? 0, mainSeconds));
+        double secondSeconds = Seconds(files.SecondOutputWav, RecordingFormat.SystemChannels);
+        if (secondSeconds > 0 && journal.SecondOutputStart is double secondStart) parts.Add((files.SecondOutputWav, secondStart, secondSeconds));
+        if (parts.Count == 0) return new SystemTrack([], 0, 0);
+
+        double start = parts.Min(p => p.Start);
+        double end = parts.Max(p => p.Start + p.Seconds);
+        var inputs = parts
+            .Select(p => new EncoderInput(p.Wav, (long)Math.Round((p.Start - start) * RecordingFormat.SampleRate)))
+            .ToList();
+        return new SystemTrack(inputs, start, end - start);
+    }
+
+    private static async Task PlaceAsync(AacEncoder encoder, IReadOnlyList<EncoderInput> inputs, string encoding, string final,
+        int kilobitsPerSecond, double seconds, CancellationToken cancellationToken)
     {
         if (seconds <= 0 || File.Exists(final)) return;
-        await encoder.EncodeAsync(wav, encoding, kilobitsPerSecond, seconds, cancellationToken).ConfigureAwait(false);
+        await encoder.EncodeAsync(inputs, encoding, kilobitsPerSecond, seconds, cancellationToken).ConfigureAwait(false);
         if (new FileInfo(encoding).Length == 0) throw new IOException($"ffmpeg wrote an empty {Path.GetFileName(final)}");
         File.Move(encoding, final, overwrite: false);
     }

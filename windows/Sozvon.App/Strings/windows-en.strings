@@ -193,3 +193,7 @@
 "%@ не установлен на этом компьютере, команда для установки ниже" = "%@ isn't installed on this computer, the command to install it is below";
 "Скопировать команду для %@" = "Copy the command for %@";
 "Проверить снова" = "Check again";
+"Твой голос не записывается" = "Your voice isn't being recorded";
+"Не получается записать файл микрофона. Проверь, хватает ли места на диске. Звук собеседников записывается дальше." = "The microphone's file can't be written. Check that the disk has free space. The other side is still being recorded.";
+"Звук собеседников не записывается" = "The other side isn't being recorded";
+"Не получается записать файл звука собеседников. Проверь, хватает ли места на диске. Твой голос записывается дальше." = "The other side's file can't be written. Check that the disk has free space. Your voice is still being recorded.";

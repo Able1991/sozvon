@@ -479,10 +479,14 @@ public sealed class RecordingController
             : Loc.L("Идёт звонок в %@. Записать?", app.Name));
     }
 
-    /// <summary>A track silent long enough after its recapture, or a very quiet voice: said unless turned off in Settings.</summary>
+    /// <summary>
+    /// A track silent long enough after its recapture, or a very quiet voice: said unless turned off in Settings. A track
+    /// that can't be written is always said, at once: the recording goes on without it.
+    /// </summary>
     private void Tell(RecorderAlert alert)
     {
-        if (!_recording || !_settings.WarnOnSilence)
+        var notWritten = alert.Kind is RecorderAlertKind.MicrophoneNotWritten or RecorderAlertKind.SystemNotWritten;
+        if (!_recording || (!_settings.WarnOnSilence && !notWritten))
         {
             return;
         }
@@ -493,6 +497,10 @@ public sealed class RecordingController
                 + Loc.L("Микрофон молчит, и переподключение не помогло. Проверь, какой микрофон выбран в параметрах Windows: Система, Звук, и не отключились ли наушники."),
             RecorderAlertKind.SystemSilent => Loc.L("Их не слышно %@", time) + "\n"
                 + Loc.L("Звук собеседников не приходит, и переподключение не помогло. Если они говорят, проверь, что звук звонка идёт через этот компьютер, а не через телефон или другое устройство."),
+            RecorderAlertKind.MicrophoneNotWritten => Loc.L("Твой голос не записывается") + "\n"
+                + Loc.L("Не получается записать файл микрофона. Проверь, хватает ли места на диске. Звук собеседников записывается дальше."),
+            RecorderAlertKind.SystemNotWritten => Loc.L("Звук собеседников не записывается") + "\n"
+                + Loc.L("Не получается записать файл звука собеседников. Проверь, хватает ли места на диске. Твой голос записывается дальше."),
             _ => Loc.L("Тебя очень тихо слышно") + "\n"
                 + Loc.L("Три минуты твой голос почти не слышен в микрофоне. Подними громкость входа или сядь ближе к компьютеру."),
         });

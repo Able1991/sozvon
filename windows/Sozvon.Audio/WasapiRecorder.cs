@@ -4,14 +4,19 @@ using Sozvon.Audio.Tracks;
 
 namespace Sozvon.Audio;
 
-/// <summary>The recorder over WASAPI: the default microphone (raw where offered) and the loopback of the default output.</summary>
+/// <summary>
+/// The recorder over WASAPI: the default microphone (raw where offered), the loopback of the default output and of a
+/// second output where a call plays (<see cref="SecondOutputDevices"/>), mixed into the other side's track at the end.
+/// </summary>
 public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
 {
     private const int LevelIntervalMilliseconds = 100;
+    private const string MicName = "microphone", SystemName = "system", SecondName = "system 2";
     private static readonly TimeSpan s_stopTimeout = TimeSpan.FromSeconds(15);
 
     private readonly object _gate = new();
     private readonly List<double> _markTimes = [];
+    private readonly Dictionary<string, double> _failedAt = [];
     private readonly Action<string> _log = CreateLog(options.LogPath);
 
     private Active? _active;
@@ -45,7 +50,11 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             EnsureUnused(files);
             files.Create();
             var active = new Active(files, DateTimeOffset.UtcNow, SharedClock.Now);
-            lock (_gate) _markTimes.Clear();
+            lock (_gate)
+            {
+                _markTimes.Clear();
+                _failedAt.Clear();
+            }
             SaveJournal(active);
             await OpenTracksAsync(active, cancellationToken).ConfigureAwait(false);
 
@@ -87,30 +96,42 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
 
         double stopAt = SharedClock.Now;
         await active.Timer!.DisposeAsync().ConfigureAwait(false);
-        await Task.WhenAll(active.Mic!.StopAsync(stopAt), active.System!.StopAsync(stopAt))
+        await Task.WhenAll(active.Tracks.Select(t => t.StopAsync(stopAt)))
             .WaitAsync(s_stopTimeout, cancellationToken).ConfigureAwait(false);
 
-        var journal = new SessionJournal(active.StartedWall, active.Mic.Origin, active.System.Origin, marks);
+        SessionJournal journal = Journal(active, marks);
         SaveJournal(active, journal);
         RecordingResult result = await RecordingFinalizer.FinalizeAsync(active.Files, journal, marks, options.FfmpegPath,
-            active.Mic.IsRaw, cancellationToken).ConfigureAwait(false);
+            active.Mic!.IsRaw, cancellationToken).ConfigureAwait(false);
         _log($"saved {active.Files.CallDirectory}: mic {result.Audio.MicSeconds:F2} s, system {result.Audio.SystemSeconds:F2} s");
         return result;
     }
 
-    /// <summary>A microphone that will not open refuses the start. A missing output only leaves that track silent for now.</summary>
+    /// <summary>
+    /// Only a microphone Windows refuses to this app stops the start: it will not come back without the user. A missing
+    /// or busy microphone or output leaves that track silent until one opens, and the capsule says so.
+    /// </summary>
     private async Task OpenTracksAsync(Active active, CancellationToken cancellationToken)
     {
         try
         {
             SessionFiles files = active.Files;
-            active.Mic = CreateTrack("microphone", files.MicWav, RecordingFormat.MicChannels, CaptureKind.Microphone);
-            active.System = CreateTrack("system", files.SystemWav, RecordingFormat.SystemChannels, CaptureKind.Loopback);
-            active.Mic.Start();
-            active.System.Start();
+            bool silent = options.SilentCapture;
+            active.Mic = CreateTrack(MicName, files.MicWav, RecordingFormat.MicChannels,
+                silent ? () => new SilentDevices(CaptureKind.Microphone) : () => new WasapiDevices(CaptureKind.Microphone),
+                settlesAtStart: true);
+            active.System = CreateTrack(SystemName, files.SystemWav, RecordingFormat.SystemChannels,
+                silent ? () => new SilentDevices(CaptureKind.Loopback) : () => new WasapiDevices(CaptureKind.Loopback));
+            if (!silent)
+            {
+                active.Second = CreateTrack(SecondName, files.SecondOutputWav, RecordingFormat.SystemChannels,
+                    () => new SecondOutputDevices(), anchorsAtStart: false);
+            }
+            foreach (TrackRecorder track in active.Tracks) track.Start();
 
             EndpointUnavailableException? micError = await active.Mic.FirstOpen.WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (micError is not null) throw new RecorderStartException(micError.Message, micError.AccessDenied, micError);
+            if (micError is { AccessDenied: true }) throw new RecorderStartException(micError.Message, accessDenied: true, micError);
+            if (micError is not null) _log($"microphone: not capturing yet, will keep trying: {micError.Message}");
 
             EndpointUnavailableException? systemError = await active.System.FirstOpen.WaitAsync(cancellationToken).ConfigureAwait(false);
             if (systemError is not null) _log($"system: not capturing yet, will keep trying: {systemError.Message}");
@@ -122,18 +143,49 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
         }
     }
 
-    private TrackRecorder CreateTrack(string name, string wav, int channels, CaptureKind kind)
+    private TrackRecorder CreateTrack(string name, string wav, int channels, Func<ICaptureDevices> devices,
+        bool settlesAtStart = false, bool anchorsAtStart = true)
     {
-        var spool = new TrackSpool(wav, RecordingFormat.SampleRate, channels, ReportFailure);
-        Func<ICaptureDevices> devices = options.SilentCapture ? () => new SilentDevices(kind) : () => new WasapiDevices(kind);
-        return new TrackRecorder(name, channels, devices, spool, _log, ReportFailure, () => SharedClock.Now,
-            settlesAtStart: kind == CaptureKind.Microphone);
+        var spool = new TrackSpool(wav, RecordingFormat.SampleRate, channels, error => ReportFailure(name, error));
+        return new TrackRecorder(name, channels, devices, spool, _log, error => ReportFailure(name, error), () => SharedClock.Now,
+            settlesAtStart, anchorsAtStart);
     }
 
-    private void ReportFailure(Exception error)
+    /// <summary>
+    /// A track that can no longer be written is said at once and the others go on. Only when neither the user's voice
+    /// nor the other side is written any more does the recording have to stop.
+    /// </summary>
+    private void ReportFailure(string track, Exception error)
     {
-        _log($"recording failed: {error.Message}");
-        Failed?.Invoke(this, error);
+        bool bothLost;
+        lock (_gate)
+        {
+            if (!_failedAt.TryAdd(track, SharedClock.Now)) return;
+            bothLost = _failedAt.ContainsKey(MicName) && _failedAt.ContainsKey(SystemName);
+        }
+        _log($"{track}: cannot be written: {error.Message}");
+        try
+        {
+            AlertRaised?.Invoke(this, new RecorderAlert(
+                track == MicName ? RecorderAlertKind.MicrophoneNotWritten : RecorderAlertKind.SystemNotWritten, 0));
+            if (bothLost) Failed?.Invoke(this, error);
+        }
+        catch (Exception ex)
+        {
+            _log($"telling about the failure failed: {ex}");
+        }
+    }
+
+    private double? FailedAt(params string[] tracks)
+    {
+        lock (_gate)
+        {
+            foreach (string track in tracks)
+            {
+                if (_failedAt.TryGetValue(track, out double at)) return at;
+            }
+            return null;
+        }
     }
 
     /// <summary>A subscriber's exception on this timer thread would end the process and the recording with it.</summary>
@@ -156,8 +208,18 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             active.JournalStale = false;
             SaveJournal(active);
         }
+        // The second output's start is known only at its first packet: without it a crash could not place its sound.
+        if (active.Second?.Origin is double secondOrigin && secondOrigin != active.SavedSecondOrigin)
+        {
+            active.SavedSecondOrigin = secondOrigin;
+            SaveJournal(active);
+        }
 
-        WatchResult result = active.Watch!.Update(SharedClock.Now, active.Mic!.Meter, active.System!.Meter);
+        double now = SharedClock.Now;
+        TrackMeter system = active.Second is null
+            ? active.System!.Meter
+            : RecordingWatch.Louder(active.System!.Meter, active.Second.Meter, now);
+        WatchResult result = active.Watch!.Update(now, active.Mic!.Meter, system, FailedAt(MicName), FailedAt(SystemName, SecondName));
         if (result.RecaptureMic)
         {
             _log("microphone: silent for two minutes, capturing again");
@@ -167,6 +229,7 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
         {
             _log("system: silent for two minutes, capturing again");
             active.System.Recapture();
+            active.Second?.Recapture();
         }
         foreach (RecorderAlert alert in result.Alerts) AlertRaised?.Invoke(this, alert);
         LevelsChanged?.Invoke(this, result.Levels);
@@ -176,8 +239,11 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
     {
         double[] marks;
         lock (_gate) marks = _markTimes.ToArray();
-        SaveJournal(active, new SessionJournal(active.StartedWall, active.Mic?.Origin, active.System?.Origin, marks));
+        SaveJournal(active, Journal(active, marks));
     }
+
+    private static SessionJournal Journal(Active active, double[] marks) =>
+        new(active.StartedWall, active.Mic?.Origin, active.System?.Origin, marks, active.Second?.Origin);
 
     /// <summary>A journal that fails to save costs only the offsets of a crashed recording, never the recording.</summary>
     private void SaveJournal(Active active, SessionJournal journal)
@@ -201,8 +267,7 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
         try
         {
             double now = SharedClock.Now;
-            var stopping = new[] { active.Mic?.StopAsync(now), active.System?.StopAsync(now) };
-            await Task.WhenAll(stopping.OfType<Task>()).WaitAsync(s_stopTimeout).ConfigureAwait(false);
+            await Task.WhenAll(active.Tracks.Select(t => t.StopAsync(now))).WaitAsync(s_stopTimeout).ConfigureAwait(false);
             Directory.Delete(active.Files.Folder, recursive: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or TimeoutException)
@@ -248,8 +313,12 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
         public double StartedClock { get; } = startedClock;
         public TrackRecorder? Mic { get; set; }
         public TrackRecorder? System { get; set; }
+        public TrackRecorder? Second { get; set; }
+        public double? SavedSecondOrigin { get; set; }
         public RecordingWatch? Watch { get; set; }
         public Timer? Timer { get; set; }
         public bool JournalStale { get; set; } = true;
+
+        public IEnumerable<TrackRecorder> Tracks => new[] { Mic, System, Second }.OfType<TrackRecorder>();
     }
 }

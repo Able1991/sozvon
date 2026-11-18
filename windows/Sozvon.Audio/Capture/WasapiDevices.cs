@@ -108,18 +108,28 @@ internal sealed class WasapiDevices : ICaptureDevices
     }
 
     /// <summary>Windows calls this on its own thread and must not be held up: it only passes the news on.</summary>
-    internal sealed class NotificationClient(EDataFlow flow, Action changed) : IMMNotificationClient
+    /// <param name="anyRole">Every default of the direction and every device coming or going, not only the console default.</param>
+    internal sealed class NotificationClient(EDataFlow flow, Action changed, bool anyRole = false) : IMMNotificationClient
     {
         public void OnDefaultDeviceChanged(EDataFlow changedFlow, ERole role, string? id)
         {
-            if (changedFlow == flow && role == ERole.Console) changed();
+            if (changedFlow == flow && (anyRole || role == ERole.Console)) changed();
         }
 
-        public void OnDeviceStateChanged(string id, uint state) { }
+        public void OnDeviceStateChanged(string id, uint state)
+        {
+            if (anyRole) changed();
+        }
 
-        public void OnDeviceAdded(string id) { }
+        public void OnDeviceAdded(string id)
+        {
+            if (anyRole) changed();
+        }
 
-        public void OnDeviceRemoved(string id) { }
+        public void OnDeviceRemoved(string id)
+        {
+            if (anyRole) changed();
+        }
 
         public void OnPropertyValueChanged(string id, PropertyKey key) { }
     }

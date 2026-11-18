@@ -6,16 +6,20 @@ public interface IRecorder
     /// <summary>About ten times a second while recording, on a background thread.</summary>
     event EventHandler<RecorderLevels>? LevelsChanged;
 
-    /// <summary>Once per episode, when a track has been silent long enough to tell the user.</summary>
+    /// <summary>Once per episode, when a track has been silent long enough to tell the user, and at once when one can't be written.</summary>
     event EventHandler<RecorderAlert>? AlertRaised;
 
-    /// <summary>The recording cannot continue (a full disk). The caller should stop to save what was written.</summary>
+    /// <summary>
+    /// Neither track can be written any more (a full disk). The caller should stop to save what was written. One track
+    /// that fails only raises <see cref="RecorderAlertKind.MicrophoneNotWritten"/> or <see cref="RecorderAlertKind.SystemNotWritten"/>.
+    /// </summary>
     event EventHandler<Exception>? Failed;
 
     bool IsRecording { get; }
 
     /// <summary>Opens the devices and starts writing into an existing folder that has no tracks yet.</summary>
-    /// <exception cref="RecorderStartException">The microphone could not be opened.</exception>
+    /// <exception cref="RecorderStartException">Windows refuses this app the microphone. A microphone that is missing or
+    /// busy does not stop the start: the track waits for one and the capsule says it can't hear the user.</exception>
     Task StartAsync(string callDirectory, CancellationToken cancellationToken = default);
 
     /// <summary>The star: remembers this moment. False when not recording or within 5 s of the previous mark.</summary>
@@ -33,7 +37,7 @@ public sealed record TrackWarning(RecordingTrack Track, int Seconds);
 /// <summary>Levels on the capsule's display scale, 0 to 1.</summary>
 public sealed record RecorderLevels(float Microphone, float System, TrackWarning? Warning);
 
-public enum RecorderAlertKind { MicrophoneSilent, SystemSilent, MicrophoneQuiet }
+public enum RecorderAlertKind { MicrophoneSilent, SystemSilent, MicrophoneQuiet, MicrophoneNotWritten, SystemNotWritten }
 
 public sealed record RecorderAlert(RecorderAlertKind Kind, int Seconds);
 
