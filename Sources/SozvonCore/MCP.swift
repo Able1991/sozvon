@@ -86,6 +86,7 @@ public enum MCP {
 
     /// Whether and how Sozvon is connected in this CLI. Runs the CLI: don't call from the main thread.
     public static func connection(_ a: Assistant) -> Connection {
+        if Assistant.previewInstalled { return .connected }
         if a == .cursor { return cursorConnection() }
         if a == .zcode { return zcodeConnection() }
         if a == .opencode { return opencodeConnection() }
@@ -161,6 +162,7 @@ public enum MCP {
     /// Whether there is something to connect: the CLI, or for Cursor also the app or its ~/.cursor folder
     /// (the Cursor app and Cursor CLI read the same ~/.cursor/mcp.json).
     public static func isInstalled(_ a: Assistant) -> Bool {
+        if Assistant.previewInstalled { return a != .none }
         guard a == .cursor else { return a.cliPath != nil }
         let fm = FileManager.default
         return a.cliPath != nil || fm.fileExists(atPath: cursorDir.path)

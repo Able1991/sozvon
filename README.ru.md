@@ -99,9 +99,11 @@
 
 **Две модели: Whisper и GigaAM для русского.** Если выбрана модель Whisper, мастер и «Настройки → Распознавание» предлагают вторую модель для русского («Русские разговоры через GigaAM», ещё 0,2 ГБ). Whisper определяет язык каждой дорожки, русские уходят в GigaAM, остальные остаются на Whisper. У проекта можно задать язык звонков: при выборе проекта в окне звонка язык подставится сам, а за ним и модель. В окне звонка видно, какую модель значит «Авто», и можно выбрать другую из скачанных для этого звонка.
 
-## Claude Code, Codex и Cursor (MCP)
+## Claude Code, Codex, Cursor, OpenCode и ZCode (MCP)
 
 Модель помощника задаётся в `~/Library/Application Support/Sozvon/.env`: `SOZVON_SUMMARY_MODEL` (Claude, по умолчанию `sonnet`), `SOZVON_CODEX_MODEL`, `SOZVON_CURSOR_MODEL`, `SOZVON_OPENCODE_MODEL` (`provider/model`; пусто — модель, выбранная в самом CLI). У ZCode флага модели нет: она выбирается в приложении ZCode. Подробности: [документация](https://able1991.github.io/sozvon/docs.html#summary).
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/ru-assistants-dark.png"><img src="docs/images/ru-assistants.png" width="420" alt="Настройки, Ассистенты"></picture></p>
 
 «Настройки → Ассистенты → Подключить». У Cursor нет команды `mcp add`, поэтому для него Sozvon сам дописывает запись в `~/.cursor/mcp.json`, сохраняя комментарии и другие серверы; этот файл читают и приложение Cursor, и Cursor CLI. Для OpenCode (`~/.config/opencode/opencode.json` или `opencode.jsonc`) и ZCode (`~/.zcode/cli/config.json`) Sozvon правит конфиг сам — как у Cursor. Sozvon держит один общий MCP-сервер на `127.0.0.1` для всех сессий (около 40 МБ), пока запущен. Ассистент получает инструменты:
 

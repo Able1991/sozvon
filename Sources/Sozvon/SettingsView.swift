@@ -939,6 +939,7 @@ struct SummaryLanguagePicker: View {
     @Published private(set) var results: [Assistant: AssistantCheck] = [:]
 
     func runOnce(_ a: Assistant) {
+        if Assistant.previewInstalled { return }
         if results[a] == nil { run(a) }
     }
 

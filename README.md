@@ -101,9 +101,11 @@ Speaker separation: [pyannote](https://github.com/pyannote/pyannote-audio) (31 M
 
 **Two models: Whisper and GigaAM for Russian.** With a Whisper model chosen, setup and Settings → Recognition offer a second model for Russian ("Russian conversations with GigaAM", 0.2 GB more). Whisper detects each track's language, Russian tracks go to GigaAM, the rest stay on Whisper. A project can have its own call language: picking the project in the call window sets the language, and the model follows. The call window shows which model Auto means and lets you pick another downloaded one for that call.
 
-## Claude Code, Codex and Cursor (MCP)
+## Claude Code, Codex, Cursor, OpenCode and ZCode (MCP)
 
 Settings → Assistants → Connect. Cursor has no `mcp add` command, so for Cursor Sozvon adds its entry to `~/.cursor/mcp.json` itself, keeping comments and other servers; the Cursor app and Cursor CLI both read that file. For OpenCode (`~/.config/opencode/opencode.json` or `opencode.jsonc`) and ZCode (`~/.zcode/cli/config.json`) Sozvon edits the config itself, like Cursor's. While running, Sozvon keeps one shared MCP server on `127.0.0.1` for all sessions (about 40 MB). The assistant gets these tools:
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/en-assistants-dark.png"><img src="docs/images/en-assistants.png" width="420" alt="Settings, Assistants"></picture></p>
 
 | Tool | What it does |
 |---|---|

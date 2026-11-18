@@ -126,7 +126,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#voices">Голоса</a></li>
       <li><a href="#models">Модели</a></li>
       <li><a href="#summary">Саммари</a></li>
-      <li><a href="#mcp">Claude Code, Codex и Cursor</a></li>
+      <li><a href="#mcp">Claude Code, Codex, Cursor, OpenCode и ZCode</a></li>
       <li class="sub"><a href="#mcp-connect">Подключить</a></li>
       <li class="sub"><a href="#mcp-internals">Под капотом</a></li>
       <li class="sub"><a href="#mcp-tools">Инструменты</a></li>
@@ -494,7 +494,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ul>
 
       <h2 id="notes">Заметки</h2>
-      <p>К звонку можно оставить заметку: решение, договорённость, уточнение на потом. Свою добавляешь кнопкой «Добавить» в карточке «Заметки» в окне «Звонки», а удаляешь кнопкой «⋯» рядом с заметкой. Claude Code, Codex и Cursor оставляют заметки инструментом <code>add_note</code>, а Claude и ChatGPT на телефоне делают то же через <a href="#server">свой сервер</a>.</p>
+      <p>К звонку можно оставить заметку: решение, договорённость, уточнение на потом. Свою добавляешь кнопкой «Добавить» в карточке «Заметки» в окне «Звонки», а удаляешь кнопкой «⋯» рядом с заметкой. Claude Code, Codex, Cursor, OpenCode и ZCode оставляют заметки инструментом <code>add_note</code>, а Claude и ChatGPT на телефоне делают то же через <a href="#server">свой сервер</a>.</p>
       <ul>
         <li>У каждой заметки видно дату и кто её добавил: ты, Claude, Codex, Cursor или ChatGPT.</li>
         <li>Заметку нельзя изменить, но можно удалить: кнопка «⋯» рядом с ней, пункт «Удалить заметку». Ассистент тоже может удалить заметку, если попросишь (<code>delete_note</code>).</li>
@@ -566,9 +566,10 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>У ZCode своего слота нет: выбора модели у его CLI нет, она берётся из аккаунта и выбирается в приложении ZCode. Новое значение действует со следующего саммари, перезапуск не нужен.</p>
       <p>Sozvon сразу проверяет выбранного помощника: отправляет ему запрос в одно слово той же командой, что и для саммари, и пишет «Отвечает» или ошибку с подсказкой. Проверка повторяется при подключении ассистента и кнопкой «Проверить». Если саммари не получилось (нет сети, кончился лимит), расшифровка всё равно сохраняется.</p>
 
-      <h2 id="mcp">Claude Code, Codex и Cursor (MCP)</h2>
+      <h2 id="mcp">Claude Code, Codex, Cursor, OpenCode и ZCode (MCP)</h2>
       <nav class="insec" aria-label="В этом разделе"><a href="#mcp-connect">Подключить</a><a href="#mcp-internals">Под капотом</a><a href="#mcp-tools">Инструменты</a></nav>
       <p>Sozvon может отдавать звонки твоему ассистенту: «что решили с Acme на прошлой неделе?», «найди, где обсуждали SLA». Пока Sozvon запущен, он держит один общий MCP-сервер на <code>127.0.0.1:47816</code> для всех сессий, около 40 МБ памяти. Сервер доступен только с этого Mac и требует пароль (bearer-токен).</p>
+      <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="images/ru-assistants-dark.png"><img src="images/ru-assistants.png" width="440" alt="Настройки, вкладка Ассистенты" loading="lazy"></picture><figcaption>Настройки → Ассистенты: помощник для саммари и подключения</figcaption></figure>
       <h3 id="mcp-connect">Подключить</h3>
       <p>«Настройки», вкладка «Ассистенты», кнопка «Подключить» рядом с нужным ассистентом. Это всё: в новой сессии Claude Code, Codex или Cursor звонки уже видны. «Отключить» убирает Sozvon из настроек ассистента. Для OpenCode и ZCode Sozvon правит конфиг сам: <code>~/.config/opencode/opencode.json</code> (или <code>opencode.jsonc</code>) и <code>~/.zcode/cli/config.json</code> — как у Cursor.</p>
       <p>Звонков ещё нет? Там же «Демо-звонки», «Добавить»: в папке появится несколько вымышленных звонков с расшифровкой и саммари, без звука, и ассистента можно сразу спросить про них. В списке они с пометкой «Демо», на твой сервер не уходят, «Убрать» отправляет в Корзину только их.</p>
@@ -647,7 +648,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Когда начинается звонок» (<a href="#record">спрашивать</a>, <a href="#auto-record">записывать сам</a> или ничего не делать), «Останавливать после звонка» (<a href="#auto-stop">автостоп</a>), «Предупреждать о тишине», звук при старте и остановке. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «Записи с телефона»: <a href="#phone">папка для записей</a>. «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>.</td></tr>
         <tr><td>Распознавание</td><td>«Модель»: модель распознавания, языки звонков, смена языка посреди речи. «Производительность»: расшифровка с низким приоритетом, чтобы Zoom, браузер и сборки не тормозили. «Движок»: состояние Python, модели и MCP-сервера с кнопкой «Проверить», последняя ошибка с журналом. «Файлы»: папка записей, папка данных, «Переустановить…».</td></tr>
-        <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code, Codex и Cursor по MCP, команда для терминала, если подключаешь вручную.</td></tr>
+        <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code, Codex, Cursor, OpenCode и ZCode по MCP, команда для терминала, если подключаешь вручную.</td></tr>
         <tr><td>Облако</td><td>«Подключить Cloudflare» для <a href="#server">своего сервера</a>, «Обновить сервер», адрес коннектора и пароль, кнопки «Открыть Claude» и «Открыть ChatGPT», «Отправлять аудио звонков» и «Отправлять отпечатки голосов», состояние <a href="#sync">синхронизации</a>, раздел «Свой адрес» для сервера, поднятого вручную.</td></tr>
         <tr><td>О программе</td><td>Версия, «Обновлять автоматически» и «Проверить» (<a href="#updates">как приходят обновления</a>), список изменений, ссылки на сайт, документацию и исходный код.</td></tr>
       </table>
@@ -738,7 +739,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><code>~/Library/Logs/Sozvon/recorder.log</code>: запись звука.</li>
         <li><code>~/Library/Logs/Sozvon/cloudflare.log</code>: неудачные запросы к Cloudflare при «Подключить Cloudflare».</li>
         <li><code>~/Library/Application Support/Sozvon/setup.log</code> и <code>mcp.log</code>: установка и MCP-сервер.</li>
-        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: вызовы Claude Code, Codex и Cursor для саммари, без текста звонков.</li>
+        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: вызовы Claude Code, Codex, Cursor, OpenCode и ZCode для саммари, без текста звонков.</li>
       </ul>
       <p>Проще всего собрать всё сразу: «Настройки», «О программе», «Диагностика…» показывает, что в порядке. «Показать логи» кладёт проверки и эти журналы, уже очищенные, в папку <code>~/Library/Logs/Sozvon/Diagnostics</code> и открывает её в Finder, а «Сохранить архив…» кладёт то же в zip. В обоих случаях берётся process.log последних 5 звонков. В архиве нет расшифровок, саммари, аудио, паролей и голосов, имена участников и проектов из журналов убраны, пути к домашней папке заменены на ~.</p>
       <p>Если не помогло, <a href="https://github.com/Able1991/sozvon/issues">открой issue</a> и приложи архив. Отдельные журналы приложи только после проверки: в process.log бывают имена участников.</p>
@@ -806,7 +807,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#en-voices">Voices</a></li>
       <li><a href="#en-models">Models</a></li>
       <li><a href="#en-summary">Summaries</a></li>
-      <li><a href="#en-mcp">Claude Code, Codex and Cursor</a></li>
+      <li><a href="#en-mcp">Claude Code, Codex, Cursor, OpenCode and ZCode</a></li>
       <li class="sub"><a href="#en-mcp-connect">Connect</a></li>
       <li class="sub"><a href="#en-mcp-internals">Under the hood</a></li>
       <li class="sub"><a href="#en-mcp-tools">Tools</a></li>
@@ -1174,7 +1175,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ul>
 
       <h2 id="en-notes">Notes</h2>
-      <p>Leave a note on a call: a decision, an agreement, something for later. Add your own with Add in the Notes card of the Calls window and delete one with the ⋯ button next to it. Claude Code, Codex and Cursor add notes with the <code>add_note</code> tool, and Claude and ChatGPT on your phone do the same through <a href="#en-server">your own server</a>.</p>
+      <p>Leave a note on a call: a decision, an agreement, something for later. Add your own with Add in the Notes card of the Calls window and delete one with the ⋯ button next to it. Claude Code, Codex, Cursor, OpenCode and ZCode add notes with the <code>add_note</code> tool, and Claude and ChatGPT on your phone do the same through <a href="#en-server">your own server</a>.</p>
       <ul>
         <li>Each note shows its date and who added it: you, Claude, Codex, Cursor or ChatGPT.</li>
         <li>A note can’t be edited, but you can delete it: the ⋯ button next to it, Delete Note. An assistant can delete a note too when you ask (<code>delete_note</code>).</li>
@@ -1246,9 +1247,10 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p>ZCode has no slot of its own: its CLI has no model flag, the model comes from the account and is chosen in the ZCode app. A new value applies from the next summary, no restart needed.</p>
       <p>Sozvon checks the chosen assistant right away: it sends a one-word request through the same command a summary uses and shows Answers or the error with what to do. The check runs again when you connect an assistant and with the Check button. If a summary fails (no network, limit reached), the transcript is still saved.</p>
 
-      <h2 id="en-mcp">Claude Code, Codex and Cursor (MCP)</h2>
+      <h2 id="en-mcp">Claude Code, Codex, Cursor, OpenCode and ZCode (MCP)</h2>
       <nav class="insec" aria-label="In this section"><a href="#en-mcp-connect">Connect</a><a href="#en-mcp-internals">Under the hood</a><a href="#en-mcp-tools">Tools</a></nav>
       <p>Sozvon can hand your calls to your assistant: “what did we agree with Acme last week?”, “find where we discussed the SLA”. While Sozvon is running, it keeps one shared MCP server on <code>127.0.0.1:47816</code> for every session, about 40 MB of memory. It is reachable only from this Mac and requires a password (bearer token).</p>
+      <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="images/en-assistants-dark.png"><img src="images/en-assistants.png" width="440" alt="Settings, Assistants tab" loading="lazy"></picture><figcaption>Settings → Assistants: the summary assistant and connections</figcaption></figure>
       <h3 id="en-mcp-connect">Connect</h3>
       <p>Settings, Assistants tab, Connect next to the assistant. That’s it: a new Claude Code, Codex or Cursor session already sees your calls. Disconnect removes Sozvon from the assistant’s settings. For OpenCode and ZCode, Sozvon edits the configs itself: <code>~/.config/opencode/opencode.json</code> (or <code>opencode.jsonc</code>) and <code>~/.zcode/cli/config.json</code> — like Cursor’s.</p>
       <p>No calls yet? On the same tab, Demo Calls, Add: a few fictional calls with a transcript and summary, no audio, appear in your calls folder, and you can ask the assistant about them right away. They carry a Demo mark in the list, never go to your own server, and Remove moves only them to the Trash.</p>
@@ -1327,7 +1329,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <table>
         <tr><td>General</td><td>Profile: your name in transcripts and the interface language. Recording: the floating panel, showing it when idle, When a Call Starts (<a href="#en-record">ask</a>, <a href="#en-auto-record">record automatically</a> or do nothing), Stop When the Call Ends (<a href="#en-auto-stop">automatic stop</a>), Warn about silence, start and stop sounds. Voices: <a href="#en-voices">your voice</a> (Record again…, Add sample…) and other people's voices (Manage…: the list, delete one or all). Recordings from your phone: <a href="#en-phone">the recordings folder</a>. After a call: <a href="#en-calendar">topic and participants from Calendar</a>, <a href="#en-keep-audio">deleting audio automatically</a>.</td></tr>
         <tr><td>Recognition</td><td>Model: the recognition model, call languages, mid-sentence switching. Performance: transcribe at low priority so Zoom, your browser and builds stay smooth. Engine: Python, model and MCP server status with Check, the last error with its log. Files: the recordings folder, the data folder, Reinstall….</td></tr>
-        <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code, Codex and Cursor over MCP, and the Terminal command for a manual setup.</td></tr>
+        <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code, Codex, Cursor, OpenCode and ZCode over MCP, and the Terminal command for a manual setup.</td></tr>
         <tr><td>Cloud</td><td>Connect Cloudflare for <a href="#en-server">your own server</a>, Update server, the connector address and password, Open Claude and Open ChatGPT, Send call audio and Send voice prints, <a href="#en-sync">sync</a> status, and Own address for a server you deployed by hand.</td></tr>
         <tr><td>About</td><td>The version, Update Automatically and Check (<a href="#en-updates">how updates arrive</a>), release notes, links to the website, the docs and the source code.</td></tr>
       </table>
@@ -1418,7 +1420,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><code>~/Library/Logs/Sozvon/recorder.log</code>: audio recording.</li>
         <li><code>~/Library/Logs/Sozvon/cloudflare.log</code>: failed Cloudflare requests during Connect Cloudflare.</li>
         <li><code>~/Library/Application Support/Sozvon/setup.log</code> and <code>mcp.log</code>: setup and the MCP server.</li>
-        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: Claude Code, Codex and Cursor calls for summaries, without the call text.</li>
+        <li><code>~/Library/Application Support/Sozvon/assistant.log</code>: Claude Code, Codex, Cursor, OpenCode and ZCode calls for summaries, without the call text.</li>
       </ul>
       <p>The easiest way to collect everything: Settings, About, Diagnostics… shows what is fine. Show Logs puts the checks and these logs, already scrubbed, in <code>~/Library/Logs/Sozvon/Diagnostics</code> and opens it in Finder, and Save Archive… puts the same in a zip. Both take process.log of the last 5 calls. The archive has no transcripts, summaries, audio, passwords or voices, participant and project names are removed from the logs, and home folder paths are replaced with ~.</p>
       <p>Still stuck? <a href="https://github.com/Able1991/sozvon/issues">Open an issue</a> with the archive. Attach single logs only after checking them: process.log can hold participant names.</p>

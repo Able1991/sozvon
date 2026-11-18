@@ -75,7 +75,11 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         return nil
     }
 
-    public var isAvailable: Bool { cli == nil || cliPath != nil }
+    /// Screenshots (the preview build's --all-assistants): every assistant shows as installed and connected,
+    /// without running or reading any real CLI or config.
+    nonisolated(unsafe) public static var previewInstalled = false
+
+    public var isAvailable: Bool { Self.previewInstalled || cli == nil || cliPath != nil }
 
     /// Terminal command that installs the CLI where `searchDirs` finds it (~/.local/bin or Homebrew). An npm install
     /// under nvm lands elsewhere, and its node isn't on an app's PATH: these are the installers to suggest.
