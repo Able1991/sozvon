@@ -123,6 +123,19 @@ public sealed class RecordingController
         capsule.SecondaryClicked += (_, _) => _call.NotNow();
         capsule.StopClicked += (_, _) => Stop();
         capsule.MarkClicked += (_, _) => Mark();
+        NativeWindow.OnSuspend(WinRT.Interop.WindowNative.GetWindowHandle(capsule), OnSuspend);
+    }
+
+    /// <summary>
+    /// Sleep or hibernation ends the call: the recording is saved as at a normal stop, so the time asleep does not
+    /// become hours of silence, and the form waits for the user after the wake.
+    /// </summary>
+    private void OnSuspend()
+    {
+        if (_recording)
+        {
+            Stop();
+        }
     }
 
     public void Begin() => Run(StartAsync);

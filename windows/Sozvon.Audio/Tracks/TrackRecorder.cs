@@ -151,6 +151,7 @@ internal sealed class TrackRecorder
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.MemberNotNull(nameof(_devices))]
     private void OpenDevices()
     {
         _devices = _devicesFactory();

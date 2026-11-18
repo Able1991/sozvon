@@ -14,12 +14,15 @@ internal static partial class NativeWindow
     private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
     private const uint SWP_NOMOVE = 0x2, SWP_NOSIZE = 0x1, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10, SWP_FRAMECHANGED = 0x20;
-    private const uint WM_MOUSEACTIVATE = 0x0021, WM_EXITSIZEMOVE = 0x0232, WM_HOTKEY = 0x0312;
+    private const uint WM_MOUSEACTIVATE = 0x0021, WM_EXITSIZEMOVE = 0x0232, WM_HOTKEY = 0x0312, WM_POWERBROADCAST = 0x0218;
+    private const nint PBT_APMSUSPEND = 0x4;
 
     // What each subclassed window wants to know when a system move of it has ended.
     private static readonly Dictionary<nint, Action> MoveEnded = [];
     // What each subclassed window does with a system-wide shortcut registered on it, by the shortcut's id.
     private static readonly Dictionary<nint, Action<int>> HotKeyPressed = [];
+    // What each subclassed window does when the computer is about to sleep or hibernate.
+    private static readonly Dictionary<nint, Action> Suspending = [];
     private const nint MA_NOACTIVATE = 3;
     private const nuint SubclassId = 1;
 
@@ -82,6 +85,16 @@ internal static partial class NativeWindow
         SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
     }
 
+    /// <summary>
+    /// The computer is about to sleep or hibernate (every top-level window hears it, shown or not). Windows waits about
+    /// two seconds at most, so <paramref name="suspending"/> only starts what has to happen.
+    /// </summary>
+    public static void OnSuspend(nint hwnd, Action suspending)
+    {
+        Suspending[hwnd] = suspending;
+        SetWindowSubclass(hwnd, RefuseActivation, SubclassId, 0);
+    }
+
     private static nint OnSubclassMessage(nint hwnd, uint message, nint wParam, nint lParam, nuint id, nuint data)
     {
         switch (message)
@@ -100,6 +113,12 @@ internal static partial class NativeWindow
                     pressed((int)wParam);
                 }
                 return 0;
+            case WM_POWERBROADCAST:
+                if (wParam == PBT_APMSUSPEND && Suspending.TryGetValue(hwnd, out var suspending))
+                {
+                    suspending();
+                }
+                return DefSubclassProc(hwnd, message, wParam, lParam);
             case WM_ERASEBKGND:
                 // Black under DWM glass is clear; the class background (white in light mode) would show around the shape.
                 GetClientRect(hwnd, out var client);
