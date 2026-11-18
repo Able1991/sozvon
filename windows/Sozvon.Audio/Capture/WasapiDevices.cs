@@ -7,7 +7,7 @@ internal enum CaptureKind { Microphone, Loopback }
 /// <summary>The default console device of one direction, followed through its changes.</summary>
 internal sealed class WasapiDevices : ICaptureDevices
 {
-    private const int EAccessDenied = unchecked((int)0x80070005);
+    internal const int EAccessDenied = unchecked((int)0x80070005);
     private const uint StgmRead = 0;
 
     // System.Devices.AudioDevice.RawProcessingSupported
@@ -56,20 +56,9 @@ internal sealed class WasapiDevices : ICaptureDevices
         try
         {
             _enumerator.GetDefaultAudioEndpoint(_flow, ERole.Console, out device);
-            bool loopback = _kind == CaptureKind.Loopback;
-            int channels = loopback ? RecordingFormat.SystemChannels : RecordingFormat.MicChannels;
-            if (!loopback && RawSupported(device))
-            {
-                try
-                {
-                    return WasapiEndpoint.Open(device, channels, loopback: false, raw: true);
-                }
-                catch (COMException)
-                {
-                    // Advertised but refused for this format: a processed microphone beats none.
-                }
-            }
-            return WasapiEndpoint.Open(device, channels, loopback, raw: false);
+            return _kind == CaptureKind.Loopback
+                ? WasapiEndpoint.Open(device, RecordingFormat.SystemChannels, loopback: true, raw: false)
+                : OpenMicrophone(device);
         }
         catch (COMException ex)
         {
@@ -86,6 +75,23 @@ internal sealed class WasapiDevices : ICaptureDevices
     {
         _enumerator.UnregisterEndpointNotificationCallback(_notifications);
         Marshal.ReleaseComObject(_enumerator);
+    }
+
+    /// <summary>The microphone without Windows' processing when it offers that, else as Windows processes it.</summary>
+    internal static ICaptureEndpoint OpenMicrophone(IMMDevice device)
+    {
+        if (RawSupported(device))
+        {
+            try
+            {
+                return WasapiEndpoint.Open(device, RecordingFormat.MicChannels, loopback: false, raw: true);
+            }
+            catch (COMException)
+            {
+                // Advertised but refused for this format: a processed microphone beats none.
+            }
+        }
+        return WasapiEndpoint.Open(device, RecordingFormat.MicChannels, loopback: false, raw: false);
     }
 
     private static bool RawSupported(IMMDevice device)

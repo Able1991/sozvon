@@ -5,8 +5,9 @@ using Sozvon.Audio.Tracks;
 namespace Sozvon.Audio;
 
 /// <summary>
-/// The recorder over WASAPI: the default microphone (raw where offered), the loopback of the default output and of a
-/// second output where a call plays (<see cref="SecondOutputDevices"/>), mixed into the other side's track at the end.
+/// The recorder over WASAPI: the microphone the call uses (<see cref="MicrophoneDevices"/>, raw where offered), the
+/// loopback of the default output and of a second output where a call plays (<see cref="SecondOutputDevices"/>),
+/// mixed into the other side's track at the end.
 /// </summary>
 public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
 {
@@ -118,7 +119,7 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             SessionFiles files = active.Files;
             bool silent = options.SilentCapture;
             active.Mic = CreateTrack(MicName, files.MicWav, RecordingFormat.MicChannels,
-                silent ? () => new SilentDevices(CaptureKind.Microphone) : () => new WasapiDevices(CaptureKind.Microphone),
+                silent ? () => new SilentDevices(CaptureKind.Microphone) : () => new MicrophoneDevices(),
                 settlesAtStart: true);
             active.System = CreateTrack(SystemName, files.SystemWav, RecordingFormat.SystemChannels,
                 silent ? () => new SilentDevices(CaptureKind.Loopback) : () => new WasapiDevices(CaptureKind.Loopback));
