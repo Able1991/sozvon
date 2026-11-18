@@ -144,10 +144,13 @@ def run(prompt: str, cwd: Path, agentic: bool = False, timeout: int = 600, on_ev
     """Run a request. agentic=True: allow reading files (project discovery). ask_sessions (Claude, agentic only):
     also let it list and message the user's open Claude Code sessions.
 
-    A summary (not agentic) gets no tools from Claude, no shell and no MCP servers from Codex, and Cursor's
-    read-only ask mode inside its sandbox; OpenCode's read-only plan agent answers with the request on stdin;
-    zcode runs in its read-only plan mode. Codex, Cursor, OpenCode and zcode work in an empty temporary
-    folder, not in `cwd`.
+    A summary (not agentic) gets no tools at all: Claude runs with --tools "", Codex without shell
+    and MCP, Cursor in read-only ask mode, OpenCode as a dedicated agent whose single permission
+    rule denies every action (shell, edits, web, MCP included), and ZCode with the shell, edit,
+    write, subagent and Sozvon-MCP tools removed outright (--disallowed-tools; its --mode plan
+    alone does not stop the shell). Codex, Cursor, OpenCode and zcode work in an empty temporary
+    folder, not in `cwd`; OpenCode and zcode sessions are kept out of the assistants' histories
+    (--archived / deleted from zcode's session db).
 
     on_event(name, input): called on every agent step (claude only), for progress.
     -> (answer text, backend name, error or "").
@@ -287,19 +290,35 @@ def _cursor(path, prompt, agentic, timeout, settings):
     return out, "cursor", ""
 
 
+def _opencode_config(agentic: bool) -> str:
+    """The project config defining the run's agent. Agent permission rules are appended after the
+    base policy and the global config, and the last matching rule wins — so a final deny-all is a
+    hard deny of every tool (v2 agents otherwise start from allow-all, and the built-in "plan"
+    agent still allows the shell, web fetches and MCP). Project discovery gets the read-only
+    trio, like Claude's Read/Glob/Grep set."""
+    allow_read = [{"action": a, "resource": "*", "effect": "allow"} for a in ("read", "glob", "grep")]
+    rules = allow_read + [{"action": "*", "resource": "*", "effect": "deny"}] if agentic \
+        else [{"action": "*", "resource": "*", "effect": "deny"}]
+    return json.dumps({"agents": {"sozvon": {"description": "Sozvon: answer the request, no tools",
+                                             "mode": "primary", "permissions": rules}}}, indent=2) + "\n"
+
+
 def _opencode(path, prompt, cwd, agentic, timeout, settings):
-    """opencode run: the request goes by stdin, the answer comes back as NDJSON events (--format json),
-    the read-only plan agent (no --auto: nothing is approved on its own). A summary runs in an empty
-    temporary folder, project discovery in `cwd` (the CLI's private folder, set by discover.py).
+    """opencode run: the request goes by stdin, the answer comes back as NDJSON events (--format json).
+    The run's agent ("sozvon") is defined in an opencode.json written into the working folder — an
+    empty temporary folder for a summary, Sozvon's private folder for project discovery — so the
+    user's own config is never touched and the deny cannot be widened by it. --archived keeps the
+    session out of the assistant's session lists.
     """
-    cmd = [path, "run", "--agent", "plan", "--format", "json"]
+    cmd = [path, "run", "--agent", "sozvon", "--archived", "--format", "json"]
     if settings.opencode_model:
         cmd += ["--model", settings.opencode_model]
     tmp = None if agentic else tempfile.mkdtemp(prefix="sozvon-opencode-")
-    work = str(cwd) if agentic else tmp
+    work = Path(cwd) if agentic else Path(tmp)
     try:
         try:
-            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=work)
+            (work / "opencode.json").write_text(_opencode_config(agentic), encoding="utf-8")
+            r = _exec(cmd, prompt, input=prompt, timeout=timeout, cwd=str(work))
         except subprocess.TimeoutExpired:
             return None, "opencode", "timeout"
     finally:
@@ -329,15 +348,53 @@ def _opencode_text(stdout: str) -> str:
 ZCODE_FILE_PROMPT = ("Read the attached file and do exactly what it says. "
                      "Reply only with the answer it asks for, nothing else.")
 
+# zcode's --mode plan does not make a headless run read-only: checked on zcode 0.17.1, `zcode -p
+# --mode plan` ran a shell command through the Bash tool without asking. The dangerous tools are
+# therefore removed for the run (--disallowed-tools; verified: the model no longer sees them).
+# MCP servers from ~/.zcode/cli/config.json load for every run and zcode matches tool names
+# exactly (no wildcard), so Sozvon's own tools are listed out; another configured server stays
+# reachable — a zcode limitation, not configurable per run. Read/Glob/Grep stay, like Cursor's
+# read-only ask mode.
+SOZVON_MCP_TOOLS = ("transcribe", "list_models", "show_vocab", "add_replacement", "remove_replacement",
+                    "add_terms", "list_profiles", "preview_prompt", "list_calls", "get_call",
+                    "search_calls", "get_commitments", "get_person", "add_note", "delete_note")
+ZCODE_DISALLOWED = ("Bash", "bash", "js", "Edit", "Write", "Agent", "Task", "TaskStop", "Skill",
+                    "CreateWorkflow", "AmendWorkflow", "FillWorkflowHole", "CronPauseSelf",
+                    "OffPeakCreate", "TodoWrite", "EnterPlanMode", "ExitPlanMode", "WebFetch", "WebSearch",
+                    *(f"mcp__sozvon__{t}" for t in SOZVON_MCP_TOOLS))
+
+
+def _zcode_forget_session(directory: str) -> None:
+    """`zcode -p` persists every session in ~/.zcode/cli/db/db.sqlite (no flag against it), so the
+    request would stay in the assistant's history. The session is unambiguously ours: its directory
+    is the empty temp folder of the run (Sozvon's private folder for project discovery), never a
+    user folder. Deleting the row cascades to its messages and parts. Best effort: a locked or
+    missing db never fails a summary."""
+    db = Path.home() / ".zcode" / "cli" / "db" / "db.sqlite"
+    if not db.is_file():
+        return
+    try:
+        import sqlite3
+        with sqlite3.connect(db, timeout=5) as con:
+            con.execute("PRAGMA foreign_keys=ON")
+            rows = con.execute("SELECT id FROM session WHERE directory = ?", (directory,)).fetchall()
+            for (sid,) in rows:
+                con.execute("DELETE FROM session WHERE id = ?", (sid,))
+            con.commit()
+    except Exception:  # noqa: BLE001 - history cleanup never fails a summary
+        pass
+
 
 def _zcode(path, prompt, cwd, agentic, timeout, settings):
-    """zcode -p in plan mode, its read-only posture (writes and the shell wait for an approval nobody gives;
-    there is nothing to read in the empty temporary folder). The CLI is zcode.cjs inside the ZCode app, run
-    on the app's own Node via ELECTRON_RUN_AS_NODE=1; a `zcode` shim on PATH runs as is. No --model: the
-    model is the account's, chosen in the app.
+    """zcode -p in plan mode with the dangerous tools removed for this run only (--disallowed-tools
+    changes no saved settings). The CLI is zcode.cjs inside the ZCode app, run on the app's own Node
+    via ELECTRON_RUN_AS_NODE=1; a `zcode` shim on PATH runs as is. No --model: the model is the
+    account's, chosen in the app. Afterwards the session is deleted from zcode's db: no summaries
+    in the assistant's history.
 
-    agentic (project discovery): the short prompt goes as the argument, cwd is the CLI's private folder
-    (set by discover.py). Otherwise the prompt is written to request.md and attached.
+    agentic (project discovery): the short prompt goes as the argument, cwd is Sozvon's private
+    folder (set by discover.py; its sessions are ours to delete). Otherwise the prompt is written
+    to request.md and attached.
     """
     if path.endswith(".cjs"):
         electron = Path(path).parents[2] / "MacOS" / "ZCode"
@@ -353,7 +410,8 @@ def _zcode(path, prompt, cwd, agentic, timeout, settings):
             work = Path(tmp)
             (work / "request.md").write_text(prompt, encoding="utf-8")
             arg = ZCODE_FILE_PROMPT
-        cmd += ["-p", arg, "--mode", "plan", "--cwd", str(work)]
+        cmd += ["-p", arg, "--mode", "plan", "--cwd", str(work),
+                "--disallowed-tools", ",".join(ZCODE_DISALLOWED)]
         if not agentic:
             cmd += ["--attach", str(work / "request.md")]
         try:
@@ -363,6 +421,7 @@ def _zcode(path, prompt, cwd, agentic, timeout, settings):
     finally:
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
+    _zcode_forget_session(str(work))
     out = r.stdout.strip()
     if r.returncode != 0 or not out:
         return None, "zcode", (r.stderr or r.stdout)[-500:]

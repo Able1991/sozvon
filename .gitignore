@@ -11,3 +11,4 @@ profiles/
 *.pem
 .build/
 index.db*
+assistant.log

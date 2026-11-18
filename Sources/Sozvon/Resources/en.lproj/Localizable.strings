@@ -195,7 +195,7 @@
 "Не найден %@" = "%@ not found";
 "Не получилось разобрать ~/.cursor/mcp.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.cursor/mcp.json. Add Sozvon by hand: use the Copy button below.";
 "Не получилось разобрать ~/.zcode/cli/config.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.zcode/cli/config.json. Add Sozvon by hand: use the Copy button below.";
-"Не получилось разобрать ~/.config/opencode/opencode.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read ~/.config/opencode/opencode.json. Add Sozvon by hand: use the Copy button below.";
+"Не получилось разобрать конфиг OpenCode (~/.config/opencode/opencode.json или .jsonc). Добавь Sozvon вручную: кнопка «Скопировать» ниже." = "Couldn't read the OpenCode config (~/.config/opencode/opencode.json or .jsonc). Add Sozvon by hand: use the Copy button below.";
 "Подключён" = "Connected";
 "Отключить" = "Disconnect";
 "Подключить" = "Connect";

@@ -97,4 +97,64 @@ final class ZCodeMCPConfigTests: XCTestCase {
         XCTAssertFalse(has("garbage"))
         XCTAssertFalse(ZCodeMCPConfig.hasEntry("garbage", name: "sozvon"))
     }
+
+    func testTextIsEditedInPlace() throws {
+        // What a real config holds: comments, trailing commas, floats the round trip would mangle.
+        let text = """
+        // ZCode config
+        {
+          "plugins": {"enabledPlugins": {"demo": true}},
+          "mcp": {
+            "servers": {
+              "rustcodegraph": {"type": "stdio", "command": "rustcodegraph", "timeout": 0.7},
+            },
+          },
+        }
+        """
+        let out = try XCTUnwrap(upsert(text))
+        XCTAssertTrue(has(out))
+        XCTAssertTrue(out.contains("// ZCode config"), "comments stay")
+        XCTAssertTrue(out.contains("\"timeout\": 0.7"), "floats keep their formatting")
+        XCTAssertTrue(out.contains("\"rustcodegraph\""), "other servers stay")
+        let back = try XCTUnwrap(ZCodeMCPConfig.remove(out, name: "sozvon"))
+        XCTAssertEqual(back, text, "removal returns the file to what it was")
+    }
+}
+
+final class ZCodeMCPFileTests: TempDirTestCase {
+    func testConnectCreatesPrivateFileThenDisconnects() throws {
+        let f = tmp.appendingPathComponent("home/.zcode/cli/config.json")
+        XCTAssertEqual(MCP.zcodeConnection(file: f, token: "T"), .none)
+        XCTAssertTrue(MCP.zcodeConnect(file: f, token: "T").0)
+        let perm = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: f.path)[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(perm.intValue, 0o600, "the file holds a password")
+        XCTAssertEqual(MCP.zcodeConnection(file: f, token: "T"), .connected)
+        XCTAssertEqual(MCP.zcodeConnection(file: f, token: "OTHER"), .outdated)
+        XCTAssertTrue(MCP.zcodeDisconnect(file: f).0)
+        XCTAssertEqual(MCP.zcodeConnection(file: f, token: "T"), .none)
+    }
+
+    func testConnectRefusesBadFileWithoutTouchingIt() throws {
+        let f = tmp.appendingPathComponent(".zcode/cli/config.json")
+        try write("{ broken", f)
+        let (ok, msg) = MCP.zcodeConnect(file: f, token: "T")
+        XCTAssertFalse(ok)
+        XCTAssertFalse(msg.isEmpty)
+        XCTAssertEqual(try String(contentsOf: f, encoding: .utf8), "{ broken", "the file is untouched")
+        // An unreadable file is not overwritten with a fresh config either.
+        try FileManager.default.removeItem(at: f)
+        try FileManager.default.createDirectory(at: f, withIntermediateDirectories: true)
+        let (ok2, msg2) = MCP.zcodeConnect(file: f, token: "T")
+        XCTAssertFalse(ok2)
+        XCTAssertFalse(msg2.isEmpty)
+    }
+
+    func testDisconnectSurfacesErrors() throws {
+        let f = tmp.appendingPathComponent(".zcode/cli/config.json")
+        try write("{ broken", f)
+        let (ok, msg) = MCP.zcodeDisconnect(file: f)
+        XCTAssertFalse(ok)
+        XCTAssertFalse(msg.isEmpty)
+        XCTAssertEqual(try String(contentsOf: f, encoding: .utf8), "{ broken")
+    }
 }

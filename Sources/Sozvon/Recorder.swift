@@ -471,22 +471,31 @@ final class SystemTap: @unchecked Sendable {
         return uid.takeRetainedValue() as String
     }
 
-    /// Whether the default output is a Bluetooth device. As soon as a call opens its microphone, the
-    /// headset drops into call mode and its output really runs at 16 kHz, while the tap and the
-    /// aggregate keep their 48000 format — the track comes out as sped-up garbage. ScreenCaptureKit
-    /// delivers the real rate instead.
-    static func outputIsBluetooth() -> Bool {
+    /// The default output device (where call audio plays).
+    static func defaultOutputDevice() -> AudioObjectID? {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                                               mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         var device = AudioObjectID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioObjectID>.size)
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr,
-              device != kAudioObjectUnknown else { return false }
-        addr.mSelector = kAudioDevicePropertyTransportType
-        var transport = UInt32(0)
-        size = UInt32(MemoryLayout<UInt32>.size)
-        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &transport) == noErr else { return false }
-        return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
+              device != kAudioObjectUnknown else { return nil }
+        return device
+    }
+
+    /// Whether the default output sits in a Bluetooth call mode: the headset dropped its rate
+    /// (16 kHz on AirPods when a call opens their microphone), while the process tap keeps a
+    /// 48 kHz format — the track comes out as sped-up garbage. Headphones used for sound only keep
+    /// 44.1/48 kHz and the tap is fine, so this checks the rate, not the transport: FaceTime on
+    /// AirPods with the Mac's microphone is captured by the tap, and only a real call-mode switch
+    /// moves the capture to ScreenCaptureKit.
+    static func outputInCallMode() -> Bool {
+        guard let device = defaultOutputDevice() else { return false }
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate,
+                                              mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var rate = Double(0)
+        var size = UInt32(MemoryLayout<Double>.size)
+        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &rate) == noErr else { return false }
+        return rate > 0 && rate < 44100
     }
 
     /// Channels of each buffer the aggregate's IO block gets as input (for recorder.log).
@@ -555,7 +564,15 @@ final class SystemTap: @unchecked Sendable {
 final class Recorder: NSObject, SCStreamDelegate {
     enum Source { case mic, system }
     /// How system audio is captured: the process tap (hears FaceTime too) or ScreenCaptureKit.
-    enum SystemCapture { case tap, screenCapture }
+    /// `why` says why ScreenCaptureKit: a deliberate call-mode switch (nothing failed), the
+    /// permission being off, or the tap failing to start.
+    enum SystemCapture: Equatable {
+        case tap
+        case screenCapture(why: ScreenWhy)
+        enum ScreenWhy: Equatable {
+            case callMode, permissionDenied, tapFailed
+        }
+    }
 
     /// ScreenCaptureKit streams: the first one captures the microphone (and system audio when the tap couldn't
     /// start); a source captured again gets a stream of its own.
@@ -567,7 +584,9 @@ final class Recorder: NSObject, SCStreamDelegate {
     /// Capture ended on its own (permission revoked, display changed): the error text.
     var onError: ((String) -> Void)?
 
-    var systemCapture: SystemCapture { tap == nil ? .screenCapture : .tap }
+    var systemCapture: SystemCapture { tap == nil ? .screenCapture(why: lastScreenWhy) : .tap }
+    /// Why the latest attempt left system audio on ScreenCaptureKit (for `systemCapture` and the log).
+    private var lastScreenWhy: SystemCapture.ScreenWhy = .tapFailed
 
     private static func configuration(_ sources: Set<Source>) -> SCStreamConfiguration {
         let cfg = SCStreamConfiguration()
@@ -593,22 +612,24 @@ final class Recorder: NSObject, SCStreamDelegate {
         return s
     }
 
-    /// A new process tap into the sink, or nil (logged) when it can't start. Never with the System Audio
-    /// Recording permission denied: such a tap starts but hears only zeros, and would replace a working capture.
-    private func makeTap(_ sink: AudioSink) -> SystemTap? {
+    /// A new process tap into the sink, or nil (logged) when it can't start — ScreenCaptureKit
+    /// captures system audio instead. `why` is nil for a tap.
+    /// Never with the System Audio Recording permission denied: such a tap starts but hears only
+    /// zeros, and would replace a working capture.
+    private func makeTap(_ sink: AudioSink) -> (tap: SystemTap?, why: SystemCapture.ScreenWhy?) {
         if SystemAudioPermission.status == .denied {
             RecorderLog.write("system audio: the permission is off, ScreenCaptureKit instead of a process tap")
-            return nil
+            return (nil, .permissionDenied)
         }
-        if SystemTap.outputIsBluetooth() {
-            RecorderLog.write("system audio: the output is Bluetooth, ScreenCaptureKit instead of a process tap")
-            return nil
+        if SystemTap.outputInCallMode() {
+            RecorderLog.write("system audio: the output is in call mode, ScreenCaptureKit instead of a process tap")
+            return (nil, .callMode)
         }
         do {
-            return try SystemTap(sink: sink)
+            return (try SystemTap(sink: sink), nil)
         } catch {
             RecorderLog.write("system audio: process tap \(error), ScreenCaptureKit instead")
-            return nil
+            return (nil, .tapFailed)
         }
     }
 
@@ -630,7 +651,9 @@ final class Recorder: NSObject, SCStreamDelegate {
             let mic = try makeStream([.mic], filter: filter, sink: sink)
             try await Self.startCapture(mic)
             started.append((mic, [.mic]))
-            tap = makeTap(sink)
+            let made = makeTap(sink)
+            tap = made.tap
+            lastScreenWhy = made.why ?? .tapFailed
             if tap == nil {
                 let system = try makeStream([.system], filter: filter, sink: sink)
                 try await Self.startCapture(system)
@@ -648,7 +671,7 @@ final class Recorder: NSObject, SCStreamDelegate {
         self.tap = tap
         self.sink = sink
         self.filter = filter
-        if tap != nil { watchOutputDevice() }
+        watchOutputDevice()
         return systemCapture
     }
 
@@ -660,16 +683,20 @@ final class Recorder: NSObject, SCStreamDelegate {
     @discardableResult
     func recapture(_ source: Source) async -> Bool {
         guard let sink, let filter else { return false }
-        if source == .system, let fresh = makeTap(sink) {
-            let oldTap = tap
-            tap = fresh
-            oldTap?.stop()
-            watchOutputDevice()
-            RecorderLog.write("system audio: a new process tap")
-            let old = streams
-            streams = Self.without(.system, old)
-            await detach(.system, from: old, sink: sink)
-            return true
+        if source == .system {
+            let made = makeTap(sink)
+            lastScreenWhy = made.why ?? lastScreenWhy
+            if let fresh = made.tap {
+                let oldTap = tap
+                tap = fresh
+                oldTap?.stop()
+                watchOutputDevice()
+                RecorderLog.write("system audio: a new process tap")
+                let old = streams
+                streams = Self.without(.system, old)
+                await detach(.system, from: old, sink: sink)
+                return true
+            }
         }
         do {
             let s = try makeStream([source], filter: filter, sink: sink)
@@ -719,28 +746,73 @@ final class Recorder: NSObject, SCStreamDelegate {
     }
 
     private var outputListener: AudioObjectPropertyListenerBlock?
+    private var rateListener: AudioObjectPropertyListenerBlock?
+    private var watchedOutput = AudioObjectID(kAudioObjectUnknown)
     private static var outputAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyDefaultOutputDevice, mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain)
+    private static var rateAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyNominalSampleRate, mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
 
-    /// The default output changed (headphones, a FaceTime call again): the tap follows it.
+    /// Watches the default output and its nominal rate for the whole recording: a call can start
+    /// mid-call on the same headset (AirPods drop from 44.1 to 16 kHz with no device change), and
+    /// a switch to speakers ends the call mode.
     private func watchOutputDevice() {
         guard outputListener == nil else { return }
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
-                guard let self, self.tap != nil else { return }
+                guard let self else { return }
                 RecorderLog.write("system audio: the output device changed")
-                await self.recapture(.system)
+                self.watchOutputRate()
+                await self.recaptureSystemIfNeeded()
             }
         }
         outputListener = block
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
+        watchOutputRate()
+    }
+
+    /// Moves the rate watch to the current default output. The AirPods A2DP → call-mode switch
+    /// is the same device, so the default-output change alone never catches it.
+    private func watchOutputRate() {
+        let device = SystemTap.defaultOutputDevice() ?? kAudioObjectUnknown
+        if device == watchedOutput { return }
+        if watchedOutput != kAudioObjectUnknown, let old = rateListener {
+            AudioObjectRemovePropertyListenerBlock(watchedOutput, &Self.rateAddress, .main, old)
+        }
+        rateListener = nil
+        watchedOutput = device
+        guard device != kAudioObjectUnknown else { return }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                RecorderLog.write("system audio: the output rate changed")
+                await self.recaptureSystemIfNeeded()
+            }
+        }
+        rateListener = block
+        AudioObjectAddPropertyListenerBlock(device, &Self.rateAddress, .main, block)
+    }
+
+    /// Switches the system capture only when the call-mode state and the capture disagree, so a
+    /// rate notification never churns a capture that is already right.
+    private func recaptureSystemIfNeeded() async {
+        let callMode = SystemTap.outputInCallMode()
+        if callMode == (tap == nil) { return }  // SCK in call mode, a tap otherwise: already right
+        await recapture(.system)
     }
 
     private func unwatchOutputDevice() {
-        guard let block = outputListener else { return }
-        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
-        outputListener = nil
+        if let block = outputListener {
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
+            outputListener = nil
+        }
+        if watchedOutput != kAudioObjectUnknown, let block = rateListener {
+            AudioObjectRemovePropertyListenerBlock(watchedOutput, &Self.rateAddress, .main, block)
+        }
+        rateListener = nil
+        watchedOutput = kAudioObjectUnknown
     }
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {

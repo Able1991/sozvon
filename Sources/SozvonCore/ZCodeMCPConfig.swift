@@ -19,11 +19,13 @@ public enum ZCodeMCPConfig {
         JSONMCPServers.hasEntry(text, name: name)
     }
 
-    /// Adds or updates `"name": {"type": "http", …, "protocolVersion": "auto", "enabled": true}` in
-    /// `mcp.servers`; the rest of the document is kept. nil: the text isn't JSON we can edit safely.
+    /// Adds or updates `"name": {"type": "http", …, "protocolVersion": "auto", "enabled": true, "url": …,
+    /// "headers": …}` in `mcp.servers`; the rest of the document is kept. nil: the text isn't JSON(C)
+    /// we can edit safely.
     public static func upsert(_ text: String, name: String, url: String, token: String) -> String? {
         JSONMCPServers.upsert(text, name: name, url: url, token: token,
-                              entry: ["type": "http", "protocolVersion": "auto", "enabled": true])
+                              fields: [("type", .string("http")), ("protocolVersion", .string("auto")),
+                                       ("enabled", .bool(true))])
     }
 
     /// Removes the `mcp.servers.<name>` entry. No entry: the text comes back unchanged. nil: can't parse.

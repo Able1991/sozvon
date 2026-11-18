@@ -1,4 +1,5 @@
-"""Choosing and calling Claude Code / Codex / Cursor CLI (with fake binaries)."""
+"""Choosing and calling Claude Code / Codex / Cursor / OpenCode / ZCode (with fake binaries)."""
+import json
 import stat
 from pathlib import Path
 
@@ -331,8 +332,8 @@ def test_other_cursor_errors_are_not_retried(bins, tmp_path, monkeypatch):
 def test_opencode_gets_prompt_on_stdin_and_answers_from_json_events(bins, tmp_path, monkeypatch):
     monkeypatch.setenv("SOZVON_LLM", "opencode")
     monkeypatch.setenv("SOZVON_OPENCODE_MODEL", "anthropic/claude-sonnet-4")
-    log, stdin = tmp_path / "args", tmp_path / "stdin"
-    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; cat > {stdin}
+    log, stdin, cfg = tmp_path / "args", tmp_path / "stdin", tmp_path / "cfg"
+    fake_cli(bins, "opencode", f"""printf '%s\\n' "$@" > {log}; cat opencode.json > {cfg}; cat > {stdin}
 echo '{{"type":"step_start"}}'
 echo 'not json at all'
 echo '{{"type":"text","part":{{"text":"ответ "}}}}'
@@ -342,8 +343,12 @@ echo '{{"type":"step_finish"}}'""")
     assert (out, name, err) == ("ответ частями", "opencode", "")
     assert stdin.read_text() == "ПРОМПТ", "the request goes by stdin, not as an argument"
     args = log.read_text().splitlines()
-    assert args[:7] == ["run", "--agent", "plan", "--format", "json", "--model", "anthropic/claude-sonnet-4"]
+    assert args[:8] == ["run", "--agent", "sozvon", "--archived", "--format", "json",
+                        "--model", "anthropic/claude-sonnet-4"]
     assert "auto" not in " ".join(args), "nothing is approved on its own"
+    rules = json.loads(cfg.read_text())["agents"]["sozvon"]["permissions"]
+    assert rules == [{"action": "*", "resource": "*", "effect": "deny"}], \
+        "a summary: every tool denied, like Claude's --tools ''"
 
 
 def test_opencode_without_the_model_flag_and_in_an_empty_folder(bins, tmp_path, monkeypatch):
@@ -354,9 +359,10 @@ def test_opencode_without_the_model_flag_and_in_an_empty_folder(bins, tmp_path, 
 echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
     assert llm.run("x", tmp_path)[0] == "ok"
     args = log.read_text().splitlines()
-    assert "--model" not in args and args[args.index("--agent") + 1] == "plan"
+    assert "--model" not in args and args[args.index("--agent") + 1] == "sozvon"
     assert Path(cwd.read_text().strip()).resolve() != tmp_path.resolve()
-    assert seen.read_text() == "" and not Path(cwd.read_text().strip()).exists(), "an empty temporary folder, removed"
+    assert seen.read_text() == "opencode.json\n", "only the run's own config is there"
+    assert not Path(cwd.read_text().strip()).exists(), "the temporary folder is removed"
 
 
 def test_opencode_agentic_runs_where_told(bins, tmp_path, monkeypatch):
@@ -368,6 +374,10 @@ echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
     args = log.read_text().splitlines()
     assert "--model" not in args
     assert Path(cwd.read_text().strip()).resolve() == tmp_path.resolve(), "project discovery works where told"
+    rules = json.loads((tmp_path / "opencode.json").read_text())["agents"]["sozvon"]["permissions"]
+    allow = {r["action"] for r in rules if r["effect"] == "allow"}
+    deny = [r for r in rules if r["effect"] == "deny"]
+    assert allow == {"read", "glob", "grep"} and deny == [{"action": "*", "resource": "*", "effect": "deny"}]
 
 
 def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
@@ -377,9 +387,11 @@ def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
     assert out is None and name == "opencode" and "boom" in err
 
 
-# zcode: stdin is not read, so the request goes as an attached file, and --mode plan keeps it read-only.
-# A `zcode` shim on PATH runs as is; the CLI inside the app bundle runs on the app's own Node
-# (ELECTRON_RUN_AS_NODE=1, the cjs path arrives as the runner's first argument).
+# zcode: stdin is not read, so the request goes as an attached file; --mode plan alone does not stop
+# the shell (checked on zcode 0.17.1), so the run also removes the dangerous tools for itself with
+# --disallowed-tools, and its session is deleted from zcode's db afterwards. A `zcode` shim on PATH
+# runs as is; the CLI inside the app bundle runs on the app's own Node (ELECTRON_RUN_AS_NODE=1, the
+# cjs path arrives as the runner's first argument).
 
 ZCODE_FAKE = """printf '%s\\n' "$@" > {log}
 pwd > {cwd}
@@ -401,6 +413,12 @@ def test_zcode_summary_prompt_goes_through_the_attached_file(bins, tmp_path, mon
     assert args[args.index("--mode") + 1] == "plan"
     work = Path(args[args.index("--cwd") + 1])
     assert args[args.index("--attach") + 1] == str(work / "request.md")
+    disallowed = args[args.index("--disallowed-tools") + 1].split(",")
+    for gone in ("Bash", "Edit", "Write", "Agent", "Skill", "WebFetch", "mcp__sozvon__search_calls",
+                 "mcp__sozvon__add_note"):
+        assert gone in disallowed, f"{gone} is removed for the run"
+    for kept in ("Read", "Glob", "Grep"):
+        assert kept not in disallowed, f"{kept} stays, like Cursor's read-only mode"
     assert files["req"].read_text() == long_prompt
     assert "РАСШИФРОВКА" not in "".join(args), "the call text is not in the arguments"
     assert work.resolve() != tmp_path.resolve() and not work.exists(), "the temporary folder is removed"
@@ -414,6 +432,44 @@ def test_zcode_agentic_passes_the_prompt_as_the_argument(bins, tmp_path, monkeyp
     args = log.read_text().splitlines()
     assert args[args.index("-p") + 1] == "найди проекты", "the short discovery prompt goes as the argument"
     assert "--attach" not in args and args[args.index("--cwd") + 1] == str(tmp_path)
+    assert args[args.index("--disallowed-tools") + 1], "the same tool removals as a summary"
+
+
+def test_zcode_session_cleanup_targets_the_runs_own_folder(bins, tmp_path, monkeypatch):
+    """The cleanup after a run deletes the session zcode saved for the run's temp folder — never
+    a user folder."""
+    monkeypatch.setenv("SOZVON_LLM", "zcode")
+    seen = []
+    monkeypatch.setattr(llm, "_zcode_forget_session", lambda d: seen.append(d))
+    log = tmp_path / "args"
+    fake_cli(bins, "zcode", f'printf \'%s\\n\' "$@" > {log}; cat >/dev/null; echo ok')
+    assert llm.run("x", tmp_path)[0] == "ok"
+    args = log.read_text().splitlines()
+    assert seen == [args[args.index("--cwd") + 1]], "the deleted session is the run's own"
+    assert "sozvon-zcode-" in seen[0]
+
+
+def test_zcode_forget_session(bins, tmp_path, monkeypatch):
+    """zcode -p keeps every session in ~/.zcode/cli/db/db.sqlite; _zcode_forget_session removes
+    only the rows for the run's directory and never fails the summary."""
+    import sqlite3
+    home = tmp_path / "home"
+    db = home / ".zcode/cli/db/db.sqlite"
+    db.parent.mkdir(parents=True)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT NOT NULL)")
+    con.execute("INSERT INTO session VALUES ('sess_mine', '/private/tmp/sozvon-zcode-run')")
+    con.execute("INSERT INTO session VALUES ('sess_users', '/Users/sergey/projects/client')")
+    con.commit()
+    con.close()
+    monkeypatch.setenv("HOME", str(home))
+    llm._zcode_forget_session("/private/tmp/sozvon-zcode-run")
+    con = sqlite3.connect(db)
+    left = {r[0] for r in con.execute("SELECT id FROM session")}
+    con.close()
+    assert left == {"sess_users"}
+    monkeypatch.setenv("HOME", str(tmp_path / "no-such-home"))
+    llm._zcode_forget_session("/anywhere")  # no db at all: no error
 
 
 def test_zcode_bundle_runs_on_the_apps_own_node(bins, tmp_path, monkeypatch):

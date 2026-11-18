@@ -76,4 +76,67 @@ final class OpenCodeMCPConfigTests: XCTestCase {
         XCTAssertFalse(has("garbage"))
         XCTAssertFalse(OpenCodeMCPConfig.hasEntry("garbage", name: "sozvon"))
     }
+
+    func testEntryDisablesOAuth() throws {
+        let out = try XCTUnwrap(upsert("{}"))
+        let entry = try XCTUnwrap(try servers(out)["sozvon"] as? [String: Any])
+        XCTAssertEqual(entry["type"] as? String, "remote")
+        XCTAssertEqual(entry["oauth"] as? Bool, false, "a bearer header is not an OAuth flow")
+        XCTAssertEqual(entry["url"] as? String, url)
+    }
+
+    func testJsoncIsEditedInPlace() throws {
+        // opencode.jsonc in the wild: comments, trailing commas, floats the JSON round trip mangled.
+        let text = """
+        // OpenCode config
+        {
+          "theme": "dark",
+          "model": {"provider": "anthropic", "temperature": 0.7},
+          "mcp": {
+            "servers": {
+              // "sozvon": {"url": "http://old"},
+              "context7": {"type": "remote", "url": "https://mcp.context7.com/mcp"}, // trailing
+            },
+          },
+        }
+        """
+        XCTAssertFalse(OpenCodeMCPConfig.hasEntry(text, name: "sozvon"), "a commented-out entry does not count")
+        let out = try XCTUnwrap(upsert(text))
+        XCTAssertTrue(has(out))
+        for kept in ["// OpenCode config", "\"temperature\": 0.7", "// \"sozvon\": {\"url\": \"http://old\"}",
+                     "\"url\": \"https://mcp.context7.com/mcp\"}, // trailing"] {
+            XCTAssertTrue(out.contains(kept), kept)
+        }
+        let back = try XCTUnwrap(OpenCodeMCPConfig.remove(out, name: "sozvon"))
+        XCTAssertEqual(back, text, "removal returns the file to what it was")
+    }
+}
+
+final class OpenCodeMCPFileTests: TempDirTestCase {
+    func testConnectCreatesPrivateFileThenDisconnects() throws {
+        let f = tmp.appendingPathComponent("home/.config/opencode/opencode.json")
+        XCTAssertEqual(MCP.opencodeConnection(file: f, token: "T"), .none)
+        XCTAssertTrue(MCP.opencodeConnect(file: f, token: "T").0)
+        let perm = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: f.path)[.posixPermissions] as? NSNumber)
+        XCTAssertEqual(perm.intValue, 0o600, "the file holds a password")
+        XCTAssertEqual(MCP.opencodeConnection(file: f, token: "T"), .connected)
+        XCTAssertEqual(MCP.opencodeConnection(file: f, token: "OTHER"), .outdated)
+        XCTAssertTrue(MCP.opencodeDisconnect(file: f).0)
+        XCTAssertEqual(MCP.opencodeConnection(file: f, token: "T"), .none)
+    }
+
+    func testConnectRefusesBadFileWithoutTouchingIt() throws {
+        let f = tmp.appendingPathComponent(".config/opencode/opencode.json")
+        try write("{ broken", f)
+        let (ok, msg) = MCP.opencodeConnect(file: f, token: "T")
+        XCTAssertFalse(ok)
+        XCTAssertFalse(msg.isEmpty)
+        XCTAssertEqual(try String(contentsOf: f, encoding: .utf8), "{ broken", "the file is untouched")
+        // An unreadable file is not overwritten with a fresh config either.
+        try FileManager.default.removeItem(at: f)
+        try FileManager.default.createDirectory(at: f, withIntermediateDirectories: true)
+        let (ok2, msg2) = MCP.opencodeConnect(file: f, token: "T")
+        XCTAssertFalse(ok2)
+        XCTAssertFalse(msg2.isEmpty)
+    }
 }

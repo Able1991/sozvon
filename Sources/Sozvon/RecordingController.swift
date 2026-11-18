@@ -87,7 +87,7 @@ final class RecordingController {
                 startLevelTimer()
                 Sounds.play(.start)
                 onChange()
-                if capture == .screenCapture { explainSystemAudioFallback() }
+                if case .screenCapture(let why) = capture, why != .callMode { explainSystemAudioFallback(why) }
             } catch {
                 // Failed to start: don't leave our empty folder behind, it would look like a recording in "Calls".
                 CallFolder.discardIfUnused(dir)
@@ -213,11 +213,12 @@ final class RecordingController {
     private static var toldSystemAudioFallback = false
 
     /// The process tap didn't start: the other side is still recorded (ScreenCaptureKit), but not FaceTime.
-    /// Said once per launch, at the start of the recording, with the way to fix it.
-    private func explainSystemAudioFallback() {
+    /// Said once per launch, at the start of the recording, with the way to fix it. A call-mode switch
+    /// (Bluetooth headset in a call) is a deliberate choice, not a failure: nothing is said for it.
+    private func explainSystemAudioFallback(_ why: Recorder.SystemCapture.ScreenWhy) {
         guard !Self.toldSystemAudioFallback else { return }
         Self.toldSystemAudioFallback = true
-        if SystemAudioPermission.status == .denied {
+        if why == .permissionDenied {
             notify(L("Запись системного аудио выключена"),
                    L("Собеседников запишу через запись экрана, но звонок FaceTime так не слышно. Включи Sozvon в Системных настройках → Конфиденциальность и безопасность → «Только запись системного аудио»."),
                    action: .systemAudioPermission)

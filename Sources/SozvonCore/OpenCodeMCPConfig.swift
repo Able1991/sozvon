@@ -20,10 +20,14 @@ public enum OpenCodeMCPConfig {
         JSONMCPServers.hasEntry(text, name: name)
     }
 
-    /// Adds or updates `"name": {"type": "remote", "url": …, "headers": …}` in `mcp.servers`; the rest of
-    /// the document is kept. nil: the text isn't JSON we can edit safely.
+    /// Adds or updates `"name": {"type": "remote", "oauth": false, "url": …, "headers": …}` in
+    /// `mcp.servers`; the rest of the document is kept. nil: the text isn't JSON(C) we can edit safely.
+    ///
+    /// "oauth": false: a remote server is treated as OAuth-capable by default, and without the flag
+    /// OpenCode wants a browser sign-in even though the bearer header is set.
     public static func upsert(_ text: String, name: String, url: String, token: String) -> String? {
-        JSONMCPServers.upsert(text, name: name, url: url, token: token, entry: ["type": "remote"])
+        JSONMCPServers.upsert(text, name: name, url: url, token: token,
+                              fields: [("type", .string("remote")), ("oauth", .bool(false))])
     }
 
     /// Removes the `mcp.servers.<name>` entry. No entry: the text comes back unchanged. nil: can't parse.

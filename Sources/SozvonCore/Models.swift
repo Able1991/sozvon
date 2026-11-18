@@ -84,7 +84,7 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         case .claude: return "curl -fsSL https://claude.ai/install.sh | bash"
         case .codex: return "brew install --cask codex"
         case .cursor: return "curl https://cursor.com/install -fsS | bash"
-        case .opencode: return "brew install sst/tap/opencode"
+        case .opencode: return "brew install opencode"
         case .zcode: return "brew install --cask zcode"
         case .none: return nil
         }

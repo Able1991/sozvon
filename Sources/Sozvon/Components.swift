@@ -29,9 +29,16 @@ enum Permissions {
     /// it right away: activate Sozvon first. It can still vanish while undecided — re-ask until the
     /// user really chooses: a choice (or "Open System Settings") keeps the dialog on screen for a
     /// while, so a quick probe return means nobody answered yet. After "Запретить" macOS stops
-    /// prompting, the re-asks return at once and the loop falls through to the pane.
+    /// prompting, the re-asks return at once and the loop falls through to the pane; from then on a
+    /// click opens the pane directly instead of probing for three seconds again.
+    static private(set) var screenPromptExhausted = false
+
     static func requestScreen() async {
         if CGPreflightScreenCaptureAccess() { return }
+        if screenPromptExhausted {
+            openPane("Privacy_ScreenCapture")
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         for _ in 0..<3 {
             let started = Date()
@@ -40,7 +47,10 @@ enum Permissions {
             if Date().timeIntervalSince(started) > 3 { break }
             try? await Task.sleep(for: .seconds(1))
         }
-        if !CGPreflightScreenCaptureAccess() { openPane("Privacy_ScreenCapture") }
+        if !CGPreflightScreenCaptureAccess() {
+            screenPromptExhausted = true
+            openPane("Privacy_ScreenCapture")
+        }
     }
 
     static func openPane(_ pane: String) {

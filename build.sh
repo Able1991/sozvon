@@ -141,7 +141,13 @@ PLIST
 
 if [ -z "${SIGN_ID:-}" ]; then
   IDS=$(security find-identity -v -p codesigning 2>/dev/null || true)
-  SIGN_ID=$(echo "$IDS" | grep -o '"Developer ID Application[^"]*"\|"Apple Development[^"]*"' | head -1 | tr -d '"' || true)
+  # Developer ID first: Sparkle's updater needs a stable non-Apple-issued identity. Apple Development
+  # only when there is no Developer ID — a single grep | head -1 would follow keychain order and could
+  # pick the Apple one.
+  SIGN_ID=$(echo "$IDS" | grep -o '"Developer ID Application[^"]*"' | head -1 | tr -d '"' || true)
+  if [ -z "$SIGN_ID" ]; then
+    SIGN_ID=$(echo "$IDS" | grep -o '"Apple Development[^"]*"' | head -1 | tr -d '"' || true)
+  fi
   if [ -z "$SIGN_ID" ] && security find-identity -p codesigning 2>/dev/null | grep -q '"Sozvon Local Signing"'; then
     SIGN_ID="Sozvon Local Signing"
   fi
