@@ -102,6 +102,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li class="sub"><a href="#while-recording">Во время записи</a></li>
       <li class="sub"><a href="#marks">Отметить важное</a></li>
       <li class="sub"><a href="#no-headphones">Без наушников</a></li>
+      <li class="sub"><a href="#headphones-switch">Наушники посреди звонка</a></li>
       <li class="sub"><a href="#silence">Если пропал звук</a></li>
       <li><a href="#reflections">Размышления и телефон</a></li>
       <li class="sub"><a href="#phone">Папка для записей</a></li>
@@ -191,7 +192,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p class="note">Версии до 0.1.2 обновлять не умели. Их один раз обнови вручную, скачав DMG.</p>
 
       <h2 id="record">Запись звонка</h2>
-      <nav class="insec" aria-label="В этом разделе"><a href="#start-recording">Как начать</a><a href="#call-prompt">«Идёт звонок. Записать?»</a><a href="#auto-record">Автозапуск и автостоп</a><a href="#while-recording">Во время записи</a><a href="#marks">Отметить важное</a><a href="#no-headphones">Без наушников</a><a href="#silence">Если пропал звук</a></nav>
+      <nav class="insec" aria-label="В этом разделе"><a href="#start-recording">Как начать</a><a href="#call-prompt">«Идёт звонок. Записать?»</a><a href="#auto-record">Автозапуск и автостоп</a><a href="#while-recording">Во время записи</a><a href="#marks">Отметить важное</a><a href="#no-headphones">Без наушников</a><a href="#headphones-switch">Наушники</a><a href="#silence">Если пропал звук</a></nav>
       <p>Sozvon не подключается к звонку и не добавляет ботов. Он пишет то, что слышит твой Mac, поэтому работает с любым приложением: Zoom, Google Meet, FaceTime, Telegram, TrueConf, браузер.</p>
       <p class="note">Предупреждать собеседников о записи твоя ответственность. В разных странах свои правила.</p>
       <h3 id="start-recording">Как начать</h3>
@@ -256,6 +257,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>Файлы.</b> Очищенный голос сохраняется рядом, в <code>mic.clean.m4a</code>, и плеер играет его: ты слышишь себя без эха. Исходный <code>mic.m4a</code> не меняется и нужен для повторной расшифровки.</li>
       </ul>
       <p>С наушниками всё равно лучше всего.</p>
+      <h3 id="headphones-switch">Наушники посреди звонка</h3>
+      <p>Наушники можно надевать, снимать и выключать прямо во время записи. Как только macOS меняет микрофон или выход по умолчанию, Sozvon сразу переключается на новые, как Meet и Zoom, и запись не прерывается. Bluetooth-наушники в звонке уходят в режим гарнитуры, с частотой 16 кГц: Sozvon пишет и его, а звук собеседника в этом режиме берёт через ScreenCaptureKit.</p>
       <h3 id="silence">Если пропал звук</h3>
       <ol>
         <li>Панель сразу пишет «Тебя не слышно» или «Их не слышно».</li>
@@ -779,6 +782,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li class="sub"><a href="#en-while-recording">While recording</a></li>
       <li class="sub"><a href="#en-marks">Marking what matters</a></li>
       <li class="sub"><a href="#en-no-headphones">Without headphones</a></li>
+      <li class="sub"><a href="#en-headphones-switch">Headphones mid-call</a></li>
       <li class="sub"><a href="#en-silence">When the sound drops</a></li>
       <li><a href="#en-reflections">Reflections and phone</a></li>
       <li class="sub"><a href="#en-phone">The phone folder</a></li>
@@ -868,7 +872,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <p class="note">Versions before 0.1.2 could not update themselves. Update them once by hand with the DMG.</p>
 
       <h2 id="en-record">Recording a call</h2>
-      <nav class="insec" aria-label="In this section"><a href="#en-start-recording">How to start</a><a href="#en-call-prompt">“A call is on. Record?”</a><a href="#en-auto-record">Automatic start and stop</a><a href="#en-while-recording">While recording</a><a href="#en-marks">Marking what matters</a><a href="#en-no-headphones">Without headphones</a><a href="#en-silence">When the sound drops</a></nav>
+      <nav class="insec" aria-label="In this section"><a href="#en-start-recording">How to start</a><a href="#en-call-prompt">“A call is on. Record?”</a><a href="#en-auto-record">Automatic start and stop</a><a href="#en-while-recording">While recording</a><a href="#en-marks">Marking what matters</a><a href="#en-no-headphones">Without headphones</a><a href="#en-headphones-switch">Headphones</a><a href="#en-silence">When the sound drops</a></nav>
       <p>Sozvon doesn’t join the call or add bots. It records what your Mac hears, so it works with any app: Zoom, Google Meet, FaceTime, Telegram, TrueConf, a browser.</p>
       <p class="note">Telling others you’re recording is up to you. The rules differ by country.</p>
       <h3 id="en-start-recording">How to start</h3>
@@ -933,6 +937,8 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li><b>Files.</b> The cleaned voice is kept next to the original in <code>mic.clean.m4a</code> and the player plays it, so you hear yourself without the echo. The original <code>mic.m4a</code> is never changed and is used to transcribe again.</li>
       </ul>
       <p>Headphones are still best.</p>
+      <h3 id="en-headphones-switch">Headphones mid-call</h3>
+      <p>You can put headphones on, take them off or switch them off while recording. As soon as macOS changes the default microphone or output, Sozvon switches to the new one right away, like Meet and Zoom, and the recording goes on. In a call, Bluetooth headphones drop into headset mode at 16 kHz: Sozvon records that too, and takes the other side's sound through ScreenCaptureKit while it lasts.</p>
       <h3 id="en-silence">When the sound drops</h3>
       <ol>
         <li>The panel shows “Can’t hear you” or “Can’t hear them” right away.</li>
