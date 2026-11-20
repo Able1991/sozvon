@@ -37,7 +37,7 @@ if (Test-Path -LiteralPath $engine) {
 New-Item -ItemType Directory -Path $engine | Out-Null
 $skip = @(".venv", "tests", "__pycache__", ".pytest_cache", ".ruff_cache")
 Get-ChildItem -LiteralPath (Join-Path $repo "engine") -Force |
-    Where-Object { $skip -notcontains $_.Name } |
+    Where-Object { $skip -notcontains $_.Name -and $_.Name -notlike "*.log" -and $_.Name -notlike "cli-home-*" -and $_.Name -notlike "index.db*" } |
     ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $engine -Recurse -Force }
 
 $desktop = [Environment]::GetFolderPath("Desktop")

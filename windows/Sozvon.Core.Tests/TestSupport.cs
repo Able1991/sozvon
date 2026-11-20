@@ -70,18 +70,19 @@ internal static class Repo
         JsonFile.Read(Path.Combine(Root(), "Tests", "Fixtures", name)) ?? throw new FileNotFoundException(name);
 }
 
-/// <summary>The real engine install used by the interop tests; they skip when it is absent.</summary>
+/// <summary>
+/// The real engine install used by the interop tests: its data folder, with the .venv, in SOZVON_TEST_ENGINE. They skip
+/// when it is not set or holds no engine.
+/// </summary>
 internal static class RealEngine
 {
-    internal static readonly string Install =
-        Environment.GetEnvironmentVariable("SOZVON_TEST_ENGINE")
-        ?? @"C:\Users\User\AppData\Local\Temp\claude\fc02657706c86607\5c0b1740-e0cc-48c1-95ab-bb57939e1860\scratchpad\Установка с нуля";
+    internal static readonly string Install = Environment.GetEnvironmentVariable("SOZVON_TEST_ENGINE") ?? "";
 
     internal static string Python => Path.Combine(Install, ".venv", "Scripts", "python.exe");
 
     internal static void RequirePython()
     {
-        if (!File.Exists(Python)) Assert.Skip($"no engine install at {Install}");
+        if (Install.Length == 0 || !File.Exists(Python)) Assert.Skip($"no engine install in SOZVON_TEST_ENGINE ({Install})");
     }
 
     /// <summary>Points <paramref name="link"/> at <paramref name="target"/> with a junction, which needs no privileges.</summary>

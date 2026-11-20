@@ -72,6 +72,8 @@ Status: **done** (checked on a real Windows machine), **synthetic** (a real run,
 | The MCP server over HTTP with a token | synthetic: 15 tools, list, get, search and add note answer, a wrong token gets 401, the server ends with its parent in about 2 s |
 | Finding projects | off on Windows until the read-only rules can be expressed there |
 | Codex and Cursor | run only when the user chooses them. Not verified on Windows with the real CLI, their sandboxes were not checked, and the text of the call goes to the chosen assistant. Cursor may have no file sandbox on Windows |
+| OpenCode (main 0.1.7) | Not in the Windows app yet. The engine starts it from npm's wrapper (`opencode.cmd` runs the package's `opencode.exe`, tests). npm's `opencode-ai` is 1.19.6, and OpenCode 1 refuses the run's config ("V2 permissions are not supported by OpenCode V1"), so a summary through it fails until the engine writes the 1.x form too: checked with that build, config only, no model run. Sent to the Mac session |
+| ZCode (main 0.1.7) | Off on Windows: the engine finds its CLI only inside the macOS app, and it is never started here (test). Z.AI has a Windows app; not checked |
 
 ## Windows only
 
