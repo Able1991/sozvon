@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Summaries work with OpenCode 1.x.** npm's `opencode-ai` is still 1.x, the usual install on Windows and an easy one on the Mac, and it refused Sozvon's run outright: the agent's `permissions` list is 2.x only, and `--archived` doesn't exist there (1.x printed its help instead of running). The run's agent is now written in the 1.x `permission` form, which 2.x reads into the same rules in the same order (checked on 1.19.6 and 2.3.2), `--archived` is passed only to 2.x, and on 1.x the run's session is deleted afterwards so it stays out of the session list. Found by the Windows port.
+
 ## 0.1.7
 
 - **Calls in Bluetooth headsets are recorded again.** In a call a headset drops to 16 kHz, and AAC refused the 64 kbps per channel Sozvon asked for: both tracks stayed empty while the meters moved. The bit rate is now capped by the sample rate (with Sergey Maslov's fix), the microphone follows the headset coming and going, and system audio switches to ScreenCaptureKit only while the headset is really in call mode.
