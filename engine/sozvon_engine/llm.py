@@ -316,37 +316,75 @@ def _cursor(path, prompt, agentic, timeout, settings):
 
 
 def _opencode_config(agentic: bool) -> str:
-    """The project config defining the run's agent. Agent permission rules are appended after the
-    base policy and the global config, and the last matching rule wins — so a final deny-all is a
-    hard deny of every tool (v2 agents otherwise start from allow-all, and the built-in "plan"
-    agent still allows the shell, web fetches and MCP). Project discovery gets the read-only
-    trio, like Claude's Read/Glob/Grep set, after the deny (the last match wins, so the allows must
-    come last), plus reads outside the working folder for ~/.claude/projects only."""
-    rules = [{"action": "*", "resource": "*", "effect": "deny"}]
+    """The project config defining the run's agent, in the 1.x form ("agent" and a "permission" map):
+    OpenCode 1.x (npm's latest) rejects the 2.x "permissions" list, and 2.x reads the 1.x map into the
+    same rules in the same order (checked on 1.19.6 and 2.3.2 with their agent listings). Agent rules
+    come after the base policy and the global config, and the last matching rule wins, so the deny-all
+    first is a hard deny of every tool (agents otherwise start from allow-all, and the built-in "plan"
+    agent still allows the shell, web fetches and MCP). Project discovery gets the read-only trio, like
+    Claude's Read/Glob/Grep set, after the deny, plus reads outside the working folder for
+    ~/.claude/projects only."""
+    rules: dict = {"*": "deny"}
     if agentic:
-        rules += [{"action": a, "resource": "*", "effect": "allow"} for a in ("read", "glob", "grep")]
-        rules.append({"action": "external_directory", "resource": f"{Path.home() / '.claude' / 'projects'}*",
-                      "effect": "allow"})
-    return json.dumps({"agents": {"sozvon": {"description": "Sozvon: answer the request, no tools",
-                                             "mode": "primary", "permissions": rules}}}, indent=2) + "\n"
+        rules.update({"read": "allow", "glob": "allow", "grep": "allow",
+                      "external_directory": {f"{Path.home() / '.claude' / 'projects'}*": "allow"}})
+    return json.dumps({"agent": {"sozvon": {"description": "Sozvon: answer the request, no tools",
+                                            "mode": "primary", "permission": rules}}}, indent=2) + "\n"
+
+
+_OPENCODE_MAJOR: dict = {}
+
+
+def _opencode_major(path: str) -> int | None:
+    """OpenCode's major version: 1.x prints "1.19.6", 2.x "opencode v2.3.2"; None when unreadable.
+    Cached per binary and its modification time, so an upgrade is noticed."""
+    try:
+        key = (path, os.stat(path).st_mtime)
+    except OSError:
+        key = (path, None)
+    if key not in _OPENCODE_MAJOR:
+        try:
+            r = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=30,
+                               stdin=subprocess.DEVNULL)
+            m = re.search(r"(?<![\d.])(\d+)\.\d+\.\d+", r.stdout)
+            _OPENCODE_MAJOR[key] = int(m.group(1)) if m else None
+        except (OSError, subprocess.SubprocessError):
+            _OPENCODE_MAJOR[key] = None
+    return _OPENCODE_MAJOR[key]
+
+
+def _opencode_sessions(stdout: str) -> set:
+    """The session ids the run's events name."""
+    ids = set()
+    for line in stdout.splitlines():
+        try:
+            sid = json.loads(line).get("sessionID")
+        except (ValueError, AttributeError):
+            continue
+        if isinstance(sid, str) and sid:
+            ids.add(sid)
+    return ids
 
 
 def _opencode(path, prompt, cwd, agentic, timeout, settings):
     """opencode run: the request goes by stdin, the answer comes back as NDJSON events (--format json).
     The run's agent ("sozvon") is defined in an opencode.json written into the working folder — an
     empty temporary folder for a summary, Sozvon's private folder for project discovery — so the
-    user's own config is never touched and the deny cannot be widened by it. --archived keeps the
-    session out of the assistant's session lists.
+    user's own config is never touched and the deny cannot be widened by it. On 2.x --archived keeps
+    the session out of the assistant's session lists; 1.x has no such flag (it prints its help
+    instead of running), so there the run's session is deleted afterwards.
     OpenCode resolves the project directory from the PWD environment variable, not from getcwd()
     (verified on 2.3.0: a bare subprocess cwd leaves it looking wherever the engine was started
     from and the agent is "not found"), so PWD is pointed at the working folder explicitly.
     """
-    cmd = [path, "run", "--agent", "sozvon", "--archived", "--format", "json"]
+    v1 = _opencode_major(path) == 1
+    cmd = [path, "run", "--agent", "sozvon"] + ([] if v1 else ["--archived"]) + ["--format", "json"]
     if settings.opencode_model:
         cmd += ["--model", settings.opencode_model]
     tmp = None if agentic else tempfile.mkdtemp(prefix="sozvon-opencode-")
     work = Path(cwd) if agentic else Path(tmp)
     env = {**os.environ, "PWD": str(work)}
+    r = None
     try:
         try:
             (work / "opencode.json").write_text(_opencode_config(agentic), encoding="utf-8")
@@ -354,6 +392,13 @@ def _opencode(path, prompt, cwd, agentic, timeout, settings):
         except subprocess.TimeoutExpired:
             return None, "opencode", "timeout"
     finally:
+        if v1 and r is not None:
+            for sid in _opencode_sessions(r.stdout):
+                try:
+                    subprocess.run([path, "session", "delete", sid], capture_output=True, text=True,
+                                   timeout=30, cwd=str(work), env=env, stdin=subprocess.DEVNULL)
+                except (OSError, subprocess.SubprocessError):
+                    pass
         if tmp:
             shutil.rmtree(tmp, ignore_errors=True)
     out = _opencode_text(r.stdout)
