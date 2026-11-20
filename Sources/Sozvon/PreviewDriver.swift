@@ -75,6 +75,7 @@ enum PreviewDriver {
             SettingsPreview.engineError = args.contains("--engine-error")
             SettingsPreview.tall = args.contains("--tall")
             SettingsPreview.setupIncomplete = args.contains("--setup-incomplete")
+            Assistant.previewInstalled = args.contains("--all-assistants")
             app.showSettings(tab: tab)
             NSApp.activate(ignoringOtherApps: true)
         case "calls":

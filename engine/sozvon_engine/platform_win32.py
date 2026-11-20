@@ -487,7 +487,8 @@ def cli_argv(path: str) -> list:
         if _CURSOR_LAUNCHER.search(file.read_text(encoding="utf-8", errors="replace")):
             return _cursor_argv(file.parent.resolve())
         script = _npm_script(file)
-        return [_node_for(file), str(script)]
+        # OpenCode's wrapper starts its own program from the package, not a script for node.
+        return [str(script)] if script.suffix.lower() == ".exe" else [_node_for(file), str(script)]
     raise FileNotFoundError(f"{path}: only .exe and npm's .cmd wrappers are started")
 
 

@@ -373,6 +373,8 @@ struct SetupView: View {
         case .claude: "chevron.left.chevron.right"
         case .codex: "apple.terminal"
         case .cursor: "cursorarrow.rays"
+        case .opencode: "terminal"
+        case .zcode: "wand.and.stars"
         case .none: "shield"
         }
     }
@@ -381,6 +383,8 @@ struct SetupView: View {
         switch a {
         case .claude: L("Claude посмотрит твои сессии Claude Code и соберёт проекты, людей и термины.")
         case .cursor: L("Cursor посмотрит прошлые чаты и соберёт проекты, людей и термины.")
+        case .opencode: L("OpenCode посмотрит твои сессии Claude Code и соберёт проекты, людей и термины.")
+        case .zcode: L("ZCode посмотрит прошлые сессии и соберёт проекты, людей и термины.")
         case .codex, .none: L("Codex посмотрит прошлые сессии и соберёт проекты, людей и термины.")
         }
     }
@@ -392,6 +396,8 @@ struct SetupView: View {
         case .claude: L("Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале.")
         case .codex: L("Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex.")
         case .cursor: L("Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor.")
+        case .opencode: L("Текст уходит к провайдеру, выбранному в OpenCode. Потом можно спрашивать о звонках в OpenCode.")
+        case .zcode: L("Текст уходит в Z.AI. Потом можно спрашивать о звонках в ZCode.")
         case .none: L("Только расшифровка. Ничего не покидает Mac. Можно включить позже в Настройках.")
         }
     }
@@ -552,7 +558,11 @@ struct SetupView: View {
                          detail: p.screen ? L("Через неё Sozvon слышит микрофон. Картинка не записывается")
                              : L("Включи Sozvon в списке, потом перезапусти"),
                          detailSymbol: p.screen ? nil : "exclamationmark.triangle.fill") {
-                    permissionStatus(p.screen) { p.requestScreen() }
+                    if p.askingScreen {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        permissionStatus(p.screen) { Task { await p.requestScreen() } }
+                    }
                 }
                 SetupRow(symbol: "speaker.wave.2", title: L("Запись системного аудио"),
                          detail: SystemAudioCopy.detail(p),

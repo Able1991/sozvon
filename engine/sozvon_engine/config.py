@@ -22,6 +22,7 @@ KEYS = {
     "hf_token": ("HF_TOKEN",),
     "codex_model": ("SOZVON_CODEX_MODEL",),
     "cursor_model": ("SOZVON_CURSOR_MODEL",),
+    "opencode_model": ("SOZVON_OPENCODE_MODEL",),
     "server_url": ("SOZVON_SERVER_URL",),
     "server_password": ("SOZVON_SERVER_PASSWORD",),
     "sync_voices": ("SOZVON_SYNC_VOICES",),
@@ -50,6 +51,8 @@ class Settings:
     hf_token: str = ""
     codex_model: str = ""
     cursor_model: str = ""
+    # OpenCode model ("--model provider/model"); empty: the model configured in OpenCode.
+    opencode_model: str = ""
     server_url: str = ""
     server_password: str = ""
     # Voice prints are biometric data: they go to the own server only when asked for.
@@ -106,6 +109,7 @@ def load(env_file: Path | None = None, environ=None) -> Settings:
         hf_token=raw["hf_token"] or "",
         codex_model=raw["codex_model"] or "",
         cursor_model=raw["cursor_model"] or "",
+        opencode_model=raw["opencode_model"] or "",
         server_url=raw["server_url"] or "",
         server_password=raw["server_password"] or "",
         sync_voices=(raw["sync_voices"] or "").lower() in TRUE,

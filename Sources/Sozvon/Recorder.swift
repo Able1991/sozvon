@@ -96,25 +96,37 @@ final class TrackWriter: @unchecked Sendable {
                 RecorderLog.write("\(url.lastPathComponent) already exists, not overwriting")
                 return
             }
-            let settings: [String: Any] = [
+            let base: [String: Any] = [
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: inFmt.sampleRate,
                 AVNumberOfChannelsKey: inFmt.channelCount,
-                AVEncoderBitRateKey: 64000 * Int(inFmt.channelCount),
+                // 64 kbps per channel is beyond AAC's range at call-mode headset rates (16 kHz mono —
+                // a Bluetooth microphone during a call): the encoder refused the file and the track
+                // stayed empty. Cap it by the sample rate; if even that is refused, let the encoder pick.
+                AVEncoderBitRateKey: Int(inFmt.channelCount) * min(64000, 2 * Int(inFmt.sampleRate)),
             ]
-            do {
-                let f = try AVAudioFile(forWriting: url, settings: settings,
-                                        commonFormat: inFmt.commonFormat, interleaved: inFmt.isInterleaved)
-                file = f
-                created = true
-                format = f.processingFormat
-                firstPTS = pts
-                firstAt = Date()
-            } catch {
-                // Not again on every packet: the track stays empty for this recording.
-                refused = true
-                RecorderLog.write("cannot open \(url.lastPathComponent): \(error), not writing this track")
-                return
+            let variants = [base, base.filter { $0.key != AVEncoderBitRateKey }]
+            for (attempt, settings) in variants.enumerated() {
+                do {
+                    let f = try AVAudioFile(forWriting: url, settings: settings,
+                                            commonFormat: inFmt.commonFormat, interleaved: inFmt.isInterleaved)
+                    file = f
+                    created = true
+                    format = f.processingFormat
+                    firstPTS = pts
+                    firstAt = Date()
+                    if attempt > 0 {
+                        RecorderLog.write("\(url.lastPathComponent): the encoder refused the bit rate, opened without it")
+                    }
+                    break
+                } catch where attempt < variants.count - 1 {
+                    continue
+                } catch {
+                    // Not again on every packet: the track stays empty for this recording.
+                    refused = true
+                    RecorderLog.write("cannot open \(url.lastPathComponent): \(error), not writing this track")
+                    return
+                }
             }
         }
         guard let file, let format, let firstPTS else { return }
@@ -459,6 +471,33 @@ final class SystemTap: @unchecked Sendable {
         return uid.takeRetainedValue() as String
     }
 
+    /// The default output device (where call audio plays).
+    static func defaultOutputDevice() -> AudioObjectID? {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                              mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &device) == noErr,
+              device != kAudioObjectUnknown else { return nil }
+        return device
+    }
+
+    /// Whether the default output sits in a Bluetooth call mode: the headset dropped its rate
+    /// (16 kHz on AirPods when a call opens their microphone), while the process tap keeps a
+    /// 48 kHz format — the track comes out as sped-up garbage. Headphones used for sound only keep
+    /// 44.1/48 kHz and the tap is fine, so this checks the rate, not the transport: FaceTime on
+    /// AirPods with the Mac's microphone is captured by the tap, and only a real call-mode switch
+    /// moves the capture to ScreenCaptureKit.
+    static func outputInCallMode() -> Bool {
+        guard let device = defaultOutputDevice() else { return false }
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate,
+                                              mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var rate = Double(0)
+        var size = UInt32(MemoryLayout<Double>.size)
+        guard AudioObjectGetPropertyData(device, &addr, 0, nil, &size, &rate) == noErr else { return false }
+        return rate > 0 && rate < 44100
+    }
+
     /// Channels of each buffer the aggregate's IO block gets as input (for recorder.log).
     private static func inputBufferChannels(_ device: AudioObjectID) -> [Int] {
         var addr = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
@@ -525,7 +564,15 @@ final class SystemTap: @unchecked Sendable {
 final class Recorder: NSObject, SCStreamDelegate {
     enum Source { case mic, system }
     /// How system audio is captured: the process tap (hears FaceTime too) or ScreenCaptureKit.
-    enum SystemCapture { case tap, screenCapture }
+    /// `why` says why ScreenCaptureKit: a deliberate call-mode switch (nothing failed), the
+    /// permission being off, or the tap failing to start.
+    enum SystemCapture: Equatable {
+        case tap
+        case screenCapture(why: ScreenWhy)
+        enum ScreenWhy: Equatable {
+            case callMode, permissionDenied, tapFailed
+        }
+    }
 
     /// ScreenCaptureKit streams: the first one captures the microphone (and system audio when the tap couldn't
     /// start); a source captured again gets a stream of its own.
@@ -537,7 +584,9 @@ final class Recorder: NSObject, SCStreamDelegate {
     /// Capture ended on its own (permission revoked, display changed): the error text.
     var onError: ((String) -> Void)?
 
-    var systemCapture: SystemCapture { tap == nil ? .screenCapture : .tap }
+    var systemCapture: SystemCapture { tap == nil ? .screenCapture(why: lastScreenWhy) : .tap }
+    /// Why the latest attempt left system audio on ScreenCaptureKit (for `systemCapture` and the log).
+    private var lastScreenWhy: SystemCapture.ScreenWhy = .tapFailed
 
     private static func configuration(_ sources: Set<Source>) -> SCStreamConfiguration {
         let cfg = SCStreamConfiguration()
@@ -563,18 +612,24 @@ final class Recorder: NSObject, SCStreamDelegate {
         return s
     }
 
-    /// A new process tap into the sink, or nil (logged) when it can't start. Never with the System Audio
-    /// Recording permission denied: such a tap starts but hears only zeros, and would replace a working capture.
-    private func makeTap(_ sink: AudioSink) -> SystemTap? {
+    /// A new process tap into the sink, or nil (logged) when it can't start — ScreenCaptureKit
+    /// captures system audio instead. `why` is nil for a tap.
+    /// Never with the System Audio Recording permission denied: such a tap starts but hears only
+    /// zeros, and would replace a working capture.
+    private func makeTap(_ sink: AudioSink) -> (tap: SystemTap?, why: SystemCapture.ScreenWhy?) {
         if SystemAudioPermission.status == .denied {
             RecorderLog.write("system audio: the permission is off, ScreenCaptureKit instead of a process tap")
-            return nil
+            return (nil, .permissionDenied)
+        }
+        if SystemTap.outputInCallMode() {
+            RecorderLog.write("system audio: the output is in call mode, ScreenCaptureKit instead of a process tap")
+            return (nil, .callMode)
         }
         do {
-            return try SystemTap(sink: sink)
+            return (try SystemTap(sink: sink), nil)
         } catch {
             RecorderLog.write("system audio: process tap \(error), ScreenCaptureKit instead")
-            return nil
+            return (nil, .tapFailed)
         }
     }
 
@@ -596,7 +651,9 @@ final class Recorder: NSObject, SCStreamDelegate {
             let mic = try makeStream([.mic], filter: filter, sink: sink)
             try await Self.startCapture(mic)
             started.append((mic, [.mic]))
-            tap = makeTap(sink)
+            let made = makeTap(sink)
+            tap = made.tap
+            lastScreenWhy = made.why ?? .tapFailed
             if tap == nil {
                 let system = try makeStream([.system], filter: filter, sink: sink)
                 try await Self.startCapture(system)
@@ -614,7 +671,11 @@ final class Recorder: NSObject, SCStreamDelegate {
         self.tap = tap
         self.sink = sink
         self.filter = filter
-        if tap != nil { watchOutputDevice() }
+        watchOutputDevice()
+        watchInputDevice()
+        // The headset may have dropped into call mode between makeTap's check and the listeners:
+        // AirPods switch right when the microphone opens, and a missed switch records garbage, not zeros.
+        await recaptureSystemIfNeeded()
         return systemCapture
     }
 
@@ -624,18 +685,54 @@ final class Recorder: NSObject, SCStreamDelegate {
     /// delivering this source, so the track gets no hole; the overlap is dropped by TrackWriter.
     /// Returns whether the new capture started.
     @discardableResult
-    func recapture(_ source: Source) async -> Bool {
+    func recapture(_ source: Source) async -> Bool { await serialized(source, forced: true) }
+
+    /// One capture change per source at a time. Device and rate notifications come in bursts (a
+    /// headset going away fires the output, its rate and the input at once), and two overlapping
+    /// starts of ScreenCaptureKit made macOS stall for 10 s. A request that comes in meanwhile is kept
+    /// and run once after the current one; a forced one (a device change, the controller's watches)
+    /// wins over a mere call-mode recheck.
+    private var busy: Set<Source> = []
+    private var pending: [Source: Bool] = [:]
+
+    private func serialized(_ source: Source, forced: Bool) async -> Bool {
+        if busy.contains(source) {
+            pending[source] = (pending[source] ?? false) || forced
+            return false
+        }
+        busy.insert(source)
+        defer { busy.remove(source) }
+        var ok = await step(source, forced: forced)
+        while let again = pending.removeValue(forKey: source) {
+            ok = await step(source, forced: again)
+        }
+        return ok
+    }
+
+    private func step(_ source: Source, forced: Bool) async -> Bool {
+        if forced { return await recaptureNow(source) }
+        // A call-mode recheck: only while the tap or the call mode decides the capture.
+        guard source == .system, sink != nil, tap != nil || lastScreenWhy == .callMode else { return false }
+        if SystemTap.outputInCallMode() == (tap == nil) { return true }  // already right
+        return await recaptureNow(.system)
+    }
+
+    private func recaptureNow(_ source: Source) async -> Bool {
         guard let sink, let filter else { return false }
-        if source == .system, let fresh = makeTap(sink) {
-            let oldTap = tap
-            tap = fresh
-            oldTap?.stop()
-            watchOutputDevice()
-            RecorderLog.write("system audio: a new process tap")
-            let old = streams
-            streams = Self.without(.system, old)
-            await detach(.system, from: old, sink: sink)
-            return true
+        if source == .system {
+            let made = makeTap(sink)
+            lastScreenWhy = made.why ?? lastScreenWhy
+            if let fresh = made.tap {
+                let oldTap = tap
+                tap = fresh
+                oldTap?.stop()
+                watchOutputDevice()
+                RecorderLog.write("system audio: a new process tap")
+                let old = streams
+                streams = Self.without(.system, old)
+                await detach(.system, from: old, sink: sink)
+                return true
+            }
         }
         do {
             let s = try makeStream([source], filter: filter, sink: sink)
@@ -684,29 +781,108 @@ final class Recorder: NSObject, SCStreamDelegate {
         }
     }
 
+    private var inputListener: AudioObjectPropertyListenerBlock?
+    private static var inputAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice, mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    /// The default microphone changed (a headset connected or gone): capture it again right away.
+    /// ScreenCaptureKit keeps the device it opened, so a vanished Bluetooth mic left the track silent
+    /// until the two-minute silence restart and the "can't hear you" warning.
+    private func watchInputDevice() {
+        guard inputListener == nil else { return }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self, self.sink != nil else { return }
+                RecorderLog.write("microphone: the input device changed")
+                await self.recapture(.mic)
+            }
+        }
+        inputListener = block
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.inputAddress, .main, block)
+    }
+
     private var outputListener: AudioObjectPropertyListenerBlock?
+    private var rateListener: AudioObjectPropertyListenerBlock?
+    private var watchedOutput = AudioObjectID(kAudioObjectUnknown)
     private static var outputAddress = AudioObjectPropertyAddress(
         mSelector: kAudioHardwarePropertyDefaultOutputDevice, mScope: kAudioObjectPropertyScopeGlobal,
         mElement: kAudioObjectPropertyElementMain)
+    private static var rateAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyNominalSampleRate, mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
 
-    /// The default output changed (headphones, a FaceTime call again): the tap follows it.
+    /// Watches the default output and its nominal rate for the whole recording: a call can start
+    /// mid-call on the same headset (AirPods drop from 44.1 to 16 kHz with no device change), and
+    /// a switch to speakers ends the call mode.
     private func watchOutputDevice() {
         guard outputListener == nil else { return }
         let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
             Task { @MainActor in
-                guard let self, self.tap != nil else { return }
-                RecorderLog.write("system audio: the output device changed")
-                await self.recapture(.system)
+                guard let self else { return }
+                self.watchOutputRate()
+                // A tap is pinned to the old output's UID: it follows every device change, as before
+                // (an unplugged headset stops its IO without zeros, so nothing else would notice).
+                // ScreenCaptureKit follows the default output by itself: switched only when the call
+                // mode starts or ends. Off for another reason (permission, the tap failing): left alone.
+                if self.tap != nil {
+                    RecorderLog.write("system audio: the output device changed")
+                    await self.recapture(.system)
+                } else {
+                    await self.recaptureSystemIfNeeded()
+                }
             }
         }
         outputListener = block
         AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
+        watchOutputRate()
+    }
+
+    /// Moves the rate watch to the current default output. The AirPods A2DP → call-mode switch
+    /// is the same device, so the default-output change alone never catches it.
+    private func watchOutputRate() {
+        let device = SystemTap.defaultOutputDevice() ?? kAudioObjectUnknown
+        if device == watchedOutput { return }
+        if watchedOutput != kAudioObjectUnknown, let old = rateListener {
+            AudioObjectRemovePropertyListenerBlock(watchedOutput, &Self.rateAddress, .main, old)
+        }
+        rateListener = nil
+        watchedOutput = device
+        guard device != kAudioObjectUnknown else { return }
+        let block: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            Task { @MainActor in
+                guard let self else { return }
+                RecorderLog.write("system audio: the output rate changed")
+                await self.recaptureSystemIfNeeded()
+            }
+        }
+        rateListener = block
+        AudioObjectAddPropertyListenerBlock(device, &Self.rateAddress, .main, block)
+    }
+
+    /// Switches the system capture only when the call-mode state and the capture disagree, so a
+    /// rate notification never churns a capture that is already right.
+    /// Switches the system capture only when the call-mode state and the capture disagree, and only
+    /// while the tap or the call mode decides it: with the permission off or a tap that failed,
+    /// ScreenCaptureKit stays and notifications never replace its stream.
+    private func recaptureSystemIfNeeded() async {
+        _ = await serialized(.system, forced: false)
     }
 
     private func unwatchOutputDevice() {
-        guard let block = outputListener else { return }
-        AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
-        outputListener = nil
+        if let block = inputListener {
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.inputAddress, .main, block)
+            inputListener = nil
+        }
+        if let block = outputListener {
+            AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &Self.outputAddress, .main, block)
+            outputListener = nil
+        }
+        if watchedOutput != kAudioObjectUnknown, let block = rateListener {
+            AudioObjectRemovePropertyListenerBlock(watchedOutput, &Self.rateAddress, .main, block)
+        }
+        rateListener = nil
+        watchedOutput = kAudioObjectUnknown
     }
 
     nonisolated func stream(_ stream: SCStream, didStopWithError error: Error) {

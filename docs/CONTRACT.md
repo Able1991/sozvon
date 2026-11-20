@@ -15,7 +15,7 @@ Contract version: **1**. A breaking change bumps the version and requires a migr
 | Python environment | `<data>/.venv` | `setup.sh` (`uv sync --frozen`) |
 | Models | `<data>/models/<dir>/` + `.complete` marker | the installer, from `models.json` |
 | Projects | `<data>/profiles/<slug>.json` | the app, the engine, MCP |
-| Assistant calls | `<data>/assistant.log`: one line per call of Claude Code, Codex or Cursor CLI (time, command with the request masked as `<request>`, exit code, seconds, the end of stderr on a failure); cut to its newer half past 1 MB; goes into the diagnostics zip | the engine (`llm.py`) |
+| Assistant calls | `<data>/assistant.log`: one line per call of the assistant CLI (Claude Code, Codex, Cursor, OpenCode, ZCode; time, command with the request masked as `<request>`, exit code, seconds, the end of stderr on a failure); cut to its newer half past 1 MB; goes into the diagnostics zip | the engine (`llm.py`) |
 | Last project discovery reply | `<data>/profiles/.discover-last.txt` (raw assistant text, for debugging; overwritten on every discovery run) | `bin/discover_projects.py` |
 | Shared vocabulary | `<data>/vocab.json` | the engine, MCP, the app (a replacement remembered in the Calls window) |
 | Call search index | `<data>/index.db` (SQLite FTS5, mode 600) + `index.db.lock`; a cache synced with the calls folder before each search and rebuilt when broken or of another schema version, safe to delete | MCP (`search_calls`) |
@@ -56,7 +56,7 @@ the ones marked "manual" below):
 | Key | Values |
 |---|---|
 | `SOZVON_ME` | how to label the user |
-| `SOZVON_LLM` | `claude`, `codex`, `cursor`, `none`, `auto` (the first installed of `claude`, `codex`, `cursor-agent`) |
+| `SOZVON_LLM` | `claude`, `codex`, `cursor`, `opencode`, `zcode`, `none`, `auto` (the first installed of `claude`, `codex`, `cursor-agent`, `opencode`, ZCode) |
 | `SOZVON_SUMMARY_MODEL` | Claude model for summaries, speaker naming and project discovery (default `sonnet`). Manual |
 | `SOZVON_SUMMARY_LANGUAGE` | Language of the summary: `ru`, `en`, `uk`, `de`, `es`; `auto` or absent: the conversation's |
 | `SOZVON_LANGUAGE` | call languages: `ru`, `ru,en`, `auto` |
@@ -66,6 +66,7 @@ the ones marked "manual" below):
 | `SOZVON_MODEL_RU` | optional model for Russian tracks: `gigaam` or `parakeet`, used only when `SOZVON_MODEL` is a Whisper model (it detects each track's language; Russian tracks go to this one). Empty: everything on `SOZVON_MODEL` |
 | `SOZVON_SMART_NAMES` | `0`: do not name speakers through the assistant. Manual. The assistant names speakers only for a call with `summary` on (`call.json`): with it off the text never leaves the Mac, and the typed names go to the voices in order of appearance |
 | `SOZVON_CODEX_MODEL` | Codex model (`codex exec -m`); empty: the default model from the Codex settings. Manual |
+| `SOZVON_OPENCODE_MODEL` | OpenCode model (`opencode run --model provider/model`); empty: the model configured in OpenCode. Manual. ZCode has no model flag: the model is the account's, chosen in the app |
 | `SOZVON_DISCOVER_ASK` | `1`: project discovery with Claude may also list and message the open Claude Code sessions (`ListAgents`, `SendMessage`). Off by default: what discovery reads in `~/.claude` holds text from other people, and those tools reach sessions that may be allowed more. Manual |
 | `SOZVON_CURSOR_MODEL` | Cursor model (`cursor-agent --model`); empty: the default model from the Cursor settings. Manual |
 | `HF_TOKEN` | Hugging Face token: higher download limits when many people download from one address (the speaker separation models ship with the app and need none). Manual |
@@ -191,7 +192,7 @@ Mac last sent per call (ids of calls no longer here are dropped):
 
 `bin/voice.py` enrolls, lists and deletes voice prints (section 6).
 
-`bin/check_assistant.py claude|codex|cursor` sends a one-word request through the very command a summary uses.
+`bin/check_assistant.py claude|codex|cursor|opencode|zcode` sends a one-word request through the very command a summary uses (ZCode gets 300 s instead of the default 120: its one-word request through Electron measures ~2 minutes).
 
 `bin/discover_projects.py` discovers projects. `server.py` runs MCP over stdio, `server.py --http`
 runs the shared server on `127.0.0.1:$SOZVON_MCP_PORT` with a bearer token. `models.py <data> <model>` downloads a model.
