@@ -320,7 +320,8 @@ def _opencode_config(agentic: bool) -> str:
     OpenCode 1.x (npm's latest) rejects the 2.x "permissions" list, and 2.x reads the 1.x map into the
     same rules in the same order (checked on 1.19.6 and 2.3.2 with their agent listings). Agent rules
     come after the base policy and the global config, and the last matching rule wins, so the deny-all
-    first is a hard deny of every tool (agents otherwise start from allow-all, and the built-in "plan"
+    first is a hard deny of every tool (1.x appends one rule after ours, reads of its own tool-output
+    folder, harmless while the tools themselves are denied) (agents otherwise start from allow-all, and the built-in "plan"
     agent still allows the shell, web fetches and MCP). Project discovery gets the read-only trio, like
     Claude's Read/Glob/Grep set, after the deny, plus reads outside the working folder for
     ~/.claude/projects only."""
@@ -353,15 +354,19 @@ def _opencode_major(path: str) -> int | None:
     return _OPENCODE_MAJOR[key]
 
 
+_OPENCODE_SESSION = re.compile(r"ses_[A-Za-z0-9]{8,64}")
+
+
 def _opencode_sessions(stdout: str) -> set:
-    """The session ids the run's events name."""
+    """The session ids the run's events name; only ids shaped like OpenCode's own (ses_ + letters
+    and digits) are kept, so nothing the output says can turn into an option of the delete call."""
     ids = set()
     for line in stdout.splitlines():
         try:
             sid = json.loads(line).get("sessionID")
         except (ValueError, AttributeError):
             continue
-        if isinstance(sid, str) and sid:
+        if isinstance(sid, str) and _OPENCODE_SESSION.fullmatch(sid):
             ids.add(sid)
     return ids
 
@@ -395,8 +400,9 @@ def _opencode(path, prompt, cwd, agentic, timeout, settings):
         if v1 and r is not None:
             for sid in _opencode_sessions(r.stdout):
                 try:
-                    subprocess.run([path, "session", "delete", sid], capture_output=True, text=True,
-                                   timeout=30, cwd=str(work), env=env, stdin=subprocess.DEVNULL)
+                    # sid matched _OPENCODE_SESSION (ses_ + letters and digits) and goes as one argv item, no shell.
+                    subprocess.run([path, "session", "delete", sid], capture_output=True, text=True,  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
+                                   timeout=30, cwd=str(work), stdin=subprocess.DEVNULL)
                 except (OSError, subprocess.SubprocessError):
                     pass
         if tmp:
