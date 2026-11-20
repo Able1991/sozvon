@@ -69,6 +69,8 @@ final class RecordingPermissions: ObservableObject {
     @Published private(set) var systemAudio = RecordingPermissions.effectiveStatus
     /// The system audio check is running (its prompt may be on screen).
     @Published private(set) var checkingSystemAudio = false
+    /// The screen-recording prompt is being asked for (its button becomes a spinner; the ask can't stack).
+    @Published private(set) var askingScreen = false
     /// The check ran in this window, yet the state still reads as unknown (this macOS doesn't tell):
     /// System Settings is the only place to look.
     @Published private(set) var systemAudioAsked = false
@@ -109,8 +111,13 @@ final class RecordingPermissions: ObservableObject {
         refresh()
     }
 
-    func requestScreen() {
-        Permissions.requestScreen()
+    /// Asks for screen recording once: a second click while the prompt is up would stack another
+    /// request on top (and re-probe for seconds). The spinner in the UI is `askingScreen`.
+    func requestScreen() async {
+        guard !askingScreen else { return }
+        askingScreen = true
+        defer { askingScreen = false }
+        await Permissions.requestScreen()
         refresh()
     }
 

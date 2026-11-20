@@ -1,4 +1,4 @@
-"""Check that an assistant answers through the command a summary uses: check_assistant.py claude|codex|cursor.
+"""Check that an assistant answers through the command a summary uses: check_assistant.py claude|codex|cursor|opencode|zcode.
 
 The last line is `RESULT: ok <answer>` or `RESULT: error <message>` (docs/CONTRACT.md); exit 0 or 1.
 """

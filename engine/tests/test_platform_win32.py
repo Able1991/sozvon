@@ -843,6 +843,28 @@ def test_node_next_to_the_shim_is_preferred(npm_dir):
     assert ps.cli_argv(str(_shim(npm_dir, "codex")))[0] == str(npm_dir.resolve() / "node.exe")
 
 
+OPENCODE_SHIM = """@ECHO off\r
+GOTO start\r
+:find_dp0\r
+SET dp0=%~dp0\r
+EXIT /b\r
+:start\r
+SETLOCAL\r
+CALL :find_dp0\r
+"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe"   %*\r
+"""
+
+
+def test_an_npm_shim_starting_a_program_starts_it_without_node(npm_dir):
+    """npm i -g opencode-ai (1.19.6): the wrapper starts the package's own opencode.exe."""
+    (npm_dir / "opencode.cmd").write_text(OPENCODE_SHIM, encoding="utf-8")
+    exe = npm_dir / "node_modules" / "opencode-ai" / "bin" / "opencode.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"MZ")
+    assert ps.find_cli("opencode", [npm_dir]) == str(npm_dir / "opencode.cmd")
+    assert ps.cli_argv(str(npm_dir / "opencode.cmd")) == [str(exe.resolve())]
+
+
 @pytest.mark.parametrize("target,script", [
     (r"..\outside.js", SPY_JS),                         # leaves the folder of the shim
     (r"node_modules\..\..\outside.js", SPY_JS),

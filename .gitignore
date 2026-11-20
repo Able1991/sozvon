@@ -12,3 +12,5 @@ locks/
 *.pem
 .build/
 index.db*
+assistant.log
+cli-home-*/

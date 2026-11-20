@@ -3,13 +3,15 @@
 import Foundation
 
 public enum Assistant: String, CaseIterable, Identifiable, Sendable {
-    case claude, codex, cursor, none
+    case claude, codex, cursor, opencode, zcode, none
     public var id: String { rawValue }
     public var title: String {
         switch self {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
+        case .opencode: return "OpenCode"
+        case .zcode: return "ZCode"
         case .none: return L("Только локально")
         }
     }
@@ -18,6 +20,8 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         case .claude: return L("Саммари и поиск проектов, в том числе вопросы открытым сессиям. Текст уходит в Anthropic.")
         case .codex: return L("Саммари и поиск проектов по прошлым сессиям. Текст уходит в OpenAI.")
         case .cursor: return L("Саммари и поиск проектов по прошлым чатам Cursor. Текст уходит в Cursor и к выбранной там модели.")
+        case .opencode: return L("Саммари и поиск проектов. Текст уходит к провайдеру, выбранному в OpenCode.")
+        case .zcode: return L("Саммари и поиск проектов. Текст уходит в Z.AI.")
         case .none: return L("Без саммари. Ничего не покидает Mac.")
         }
     }
@@ -26,6 +30,8 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         case .claude: return "sparkles"
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .cursor: return "cursorarrow.rays"
+        case .opencode: return "terminal"
+        case .zcode: return "wand.and.stars"
         case .none: return "lock.shield.fill"
         }
     }
@@ -35,6 +41,8 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         case .claude: return "Anthropic"
         case .codex: return "OpenAI"
         case .cursor: return "Cursor"
+        case .opencode: return "OpenCode"
+        case .zcode: return "Z.AI"
         case .none: return ""
         }
     }
@@ -42,6 +50,8 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .claude, .codex: return rawValue
         case .cursor: return "cursor-agent"
+        case .opencode: return "opencode"
+        case .zcode: return "zcode"
         case .none: return nil
         }
     }
@@ -49,13 +59,27 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
     /// Where to look for the assistant's CLI.
     public static let searchDirs = ["\(Paths.home.path)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin"]
 
+    /// The ZCode CLI ships inside the app; this is the second place to look when there is no `zcode` on PATH.
+    public static let zcodeApps = ["/Applications", "\(Paths.home.path)/Applications"]
+
     /// Full path to the CLI, if it's installed.
     public var cliPath: String? {
         guard let cli else { return nil }
-        return Self.searchDirs.map { "\($0)/\(cli)" }.first { FileManager.default.isExecutableFile(atPath: $0) }
+        if let onPath = Self.searchDirs.map({ "\($0)/\(cli)" }).first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return onPath
+        }
+        if self == .zcode {
+            return Self.zcodeApps.map { "\($0)/ZCode.app/Contents/Resources/glm/zcode.cjs" }
+                .first { FileManager.default.isReadableFile(atPath: $0) }
+        }
+        return nil
     }
 
-    public var isAvailable: Bool { cli == nil || cliPath != nil }
+    /// Screenshots (the preview build's --all-assistants): every assistant shows as installed and connected,
+    /// without running or reading any real CLI or config.
+    nonisolated(unsafe) public static var previewInstalled = false
+
+    public var isAvailable: Bool { Self.previewInstalled || cli == nil || cliPath != nil }
 
     /// Terminal command that installs the CLI where `searchDirs` finds it (~/.local/bin or Homebrew). An npm install
     /// under nvm lands elsewhere, and its node isn't on an app's PATH: these are the installers to suggest.
@@ -64,13 +88,15 @@ public enum Assistant: String, CaseIterable, Identifiable, Sendable {
         case .claude: return "curl -fsSL https://claude.ai/install.sh | bash"
         case .codex: return "brew install --cask codex"
         case .cursor: return "curl https://cursor.com/install -fsS | bash"
+        case .opencode: return "brew install opencode"
+        case .zcode: return "brew install --cask zcode"
         case .none: return nil
         }
     }
 
-    /// Default assistant: the first installed of Claude Code, Codex, Cursor.
+    /// Default assistant: the first installed of Claude Code, Codex, Cursor, OpenCode, ZCode.
     public static func detect() -> Assistant {
-        [Assistant.claude, .codex, .cursor].first { $0.isAvailable } ?? .none
+        [Assistant.claude, .codex, .cursor, .opencode, .zcode].first { $0.isAvailable } ?? .none
     }
 }
 

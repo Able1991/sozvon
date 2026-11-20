@@ -1,6 +1,7 @@
-// MCP: Sozvon as a tool for Claude Code, Codex and Cursor. One shared engine server on 127.0.0.1
-// (the app keeps it running), and the assistants connect to it with a password. Claude Code and Codex
-// are set up through their CLIs; Cursor has no `mcp add`, so its ~/.cursor/mcp.json is edited directly.
+// MCP: Sozvon as a tool for Claude Code, Codex, Cursor, OpenCode and ZCode. One shared engine server
+// on 127.0.0.1 (the app keeps it running), and the assistants connect to it with a password.
+// Claude Code and Codex are set up through their CLIs; Cursor, OpenCode and ZCode have no usable
+// `mcp add` (or none at all): their config files are edited directly, as text.
 
 import Foundation
 import os
@@ -85,7 +86,10 @@ public enum MCP {
 
     /// Whether and how Sozvon is connected in this CLI. Runs the CLI: don't call from the main thread.
     public static func connection(_ a: Assistant) -> Connection {
+        if Assistant.previewInstalled { return .connected }
         if a == .cursor { return cursorConnection() }
+        if a == .zcode { return zcodeConnection() }
+        if a == .opencode { return opencodeConnection() }
         guard let exe = a.cliPath else { return .none }
         let (code, out) = run(exe, ["mcp", "get", name])
         return connection(exitCode: code, output: out)
@@ -95,6 +99,8 @@ public enum MCP {
     /// its own copy in every session (a copy per session ate memory). Don't call from the main thread.
     public static func connect(_ a: Assistant) -> (Bool, String) {
         if a == .cursor { return cursorConnect() }
+        if a == .zcode { return zcodeConnect() }
+        if a == .opencode { return opencodeConnect() }
         guard let exe = a.cliPath else { return (false, L("Не найден %@", a.title)) }
         let token = self.token
         let args: [String] = a == .claude
@@ -136,6 +142,10 @@ public enum MCP {
             """
         case .cursor:
             return CursorMCPConfig.snippet(name: name, url: url, token: token)
+        case .opencode:
+            return "opencode mcp add \(name) --url \(url) --header 'Authorization=Bearer \(token)' --global"
+        case .zcode:
+            return ZCodeMCPConfig.snippet(name: name, url: url, token: token)
         case .none:
             return "\(url)\nAuthorization: Bearer \(token)"
         }
@@ -143,6 +153,8 @@ public enum MCP {
 
     public static func disconnect(_ a: Assistant) {
         if a == .cursor { _ = cursorDisconnect(); return }
+        if a == .zcode { _ = zcodeDisconnect(); return }
+        if a == .opencode { _ = opencodeDisconnect(); return }
         guard let exe = a.cliPath else { return }
         _ = run(exe, ["mcp", "remove", name] + (a == .claude ? ["--scope", "user"] : []))
     }
@@ -150,6 +162,7 @@ public enum MCP {
     /// Whether there is something to connect: the CLI, or for Cursor also the app or its ~/.cursor folder
     /// (the Cursor app and Cursor CLI read the same ~/.cursor/mcp.json).
     public static func isInstalled(_ a: Assistant) -> Bool {
+        if Assistant.previewInstalled { return a != .none }
         guard a == .cursor else { return a.cliPath != nil }
         let fm = FileManager.default
         return a.cliPath != nil || fm.fileExists(atPath: cursorDir.path)
@@ -209,6 +222,148 @@ public enum MCP {
 
     private static var cursorManualHint: String {
         L("Не получилось разобрать ~/.cursor/mcp.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже.")
+    }
+
+    // MARK: ZCode (~/.zcode/cli/config.json)
+
+    public static var zcodeConfig: URL { Paths.home.appendingPathComponent(".zcode/cli/config.json") }
+
+    public static func zcodeConnection(file: URL = zcodeConfig, token: String = MCP.token) -> Connection {
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return .none }
+        if ZCodeMCPConfig.hasServer(text, name: name, url: url, token: token) { return .connected }
+        return ZCodeMCPConfig.hasEntry(text, name: name) ? .outdated : .none
+    }
+
+    /// Adds or updates the Sozvon entry in the ZCode app's config, the file edited as text so
+    /// everything else in it survives. Creates the file (mode 600: it holds the password) if missing.
+    /// An unreadable or unparseable file is left untouched: the manual hint is returned instead
+    /// (connecting must never wipe a config it cannot read).
+    public static func zcodeConnect(file: URL = zcodeConfig, token: String = MCP.token) -> (Bool, String) {
+        let fm = FileManager.default
+        let target = file.resolvingSymlinksInPath()
+        let exists = fm.fileExists(atPath: target.path)
+        let text: String
+        if exists {
+            guard let t = try? String(contentsOf: target, encoding: .utf8) else { return (false, zcodeManualHint) }
+            text = t
+        } else {
+            text = ""
+        }
+        guard let edited = ZCodeMCPConfig.upsert(text, name: name, url: url, token: token) else {
+            return (false, zcodeManualHint)
+        }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    /// Removes the Sozvon entry. Missing file or no entry: nothing to do.
+    @discardableResult
+    public static func zcodeDisconnect(file: URL = zcodeConfig) -> (Bool, String) {
+        let target = file.resolvingSymlinksInPath()
+        guard let text = try? String(contentsOf: target, encoding: .utf8) else { return (true, "") }
+        guard let edited = ZCodeMCPConfig.remove(text, name: name) else { return (false, zcodeManualHint) }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static var zcodeManualHint: String {
+        L("Не получилось разобрать ~/.zcode/cli/config.json. Добавь Sozvon вручную: кнопка «Скопировать» ниже.")
+    }
+
+    // MARK: OpenCode (~/.config/opencode/opencode.json or opencode.jsonc)
+
+    public static var opencodeConfig: URL { Paths.home.appendingPathComponent(".config/opencode/opencode.json") }
+    /// OpenCode reads opencode.json and opencode.jsonc, both loaded with the jsonc winning; a user
+    /// with comments in the config has this file.
+    public static var opencodeConfigC: URL { Paths.home.appendingPathComponent(".config/opencode/opencode.jsonc") }
+
+    /// The file Connect edits: the jsonc when there is one, otherwise the json.
+    public static var opencodeTarget: URL {
+        FileManager.default.fileExists(atPath: opencodeConfigC.path) ? opencodeConfigC : opencodeConfig
+    }
+
+    /// Effective connection across both config files (opencode.jsonc wins over opencode.json,
+    /// the discovery order OpenCode loads them in).
+    public static func opencodeConnection(token: String = MCP.token) -> Connection {
+        for f in [opencodeConfigC, opencodeConfig] where FileManager.default.fileExists(atPath: f.path) {
+            let c = opencodeConnection(file: f, token: token)
+            if c != .none { return c }
+        }
+        return .none
+    }
+
+    public static func opencodeConnection(file: URL, token: String = MCP.token) -> Connection {
+        guard let text = try? String(contentsOf: file, encoding: .utf8) else { return .none }
+        if OpenCodeMCPConfig.hasServer(text, name: name, url: url, token: token) { return .connected }
+        return OpenCodeMCPConfig.hasEntry(text, name: name) ? .outdated : .none
+    }
+
+    /// Adds or updates the Sozvon entry in OpenCode's config (opencode.jsonc when it exists, else
+    /// opencode.json), the file edited as text so comments and formatting survive. Creates the file
+    /// (mode 600: it holds the password) if missing. An unreadable or unparseable file is left
+    /// untouched: the manual hint is returned instead. No config reload afterwards: the background
+    /// service watches the config file and every new session reads it fresh.
+    public static func opencodeConnect(file: URL = opencodeTarget, token: String = MCP.token) -> (Bool, String) {
+        let fm = FileManager.default
+        let target = file.resolvingSymlinksInPath()
+        let exists = fm.fileExists(atPath: target.path)
+        let text: String
+        if exists {
+            guard let t = try? String(contentsOf: target, encoding: .utf8) else { return (false, opencodeManualHint) }
+            text = t
+        } else {
+            text = ""
+        }
+        guard let edited = OpenCodeMCPConfig.upsert(text, name: name, url: url, token: token) else {
+            return (false, opencodeManualHint)
+        }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    /// Removes the Sozvon entry from both config files (it can sit in either). Missing files or no
+    /// entry: nothing to do.
+    @discardableResult
+    public static func opencodeDisconnect() -> (Bool, String) {
+        var result = (true, "")
+        for f in [opencodeConfigC, opencodeConfig] {
+            let r = opencodeDisconnect(file: f)
+            if !r.0 { result = r }
+        }
+        return result
+    }
+
+    @discardableResult
+    public static func opencodeDisconnect(file: URL, token: String = MCP.token) -> (Bool, String) {
+        let target = file.resolvingSymlinksInPath()
+        guard let text = try? String(contentsOf: target, encoding: .utf8) else { return (true, "") }
+        guard let edited = OpenCodeMCPConfig.remove(text, name: name) else { return (false, opencodeManualHint) }
+        if edited == text { return (true, "") }
+        do {
+            try writeKeepingPermissions(edited, to: target)
+            return (true, "")
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static var opencodeManualHint: String {
+        L("Не получилось разобрать конфиг OpenCode (~/.config/opencode/opencode.json или .jsonc). Добавь Sozvon вручную: кнопка «Скопировать» ниже.")
     }
 
     /// Atomic write (a temp file alongside, then rename) with the old file's permissions; a new file gets 600.

@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something Sozvon should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Sozvon tries to stay a small tool. Bigger ideas are easier to discuss first in [Ideas](https://github.com/Able1991/sozvon/discussions/categories/ideas).
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do instead now

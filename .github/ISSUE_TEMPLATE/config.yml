@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/Able1991/sozvon/discussions
+    about: Ask how something works, share an idea or show your setup.
+  - name: Security problem
+    url: https://github.com/Able1991/sozvon/security/advisories/new
+    about: Report a vulnerability privately, never in a public issue.
+  - name: Documentation
+    url: https://able1991.github.io/sozvon/docs.html
+    about: Setup, recording, assistants, your own server, troubleshooting.

@@ -1,4 +1,4 @@
-"""Discover projects via Claude Code (or Codex CLI, or Cursor CLI) and turn them into Sozvon profiles.
+"""Discover projects via Claude Code (or Codex CLI, Cursor CLI, OpenCode or ZCode) and turn them into Sozvon profiles.
 
 Claude looks at local Claude Code sessions (~/.claude/projects: folder names,
 CLAUDE.md, memory). With SOZVON_DISCOVER_ASK=1 it also asks the open sessions what
@@ -16,6 +16,10 @@ Codex and Cursor can't ask sessions: they look at their own past sessions
 (~/.codex/sessions, ~/.cursor/projects) and ~/.claude/projects instead.
 Codex runs in a read-only sandbox, Cursor in read-only ask mode with its sandbox on;
 text they read goes to OpenAI or to Cursor and the model chosen there.
+OpenCode and ZCode look at ~/.claude/projects too (ZCode also at ~/.zcode); both run with
+read-only tools and no Sozvon MCP, OpenCode through a dedicated agent in the run's own project
+config, ZCode with the dangerous tools disallowed for the run. OpenCode keeps its past
+sessions in a SQLite base, so only ~/.claude/projects has readable session text there.
 """
 import json
 import re
@@ -76,10 +80,35 @@ CURSOR_EXTRA = """
 целиком не читай) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
 """
 
-EXTRA = {"codex": CODEX_EXTRA, "cursor": CURSOR_EXTRA}
+OPENCODE_EXTRA = """
+Посмотри также ~/.claude/projects, если есть: свои прошлые сессии OpenCode держит
+в SQLite-базе, текст из неё не читай. Только эта папка. Читай выборочно.
+"""
 
-# Working folder per backend: the CLI's private folder, not home.
-CLI_DIRS = {"claude": ".claude", "codex": ".codex", "cursor": ".cursor"}
+ZCODE_EXTRA = """
+Посмотри также ~/.zcode (там прошлые сессии ZCode: читай выборочно, файлы целиком
+не тяни) и ~/.claude/projects, если есть. Только эти две папки. Читай выборочно.
+"""
+
+EXTRA = {"codex": CODEX_EXTRA, "cursor": CURSOR_EXTRA, "opencode": OPENCODE_EXTRA, "zcode": ZCODE_EXTRA}
+
+# Working folder per backend. claude/codex/cursor: the CLI's own folder (it looks at its sessions).
+# opencode/zcode: a Sozvon-owned folder — the run's config (opencode.json with the run's agent) and
+# zcode's session db row are identified by that folder, which keeps them apart from the user's own
+# config and sessions (the zcode session is deleted after the run).
+CLI_DIRS = {"claude": ".claude", "codex": ".codex", "cursor": ".cursor",
+            "opencode": ".local/share/opencode", "zcode": ".zcode"}
+
+
+def cli_dir(name: str) -> Path:
+    """The backend's working folder, created."""
+    if name in ("opencode", "zcode"):
+        d = paths.data_dir() / f"cli-home-{name}"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    d = Path.home() / CLI_DIRS[name]
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def build_prompt(name: str, ask: bool = False) -> str:
@@ -212,8 +241,7 @@ def main() -> int:
     prompt = build_prompt(name, ask)
     # Working dir: a private CLI folder, not home. Otherwise the CLI looks into ~/Documents,
     # ~/Desktop etc., and macOS asks Sozvon for access to them.
-    cwd = Path.home() / CLI_DIRS[name]
-    cwd.mkdir(exist_ok=True)
+    cwd = cli_dir(name)
     state = {"asked": 0, "read": 0}
 
     def on_event(tool, inp):
