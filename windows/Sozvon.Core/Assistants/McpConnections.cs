@@ -13,7 +13,7 @@ public enum McpFailure
     /// <summary>The tool answered with an error.</summary>
     ToolFailed,
 
-    /// <summary>Cursor's mcp.json is not JSON that can be edited safely: the Copy button is left.</summary>
+    /// <summary>Cursor's mcp.json or OpenCode's config is not JSON that can be edited safely: the Copy button is left.</summary>
     CannotParse,
 
     /// <summary>A config file could not be written.</summary>
@@ -26,17 +26,28 @@ public sealed record McpResult(McpFailure? Failure = null, string Output = "")
 }
 
 /// <summary>
-/// Connects Sozvon to Claude Code, Codex and Cursor, as on the Mac: Claude and Codex through their own <c>mcp add</c>, Cursor
-/// by editing its mcp.json. Codex and Cursor are only ever touched when the user presses their button. Every method runs
-/// a tool or touches a file: not on the UI thread.
+/// Connects Sozvon to Claude Code, Codex, Cursor and OpenCode, as on the Mac: Claude and Codex through their own
+/// <c>mcp add</c>, Cursor and OpenCode by editing their config files (OpenCode has no <c>mcp remove</c>). Codex, Cursor and
+/// OpenCode are only ever touched when the user presses their button. Every method runs a tool or touches a file: not on
+/// the UI thread.
 /// </summary>
 public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICliRunner runner)
 {
-    public static readonly IReadOnlyList<Assistant> All = [Assistant.Claude, Assistant.Codex, Assistant.Cursor];
+    public static readonly IReadOnlyList<Assistant> All = [Assistant.Claude, Assistant.Codex, Assistant.Cursor, Assistant.OpenCode];
 
     public string CursorFolder => Path.Combine(home.Home, ".cursor");
 
     public string CursorConfig => Path.Combine(CursorFolder, "mcp.json");
+
+    public string OpenCodeFolder => Path.Combine(home.Home, ".config", "opencode");
+
+    /// <summary>OpenCode reads opencode.json and opencode.jsonc, the jsonc winning: a config with comments is the jsonc.</summary>
+    public string OpenCodeConfigC => Path.Combine(OpenCodeFolder, "opencode.jsonc");
+
+    public string OpenCodeConfigJson => Path.Combine(OpenCodeFolder, "opencode.json");
+
+    /// <summary>The file Connect edits: the jsonc when there is one, otherwise the json.</summary>
+    public string OpenCodeConfig => File.Exists(OpenCodeConfigC) ? OpenCodeConfigC : OpenCodeConfigJson;
 
     public string CodexConfigFile => Path.Combine(Environment.GetEnvironmentVariable("CODEX_HOME") is { Length: > 0 } codexHome ? codexHome : Path.Combine(home.Home, ".codex"), "config.toml");
 
@@ -51,6 +62,7 @@ public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICl
     public McpConnection Connection(Assistant a)
     {
         if (a == Assistant.Cursor) return CursorConnection();
+        if (a == Assistant.OpenCode) return OpenCodeConnection();
         if (AssistantCli.Find(a, home) is not { } cli) return McpConnection.None;
         var (code, output) = runner.Run(cli, ["mcp", "get", Mcp.Name]);
         return Mcp.Connection(code, output, endpoint.Url);
@@ -60,6 +72,7 @@ public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICl
     public McpResult Connect(Assistant a)
     {
         if (a == Assistant.Cursor) return CursorConnect();
+        if (a == Assistant.OpenCode) return JsonConnect(OpenCodeConfig, OpenCodeMcpConfig.Upsert);
         if (AssistantCli.Find(a, home) is not { } cli) return new McpResult(McpFailure.NotInstalled);
         IReadOnlyList<string> add = a == Assistant.Claude
             // --header goes last: the option is greedy and would otherwise swallow the name and the address
@@ -78,15 +91,19 @@ public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICl
     public McpResult Disconnect(Assistant a)
     {
         if (a == Assistant.Cursor) return CursorDisconnect();
+        if (a == Assistant.OpenCode) return OpenCodeDisconnect();
         if (AssistantCli.Find(a, home) is not { } cli) return new McpResult(McpFailure.NotInstalled);
         var (code, output) = runner.Run(cli, RemoveArguments(a));
         return code == 0 ? new McpResult() : new McpResult(McpFailure.ToolFailed, output);
     }
 
     /// <summary>The short form shown in the row; the copied text also carries the transport and the password.</summary>
-    public static string ShortCommand(Assistant a, string url) => a == Assistant.Cursor
-        ? $"%USERPROFILE%\\.cursor\\mcp.json: \"{Mcp.Name}\": {url}"
-        : $"{AssistantCli.Name(a)} mcp add {Mcp.Name} {url}";
+    public static string ShortCommand(Assistant a, string url) => a switch
+    {
+        Assistant.Cursor => $"%USERPROFILE%\\.cursor\\mcp.json: \"{Mcp.Name}\": {url}",
+        Assistant.OpenCode => $"%USERPROFILE%\\.config\\opencode\\opencode.json: \"{Mcp.Name}\": {url}",
+        _ => $"{AssistantCli.Name(a)} mcp add {Mcp.Name} {url}",
+    };
 
     /// <summary>What Connect does, as text to paste into PowerShell. It holds the password: only for the clipboard on request.</summary>
     public string ManualSetup(Assistant a) => a switch
@@ -96,6 +113,7 @@ public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICl
             + $"# then add this line to the [mcp_servers.{Mcp.Name}] section of %USERPROFILE%\\.codex\\config.toml:\n"
             + $"# http_headers = {{ \"Authorization\" = \"Bearer {endpoint.Token}\" }}",
         Assistant.Cursor => CursorMcpConfig.Snippet(Mcp.Name, endpoint.Url, endpoint.Token),
+        Assistant.OpenCode => OpenCodeMcpConfig.Snippet(Mcp.Name, endpoint.Url, endpoint.Token),
         _ => $"{endpoint.Url}\nAuthorization: Bearer {endpoint.Token}",
     };
 
@@ -109,14 +127,46 @@ public sealed class McpConnections(McpEndpoint endpoint, AssistantHome home, ICl
         return CursorMcpConfig.HasEntry(text, Mcp.Name) ? McpConnection.Outdated : McpConnection.None;
     }
 
-    /// <summary>Adds or updates the Sozvon entry, keeping comments and other servers; creates the file and the folder if missing.</summary>
-    private McpResult CursorConnect()
+    private McpResult CursorConnect() => JsonConnect(CursorConfig, CursorMcpConfig.Upsert);
+
+    /// <summary>
+    /// Adds or updates the Sozvon entry, keeping comments and other servers; creates the file and the folder if missing. A
+    /// file that can't be read or parsed is never written.
+    /// </summary>
+    private McpResult JsonConnect(string file, Func<string, string, string, string, string?> upsert)
     {
-        var target = ResolveLink(CursorConfig);
+        var target = ResolveLink(file);
         var text = File.Exists(target) ? SharedFile.ReadText(target) : "";
-        if (text is null || CursorMcpConfig.Upsert(text, Mcp.Name, endpoint.Url, endpoint.Token) is not { } edited)
+        if (text is null || upsert(text, Mcp.Name, endpoint.Url, endpoint.Token) is not { } edited)
             return new McpResult(McpFailure.CannotParse);
         return edited == text ? new McpResult() : Write(target, edited);
+    }
+
+    /// <summary>Either file: the jsonc wins, as OpenCode loads them.</summary>
+    private McpConnection OpenCodeConnection()
+    {
+        foreach (var file in new[] { OpenCodeConfigC, OpenCodeConfigJson })
+        {
+            if (SharedFile.ReadText(file) is not { } text) continue;
+            if (OpenCodeMcpConfig.HasServer(text, Mcp.Name, endpoint.Url, endpoint.Token)) return McpConnection.Connected;
+            if (OpenCodeMcpConfig.HasEntry(text, Mcp.Name)) return McpConnection.Outdated;
+        }
+        return McpConnection.None;
+    }
+
+    /// <summary>The entry can sit in either file: both lose it.</summary>
+    private McpResult OpenCodeDisconnect()
+    {
+        var result = new McpResult();
+        foreach (var file in new[] { OpenCodeConfigC, OpenCodeConfigJson })
+        {
+            var target = ResolveLink(file);
+            if (SharedFile.ReadText(target) is not { } text) continue;
+            var outcome = OpenCodeMcpConfig.Remove(text, Mcp.Name) is not { } edited ? new McpResult(McpFailure.CannotParse)
+                : edited == text ? new McpResult() : Write(target, edited);
+            if (!outcome.Ok) result = outcome;
+        }
+        return result;
     }
 
     /// <summary>Removes the Sozvon entry. A missing file or no entry: nothing to do.</summary>

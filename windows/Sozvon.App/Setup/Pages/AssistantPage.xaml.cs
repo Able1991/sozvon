@@ -110,7 +110,7 @@ public sealed partial class AssistantPage : UserControl, ISetupPage
         // As on the Mac: the summary's language is asked only when there will be a summary.
         SummaryLanguageCard.Visibility = _state.Assistant == SetupState.NoAssistant ? Visibility.Collapsed : Visibility.Visible;
         var cursor = _state.Assistant == "cursor";
-        WarningBar.IsOpen = cursor || _state.Assistant == "codex";
+        WarningBar.IsOpen = cursor || _state.Assistant is "codex" or "opencode";
         WarningBar.Message = Strings.L(cursor ? CursorWarning : UnverifiedWarning);
     }
 }

@@ -441,8 +441,8 @@ public class ParticipantsTests : TempFolders
     {
         var g = Fixture["generic"]!.AsObject();
         var me = g["me"]!.GetValue<string>();
-        Assert.Empty(Strings(g["yes"]).Where(s => !Voices.IsGenericLabel(s, me)));
-        Assert.Empty(Strings(g["no"]).Where(s => Voices.IsGenericLabel(s, me)));
+        Assert.All(Strings(g["yes"]), s => Assert.True(Voices.IsGenericLabel(s, me), s));
+        Assert.All(Strings(g["no"]), s => Assert.False(Voices.IsGenericLabel(s, me), s));
     }
 
     [Fact]

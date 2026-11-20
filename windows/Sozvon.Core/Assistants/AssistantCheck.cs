@@ -40,12 +40,13 @@ public static class AssistantCheckScript
     /// <summary>The engine itself gives the CLI 120 s; the interpreter's start and the journal fit in the rest.</summary>
     public static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(150);
 
-    /// <summary>check_assistant.py's argument: claude, codex, cursor.</summary>
+    /// <summary>check_assistant.py's argument: claude, codex, cursor, opencode.</summary>
     public static string Argument(Assistant a) => a switch
     {
         Assistant.Claude => "claude",
         Assistant.Codex => "codex",
         Assistant.Cursor => "cursor",
+        Assistant.OpenCode => "opencode",
         _ => throw new ArgumentOutOfRangeException(nameof(a), "no assistant to check"),
     };
 

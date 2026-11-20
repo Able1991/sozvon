@@ -19,24 +19,26 @@ public static class AssistantInstall
     /// looks without a new PATH:
     /// Claude Code: https://code.claude.com/docs/en/setup ("Windows PowerShell"), into ~\.local\bin\claude.exe;
     /// Codex: https://github.com/openai/codex (README, "Windows"), into %LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe;
-    /// Cursor CLI: https://cursor.com/docs/cli/installation ("Windows"), into %LOCALAPPDATA%\cursor-agent\cursor-agent.cmd.
+    /// Cursor CLI: https://cursor.com/docs/cli/installation ("Windows"), into %LOCALAPPDATA%\cursor-agent\cursor-agent.cmd;
+    /// OpenCode: https://opencode.ai/docs ("npm"), into %APPDATA%\npm\opencode.cmd, which needs Node.js.
     /// </summary>
     public static string? Command(Assistant a) => a switch
     {
         Assistant.Claude => "irm https://claude.ai/install.ps1 | iex",
         Assistant.Codex => "powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"",
         Assistant.Cursor => "irm 'https://cursor.com/install?win32=true' | iex",
+        Assistant.OpenCode => "npm i -g opencode-ai",
         _ => null,
     };
 
     /// <summary>The assistants whose program is not on this computer, in the order of the choice.</summary>
     public static IReadOnlyList<Assistant> Missing(AssistantHome home) =>
-        [.. new[] { Assistant.Claude, Assistant.Codex, Assistant.Cursor }.Where(a => AssistantCli.Find(a, home) is null)];
+        [.. McpConnections.All.Where(a => AssistantCli.Find(a, home) is null)];
 
     /// <summary>In Settings the block opens by itself when the chosen assistant is missing.</summary>
     public static bool OpenInSettings(Assistant chosen, IReadOnlyCollection<Assistant> missing) =>
         chosen != Assistant.None && missing.Contains(chosen);
 
     /// <summary>In the setup assistant it opens by itself when none is installed: otherwise it shares the page with the choice.</summary>
-    public static bool OpenInSetup(IReadOnlyCollection<Assistant> missing) => missing.Count == 3;
+    public static bool OpenInSetup(IReadOnlyCollection<Assistant> missing) => missing.Count == McpConnections.All.Count;
 }

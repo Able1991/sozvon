@@ -70,8 +70,8 @@ public sealed partial class AssistantRow(Assistant assistant, string shortComman
 }
 
 /// <summary>
-/// Settings, "Assistants": Claude Code, Codex and Cursor get Sozvon's shared MCP server, as on the Mac. The tools run off the
-/// UI thread; after every action all three are checked again. Codex and Cursor change only when their own button is pressed.
+/// Settings, "Assistants": Claude Code, Codex, Cursor and OpenCode get Sozvon's shared MCP server, as on the Mac. The tools run
+/// off the UI thread; after every action all of them are checked again. Only Claude may change without its own button.
 /// </summary>
 public sealed partial class IntegrationsViewModel : ObservableObject
 {
@@ -100,6 +100,8 @@ public sealed partial class IntegrationsViewModel : ObservableObject
     public AssistantRow Codex => Rows[1];
 
     public AssistantRow Cursor => Rows[2];
+
+    public AssistantRow OpenCode => Rows[3];
 
     [ObservableProperty] public partial bool Busy { get; private set; }
 
@@ -138,11 +140,11 @@ public sealed partial class IntegrationsViewModel : ObservableObject
             {
                 return;
             }
-            await PerformAsync(() => _connections.Disconnect(row.Assistant));
+            await PerformAsync(() => _connections.Disconnect(row.Assistant), row.Assistant);
         }
         else
         {
-            await PerformAsync(() => _connections.Connect(row.Assistant));
+            await PerformAsync(() => _connections.Connect(row.Assistant), row.Assistant);
         }
     }
 
@@ -182,7 +184,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         };
     }
 
-    private async Task PerformAsync(Func<McpResult?> action)
+    private async Task PerformAsync(Func<McpResult?> action, Assistant? on = null)
     {
         Busy = true;
         foreach (var row in Rows)
@@ -195,7 +197,7 @@ public sealed partial class IntegrationsViewModel : ObservableObject
             var outcome = action();
             return (outcome, Rows.ToDictionary(r => r.Assistant, r => _connections.Connection(r.Assistant)));
         });
-        Message = result is { Failure: { } failure } ? Describe(failure, result.Output) : "";
+        Message = result is { Failure: { } failure } ? Describe(failure, result.Output, on) : "";
         foreach (var row in Rows)
         {
             row.Installed = _connections.IsInstalled(row.Assistant);
@@ -205,10 +207,11 @@ public sealed partial class IntegrationsViewModel : ObservableObject
         Busy = false;
     }
 
-    private string Describe(McpFailure failure, string output) => failure switch
+    private string Describe(McpFailure failure, string output, Assistant? on) => failure switch
     {
         McpFailure.NotInstalled => Loc.L("Программа ассистента не найдена"),
-        McpFailure.CannotParse => Loc.L("Не получилось разобрать %@. Добавь Sozvon вручную: кнопка «Скопировать» ниже.", _connections.CursorConfig),
+        McpFailure.CannotParse => Loc.L("Не получилось разобрать %@. Добавь Sozvon вручную: кнопка «Скопировать» ниже.",
+            on == Assistant.OpenCode ? _connections.OpenCodeConfig : _connections.CursorConfig),
         _ => output.Length > 0 ? output : Loc.L("Не получилось"),
     };
 }

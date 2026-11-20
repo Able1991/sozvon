@@ -36,12 +36,13 @@ public interface ICliRunner
 /// </summary>
 public static partial class AssistantCli
 {
-    /// <summary>The tool's name: claude, codex, cursor-agent; null for no assistant.</summary>
+    /// <summary>The tool's name: claude, codex, cursor-agent, opencode; null for no assistant.</summary>
     public static string? Name(Assistant a) => a switch
     {
         Assistant.Claude => "claude",
         Assistant.Codex => "codex",
         Assistant.Cursor => "cursor-agent",
+        Assistant.OpenCode => "opencode",
         _ => null,
     };
 
@@ -50,6 +51,7 @@ public static partial class AssistantCli
         Assistant.Claude => "Claude Code",
         Assistant.Codex => "Codex",
         Assistant.Cursor => "Cursor",
+        Assistant.OpenCode => "OpenCode",
         _ => "",
     };
 
@@ -78,7 +80,10 @@ public static partial class AssistantCli
 
     public static string? Find(Assistant a, AssistantHome home) => Name(a) is { } name ? Find(name, home) : null;
 
-    /// <summary>How to start a tool: an .exe itself, npm's .cmd as node and its script; null when it cannot be started safely.</summary>
+    /// <summary>
+    /// How to start a tool: an .exe itself, npm's .cmd as node and its script, or the program it starts (OpenCode's wrapper
+    /// runs the package's own opencode.exe); null when it cannot be started safely.
+    /// </summary>
     public static IReadOnlyList<string>? Argv(string path, AssistantHome home)
     {
         var extension = System.IO.Path.GetExtension(path);
@@ -93,6 +98,7 @@ public static partial class AssistantCli
             if (targets.Count != 1) return null;
             var script = System.IO.Path.GetFullPath(System.IO.Path.Combine(folder, targets[0].Groups[1].Value));
             if (!script.StartsWith(folder + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) || !File.Exists(script)) return null;
+            if (System.IO.Path.GetExtension(script).Equals(".exe", StringComparison.OrdinalIgnoreCase)) return [script];
             var node = new[] { folder }.Concat(SearchFolders(home)).Select(f => System.IO.Path.Combine(f, "node.exe")).FirstOrDefault(File.Exists);
             return node is null ? null : [node, script];
         }

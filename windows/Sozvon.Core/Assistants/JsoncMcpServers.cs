@@ -5,55 +5,110 @@ using System.Text.Json;
 namespace Sozvon.Core.Assistants;
 
 /// <summary>
-/// Cursor has no <c>mcp add</c> command: its MCP servers live in %USERPROFILE%\.cursor\mcp.json, which is JSONC in practice
-/// (people keep // comments in it). So the Sozvon entry is edited as text, as on the Mac: everything else in the file,
-/// comments, other servers and formatting, stays character for character. Anything that cannot be parsed safely gives
-/// null, and the app offers the Copy button instead of touching the file.
+/// Cursor has no <c>mcp add</c> command: its MCP servers live in <c>mcpServers</c> of %USERPROFILE%\.cursor\mcp.json, which is
+/// JSONC in practice (people keep // comments in it).
 /// </summary>
 public static class CursorMcpConfig
 {
+    private static readonly string[] s_path = ["mcpServers"];
+
     /// <summary>Whether <c>mcpServers.&lt;name&gt;</c> points at <paramref name="url"/> and, with a token, sends it. Commented-out entries don't count.</summary>
-    public static bool HasServer(string text, string name, string url, string? token = null)
+    public static bool HasServer(string text, string name, string url, string? token = null) => JsoncMcpServers.HasServer(text, s_path, name, url, token);
+
+    /// <summary>Whether there is any <c>mcpServers.&lt;name&gt;</c> entry, whatever it points at.</summary>
+    public static bool HasEntry(string text, string name) => JsoncMcpServers.HasEntry(text, s_path, name);
+
+    /// <summary>Adds or updates <c>"&lt;name&gt;": {"url": …, "headers": {"Authorization": "Bearer …"}}</c> in <c>mcpServers</c>.</summary>
+    public static string? Upsert(string text, string name, string url, string token) => JsoncMcpServers.Upsert(text, s_path, name, url, token, []);
+
+    /// <summary>Removes every <c>mcpServers.&lt;name&gt;</c> entry. No entry: the text comes back unchanged. Null: cannot parse.</summary>
+    public static string? Remove(string text, string name) => JsoncMcpServers.Remove(text, s_path, name);
+
+    /// <summary>The block to paste by hand (the Copy button), with a hint where it goes.</summary>
+    public static string Snippet(string name, string url, string token) =>
+        "// Add to \"mcpServers\" in %USERPROFILE%\\.cursor\\mcp.json (Cursor and Cursor CLI both read it):\n"
+        + JsoncMcpServers.EntrySnippet(name, url, token, []);
+}
+
+/// <summary>
+/// OpenCode keeps its MCP servers in <c>mcp.servers</c> of %USERPROFILE%\.config\opencode\opencode.json or opencode.jsonc, as
+/// on the Mac: the entry is a remote server with the password header. <c>"oauth": false</c>, because OpenCode otherwise wants
+/// a browser sign-in for a remote server even with the header set.
+/// </summary>
+public static class OpenCodeMcpConfig
+{
+    private static readonly string[] s_path = ["mcp", "servers"];
+    private static readonly (string, object)[] s_fields = [("type", "remote"), ("oauth", false)];
+
+    public static bool HasServer(string text, string name, string url, string? token = null) => JsoncMcpServers.HasServer(text, s_path, name, url, token);
+
+    public static bool HasEntry(string text, string name) => JsoncMcpServers.HasEntry(text, s_path, name);
+
+    public static string? Upsert(string text, string name, string url, string token) => JsoncMcpServers.Upsert(text, s_path, name, url, token, s_fields);
+
+    public static string? Remove(string text, string name) => JsoncMcpServers.Remove(text, s_path, name);
+
+    public static string Snippet(string name, string url, string token) =>
+        "// Add to \"mcp\": {\"servers\": {…}} in %USERPROFILE%\\.config\\opencode\\opencode.json:\n"
+        + JsoncMcpServers.EntrySnippet(name, url, token, s_fields);
+}
+
+/// <summary>
+/// An MCP server entry in a JSON(C) config file that its program also rewrites, edited as text, as on the Mac (JSONCEditor):
+/// everything else in the file, comments, other servers and formatting, stays character for character. Anything that
+/// cannot be parsed safely gives null, and the app offers the Copy button instead of touching the file.
+/// </summary>
+internal static class JsoncMcpServers
+{
+    /// <summary>Whether <c>path.&lt;name&gt;</c> points at <paramref name="url"/> and, with a token, sends it.</summary>
+    public static bool HasServer(string text, IReadOnlyList<string> path, string name, string url, string? token)
     {
-        if (Document.Parse(text) is not { } doc || doc.Entries(name).LastOrDefault()?.Value is not { Kind: Kind.Object } entry) return false;
+        if (Document.Parse(text) is not { } doc || doc.Entries(path, name).LastOrDefault()?.Value is not { Kind: Kind.Object } entry) return false;
         if (doc.String(entry.Member("url")?.Value) != url) return false;
         if (token is null) return true;
         return doc.String(entry.Member("headers")?.Value?.Member("Authorization")?.Value) == $"Bearer {token}";
     }
 
-    /// <summary>Whether there is any <c>mcpServers.&lt;name&gt;</c> entry, whatever it points at.</summary>
-    public static bool HasEntry(string text, string name) => Document.Parse(text)?.Entries(name).Count > 0;
+    public static bool HasEntry(string text, IReadOnlyList<string> path, string name) => Document.Parse(text)?.Entries(path, name).Count > 0;
 
     /// <summary>
-    /// Adds or updates <c>"&lt;name&gt;": {"url": …, "headers": {"Authorization": "Bearer …"}}</c> in <c>mcpServers</c>. An
-    /// existing entry is replaced in place (duplicates are removed); a new one becomes the first member. Empty text gives
-    /// a new file; a top-level object without <c>mcpServers</c> gets one. Null: not JSON(C) that can be edited safely.
+    /// Adds or updates <c>"&lt;name&gt;": {fields…, "url": …, "headers": {"Authorization": "Bearer …"}}</c> under
+    /// <paramref name="path"/>. An existing entry is replaced in place (duplicates are removed); a new one becomes the first
+    /// member. Empty text gives a new file; the objects of the path that are missing are created. Null: not JSON(C) that can
+    /// be edited safely.
     /// </summary>
-    public static string? Upsert(string text, string name, string url, string token)
+    /// <param name="fields">Members before url and headers, with string or bool values.</param>
+    public static string? Upsert(string text, IReadOnlyList<string> path, string name, string url, string token,
+        IReadOnlyList<(string Key, object Value)> fields)
     {
-        var value = Entry(url, token);
+        var value = Entry(url, token, fields);
         if (Document.Parse(text) is not { } doc) return null;
         if (doc.Root is not { } root)
         {
             // Nothing but whitespace or comments: the new document goes after them.
-            var fresh = Render(new Value.Object([("mcpServers", new Value.Object([(name, value)]))]), "", "  ") + "\n";
+            var fresh = Render(Nest(path, 0, name, value), "", "  ") + "\n";
             var separator = text.Length == 0 || text.EndsWith('\n') ? "" : "\n";
             return text + separator + fresh;
         }
-        if (root.Kind != Kind.Object) return null;
-        var servers = root.Members.Where(m => m.Key == "mcpServers").ToList();
-        if (servers.Count > 1) return null;
-        if (servers.Count == 0) return InsertFirst(("mcpServers", new Value.Object([(name, value)])), root, text);
-        if (servers[0].Value.Kind != Kind.Object) return null;
-        while (doc.Entries(name).Count > 1)
+        var holder = root;
+        for (var level = 0; level < path.Count; level++)
         {
-            if (doc.Servers is not { } holder || RemoveMember(doc.Entries(name)[^1], holder, text) is not { } shorter) return null;
+            if (holder.Kind != Kind.Object) return null;
+            var found = holder.Members.Where(m => m.Key == path[level]).ToList();
+            if (found.Count > 1) return null;
+            if (found.Count == 0) return InsertFirst((path[level], Nest(path, level + 1, name, value)), holder, text);
+            holder = found[0].Value;
+        }
+        if (holder.Kind != Kind.Object) return null;
+        while (doc.Entries(path, name).Count > 1)
+        {
+            if (doc.Servers(path) is not { } servers || RemoveMember(doc.Entries(path, name)[^1], servers, text) is not { } shorter) return null;
             text = shorter;
             if (Document.Parse(text) is not { } reparsed) return null;
             doc = reparsed;
         }
-        if (doc.Servers is not { } objectNode) return null;
-        if (doc.Entries(name).FirstOrDefault() is { } existing)
+        if (doc.Servers(path) is not { } objectNode) return null;
+        if (doc.Entries(path, name).FirstOrDefault() is { } existing)
         {
             var (indent, unit, multiline) = Layout(existing, objectNode, text);
             var rendered = multiline ? Render(value, indent, unit) : RenderInline(value);
@@ -62,13 +117,13 @@ public static class CursorMcpConfig
         return InsertFirst((name, value), objectNode, text);
     }
 
-    /// <summary>Removes every <c>mcpServers.&lt;name&gt;</c> entry. No entry: the text comes back unchanged. Null: cannot parse.</summary>
-    public static string? Remove(string text, string name)
+    /// <summary>Removes every <c>path.&lt;name&gt;</c> entry. No entry: the text comes back unchanged. Null: cannot parse.</summary>
+    public static string? Remove(string text, IReadOnlyList<string> path, string name)
     {
         if (Document.Parse(text) is not { } doc) return null;
-        while (doc.Entries(name).LastOrDefault() is { } last)
+        while (doc.Entries(path, name).LastOrDefault() is { } last)
         {
-            if (doc.Servers is not { } holder || RemoveMember(last, holder, text) is not { } shorter) return null;
+            if (doc.Servers(path) is not { } holder || RemoveMember(last, holder, text) is not { } shorter) return null;
             text = shorter;
             if (Document.Parse(text) is not { } reparsed) return null;
             doc = reparsed;
@@ -76,19 +131,32 @@ public static class CursorMcpConfig
         return text;
     }
 
-    /// <summary>The block to paste by hand (the Copy button), with a hint where it goes.</summary>
-    public static string Snippet(string name, string url, string token) =>
-        "// Add to \"mcpServers\" in %USERPROFILE%\\.cursor\\mcp.json (Cursor and Cursor CLI both read it):\n"
-        + Quote(name) + ": " + Render(Entry(url, token), "", "  ");
+    /// <summary><c>"name": {…}</c>, pretty, for the Copy button.</summary>
+    public static string EntrySnippet(string name, string url, string token, IReadOnlyList<(string Key, object Value)> fields) =>
+        Quote(name) + ": " + Render(Entry(url, token, fields), "", "  ");
 
-    private static Value Entry(string url, string token) =>
-        new Value.Object([("url", new Value.Text(url)), ("headers", new Value.Object([("Authorization", new Value.Text($"Bearer {token}"))]))]);
+    private static Value Entry(string url, string token, IReadOnlyList<(string Key, object Value)> fields) =>
+        new Value.Object([
+            .. fields.Select(f => (f.Key, f.Value is bool on ? (Value)new Value.Flag(on) : new Value.Text((string)f.Value))),
+            ("url", new Value.Text(url)),
+            ("headers", new Value.Object([("Authorization", new Value.Text($"Bearer {token}"))])),
+        ]);
+
+    /// <summary>The objects of the path from <paramref name="from"/> on, with the entry in the innermost one.</summary>
+    private static Value Nest(IReadOnlyList<string> path, int from, string name, Value entry)
+    {
+        Value inner = new Value.Object([(name, entry)]);
+        for (var i = path.Count - 1; i >= from; i--) inner = new Value.Object([(path[i], inner)]);
+        return inner;
+    }
 
     // Rendering
 
     private abstract record Value
     {
         public sealed record Text(string Content) : Value;
+
+        public sealed record Flag(bool On) : Value;
 
         public sealed record Object(IReadOnlyList<(string Key, Value Value)> Members) : Value;
     }
@@ -116,15 +184,19 @@ public static class CursorMcpConfig
     private static string Render(Value value, string indent, string unit)
     {
         if (value is Value.Text text) return Quote(text.Content);
+        if (value is Value.Flag flag) return flag.On ? "true" : "false";
         var members = ((Value.Object)value).Members;
         if (members.Count == 0) return "{}";
         var inner = indent + unit;
         return "{\n" + string.Join(",\n", members.Select(m => inner + Quote(m.Key) + ": " + Render(m.Value, inner, unit))) + "\n" + indent + "}";
     }
 
-    private static string RenderInline(Value value) => value is Value.Text text
-        ? Quote(text.Content)
-        : "{" + string.Join(", ", ((Value.Object)value).Members.Select(m => Quote(m.Key) + ": " + RenderInline(m.Value))) + "}";
+    private static string RenderInline(Value value) => value switch
+    {
+        Value.Text text => Quote(text.Content),
+        Value.Flag flag => flag.On ? "true" : "false",
+        _ => "{" + string.Join(", ", ((Value.Object)value).Members.Select(m => Quote(m.Key) + ": " + RenderInline(m.Value))) + "}",
+    };
 
     // Editing
 
@@ -233,18 +305,22 @@ public static class CursorMcpConfig
             }
         }
 
-        /// <summary>The top-level <c>mcpServers</c> object, when there is exactly one and it is an object.</summary>
-        public Node? Servers
+        /// <summary>The object at the path, when every step of it is there exactly once and is an object.</summary>
+        public Node? Servers(IReadOnlyList<string> path)
         {
-            get
+            var node = Root;
+            foreach (var key in path)
             {
-                if (Root is not { Kind: Kind.Object } root) return null;
-                var servers = root.Members.Where(m => m.Key == "mcpServers").ToList();
-                return servers.Count == 1 && servers[0].Value.Kind == Kind.Object ? servers[0].Value : null;
+                if (node is not { Kind: Kind.Object }) return null;
+                var found = node.Members.Where(m => m.Key == key).ToList();
+                if (found.Count != 1) return null;
+                node = found[0].Value;
             }
+            return node is { Kind: Kind.Object } ? node : null;
         }
 
-        public List<Member> Entries(string name) => Servers?.Members.Where(m => m.Key == name).ToList() ?? [];
+        public List<Member> Entries(IReadOnlyList<string> path, string name) =>
+            Servers(path)?.Members.Where(m => m.Key == name).ToList() ?? [];
 
         public string? String(Node? node) => node is { Kind: Kind.String } ? Parser.Decode(text[node.Start..node.End]) : null;
     }

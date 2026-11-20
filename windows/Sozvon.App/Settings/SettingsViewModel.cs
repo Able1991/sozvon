@@ -320,16 +320,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         Assistant.Claude => Loc.L("Саммари. Текст уходит в Anthropic."),
         Assistant.Codex => Loc.L("Саммари. Текст уходит в OpenAI."),
         Assistant.Cursor => Loc.L("Саммари. Текст уходит в Cursor и к выбранной там модели."),
+        Assistant.OpenCode => Loc.L("Саммари. Текст уходит к провайдеру, выбранному в OpenCode."),
         _ => Loc.L("Без саммари. Ничего не покидает компьютер."),
     };
 
     /// <summary>
-    /// Codex and Cursor run on Windows only when chosen here (the engine picks only Claude by itself) and were not tried
+    /// Codex, Cursor and OpenCode run on Windows only when chosen here (the engine picks only Claude by itself) and were not tried
     /// with the real programs; Cursor may also have no file sandbox there (docs/windows-port-checklist.md).
     /// </summary>
     public string SummaryWarning => _engine.Assistant switch
     {
-        Assistant.Codex => Loc.L("%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту.", "Codex"),
+        Assistant.Codex or Assistant.OpenCode => Loc.L("%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту.", Sozvon.Core.Assistants.AssistantCli.Title(_engine.Assistant)),
         Assistant.Cursor => Loc.L("%@ на Windows ещё не проверен с настоящей программой: песочница, которую обещает производитель, может работать не так, как на Mac. Текст звонка уходит этому ассистенту.", "Cursor")
             + "\n" + Loc.L("У Cursor на Windows может не быть файловой песочницы: тогда он сможет читать файлы и за пределами папки звонка."),
         _ => "",

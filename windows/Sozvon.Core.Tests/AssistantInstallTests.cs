@@ -20,19 +20,20 @@ public sealed partial class AssistantInstallTests : TempFolders
         Assert.Equal("irm https://claude.ai/install.ps1 | iex", AssistantInstall.Command(Assistant.Claude));
         Assert.Equal("powershell -ExecutionPolicy ByPass -c \"irm https://chatgpt.com/codex/install.ps1 | iex\"", AssistantInstall.Command(Assistant.Codex));
         Assert.Equal("irm 'https://cursor.com/install?win32=true' | iex", AssistantInstall.Command(Assistant.Cursor));
+        Assert.Equal("npm i -g opencode-ai", AssistantInstall.Command(Assistant.OpenCode));
         Assert.Null(AssistantInstall.Command(Assistant.None));
     }
 
     [Fact]
     public void InAnEmptyProfileNoneIsInstalled() =>
-        Assert.Equal([Assistant.Claude, Assistant.Codex, Assistant.Cursor], AssistantInstall.Missing(Profile));
+        Assert.Equal([Assistant.Claude, Assistant.Codex, Assistant.Cursor, Assistant.OpenCode], AssistantInstall.Missing(Profile));
 
     [Fact]
     public void ClaudesInstallerPutsItIntoLocalBin()
     {
         WriteText(Path.Combine(Home, ".local", "bin", "claude.exe"), "");
         Assert.Equal(Path.Combine(Home, ".local", "bin", "claude.exe"), AssistantCli.Find(Assistant.Claude, Profile));
-        Assert.Equal([Assistant.Codex, Assistant.Cursor], AssistantInstall.Missing(Profile));
+        Assert.Equal([Assistant.Codex, Assistant.Cursor, Assistant.OpenCode], AssistantInstall.Missing(Profile));
     }
 
     /// <summary>install.ps1 links %LOCALAPPDATA%\Programs\OpenAI\Codex\bin to the current release and adds it to the user's PATH.</summary>
@@ -99,8 +100,8 @@ public sealed partial class AssistantInstallTests : TempFolders
         Assert.True(AssistantInstall.OpenInSettings(Assistant.Codex, [Assistant.Codex, Assistant.Cursor]));
         Assert.False(AssistantInstall.OpenInSettings(Assistant.Claude, [Assistant.Codex, Assistant.Cursor]));
         Assert.False(AssistantInstall.OpenInSettings(Assistant.None, [Assistant.Codex, Assistant.Cursor]));
-        Assert.True(AssistantInstall.OpenInSetup([Assistant.Claude, Assistant.Codex, Assistant.Cursor]));
-        Assert.False(AssistantInstall.OpenInSetup([Assistant.Codex, Assistant.Cursor]));
+        Assert.True(AssistantInstall.OpenInSetup([Assistant.Claude, Assistant.Codex, Assistant.Cursor, Assistant.OpenCode]));
+        Assert.False(AssistantInstall.OpenInSetup([Assistant.Codex, Assistant.Cursor, Assistant.OpenCode]));
     }
 
     /// <summary>The Mac's sentences name a Mac and Terminal; the Windows ones this computer and PowerShell, in both tables.</summary>

@@ -26,7 +26,7 @@ internal sealed class SetupState
         model ??= saved.GetValueOrDefault("SOZVON_MODEL");
         Model = models.FirstOrDefault(m => m.Key == model) ?? models.First(m => m.Recommended);
         ModelRu = saved.GetValueOrDefault("SOZVON_MODEL_RU", "");
-        // Codex and Cursor are never picked for the user: they run only when chosen.
+        // Codex, Cursor and OpenCode are never picked for the user: they run only when chosen.
         var claude = assistants.Any(a => a.Key == "claude" && a.IsInstalled);
         Assistant = saved.GetValueOrDefault("SOZVON_LLM", claude ? "claude" : NoAssistant);
         var summary = saved.GetValueOrDefault("SOZVON_SUMMARY_LANGUAGE", Auto);

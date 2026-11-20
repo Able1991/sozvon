@@ -413,17 +413,13 @@ public sealed partial class CallInfoWindow : Window
         }
     }
 
-    private static string AssistantTitle(Core.Settings.Assistant assistant) => assistant switch
-    {
-        Core.Settings.Assistant.Claude => "Claude Code",
-        Core.Settings.Assistant.Codex => "Codex",
-        _ => "Cursor",
-    };
+    private static string AssistantTitle(Core.Settings.Assistant assistant) => Core.Assistants.AssistantCli.Title(assistant);
 
     private static string AssistantVendor(Core.Settings.Assistant assistant) => assistant switch
     {
         Core.Settings.Assistant.Claude => "Anthropic",
         Core.Settings.Assistant.Codex => "OpenAI",
+        Core.Settings.Assistant.OpenCode => "OpenCode",
         _ => "Cursor",
     };
 }

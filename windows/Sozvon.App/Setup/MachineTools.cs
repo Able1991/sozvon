@@ -23,6 +23,7 @@ internal static class MachineTools
             new("claude", "Claude Code", Strings.L("Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале."), Installed(Kind.Claude)),
             new("codex", "Codex", Strings.L("Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex."), Installed(Kind.Codex)),
             new("cursor", "Cursor", Strings.L("Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."), Installed(Kind.Cursor)),
+            new("opencode", "OpenCode", Strings.L("Текст уходит к провайдеру, выбранному в OpenCode. Потом можно спрашивать о звонках в OpenCode."), Installed(Kind.OpenCode)),
         ];
     }
 
@@ -32,6 +33,7 @@ internal static class MachineTools
         "claude" => Kind.Claude,
         "codex" => Kind.Codex,
         "cursor" => Kind.Cursor,
+        "opencode" => Kind.OpenCode,
         _ => Kind.None,
     };
 

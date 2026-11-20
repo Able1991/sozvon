@@ -76,6 +76,7 @@ internal static class Strings
         ["Текст уходит в Anthropic. Потом можно спрашивать о звонках прямо в терминале."] = "Text goes to Anthropic. Later, ask about your calls right in the terminal.",
         ["Текст уходит в OpenAI. Потом можно спрашивать о звонках в Codex."] = "Text goes to OpenAI. Later, ask about your calls in Codex.",
         ["Текст уходит в Cursor и к выбранной там модели. Потом можно спрашивать о звонках в Cursor."] = "Text goes to Cursor and the model chosen there. Later, ask about your calls in Cursor.",
+        ["Текст уходит к провайдеру, выбранному в OpenCode. Потом можно спрашивать о звонках в OpenCode."] = "Text goes to the provider chosen in OpenCode. Later, ask about your calls in OpenCode.",
         ["Только расшифровка. Ничего не покидает компьютер. Можно включить позже в Настройках."] = "Transcripts only. Nothing leaves your PC. You can turn summaries on later in Settings.",
         ["Не проверено на Windows"] = "Not verified on Windows",
         ["Язык саммари"] = "Summary language",

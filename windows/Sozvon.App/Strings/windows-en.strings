@@ -165,6 +165,7 @@
 "Саммари. Текст уходит в Anthropic." = "Summaries. The text goes to Anthropic.";
 "Саммари. Текст уходит в OpenAI." = "Summaries. The text goes to OpenAI.";
 "Саммари. Текст уходит в Cursor и к выбранной там модели." = "Summaries. The text goes to Cursor and the model chosen there.";
+"Саммари. Текст уходит к провайдеру, выбранному в OpenCode." = "Summaries. The text goes to the provider chosen in OpenCode.";
 
 /* Settings, Assistants: the check of the summary assistant gave no answer in time. */
 "%@ не ответил за %@ с" = "%@ did not answer in %@ s";

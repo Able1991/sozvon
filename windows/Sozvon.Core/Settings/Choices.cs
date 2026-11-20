@@ -1,7 +1,7 @@
 namespace Sozvon.Core.Settings;
 
 /// <summary>The assistant that writes summaries (.env <c>SOZVON_LLM</c>).</summary>
-public enum Assistant { Claude, Codex, Cursor, None }
+public enum Assistant { Claude, Codex, Cursor, OpenCode, None }
 
 public static class Assistants
 {
@@ -12,6 +12,7 @@ public static class Assistants
         "claude" => Assistant.Claude,
         "codex" => Assistant.Codex,
         "cursor" => Assistant.Cursor,
+        "opencode" => Assistant.OpenCode,
         "none" => Assistant.None,
         _ => null,
     };

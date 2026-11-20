@@ -146,7 +146,52 @@ public sealed class CursorMcpConfigTests
     private static int Count(string text, string part) => (text.Length - text.Replace(part, "").Length) / part.Length;
 }
 
-/// <summary>Connecting against a temporary profile only: a fake tool that records its arguments, real files for Cursor and Codex.</summary>
+/// <summary>OpenCode's servers sit one level deeper, in mcp.servers, with two more fields: as on the Mac.</summary>
+public sealed class OpenCodeMcpConfigTests
+{
+    private const string Url = "http://127.0.0.1:47816/mcp";
+
+    [Fact]
+    public void AnEmptyFileGetsTheWholePath()
+    {
+        var text = OpenCodeMcpConfig.Upsert("", "sozvon", Url, "t")!;
+        Assert.Equal("{\n  \"mcp\": {\n    \"servers\": {\n      \"sozvon\": {\n        \"type\": \"remote\",\n        \"oauth\": false,\n        \"url\": \"http://127.0.0.1:47816/mcp\",\n        \"headers\": {\n          \"Authorization\": \"Bearer t\"\n        }\n      }\n    }\n  }\n}\n", text);
+        Assert.True(OpenCodeMcpConfig.HasServer(text, "sozvon", Url, "t"));
+        Assert.False(CursorMcpConfig.HasEntry(text, "sozvon"));
+    }
+
+    [Fact]
+    public void AMissingServersObjectIsAddedUnderAnExistingMcp()
+    {
+        const string text = "{\n  // mine\n  \"$schema\": \"https://opencode.ai/config.json\",\n  \"mcp\": {\n    \"enabled\": true,\n  },\n}\n";
+        var edited = OpenCodeMcpConfig.Upsert(text, "sozvon", Url, "t")!;
+        Assert.True(OpenCodeMcpConfig.HasServer(edited, "sozvon", Url, "t"));
+        Assert.Contains("  // mine\n  \"$schema\": \"https://opencode.ai/config.json\",\n", edited);
+        Assert.Contains("\"enabled\": true,", edited);
+        Assert.False(OpenCodeMcpConfig.HasEntry(OpenCodeMcpConfig.Remove(edited, "sozvon")!, "sozvon"));
+    }
+
+    [Fact]
+    public void OtherServersStayAndAnOldEntryIsReplaced()
+    {
+        const string text = "{\"mcp\": {\"servers\": {\"github\": {\"type\": \"local\"}, \"sozvon\": {\"type\": \"local\", \"command\": [\"python\"]}}}}";
+        Assert.True(OpenCodeMcpConfig.HasEntry(text, "sozvon"));
+        Assert.False(OpenCodeMcpConfig.HasServer(text, "sozvon", Url));
+        var edited = OpenCodeMcpConfig.Upsert(text, "sozvon", Url, "t")!;
+        Assert.Equal("{\"mcp\": {\"servers\": {\"github\": {\"type\": \"local\"}, \"sozvon\": {\"type\": \"remote\", \"oauth\": false, \"url\": \"http://127.0.0.1:47816/mcp\", \"headers\": {\"Authorization\": \"Bearer t\"}}}}}", edited);
+        var removed = OpenCodeMcpConfig.Remove(edited, "sozvon")!;
+        Assert.False(OpenCodeMcpConfig.HasEntry(removed, "sozvon"));
+        Assert.Contains("\"servers\": {\"github\": {\"type\": \"local\"}", removed);
+    }
+
+    [Theory]
+    [InlineData("{ \"mcp\": [] }")]
+    [InlineData("{ \"mcp\": { \"servers\": 1 } }")]
+    [InlineData("{ \"mcp\": {}, \"mcp\": {} }")]
+    public void WhatCannotBeEditedSafelyIsLeftAlone(string text) => Assert.Null(OpenCodeMcpConfig.Upsert(text, "sozvon", Url, "t"));
+}
+
+/// <summary>Connecting against a temporary profile only: a fake tool that records its arguments, real files for Cursor, Codex and OpenCode.</summary>
 public sealed class McpConnectionsTests : TempFolders
 {
     private readonly FakeRunner _runner = new();
@@ -260,6 +305,55 @@ public sealed class McpConnectionsTests : TempFolders
         Assert.Equal(64, token.Length);
         Assert.Equal(token, Mcp.Token(Data));
         Assert.Equal(token, File.ReadAllText(Path.Combine(Data, Mcp.TokenFile)));
+    }
+
+    [Fact]
+    public void OpenCodeIsConnectedInItsConfigTheJsoncWinning()
+    {
+        Tool("opencode");
+        var folder = Path.Combine(Home, ".config", "opencode");
+        Assert.True(Connections.IsInstalled(Assistant.OpenCode));
+        Assert.Equal(McpConnection.None, Connections.Connection(Assistant.OpenCode));
+        Assert.True(Connections.Connect(Assistant.OpenCode).Ok);
+        Assert.True(OpenCodeMcpConfig.HasServer(File.ReadAllText(Path.Combine(folder, "opencode.json")), "sozvon", _endpoint.Url, "secret"));
+        Assert.Equal(McpConnection.Connected, Connections.Connection(Assistant.OpenCode));
+
+        // A jsonc appears: OpenCode lets it win, and Connect edits it from now on.
+        WriteText(Path.Combine(folder, "opencode.jsonc"), "{\n  // mine\n  \"mcp\": {\"servers\": {\"sozvon\": {\"url\": \"old\"}}}\n}\n");
+        Assert.Equal(McpConnection.Outdated, Connections.Connection(Assistant.OpenCode));
+        Assert.True(Connections.Connect(Assistant.OpenCode).Ok);
+        Assert.StartsWith("{\n  // mine\n", File.ReadAllText(Path.Combine(folder, "opencode.jsonc")));
+        Assert.Equal(McpConnection.Connected, Connections.Connection(Assistant.OpenCode));
+
+        Assert.True(Connections.Disconnect(Assistant.OpenCode).Ok);
+        Assert.False(OpenCodeMcpConfig.HasEntry(File.ReadAllText(Path.Combine(folder, "opencode.json")), "sozvon"));
+        Assert.False(OpenCodeMcpConfig.HasEntry(File.ReadAllText(Path.Combine(folder, "opencode.jsonc")), "sozvon"));
+        Assert.Equal(McpConnection.None, Connections.Connection(Assistant.OpenCode));
+        Assert.Empty(_runner.Calls);
+    }
+
+    [Fact]
+    public void ABrokenOpenCodeConfigIsNotTouched()
+    {
+        var file = Path.Combine(Home, ".config", "opencode", "opencode.json");
+        WriteText(file, "{ broken");
+        Assert.Equal(McpFailure.CannotParse, Connections.Connect(Assistant.OpenCode).Failure);
+        Assert.Equal(McpFailure.CannotParse, Connections.Disconnect(Assistant.OpenCode).Failure);
+        Assert.Equal("{ broken", File.ReadAllText(file));
+        Assert.Contains("\"oauth\": false", Connections.ManualSetup(Assistant.OpenCode));
+    }
+
+    /// <summary>npm i -g opencode-ai (1.19.6): its wrapper starts the package's own opencode.exe, not a script for node.</summary>
+    [Fact]
+    public void OpenCodesNpmWrapperStartsItsProgram()
+    {
+        var bin = Path.Combine(Home, "AppData", "Roaming", "npm");
+        WriteText(Path.Combine(bin, "opencode.cmd"), "@ECHO off\r\nGOTO start\r\n:find_dp0\r\nSET dp0=%~dp0\r\nEXIT /b\r\n:start\r\nSETLOCAL\r\nCALL :find_dp0\r\n\"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe\"   %*\r\n");
+        var exe = Path.Combine(bin, "node_modules", "opencode-ai", "bin", "opencode.exe");
+        WriteText(exe, "");
+        var found = AssistantCli.Find(Assistant.OpenCode, Profile)!;
+        Assert.Equal(Path.Combine(bin, "opencode.cmd"), found);
+        Assert.Equal([exe], AssistantCli.Argv(found, Profile));
     }
 
     [Fact]
