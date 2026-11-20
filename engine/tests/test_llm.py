@@ -454,9 +454,8 @@ echo '{{"type":"step_finish"}}'""")
     assert args[:8] == ["run", "--agent", "sozvon", "--archived", "--format", "json",
                         "--model", "anthropic/claude-sonnet-4"]
     assert "auto" not in " ".join(args), "nothing is approved on its own"
-    rules = json.loads(cfg.read_text())["agents"]["sozvon"]["permissions"]
-    assert rules == [{"action": "*", "resource": "*", "effect": "deny"}], \
-        "a summary: every tool denied, like Claude's --tools ''"
+    rules = json.loads(cfg.read_text())["agent"]["sozvon"]["permission"]
+    assert rules == {"*": "deny"}, "a summary: every tool denied, like Claude's --tools ''"
 
 
 def test_opencode_without_the_model_flag_and_in_an_empty_folder(bins, tmp_path, monkeypatch):
@@ -492,13 +491,50 @@ echo '{{"type":"text","part":{{"text":"ok"}}}}'""")
     args = log.read_text().splitlines()
     assert "--model" not in args
     assert Path(cwd.read_text().strip()).resolve() == tmp_path.resolve(), "project discovery works where told"
-    rules = json.loads((tmp_path / "opencode.json").read_text())["agents"]["sozvon"]["permissions"]
-    # The last matching rule wins: the deny-all comes first, the read-only allows after it.
-    assert rules[0] == {"action": "*", "resource": "*", "effect": "deny"}
-    assert all(r["effect"] == "allow" for r in rules[1:])
-    assert {r["action"] for r in rules[1:]} == {"read", "glob", "grep", "external_directory"}
-    ext = next(r for r in rules if r["action"] == "external_directory")
-    assert ext["resource"].startswith(str(Path.home() / ".claude" / "projects"))
+    rules = json.loads((tmp_path / "opencode.json").read_text())["agent"]["sozvon"]["permission"]
+    # The last matching rule wins: the deny-all comes first (JSON keeps the order), the read-only allows after it.
+    assert list(rules) == ["*", "read", "glob", "grep", "external_directory"]
+    assert rules["*"] == "deny" and rules["read"] == rules["glob"] == rules["grep"] == "allow"
+    (ext, effect), = rules["external_directory"].items()
+    assert effect == "allow" and ext.startswith(str(Path.home() / ".claude" / "projects"))
+
+
+def test_opencode_1x_runs_without_archived_and_deletes_its_session(bins, tmp_path, monkeypatch):
+    # OpenCode 1.x (npm's latest) has no --archived: it would print its help instead of running.
+    # Its session is deleted afterwards instead, so it stays out of the user's session list.
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    log = tmp_path / "calls"
+    fake_cli(bins, "opencode", f"""if [ "$1" = "--version" ]; then echo 1.19.6; exit 0; fi
+echo "$*" >> {log}
+if [ "$1" = "run" ]; then cat >/dev/null
+echo '{{"type":"step_start","sessionID":"ses_1"}}'
+echo '{{"type":"text","sessionID":"ses_1","part":{{"text":"ok"}}}}'; fi""")
+    assert llm.run("x", tmp_path)[0] == "ok"
+    calls = log.read_text().splitlines()
+    assert calls[0] == "run --agent sozvon --format json"
+    assert calls[1:] == ["session delete ses_1"]
+
+
+def test_opencode_2x_keeps_archived_and_deletes_nothing(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    log = tmp_path / "calls"
+    fake_cli(bins, "opencode", f"""if [ "$1" = "--version" ]; then echo opencode v2.3.2; exit 0; fi
+echo "$*" >> {log}; cat >/dev/null
+echo '{{"type":"text","sessionID":"ses_2","part":{{"text":"ok"}}}}'""")
+    assert llm.run("x", tmp_path)[0] == "ok"
+    assert log.read_text().splitlines() == ["run --agent sozvon --archived --format json"]
+
+
+def test_opencode_1x_session_is_deleted_even_when_the_run_fails(bins, tmp_path, monkeypatch):
+    monkeypatch.setenv("SOZVON_LLM", "opencode")
+    log = tmp_path / "calls"
+    fake_cli(bins, "opencode", f"""if [ "$1" = "--version" ]; then echo 1.19.6; exit 0; fi
+echo "$*" >> {log}
+if [ "$1" = "run" ]; then cat >/dev/null
+echo '{{"type":"error","sessionID":"ses_3","error":{{"name":"UnknownError"}}}}'; exit 1; fi""")
+    out, name, err = llm.run("x", tmp_path)
+    assert out is None and name == "opencode"
+    assert log.read_text().splitlines()[-1] == "session delete ses_3"
 
 
 def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
