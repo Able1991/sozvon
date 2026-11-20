@@ -507,12 +507,13 @@ def test_opencode_1x_runs_without_archived_and_deletes_its_session(bins, tmp_pat
     fake_cli(bins, "opencode", f"""if [ "$1" = "--version" ]; then echo 1.19.6; exit 0; fi
 echo "$*" >> {log}
 if [ "$1" = "run" ]; then cat >/dev/null
-echo '{{"type":"step_start","sessionID":"ses_1"}}'
-echo '{{"type":"text","sessionID":"ses_1","part":{{"text":"ok"}}}}'; fi""")
+echo '{{"type":"step_start","sessionID":"ses_1abcdefgh"}}'
+echo '{{"type":"text","sessionID":"ses_1abcdefgh","part":{{"text":"ok"}}}}'
+echo '{{"type":"step_finish","sessionID":"--all"}}'; fi""")
     assert llm.run("x", tmp_path)[0] == "ok"
     calls = log.read_text().splitlines()
     assert calls[0] == "run --agent sozvon --format json"
-    assert calls[1:] == ["session delete ses_1"]
+    assert calls[1:] == ["session delete ses_1abcdefgh"], "an id not shaped like OpenCode's is never passed on"
 
 
 def test_opencode_2x_keeps_archived_and_deletes_nothing(bins, tmp_path, monkeypatch):
@@ -531,10 +532,10 @@ def test_opencode_1x_session_is_deleted_even_when_the_run_fails(bins, tmp_path, 
     fake_cli(bins, "opencode", f"""if [ "$1" = "--version" ]; then echo 1.19.6; exit 0; fi
 echo "$*" >> {log}
 if [ "$1" = "run" ]; then cat >/dev/null
-echo '{{"type":"error","sessionID":"ses_3","error":{{"name":"UnknownError"}}}}'; exit 1; fi""")
+echo '{{"type":"error","sessionID":"ses_3abcdefgh","error":{{"name":"UnknownError"}}}}'; exit 1; fi""")
     out, name, err = llm.run("x", tmp_path)
     assert out is None and name == "opencode"
-    assert log.read_text().splitlines()[-1] == "session delete ses_3"
+    assert log.read_text().splitlines()[-1] == "session delete ses_3abcdefgh"
 
 
 def test_opencode_failure_returns_error(bins, tmp_path, monkeypatch):
