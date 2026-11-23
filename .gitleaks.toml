@@ -1,9 +1,15 @@
-# Gitleaks: the default rules, plus two allowances.
+# Gitleaks: the default rules, plus three allowances.
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Cloudflare Web Analytics beacon token: public by design, it ships in every page's HTML. Made-up keys in the log scrubber's test"
-paths = ['''Tests/SozvonCoreTests/DiagnosticsTests\.swift''']
+description = "Cloudflare Web Analytics beacon token: public by design, it ships in every page's HTML. Made-up keys in the log scrubbers' tests (Swift and C#). Public sha256 checksums of model files in engine/models.json"
+paths = [
+  '''Tests/SozvonCoreTests/DiagnosticsTests\.swift''',
+  '''windows/Sozvon\.Core\.Tests/DiagnosticsTests\.cs''',
+]
 regexTarget = "line"
-regexes = ['''data-cf-beacon='\{"token": "[0-9a-f]{32}"\}''']
+regexes = [
+  '''data-cf-beacon='\{"token": "[0-9a-f]{32}"\}''',
+  '''"sha256": \{"[^"]+": "[0-9a-f]{64}"''',
+]
