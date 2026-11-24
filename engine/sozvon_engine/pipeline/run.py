@@ -20,7 +20,7 @@ from .. import prompt as prompts
 from .. import vocab as vocabs
 from ..audio import FfmpegError, FfmpegMissing
 from ..i18n import t
-from . import guard, render, speakers
+from . import guard, render, silence, speakers
 from . import listen as listen_stage
 from . import names as names_stage
 from . import summary as summary_stage
@@ -282,7 +282,7 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
             except Exception as ex:  # noqa: BLE001  an assistant failure does not lose the transcript
                 log(t("log_summary_failed", who=type(ex).__name__, err=ex))
                 spec.warn("summary", f"{type(ex).__name__}: {ex}")
-        complete(spec, people)
+        complete(spec, people, silence.head_tail(paras, silence.call_duration(meta, offsets)))
         # Last, while the working wavs are still here, and after the call is done: its outcome cannot change the call.
         listen_stage.render(d, files, offsets, tracks, gains, log)
     finally:
@@ -291,11 +291,12 @@ def process(spec: CallSpec, settings: config.Settings, data: Path) -> list:
     return people
 
 
-def complete(spec: CallSpec, people: list) -> None:
+def complete(spec: CallSpec, people: list, silence: dict | None = None) -> None:
     """The call is finished: status done, and its text on the own server. Only the optional listening file comes after."""
     # "warnings": the steps that failed on this run; "speaker_tracks": where each label's lines came from.
     # Nothing to say: an old value goes away.
-    optional = {"warnings": spec.warnings, "speaker_tracks": spec.speaker_tracks}
+    # "silence": seconds of quiet at the head and the tail (local only), so the app can offer a trim.
+    optional = {"warnings": spec.warnings, "speaker_tracks": spec.speaker_tracks, "silence": silence}
     calls.update_call(spec.dir, status="done", participants=people,
                       engine={"version": paths.engine_version(), "model": spec.model,
                               **({"ru_model": spec.ru_model} if spec.ru_model else {})},

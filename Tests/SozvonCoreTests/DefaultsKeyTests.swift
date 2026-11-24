@@ -7,5 +7,6 @@ final class DefaultsKeyTests: XCTestCase {
         XCTAssertEqual(DefaultsKey.lastProfile, "lastProfile")
         XCTAssertEqual(DefaultsKey.setupResumeStep, "setupResumeStep")
         XCTAssertEqual(DefaultsKey.callsProject, "callsProject")
+        XCTAssertEqual(QuietIcon.defaultsKey, "quietRecordingIcon")
     }
 }

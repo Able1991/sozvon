@@ -4,10 +4,10 @@ import { audioLimit, CHUNK, commitTrack, getChunk, isAudioRemoved, isTrack, list
          removeAudio, SHA_RE, StorageFull } from "./audio";
 import { bearer, checkPassword, passwordProblem } from "./auth";
 import { callExists, type CallPayload, callTombstones, deleteCall, deleteNote, deleteVoice, getStored, isTombstoned, listHashes, listVoices, MAX_CHUNKS,
-         MAX_NOTES, mergeNotes, type Note, NOTE_ID_RE, putCall, putVoice, SCHEMA, TooManyLines, validNote, type Voice,
+         MAX_NOTES, mergeNotes, type Note, NOTE_ID_RE, putCall, putVoice, SCHEMA, TooManyLines, trimConflict, trimmedAtOf, validNote, type Voice,
          VOICE_DIM, VOICE_ID_RE } from "./db";
 
-export const VERSION = "0.4.2";
+export const VERSION = "0.5.0";
 export const MAX_VOICE_BODY = 64_000; // bytes; a voice print is about 6 KB
 export const MAX_COMMIT_BODY = 64_000; // bytes; an audio commit is under 200
 export const MAX_BODY = 2_000_000; // bytes; D1 caps a row at 2 MB too
@@ -25,6 +25,7 @@ export interface Env {
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 const error = (status: number, message: string) => json({ error: message }, status);
 const GONE = "the call was deleted; PUT it with \"restore\": true to bring it back";
+const trimmedRefusal = (stored: string) => json({ error: "trimmed", trimmed_at: stored }, 409);
 const AUDIO_GONE = "the call's audio was removed; it is not stored on the server again";
 
 /** A valid payload, or the reason it is not. */
@@ -201,7 +202,12 @@ async function routeApi(request: Request, env: Env): Promise<Response> {
   if (typeof payload === "string") return error(400, payload);
   // A deleted call comes back only when the user restored it on purpose ("restore": true).
   const restore = (body as Record<string, unknown>).restore === true;
+  const trim = (payload.call as Record<string, unknown>).trimmed;
+  if (trim !== undefined && trimmedAtOf(payload.call) === null) return error(400, "call.trimmed must be an object with an ISO 8601 \"at\"");
   if (!restore && (await isTombstoned(env.DB, id))) return error(410, GONE);
+  // A copy trimmed earlier than the server's, or not at all, must not overwrite it.
+  const stale = restore ? null : await trimConflict(env.DB, id, trimmedAtOf(payload.call));
+  if (stale) return trimmedRefusal(stale);
   try {
     await putCall(env.DB, payload, restore);
   } catch (e) {
@@ -264,6 +270,8 @@ async function routeAudio(request: Request, env: Env, id: string, route: "audio"
     }
     if (await isTombstoned(env.DB, id)) return error(410, GONE);
     if (await isAudioRemoved(env.DB, id)) return error(410, AUDIO_GONE);
+    const stale = await trimConflict(env.DB, id, request.headers.get("X-Sozvon-Trimmed-At"));
+    if (stale) return trimmedRefusal(stale);
     const why = await commitTrack(env.DB, id, track, { size: b.size as number, chunks: b.chunks as number, sha256: b.sha256,
                                                        start: start as number | null });
     return why ? error(409, why) : new Response(null, { status: 204 });
@@ -284,6 +292,8 @@ async function routeAudio(request: Request, env: Env, id: string, route: "audio"
   if (await isTombstoned(env.DB, id)) return error(410, GONE);
   if (await isAudioRemoved(env.DB, id)) return error(410, AUDIO_GONE);
   if (!(await callExists(env.DB, id))) return error(404, "unknown call");
+  const stale = await trimConflict(env.DB, id, request.headers.get("X-Sozvon-Trimmed-At"));
+  if (stale) return trimmedRefusal(stale);
   const limit = audioLimit(env);
   try {
     await putChunk(env.DB, id, track, idx, sha, data, Date.now(), limit);

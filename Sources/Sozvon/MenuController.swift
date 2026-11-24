@@ -45,6 +45,9 @@ struct MenuActions {
 struct MenuSnapshot {
     var recording: RecordingState
     var processing: Bool
+    /// Time left for the running transcription, and for the whole queue when several calls wait.
+    var estimate: String?
+    var queueEstimate: String?
     var engineUpdating: Bool
     var engine: EngineState
     /// A new version found and not installed yet.
@@ -76,16 +79,33 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.delegate = self
         item.menu = menu
         stateChanged()
+        // The quiet-icon toggle in Settings writes the defaults. Any defaults write posts this, on the writer's
+        // thread: hop to the main queue and redraw only when the quiet-icon flag itself changed.
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let quiet = UserDefaults.standard.bool(forKey: QuietIcon.defaultsKey)
+                if quiet != self.quietIcon { self.stateChanged() }
+            }
+        }
     }
+
+    private var defaultsObserver: NSObjectProtocol?
+    /// The quiet-icon flag the icon was last drawn with.
+    private var quietIcon = UserDefaults.standard.bool(forKey: QuietIcon.defaultsKey)
 
     var button: NSStatusBarButton? { item.button }
 
     /// State changed: icon and tooltip. The menu itself is rebuilt when opened.
     func stateChanged() {
         let s = snapshot()
+        quietIcon = UserDefaults.standard.bool(forKey: QuietIcon.defaultsKey)
         // Icon only, no timer: macOS hides wide items under the camera notch.
         if s.recording.isRecording {
-            item.button?.image = symbol("record.circle.fill", .systemRed)
+            item.button?.image = quietIcon
+                ? symbol("record.circle")
+                : symbol("record.circle.fill", .systemRed)
         } else if s.processing {
             item.button?.image = symbol("waveform.badge.magnifyingglass") ?? symbol("hourglass")
         } else {
@@ -108,7 +128,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         if s.recording.isStarting { return L("Начинаю запись…") }
         if s.recording.isStopping { return L("Сохраняю запись…") }
         if !s.setupDone || !s.engine.isUsable { return L("Нужна настройка") }
-        if s.processing { return L("Расшифровка…") }
+        if s.processing { return s.estimate.map { L("Расшифровка…") + " " + $0 } ?? L("Расшифровка…") }
         return L("Готов к записи")
     }
 
@@ -163,6 +183,11 @@ final class MenuController: NSObject, NSMenuDelegate {
         // Not while recording: the prompt window is busy with "Project and Participants".
         if s.pendingInfo > 0 && !s.recording.isCapturing && !s.recording.isStarting {
             add(L("Ждут описания: %@", s.pendingInfo), "text.bubble", actions.describePending)
+        }
+        if let q = s.queueEstimate {
+            let i = NSMenuItem(title: L("Очередь: %@", q), action: nil, keyEquivalent: "")
+            i.isEnabled = false
+            menu.addItem(i)
         }
         if s.hasLastTranscript { add(L("Последняя расшифровка"), "doc.text.magnifyingglass", actions.openLast) }
         if s.canRedoLast { add(L("Расшифровать заново…"), "arrow.counterclockwise", actions.redoLast) }

@@ -23,6 +23,14 @@ final class RecordingController {
     private var quietWatch = QuietMicWatch()
     private var zeroWatch = ZeroWatch()
     private var startedAt = Date()
+    /// Write results per track file; a track that fails and recovers is reported once per change.
+    private var writeHealth: [String: WriteHealth] = [:]
+    /// Tracks whose writes fail now, with whether the disk is full.
+    private var failingTracks: [String: Bool] = [:]
+    private var notifiedNotSaving = false
+    private var notifiedLowSpace = false
+    private var lowSpace = false
+    private var lastSpaceCheck = Date()
 
     /// State changed: redraw the menu and panel.
     var onChange: () -> Void = {}
@@ -57,6 +65,11 @@ final class RecordingController {
             return
         }
         guard machine.begin(dir) else { CallFolder.discardIfUnused(dir); return }
+        resetDiskWatch()
+        recorder.onWrite = { name, error in
+            // Main queue, in order: a failure followed by a recovery must not swap.
+            DispatchQueue.main.async { MainActor.assumeIsolated { [weak self] in self?.noteWrite(name, error) } }
+        }
         onChange()
         startTask = Task {
             guard await checkPermissions() else {
@@ -85,6 +98,7 @@ final class RecordingController {
                 marks = []
                 panel.marks = 0
                 startLevelTimer()
+                checkFreeSpace()  // right away, not after the first minute
                 Sounds.play(.start)
                 onChange()
                 if case .screenCapture(let why) = capture, why != .callMode { explainSystemAudioFallback(why) }
@@ -289,11 +303,18 @@ final class RecordingController {
         recover(.system, systemWatch.update(silent: r.systemSilent, sound: r.system > SignalMonitor.silenceLevel),
                 seconds: r.systemSilent)
         // The capsule warns together with the notification; no packets from the mic at all is told sooner.
+        if now.timeIntervalSince(lastSpaceCheck) >= 60 { checkFreeSpace() }
+        // Not reaching the disk beats the silence warnings (something to fix right now), which beat low space
+        // (already notified once, and the recording still reaches the disk).
         let warning: PanelModel.Warning?
-        if r.micMissing >= 8 || micWatch.warns(silent: r.micSilent) {
+        if !failingTracks.isEmpty {
+            warning = .notSaving(full: failingTracks.values.contains(true))
+        } else if r.micMissing >= 8 || micWatch.warns(silent: r.micSilent) {
             warning = .mic(seconds: r.micSilent)
         } else if systemWatch.warns(silent: r.systemSilent) {
             warning = .them(seconds: r.systemSilent)
+        } else if lowSpace {
+            warning = .lowSpace
         } else {
             warning = nil
         }
@@ -316,6 +337,47 @@ final class RecordingController {
             Task { await recorder.recapture(.system) }
         }
         onLevels()
+    }
+
+    private func resetDiskWatch() {
+        writeHealth = [:]
+        failingTracks = [:]
+        notifiedNotSaving = false
+        notifiedLowSpace = false
+        lowSpace = false
+        lastSpaceCheck = Date()
+    }
+
+    /// A track's write result (main thread). Only changes matter: the writer keeps trying and the
+    /// recording is never stopped here.
+    private func noteWrite(_ track: String, _ error: Error?) {
+        var health = writeHealth[track] ?? WriteHealth()
+        let event = health.record(error: error)
+        writeHealth[track] = health
+        switch event {
+        case .failed(let full)?:
+            RecorderLog.write("\(track): write error \(error.map { "\($0)" } ?? "")")
+            failingTracks[track] = full
+            if !notifiedNotSaving {
+                notifiedNotSaving = true
+                notify(PanelModel.notSavingText(full: full), "")
+            }
+        case .recovered?:
+            RecorderLog.write("\(track): writes work again")
+            failingTracks[track] = nil
+        case nil: break
+        }
+    }
+
+    /// Free space under the calls folder, at the start and every minute: warn once under 1 GB.
+    private func checkFreeSpace() {
+        lastSpaceCheck = Date()
+        lowSpace = DiskSpace.lowSpace(freeBytes: DiskSpace.freeBytes(at: Paths.calls))
+        if lowSpace, !notifiedLowSpace {
+            notifiedLowSpace = true
+            RecorderLog.write("low disk space: under 1 GB free")
+            notify(L("На диске меньше 1 ГБ, запись скоро остановится"), "")
+        }
     }
 
     /// A source silent for two minutes is captured again (quietly, always); still silent at the watch's

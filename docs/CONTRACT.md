@@ -87,6 +87,12 @@ transcription again): each distinct label that names a person or is a numbered g
 `Speaker 3`). The plain `Собеседник`/`Speaker` (a run without diarization, or a phrase no voice matched), the user
 and `<me> + собеседники` / `<me> + others` are not counted; when nothing is left the count is open.
 
+`bin/trim_call.py <call folder> --start <s> --end <s>` cuts a call at its start and end: seconds on the call's
+timeline (the same t0 as `tracks.delays` and `marks`), at least 10 s apart and inside the call (a handle up to 0.05 s
+past an edge is that edge). It holds the call folder's `flock` like `process_call.py`, so it waits for a run on the
+same call and never races one. It changes only the audio and `call.json` (section 4, "Trimmed"); the app queues
+the transcription afterwards. Last line `RESULT: ok` or `RESULT: error <code> <message>` (section 5).
+
 `bin/sync_server.py` syncs the calls folder with the own server ([SERVER.md](SERVER.md), "Sync protocol"), in this order:
 
 1. **Deletions.** It deletes on the server only the calls listed in `<data>/server-deleted.json`, then drops them
@@ -112,14 +118,64 @@ and `<me> + собеседники` / `<me> + others` are not counted; when noth
    here, local notes the server lacks are sent, local tombstones are sent as note deletions. Both sides keep the newest 200 notes per call by (`at`, `id`).
 6. **Uploads.** Finished calls (`status: done` with `transcript.txt`) whose content hash differs from the
    server's are sent. The payload's `call` is a whitelist of `call.json`: `schema`, `id`, `created_at`, `status`,
-   `profile`, `names`, `participants`, `topic`, `languages`, `summary`, plus `audio: {mic_seconds, system_seconds}`; never `terms`,
-   `engine`, `info_pending`, track start times or notes. The hash covers `{call, transcript, summary}`, without the
+   `profile`, `names`, `participants`, `topic`, `languages`, `summary`, plus `audio: {mic_seconds, system_seconds}`
+   and, for a trimmed call, `trimmed: {at, head, tail}` (section 4, "Trimmed"; whole seconds written as integers, as
+   the server's JavaScript writes them back; a `trimmed` without a valid `at` is left out); never `terms`,
+   `engine`, `info_pending`, track start times, marks or notes. The hash covers `{call, transcript, summary}`, without the
    folder name and without notes: neither a note nor a folder rename resends the whole call. The payload also
    carries `project_title`, the title from `profiles/<slug>.json` when this Mac has the project; it is outside the
    hash. A call is resent for its title only when this Mac's non-empty title changed since it last sent one
    (`<data>/server-titles.json`), or the first time, when it differs from the one the server lists.
    A downloaded call uses that title in its `transcript.md` when this Mac lacks the project. After the update
-   to this hash every call is uploaded once more.
+   to this hash every call is uploaded once more. (`trimmed` adds nothing to a call that was never trimmed: such a
+   call's hash did not change with it; a trimmed call goes up once more.) A call waiting for a transcription here
+   is not sent, neither its text nor its tracks, and not counted in `failed`: one with `queued_at` (section 4; a
+   rerun keeps `status: done`), and a trimmed one whose `transcript.txt` is older than its `trimmed.at` (the app
+   quit or the run failed between the trim and the rerun). Its old transcript describes the uncut timeline; sent
+   under the new trim time, another Mac would take it, and the right text later would carry the same trim time.
+   A copy taken from the server (below) gets a `transcript.txt` time no older than the server's `trimmed.at`.
+
+   **The trim wins.** A call the server lists with a `trimmed_at` (server 0.5.0+) later than this copy's
+   `trimmed.at`, or with one while this copy has none (times compared as times), is never uploaded, neither its text
+   nor its tracks. Instead, when it is not busy (as in step 3: `recorded`, `processing`, no `call.json` yet) and no
+   run holds its folder lock (the one transcription and `bin/trim_call.py` take; sync does not wait for it), sync
+   fetches the server's copy and, under that lock, turns this copy into it, keeping the audio:
+   - The cut that matches the server's trim on this copy's timeline is `start = server.head - here.head`,
+     `end = this copy's length - (server.tail - here.tail)` (`head`/`tail` 0 when untrimmed). When it keeps less
+     than 10 s or reaches past this copy's edges (not the same recording), nothing is cut, deleted or written: the
+     call counts in `failed` with a `STATUS: Не получилось с <id>: копия здесь не совпадает с обрезанной ...` line,
+     on every sync until the user sorts it out. The same happens when a track here is more than 1 s longer or
+     shorter than its `call.json` length (a cut whose `call.json` write failed: cutting on those numbers would cut it
+     twice) or cannot be read.
+   - Audio sync is on here and the server holds every kind of track this copy has (`mic`, `system`): its tracks
+     are downloaded into a hidden `.sync-*` folder in the call folder and checked (size, sha256, and a length within
+     0.5 s of the server's `call.json` `audio.<track>_seconds`: until the trimming Mac commits its new tracks the
+     server still serves the old ones). Only when all pass are they renamed over `mic.m4a` / `system.m4a`, with the
+     server's start offsets, and then `mic.clean.m4a` and `listen.m4a` go. A failed download changes nothing; a
+     failed rename keeps the `.sync-*` folder. Server tracks that are too long or short are remembered by sha256 in
+     `call.json` `"audio_unfit"` (this Mac only) and never downloaded for this call again. `.sync-*` folders older
+     than an hour (left by a killed sync) are removed when the call is next replaced.
+   - Otherwise (no usable audio on the server, or audio sync off here) the tracks here are cut with `bin/trim_call.py`'s
+     cut (section 4, "Trimmed": marks moved, `silence` and the derived files removed), and `call.json` notes
+     `"audio_cut_from": <the server's trimmed.at>`. Tracks so cut are never uploaded while `trimmed.at` equals that
+     value: the trimming Mac's own tracks are never overwritten, and two Macs never resend theirs to each other.
+     A later trim here uploads as usual. A call with no tracks here stays text only (its derived files go).
+   Then `transcript.txt` and `summary.md` (removed when the server has none) become the server's, `transcript.md` is
+   rendered from them, and last `call.json` takes the server's whitelisted fields (its `audio` durations, this
+   Mac's start times, its `trimmed`), the marks moved by the head the server cut (when the tracks were not cut here)
+   and no `silence`; notes and every other key of this Mac stay. Until that last write this copy still counts as
+   trimmed earlier than the server's (a cut here keeps the trim time it had, or 1970-01-01), so a failure midway is
+   redone by the next sync and never uploaded. Such a call counts in `downloaded`, with a `STATUS: Звонок <id>
+   обрезан на другом Mac: ...` line; a busy one waits for the next sync. Every upload carries the trim: the call's
+   `PUT` in `call.trimmed`, audio chunk `PUT`s and commits in the header `X-Sozvon-Trimmed-At` (empty when
+   untrimmed). The server refuses an upload whose trim is older than its own, or missing while its own is set, with
+   `409 {"error": "trimmed", "trimmed_at"}` (a trim that landed after this sync listed the calls, or a Mac still on
+   an old Sozvon): the call is skipped for this sync with one line `STATUS: Пропускаю <id>: звонок обрезан на другом
+   Mac, ...`, not counted in `failed`, and replaced on the next sync. A server older than 0.5.0 lists no
+   `trimmed_at` and ignores the field and the header: nothing is replaced, uploads go as before. The trim settles
+   only which copy wins over another trim: between copies with the same trim the text is still last writer wins (a
+   Mac whose text differs from the server's sends it, as before), so a rerun on one Mac after another Mac took its
+   copy can be sent back by either.
 
 7. **Audio** (after the text). Removal is a fact on the server: `DELETE /api/calls/{id}/audio`
    deletes the call's audio there and marks the call (`audio_removed_at`, listed by `GET /api/calls` and
@@ -255,6 +311,8 @@ does not change, so the id is stable (MCP tools look calls up by it).
   "languages": "ru,en", "summary": true, "model": "large-v3",
   "engine": {"version": "aad392548a91a7b4", "model": "turbo", "ru_model": "gigaam"},
   "warnings": [{"step": "summary", "error": "claude: rate limit"}],
+  "silence": {"head": 372.4, "tail": 298.8},
+  "trimmed": {"at": "2026-11-05T09:30:00Z", "head": 366.0, "tail": 290.0},
   "demo": true,
   "queued_at": "2026-11-05T09:12:44.250Z", "queued_summary_only": true, "retries": 1,
   "notes": [{"id": "0b7e0c4e-5f1a-4c3a-9d41-5d2f7f1a0a01", "at": "2026-11-05T09:12:44Z",
@@ -285,6 +343,35 @@ goes first, as `recorded` with `retries` raised by one, at most `retries: 1`; fo
 sets the running call to `failed` as before and leaves the waiting ones queued. So that recovery can never put two engines
 on one folder, `process_call.py` holds an exclusive `flock` on the call folder for the whole run (a second run waits for it,
 and the lock goes away with the process however it ends), and exits with its workers within two seconds of its parent going away.
+
+**Silence.** `silence` (optional, schema stays 1): `{"head": seconds, "tail": seconds}`, the quiet before the first and
+after the last transcript paragraph on the call timeline (the longest end over the recorded tracks, offsets included),
+rounded to 0.1 s; a call with no speech is all `head`. Local only: not among the fields sync sends, not in the content
+hash. Written at the end of a full run (with `done`); a `--summary-only` run leaves it alone. The app uses it to
+offer trimming a long silent head or tail.
+
+**Trimmed.** `trimmed` (optional, schema stays 1): `{"at": "<ISO 8601 UTC>", "head": seconds, "tail": seconds}`, written
+by `bin/trim_call.py`: when the call was last trimmed and how much was cut in all at its start and its end (a second trim
+adds to both numbers; rounded to 0.1 s). Synced with the call (section 3, "The trim wins"): `at` decides which copy
+wins, and `head`/`tail` give the cut that brings another Mac's copy to the same trim; nothing else reads the numbers
+back. `audio_cut_from` (optional, written by `bin/sync_server.py` only): the `trimmed.at` of another Mac that the
+tracks here were cut to match; while it equals `trimmed.at` they are never uploaded. `audio_unfit` (optional, sync
+only): sha256 of server tracks that are not this trimmed call's (section 3), never downloaded. A trim of `[start, end]`:
+
+- cuts each recorded track at its own offset: a track that starts after `start` is kept from its own start, one that
+  ends before `end` keeps its end, one with no audio in the range is deleted with its `audio` keys. The cut is
+  re-encoded to AAC at the source's bitrate (a stream copy can only cut at whole AAC frames), so the tracks stay
+  within 10 ms of each other;
+- writes the cut tracks to `.work`; only when all of them are made does it remove `listen.m4a` and `mic.clean.m4a`
+  (the next run makes new ones) and then rename the cut tracks into place. On any error before that the folder is
+  as it was. From the removals to the `call.json` write the run cannot be stopped by SIGTERM or the app quitting:
+  a SIGTERM there takes effect once `call.json` is written;
+- updates `call.json` under its lock: `audio.*_start` moves to the new t0 (the old t0 plus `start`) plus the track's
+  offset beyond `start`, so `track_start - t0` stays `max(0, old offset - start)`, and `audio.*_seconds` is the kept
+  length; `marks` inside the range shift by `-start` (rounded to 0.1 s, at least 5 s apart; the key goes when none are
+  left), the others go; `trimmed` is added or added to; `silence` is removed (it described the old timeline). When no
+  track reaches `start` (or `end`), the kept audio's first (last) second takes its place for the marks and `trimmed`.
+  `status` and every other field stay as they are.
 
 **Warnings.** `warnings` (optional, schema stays 1) lists the steps that failed on the engine's last run although the
 call is `done`: `[{"step": "summary" | "names" | "echo", "error": "<one line, no transcript text>"}]`. `summary` is a failed
@@ -394,6 +481,9 @@ ignoring case, gets the new right side, later duplicates are dropped, otherwise 
 | 1 | other error | the log |
 
 Code 2 also covers: missing call folder, corrupted `call.json`, unknown model in `SOZVON_MODEL`.
+`bin/trim_call.py` uses the same codes: 2 missing call folder, corrupted `call.json`, no tracks, a range shorter than
+10 s or outside the call, 3 engine broken or no `ffmpeg`, 5 ffmpeg could not read or write a track, 1 other. Its last
+output line is `RESULT: ok` or `RESULT: error <code> <message>`; an error before the renames leaves the folder unchanged (section 4, "Trimmed").
 `bin/voice.py` uses the same codes: 2 invalid input or not enough speech, 3 engine broken, 4 the voice print model is
 missing, 5 ffmpeg could not read the audio, 1 other.
 Code 3 also covers: `ffmpeg` not found in the environment. The transcript is written before the summary: a failure of the summary or

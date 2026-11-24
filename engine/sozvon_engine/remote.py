@@ -19,7 +19,12 @@ in .env. Protocol (schema 1):
   DELETE {url}/api/voices/{id}               -> 204, and a voice tombstone
 Ingest requests carry "Authorization: Bearer <password>". No retries inside: the next sync catches up.
 The password never goes to logs or messages.
-The "call" of a PUT holds only CALL_FIELDS (plus audio durations); its hash leaves out the folder name.
+The "call" of a PUT holds only CALL_FIELDS (plus audio durations and the trim); its hash leaves out the folder name.
+
+The trim wins on every Mac (server 0.5.0+): GET /api/calls lists "trimmed_at" per trimmed call, and the server refuses
+an upload (call, audio chunk, commit) whose call.trimmed.at is older than its own or missing while its own is set with
+409 {"error": "trimmed", "trimmed_at"}. Such a call is skipped (TrimmedElsewhere, not a failure). A call trimmed on the
+server later than here is never uploaded: sync replaces the copy here with the server's (replace_trimmed).
 
 Sync never deletes a server call because it is missing here: only calls the user moved to the Trash
 in Sozvon, listed in <data>/server-deleted.json by the app. A server call missing here and not in
@@ -68,6 +73,22 @@ class Unreachable(RemoteError):
     """No answer at all (network down, timeout): several in a row stop the sync."""
 
 
+class TrimmedElsewhere(RemoteError):
+    """409 {"error": "trimmed"}: the server holds a copy trimmed later than this one. Not a failure: the call is
+    skipped and the next sync replaces the copy here."""
+
+
+def refusal(code: int, raw: bytes | None):
+    """-> (TrimmedElsewhere or None, the parsed reply or None) for an HTTP error's body."""
+    try:
+        j = json.loads(raw or b"null")
+    except ValueError:
+        j = None
+    if code == 409 and isinstance(j, dict) and j.get("error") == "trimmed":
+        return TrimmedElsewhere(1, t("remote_status_trimmed_elsewhere", at=j.get("trimmed_at") or "?")), j
+    return None, j
+
+
 @dataclass(frozen=True)
 class Server:
     url: str
@@ -99,9 +120,9 @@ USER_AGENT = "Sozvon (+https://github.com/Able1991/sozvon)"
 
 
 def _request(srv: Server, method: str, path: str, body: dict | None = None, auth: bool = True,
-             missing_ok: bool = False, conflict_ok: bool = False):
+             missing_ok: bool = False, conflict_ok: bool = False, headers: dict | None = None):
     """-> (status, parsed JSON or None). missing_ok: 404, 405 and 410 come back as (status, None);
-    conflict_ok: 409 comes back as (409, its parsed body or None)."""
+    conflict_ok: 409 comes back as (409, its parsed body or None). A 409 "trimmed" always raises TrimmedElsewhere."""
     data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(srv.url + path, data=data, method=method)
     # Cloudflare answers the default "Python-urllib" agent with 403 (error 1010), before our Worker runs.
@@ -110,6 +131,8 @@ def _request(srv: Server, method: str, path: str, body: dict | None = None, auth
         req.add_header("Content-Type", "application/json; charset=utf-8")
     if auth:
         req.add_header("Authorization", f"Bearer {srv.password}")
+    for k, v in (headers or {}).items():
+        req.add_header(k, v)
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             raw = r.read()
@@ -123,11 +146,16 @@ def _request(srv: Server, method: str, path: str, body: dict | None = None, auth
             raise Gone(1, t("remote_http", code=e.code, method=method, path=path)) from None
         if missing_ok and e.code in (404, 405):
             return e.code, None
-        if conflict_ok and e.code == 409:
+        if e.code == 409:
             try:
-                return 409, json.loads(e.read() or b"null")
-            except (ValueError, OSError):
-                return 409, None
+                raw = e.read()
+            except OSError:
+                raw = None
+            trimmed, j = refusal(409, raw)
+            if trimmed:
+                raise trimmed from None
+            if conflict_ok:
+                return 409, j
         raise RemoteError(1, t("remote_http", code=e.code, method=method, path=path)) from None
     except (urllib.error.URLError, OSError) as e:
         reason = getattr(e, "reason", e)
@@ -172,6 +200,7 @@ class RemoteCall:
     project_title: str | None = None  # None: the server does not keep titles (older than 0.3.2)
     audio: dict = field(default_factory=dict)  # track -> sha256 of the audio the server holds (0.4.0+)
     audio_removed_at: str | None = None  # a Mac removed the call's audio (0.4.0+): no Mac syncs it again
+    trimmed_at: str | None = None  # call.trimmed.at of the server's copy (0.5.0+): None if untrimmed or older
 
 
 def _ids(v) -> set:
@@ -197,7 +226,9 @@ def remote_state(srv: Server) -> tuple:
                                            if isinstance(c.get("audio"), dict) else {},
                                            audio_removed_at=c["audio_removed_at"]
                                            if isinstance(c.get("audio_removed_at"), str) and c["audio_removed_at"]
-                                           else None)
+                                           else None,
+                                           trimmed_at=c["trimmed_at"]
+                                           if isinstance(c.get("trimmed_at"), str) and c["trimmed_at"] else None)
     gone = j.get("deleted")
     tombs = None
     if isinstance(gone, list):
@@ -217,10 +248,58 @@ def fetch(srv: Server, cid: str) -> dict | None:
 
 # The call.json fields that go to the server (and come back in a restored call): what the server shows and
 # searches (topic, project slug, names and participants, duration) and what the app needs to show a restored call. Never
-# terms, engine, info_pending, track offsets or anything a future app version adds.
+# terms, engine, info_pending, track offsets or anything a future app version adds. "trimmed" (when the user cut the
+# call and how much) goes up whole: the trim wins on every Mac.
 CALL_FIELDS = ("schema", "id", "created_at", "status", "profile", "names", "participants", "topic", "languages",
-               "summary")
+               "summary", "trimmed")
 AUDIO_FIELDS = ("mic_seconds", "system_seconds")
+TRIM_FIELDS = ("head", "tail")
+
+
+def _js_number(v):
+    """61.0 as 61: the server stores call JSON through JavaScript, which writes it so; a restored call must hash
+    the same as the original or the two Macs would resend it to each other forever."""
+    return int(v) if float(v).is_integer() else v
+
+
+def _seconds(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v and v not in (float("inf"), float("-inf"))
+
+
+def when(v) -> float | None:
+    """An ISO 8601 time as a POSIX timestamp, None if it is not one. "...:00Z" and "...:00.000Z" are the same."""
+    if not isinstance(v, str) or not v.strip():
+        return None
+    from datetime import datetime, timezone
+    try:
+        d = datetime.fromisoformat(v.strip())
+    except ValueError:
+        return None
+    return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp()
+
+
+def trim_of(call: dict) -> dict | None:
+    """call.json "trimmed" as it is synced: {"at", "head", "tail"} (the numbers that are numbers), None when the call
+    was never trimmed or its "trimmed" is broken (no valid "at")."""
+    tr = call.get("trimmed")
+    if not isinstance(tr, dict) or when(tr.get("at")) is None:
+        return None
+    return {"at": tr["at"], **{k: _js_number(tr[k]) for k in TRIM_FIELDS if _seconds(tr.get(k))}}
+
+
+def trimmed_at(call: dict) -> str | None:
+    """call.json "trimmed"."at", None when the call was never trimmed."""
+    tr = trim_of(call)
+    return tr["at"] if tr else None
+
+
+def newer_trim(server_at: str | None, call: dict) -> bool:
+    """The server's copy was trimmed later than this one (or this one never was): replace, never upload."""
+    theirs = when(server_at)
+    if theirs is None:
+        return False
+    mine = when(trimmed_at(call))
+    return mine is None or mine < theirs
 
 
 def is_demo(call: dict) -> bool:
@@ -237,12 +316,12 @@ def local_calls(root: Path) -> tuple[dict, set]:
 
 def call_fields(call: dict, audio: dict | None = None) -> dict:
     """The whitelisted part of a call.json; audio: the track durations (call.json or meta.json)."""
-    out = {k: call[k] for k in CALL_FIELDS if k in call}
+    out = {k: call[k] for k in CALL_FIELDS if k in call and k != "trimmed"}
+    if tr := trim_of(call):  # never trimmed (or a broken value): no key at all, the hash stays as before
+        out["trimmed"] = tr
     meta = audio if audio is not None else call.get("audio")
     if isinstance(meta, dict):
-        # 61.0 as 61: the server stores call JSON through JavaScript, which writes it so; a restored call
-        # must hash the same as the original or the two Macs would resend it to each other forever.
-        a = {k: int(v) if float(v).is_integer() else v for k in AUDIO_FIELDS
+        a = {k: _js_number(v) for k in AUDIO_FIELDS
              if isinstance(v := meta.get(k), (int, float)) and not isinstance(v, bool) and v == v}
         if a:
             out["audio"] = a
@@ -268,8 +347,25 @@ def project_title(call: dict) -> str:
     return str(profiles.load(slug).get("title") or "").strip() if slug else ""
 
 
+def awaiting_rerun(d: Path, call: dict) -> bool:
+    """The call waits for a transcription here: queued in the app (call.json "queued_at"; its status stays "done" for
+    a rerun), or trimmed after its transcript.txt was written (the app quit or the run failed between the trim and
+    the rerun). Its text and tracks would not match (the old transcript over the cut audio, under the new trim time):
+    nothing of it goes up until the rerun ends. Skipped, not failed: the next sync looks again."""
+    if call.get("queued_at"):
+        return True
+    at = when(trimmed_at(call))
+    if at is None:
+        return False
+    try:
+        return (Path(d) / "transcript.txt").stat().st_mtime < at
+    except OSError:
+        return False
+
+
 def payload(d: Path) -> dict | None:
-    """What goes to the server for a call folder; None if the call is not done or has no transcript.
+    """What goes to the server for a call folder; None if the call is not done, has no transcript, or waits for a
+    rerun (awaiting_rerun).
 
     No audio here: tracks travel separately (remote_audio). Only the whitelisted call.json fields (CALL_FIELDS), transcript.txt and summary.md.
     Notes travel as their own fields (the newest MAX_NOTES), the project title (when this Mac knows one)
@@ -283,7 +379,7 @@ def payload(d: Path) -> dict | None:
     call = call_fields(raw, calls.audio_meta(d, raw))
     transcript = d / "transcript.txt"
     # Calls transcribed before call.json had a status (contract 0) count as done when they have a transcript.
-    if call.get("status", "done") != "done" or not transcript.is_file():
+    if call.get("status", "done") != "done" or not transcript.is_file() or awaiting_rerun(d, raw):
         return None
     text = transcript.read_text(encoding="utf-8", errors="replace")
     summary_file = d / "summary.md"
@@ -570,6 +666,250 @@ def restore(root: Path, body: dict, taken: set | None = None) -> Path | None:
     return target
 
 
+# --- a call trimmed on another Mac: the server's copy replaces the one here ---
+
+TRACK_FILES = ("mic.m4a", "system.m4a")
+DERIVED_AUDIO = ("mic.clean.m4a", "listen.m4a")  # made from the tracks (trim.DERIVED): of the old timeline
+
+
+def _write_text(path: Path, text: str) -> None:
+    """The whole file or nothing: a hidden temp file renamed into place."""
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _try_lock(d: Path) -> int | None:
+    """The call folder's lock (the one transcription and trim hold, guard.lock_call) without waiting: the descriptor
+    to close, or None when a run holds it."""
+    fd = os.open(d, os.O_RDONLY)
+    if platform_support.lock_exclusive(fd, wait=False):
+        return fd
+    os.close(fd)
+    return None
+
+
+def _shifted_marks(local: dict, server_call: dict) -> list:
+    """The marks here moved onto the server's timeline: its trim cut server.head seconds from the original start,
+    this copy local.head (0 if never trimmed), so the server's 0 is at server.head - local.head here."""
+    from . import trim
+    mine = trim_of(local) or {}
+    theirs = trim_of(server_call) or {}
+    start = float(theirs.get("head", 0)) - float(mine.get("head", 0))
+    meta = server_call.get("audio") if isinstance(server_call.get("audio"), dict) else {}
+    length = max((float(v) for k in AUDIO_FIELDS if _seconds(v := meta.get(k)) and v > 0), default=float("inf"))
+    marks = local.get("marks")
+    return trim.shift_marks(marks if isinstance(marks, list) else [], start, start + length)
+
+
+EPOCH = "1970-01-01T00:00:00Z"  # the trim time a local cut gets until call.json takes the server's (see below)
+
+
+def _trim_range(d: Path, local: dict, server_call: dict) -> tuple[float, float, float]:
+    """(start, end, length) on this copy's timeline: the cut that turns it into the server's copy. Both trims count
+    from the original recording, so the server cut (its head - this head) more at the start and (its tail - this
+    tail) more at the end. length: this copy's timeline (0 without tracks)."""
+    from . import trim
+    length = trim.local_end(d, local)
+    mine, theirs = trim_of(local) or {}, trim_of(server_call) or {}
+    start = float(theirs.get("head", 0)) - float(mine.get("head", 0))
+    end = length - (float(theirs.get("tail", 0)) - float(mine.get("tail", 0)))
+    return start, end, length
+
+
+STALE_STAGE = 3600  # seconds: a .sync-* folder untouched this long was left by a sync that was killed
+FIT = 0.5  # seconds: a server track within this of the server's call.json length is the trimmed one
+STALE_META = 1.0  # seconds: a track here further than this from its call.json length (a cut whose call.json write failed)
+
+
+def _fits(path: Path, seconds) -> bool:
+    """The track's real length is within FIT of seconds (False when either is unknown)."""
+    from . import audio
+    if not _seconds(seconds):
+        return False
+    try:
+        return abs(audio.duration(path) - float(seconds)) <= FIT
+    except Exception:  # noqa: BLE001  unreadable: not the track we want
+        return False
+
+
+def _drop_stale_stages(d: Path, now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    for f in Path(d).glob(".sync-*"):
+        try:
+            if f.is_dir() and now - f.stat().st_mtime > STALE_STAGE:
+                shutil.rmtree(f, ignore_errors=True)
+        except OSError:
+            pass
+
+
+def _check_lengths(d: Path, local: dict) -> None:
+    """RemoteError when a track here is not as long as call.json says (a cut whose call.json write failed): cutting
+    on those numbers would cut it twice."""
+    from . import audio
+    from .pipeline import tracks
+    meta = calls.audio_meta(d, local)
+    for track, f in tracks.track_files(d).items():
+        try:
+            real = audio.duration(f)
+        except (audio.FfmpegError, audio.FfmpegMissing) as e:
+            raise RemoteError(1, t("remote_trim_unreadable", err=e)) from None
+        said = meta.get(f"{track}_seconds")
+        if _seconds(said) and abs(real - float(said)) > STALE_META:
+            raise RemoteError(1, t("remote_trim_stale", track=track, real=real, said=float(said)))
+
+
+def _range_ok(start: float, end: float, length: float) -> bool:
+    from . import trim
+    return start >= -trim.SLACK and end <= length + trim.SLACK and end - start >= trim.MIN_LENGTH
+
+
+def replace_trimmed(srv: Server, d: Path, body: dict) -> bool:
+    """Replace a call here with the server's copy (body, GET /api/calls/{id}), trimmed on another Mac later than
+    this copy, keeping every bit of audio it can. -> False when nothing changed: the call is busy (recorded, queued,
+    transcribed, or a run holds its lock), the copy is not trimmed later than this one after all, or it is not
+    usable. RemoteError (counted as failed, nothing changed) when this copy's tracks do not fit the server's trim
+    (the cut would leave less than trim.MIN_LENGTH or reach past this copy's edges: not the same recording).
+
+    Under the call folder's lock, after the checks:
+    - the server holds every kind of track this copy has (mic, system), audio sync is on here, and each downloaded
+      track is as long as the server's call.json says (FIT; until the trimming Mac commits its new tracks the server
+      still serves the old ones): they are downloaded into a hidden .sync-* folder first, checked, and only then
+      replace the tracks here (mic.clean.m4a and listen.m4a go too);
+    - otherwise the tracks here are cut to the server's trim with trim.trim_call (marks moved, silence dropped,
+      derived files removed), and call.json notes "audio_cut_from": the trim they match. Such tracks are never
+      uploaded (remote_audio.push_call_audio): another Mac's own tracks of the same trim must not be overwritten,
+      and two Macs must not resend theirs to each other. A later trim here uploads as usual.
+    Then transcript.txt, summary.md and transcript.md are the server's, and last call.json takes the server's
+    whitelisted fields (its audio durations and "trimmed"); notes and the other keys of this Mac stay. Until that
+    last write this copy still counts as trimmed earlier than the server's (a cut gets the trim time it had, or
+    EPOCH), so a failure midway is redone by the next sync and never uploaded.
+    """
+    from . import audio, config, remote_audio, trim
+    from .pipeline import tracks
+    d = Path(d)
+    srv_call = body.get("call") if isinstance(body, dict) else None
+    transcript = body.get("transcript") if isinstance(body, dict) else None
+    if not isinstance(srv_call, dict) or not isinstance(transcript, str) or trim_of(srv_call) is None:
+        return False
+    summary = body.get("summary") if isinstance(body.get("summary"), str) else None
+    server_at = trimmed_at(srv_call)
+    fd = _try_lock(d)
+    if fd is None:
+        return False
+    stage = d / f".sync-{uuid.uuid4().hex}"
+    keep_stage = False
+    try:
+        if _busy(d):
+            return False
+        _drop_stale_stages(d)
+        try:
+            local = calls.read_call(d, strict=True)
+        except jsonfile.JsonFileError:
+            return False  # a broken call.json is the user's to fix; never overwritten
+        cid = local.get("id")
+        if body.get("id") != cid or not newer_trim(server_at, local):
+            return False
+        mine = tracks.track_files(d)
+        has_tracks = bool(mine)
+        if has_tracks:
+            _check_lengths(d, local)
+            try:
+                start, end, length = _trim_range(d, local, srv_call)
+            except (audio.FfmpegError, audio.FfmpegMissing) as e:
+                raise RemoteError(1, t("remote_trim_unreadable", err=e)) from None
+            if not _range_ok(start, end, length):
+                raise RemoteError(1, t("remote_trim_mismatch", start=start, end=end, length=length))
+        try:
+            pulled, unfit = None, []
+            if config.load().sync_audio and not local.get("audio_removed_at"):
+                state = remote_audio.server_audio(srv, cid)
+                if not state["removed"] and state["tracks"] and set(mine) <= set(state["tracks"]):
+                    stage.mkdir()
+                    srv_meta = srv_call.get("audio") if isinstance(srv_call.get("audio"), dict) else {}
+                    for track, info in sorted(state["tracks"].items()):
+                        remote_audio.download_track(srv, cid, stage, track, info)
+                    unfit = [info.get("sha256") for track, info in sorted(state["tracks"].items())
+                             if not _fits(stage / f"{track}.m4a", srv_meta.get(f"{track}_seconds"))]
+                    if not unfit:
+                        pulled = state["tracks"]
+            # Everything is checked and at hand: from here on the folder changes.
+            starts, cut_from = {}, None
+            if pulled is not None:
+                keep_stage = True  # until every staged track is in place
+                for track, info in sorted(pulled.items()):
+                    os.replace(stage / f"{track}.m4a", d / f"{track}.m4a")
+                    if remote_audio._number(info.get("start")) and info["start"] >= 0:
+                        starts[f"{track}_start"] = info["start"]
+                keep_stage = False
+                for name in [n for k, n in tracks.TRACKS if k not in pulled] + list(DERIVED_AUDIO):
+                    (d / name).unlink(missing_ok=True)
+            elif has_tracks:
+                try:
+                    trim.trim_call(d, start, end, now=trimmed_at(local) or EPOCH, locked=True)
+                except (trim.EngineError, audio.FfmpegError, audio.FfmpegMissing) as e:
+                    raise RemoteError(1, t("remote_trim_unreadable", err=getattr(e, "message", e))) from None
+                cut = calls.read_call(d, strict=True)
+                meta = cut.get("audio") if isinstance(cut.get("audio"), dict) else {}
+                starts = {k: v for k, v in meta.items() if k.endswith("_start")}
+                cut_from = server_at
+            else:  # no tracks here: only what was made from them goes
+                for name in DERIVED_AUDIO:
+                    (d / name).unlink(missing_ok=True)
+            _write_text(d / "transcript.txt", transcript)
+            if (at := when(server_at)) is not None and (d / "transcript.txt").stat().st_mtime < at:
+                os.utime(d / "transcript.txt", (at, at))  # another Mac's clock ahead: still the text of this trim
+            if summary is None:
+                (d / "summary.md").unlink(missing_ok=True)
+            else:
+                _write_text(d / "summary.md", summary)
+            title = (body.get("project_title") if isinstance(body.get("project_title"), str) else "").strip()[:200]
+            with jsonfile.locked(calls.call_file(d)):
+                now = calls.read_call(d, strict=True)  # after the cut, and the app may have added a note meanwhile
+                call = {k: v for k, v in now.items()
+                        if k not in CALL_FIELDS and k not in ("audio", "silence", "audio_cut_from")}
+                fields = call_fields(srv_call)
+                call.update(fields)
+                # The server's durations (so this copy hashes as the server's), this Mac's start times.
+                new_audio = {**starts, **fields.get("audio", {})}
+                for track in tracks.track_files(d):
+                    if not _seconds(new_audio.get(f"{track}_seconds")):
+                        try:
+                            new_audio[f"{track}_seconds"] = audio.duration(d / f"{track}.m4a")
+                        except Exception:  # noqa: BLE001  the duration is only for display
+                            pass
+                if new_audio:
+                    call["audio"] = new_audio
+                call["id"] = cid
+                call.setdefault("schema", calls.CALL_SCHEMA)
+                if "status" in call:
+                    call["status"] = "done"
+                if cut_from is None and "marks" in local:  # a cut moved them already
+                    call.pop("marks", None)
+                    if marks := _shifted_marks(local, srv_call):
+                        call["marks"] = marks
+                if cut_from:
+                    call["audio_cut_from"] = cut_from
+                if unfit:  # the server's tracks from before the trim: remote_audio.pull_call_audio skips them
+                    call["audio_unfit"] = [x for x in unfit if isinstance(x, str)][-8:]
+                if title and call.get("profile") and not project_title(call) and not call.get("project_title"):
+                    call["project_title"] = title
+                _write_text(d / "transcript.md", _transcript_md(cid, call, transcript, summary,
+                                                                title or str(call.get("project_title") or "")))
+                calls.write_call(d, call)
+        except (OSError, jsonfile.JsonFileError) as e:
+            raise RemoteError(1, f"{type(e).__name__}: {e}") from None
+        return True
+    finally:
+        if not keep_stage:  # else left for a look; the sweep removes it after STALE_STAGE
+            shutil.rmtree(stage, ignore_errors=True)
+        os.close(fd)
+
+
 # --- full sync ---
 
 @dataclass
@@ -595,6 +935,7 @@ class _Attempts:
     def __init__(self, result: SyncResult, status):
         self.result, self.status, self.unreachable = result, status, 0
         self.failed: set = set()  # ids that failed in this sync: not tried again until the next one
+        self.trimmed: set = set()  # ids trimmed later on the server: nothing of them goes up in this sync
 
     def run(self, cid: str, fn, *args, **kwargs):
         """-> (ok, fn's value)."""
@@ -602,6 +943,12 @@ class _Attempts:
             value = fn(*args, **kwargs)
         except Gone:
             self.unreachable = 0
+            return False, None
+        except TrimmedElsewhere:  # skipped, not failed: the next sync replaces the copy here
+            self.unreachable = 0
+            if cid not in self.trimmed:
+                self.status(t("remote_status_trimmed_skip", id=cid))
+            self.trimmed.add(cid)
             return False, None
         except RemoteError as e:
             if e.code == 2:
@@ -632,7 +979,11 @@ def sync(srv: Server | None = None, root: Path | None = None, status=lambda text
     5. Notes: the ones the server has and this Mac lacks come down, tombstones apply both ways,
        local notes the server lacks go up.
     6. Done calls the server lacks, holds with another hash, or whose project title changed here since
-       this Mac last sent it: sent.
+       this Mac last sent it: sent. A call the server holds trimmed later than here (its trimmed_at, 0.5.0+)
+       is never sent: replace_trimmed takes the server's copy instead (counted in downloaded), or the next
+       sync does while the call is busy. An upload the server refuses as trimmed elsewhere (409) is skipped,
+       not failed. A call waiting for a transcription here (awaiting_rerun: queued, or trimmed after its
+       transcript) is not sent either, text or audio, until the rerun ends.
     7. Audio (server 0.4.0+, remote_audio.sync_audio) and 8. voice prints (sync_voices): their counts are
        STATUS lines; a call whose audio failed counts in failed, like its text.
     A request that fails for one call (413, 5xx, a timeout) is counted in failed and the rest goes on.
@@ -773,6 +1124,17 @@ def _sync(srv, root, status, trash, theirs, tombs, local, result, attempt, evict
         if c.id in dead or c.id in attempt.failed:
             continue
         r = theirs.get(c.id)
+        if r is not None and newer_trim(r.trimmed_at, calls.read_call(c.path)):
+            attempt.trimmed.add(c.id)  # never uploaded: neither its text nor its tracks
+            if _busy(c.path):
+                continue  # recorded, queued or transcribed: the next sync
+            ok, body = attempt.run(c.id, fetch, srv, c.id)
+            if ok and body is not None:
+                ok, done = attempt.run(c.id, replace_trimmed, srv, c.path, body)
+                if ok and done:
+                    status(t("remote_status_trimmed_replace", id=c.id))
+                    result.downloaded += 1
+            continue
         if r is not None and r.notes is not None:
             ok, _ = attempt.run(c.id, _pull_notes, srv, c, r, status)
             if not ok:
@@ -834,6 +1196,8 @@ def push_after_transcription(d: Path, log) -> None:
             log(t("remote_pushed"))
     except Gone:
         log(t("remote_push_gone"))
+    except TrimmedElsewhere:
+        log(t("remote_push_trimmed"))
     except RemoteError as e:
         log(t("remote_push_failed", err=e.message))
     except Exception as e:  # noqa: BLE001  the server must never break a finished transcription

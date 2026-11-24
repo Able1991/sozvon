@@ -24,9 +24,14 @@ enum SZW {
     /// "3 проекта", "10 человек"; "3 projects", "10 people". Plural forms are chosen here, not by a strings key.
     static func count(_ n: Int, ru forms: (String, String, String), en: (String, String)) -> String {
         if Engine.uiLanguage == "en" { return "\(n) " + (n == 1 ? en.0 : en.1) }
-        let tens = n % 100, ones = n % 10
-        let word = (11...14).contains(tens) ? forms.2 : ones == 1 ? forms.0 : (2...4).contains(ones) ? forms.1 : forms.2
+        let word = [forms.0, forms.1, forms.2][ruForm(n)]
         return "\(n) \(word)"
+    }
+
+    /// The Russian plural form of `n`: 0 for 1, 21 ("минута"), 1 for 2-4, 22 ("минуты"), 2 for 5-20 ("минут").
+    static func ruForm(_ n: Int) -> Int {
+        let tens = n % 100, ones = n % 10
+        return (11...14).contains(tens) ? 2 : ones == 1 ? 0 : (2...4).contains(ones) ? 1 : 2
     }
 }
 

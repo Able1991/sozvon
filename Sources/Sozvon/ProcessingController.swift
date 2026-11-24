@@ -11,6 +11,9 @@ final class ProcessingController {
     private var running: [URL: RunningProcess] = [:]
     /// Sozvon is quitting: a finished run must not start the next one (it would outlive the app).
     private var quitting = false
+    /// When each running transcription started (for the time estimate and the speed sample).
+    private var startedAt: [URL: Date] = [:]
+    private var speed = SpeedBook.load()
     private(set) var lastTranscript: URL?
     private(set) var lastDir: URL?
     let calls: CallsModel
@@ -26,15 +29,21 @@ final class ProcessingController {
 
     init(calls: CallsModel) {
         self.calls = calls
+        calls.estimate = { [weak self] in self?.estimateText(for: $0) }
         wireInstaller()
     }
 
     /// An engine run is going on now.
     var isProcessing: Bool { queue.running != nil }
+    var runningDir: URL? { queue.running?.dir }
     /// Something runs or waits for its turn: updates and the phone folder hold back.
     var hasWork: Bool { !queue.isEmpty }
     var isEngineUpdating: Bool { queue.engineUpdating }
-    func contains(_ dir: URL) -> Bool { queue.contains(dir) }
+    /// Queued, running or being trimmed: busy for audio cleanup and the like.
+    func contains(_ dir: URL) -> Bool { queue.contains(dir) || isTrimming(dir) }
+    /// Folders being cut by `trim_call.py` now (standardized paths).
+    private var trimming: Set<String> = [] { didSet { calls.trimming = trimming } }
+    func isTrimming(_ dir: URL) -> Bool { trimming.contains(dir.standardizedFileURL.path) }
 
     // MARK: Call prompt
 
@@ -65,7 +74,7 @@ final class ProcessingController {
 
     /// A call waiting for its description (menu, notification, Calls window): the same prompt again.
     func describe(_ dir: URL) {
-        guard FileManager.default.fileExists(atPath: dir.path), !queue.contains(dir), !calls.isRecording(dir) else { return }
+        guard FileManager.default.fileExists(atPath: dir.path), !contains(dir), !calls.isRecording(dir) else { return }
         let initial = CallFile.info(CallFile.read(dir), fallback: CallInfo(languages: Settings.shared.languages))
         Task {
             let answer = await CallInfoPrompt.answer(initial, title: L("О чём был звонок?"), okTitle: L("Расшифровать"),
@@ -125,7 +134,7 @@ final class ProcessingController {
     /// A new summary from the (edited) transcript, without transcribing again (`process_call.py --summary-only`).
     /// Goes through the same queue as transcription.
     func resummarize(_ dir: URL) {
-        guard !queue.contains(dir), !calls.isEditLocked(dir) else { return }
+        guard !contains(dir), !calls.isEditLocked(dir) else { return }
         enqueue(dir, kind: .summaryOnly)
     }
 
@@ -151,9 +160,52 @@ final class ProcessingController {
         enqueue(dir)
     }
 
+    // MARK: Trim
+
+    /// Cut the call to `start...end` seconds (`bin/trim_call.py`), then transcribe it again with the answers it
+    /// already has (a call still waiting for its description gets that prompt instead). A failure is a
+    /// notification and nothing is queued. Refused while the call is queued, running, recording or already trimming.
+    @discardableResult
+    func trim(_ dir: URL, start: Double, end: Double) async -> RunOutcome {
+        guard !queue.contains(dir), !isTrimming(dir), !calls.isRecording(dir) else {
+            return .failed(code: 1, message: L("Звонок записывается или расшифровывается"))
+        }
+        let key = dir.standardizedFileURL.path
+        trimming.insert(key)
+        calls.reload()
+        onChange()
+        let log = dir.appendingPathComponent("process.log")
+        let outcome: RunOutcome = await withCheckedContinuation { cont in
+            let tracker = OutputTracker()
+            let args = [dir.path, "--start", String(start), "--end", String(end)]
+            // A start failure still calls `done` (code -1), so the continuation is resumed exactly once.
+            Engine.runScript("trim_call.py", args, log: log, appendLog: true, onLine: { tracker.consume($0) }) { code in
+                cont.resume(returning: RunOutcome.parse(exitCode: code, result: tracker.result, lastLine: tracker.lastLine))
+            }
+        }
+        trimming.remove(key)
+        guard outcome.isOK else {
+            notify(L("Не получилось обрезать звонок"), outcome.message.isEmpty ? L("Подробности в process.log") : outcome.message,
+                   action: .openLog, url: log)
+            calls.reload()
+            onChange()
+            return outcome
+        }
+        let c = CallFile.read(dir)
+        if PendingInfo.isPending(c) {
+            calls.reload()
+            describe(dir)
+        } else {
+            transcribe(dir, CallFile.info(c, fallback: CallInfo(languages: Settings.shared.languages)))
+        }
+        return outcome
+    }
+
     // MARK: Queue
 
     private func enqueue(_ dir: URL, kind: ProcessingQueue.Kind = .transcribe) {
+        // Being trimmed: a run now would only wait on the folder lock and then read the old tracks.
+        guard !isTrimming(dir) else { notify(L("Звонок обрезается"), dir.lastPathComponent); return }
         guard queue.admit(dir, kind: kind) == .queued else {
             // Folder is already being transcribed: a second run and a rename underneath it broke the output.
             notify(L("Уже расшифровывается"), dir.lastPathComponent)
@@ -258,7 +310,54 @@ final class ProcessingController {
                 self.summaryFinished(dir, outcome: outcome)
             }
         }
-        if let p, queue.contains(dir) { running[dir] = p }
+        if let p, queue.contains(dir) {
+            running[dir] = p
+            if job.kind == .transcribe { startedAt[dir] = Date() }
+        }
+    }
+
+    // MARK: Time estimate
+
+    private func callSeconds(_ dir: URL) -> Double {
+        AudioTimes((CallFile.read(dir)["audio"] as? [String: Any]) ?? [:]).duration
+    }
+
+    /// Time left for the running call, or its own estimate for a waiting one (with the model of the latest sample:
+    /// the engine's choice is not known before the run). Nil without samples, and for summary runs.
+    func estimateText(for dir: URL) -> String? {
+        guard let model = speed.lastModel else { return nil }
+        let key = dir.standardizedFileURL.path
+        if let r = queue.running, r.kind == .transcribe, r.dir.standardizedFileURL.path == key {
+            guard let start = startedAt[r.dir],
+                  let total = speed.estimate(model: model, callSeconds: callSeconds(dir)) else { return nil }
+            return EstimateText.remaining(estimate: total, elapsed: Date().timeIntervalSince(start))
+        }
+        guard queue.waiting.contains(where: { $0.dir.standardizedFileURL.path == key && $0.kind == .transcribe }),
+              let total = speed.estimate(model: model, callSeconds: callSeconds(dir)) else { return nil }
+        return EstimateText.duration(total)
+    }
+
+    /// Time for everything in the queue, when more than one call waits. Nil without samples.
+    func queueEstimateText() -> String? {
+        guard queue.waiting.count > 1, let model = speed.lastModel else { return nil }
+        var total = 0.0
+        for job in queue.waiting where job.kind == .transcribe {
+            total += speed.estimate(model: model, callSeconds: callSeconds(job.dir)) ?? 0
+        }
+        if let r = queue.running, r.kind == .transcribe, let start = startedAt[r.dir],
+           let own = speed.estimate(model: model, callSeconds: callSeconds(r.dir)) {
+            total += max(0, own - Date().timeIntervalSince(start))
+        }
+        return total > 0 ? EstimateText.duration(total) : nil
+    }
+
+    /// A finished OK transcription of a long call teaches the speed of this Mac.
+    private func recordSpeed(_ dir: URL, started: Date?) {
+        guard let started else { return }
+        let c = CallFile.read(dir)
+        guard let model = (c["engine"] as? [String: Any])?["model"] as? String else { return }
+        speed.record(model: model, callSeconds: callSeconds(dir), processingSeconds: Date().timeIntervalSince(started))
+        speed.save()
     }
 
     /// App quit mid-transcription: stop the engine (otherwise it died from a closed pipe
@@ -278,6 +377,8 @@ final class ProcessingController {
     private func finished(_ dirIn: URL, code: Int32, outcome: RunOutcome) {
         queue.finish(dirIn)
         running[dirIn] = nil
+        let started = startedAt.removeValue(forKey: dirIn)
+        if outcome.isOK { recordSpeed(dirIn, started: started) }
         var dir = dirIn
         CallFile.clearRetries(dir)  // the run ended by itself, it was not interrupted
         let log = dir.appendingPathComponent("process.log")
@@ -412,6 +513,18 @@ final class ProcessingController {
         if let dir { _ = queue.admit(dir); _ = queue.startNext(held: false) } else if let r = queue.running { queue.finish(r.dir) }
         if let lastTranscript { self.lastTranscript = lastTranscript }
         onChange()
+    }
+
+    /// For screenshots and the UI test: one call transcribing for a minute and one waiting, with a made-up speed
+    /// of this Mac (kept in memory, never saved), so the list shows the time estimates. Nothing runs.
+    func previewQueue(running dir: URL, waiting: URL) {
+        speed = SpeedBook()
+        speed.record(model: "turbo", callSeconds: 3600, processingSeconds: 540)
+        _ = queue.admit(dir)
+        _ = queue.startNext(held: false)
+        startedAt[dir] = Date().addingTimeInterval(-60)
+        _ = queue.admit(waiting)
+        syncCalls()
     }
     #endif
 }

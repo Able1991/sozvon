@@ -1,6 +1,6 @@
 {
   "name": "sozvon-server",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "private": true,
   "description": "Your own Sozvon server on Cloudflare: ask Claude or ChatGPT about your calls when the Mac is off",
   "type": "module",

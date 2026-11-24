@@ -119,6 +119,25 @@ def to_m4a(src: Path, dst: Path) -> Path:
     return dst
 
 
+def bitrate(path, default: int = 64) -> int:
+    """The audio bitrate of a file in kbit/s, from ffmpeg's stream line (nothing is decoded); `default` if none."""
+    import re
+    try:
+        r = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(path)], capture_output=True)
+    except FileNotFoundError as e:
+        raise FfmpegMissing("ffmpeg") from e
+    m = re.search(r"Audio: .*?(\d+) kb/s", r.stderr.decode("utf-8", "replace"))
+    return max(32, int(m.group(1))) if m else default
+
+
+def cut(src: Path, dst: Path, start: float, seconds: float) -> Path:
+    """A piece of a track -> AAC m4a at the source's bitrate (channels and sample rate kept). Re-encoded, not copied:
+    a stream copy can only cut at whole AAC frames (21 ms at 48 kHz), and the tracks must stay within 10 ms."""
+    _run(["-y", "-ss", f"{max(0.0, start):.3f}", "-t", f"{max(0.0, seconds):.3f}", "-i", str(src), "-vn",
+          "-c:a", "aac", "-b:a", f"{bitrate(src)}k", str(dst)], src)
+    return dst
+
+
 def extract_audio(video: Path) -> Path:
     """Audio from a video into a temporary 16 kHz wav (the caller deletes it)."""
     fd, out = tempfile.mkstemp(prefix=f"{video.stem}_", suffix=".wav")

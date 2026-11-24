@@ -24,6 +24,8 @@ final class TrackWriter: @unchecked Sendable {
     }
 
     let url: URL
+    /// Result of every write, called on the writer's queue. Set before capture starts.
+    var onWrite: ((Error?) -> Void)?
     private var file: AVAudioFile?
     private var format: AVAudioFormat?
     private var converter: AVAudioConverter?
@@ -164,15 +166,25 @@ final class TrackWriter: @unchecked Sendable {
             for ab in UnsafeMutableAudioBufferListPointer(sil.mutableAudioBufferList) {
                 if let p = ab.mData { memset(p, 0, Int(ab.mDataByteSize)) }
             }
-            try? file.write(from: sil)
+            do {
+                try file.write(from: sil)
+            } catch {
+                // Only what reached the file counts, or the *_seconds would drift from it (sync checks them).
+                // The buffer is not written either: it would land before its time. The next packet fills the
+                // gap again, this packet included.
+                onWrite?(error)
+                return
+            }
             framesWritten += AVAudioFramePosition(n)
         }
         do {
             try file.write(from: buf)
             framesWritten += AVAudioFramePosition(buf.frameLength)
             live?.add(buf)
+            onWrite?(nil)
         } catch {
-            RecorderLog.write("\(url.lastPathComponent): write error \(error)")
+            // Logged by the receiver only when the state changes: a full disk fails on every buffer.
+            onWrite?(error)
         }
     }
 
@@ -578,6 +590,8 @@ final class Recorder: NSObject, SCStreamDelegate {
     /// start); a source captured again gets a stream of its own.
     private var streams: Streams = []
     private var sink: AudioSink?
+    /// Write results of both tracks (track file name, error), on the capture queue. Set before `start`.
+    var onWrite: (@Sendable (String, Error?) -> Void)?
     private var filter: SCContentFilter?
     /// System audio through a process tap; nil when ScreenCaptureKit captures it.
     private var tap: SystemTap?
@@ -642,6 +656,9 @@ final class Recorder: NSObject, SCStreamDelegate {
         }
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let sink = AudioSink(dir: dir, live: live)
+        if let onWrite {
+            for track in [sink.mic, sink.system] { track.onWrite = { [name = track.url.lastPathComponent] in onWrite(name, $0) } }
+        }
         // The microphone first, then the process tap: creating the tap (an aggregate device) right before
         // ScreenCaptureKit opens the microphone made the first start after launch fail every time ("Stream
         // failed to start microphone"), and replayd then kept the microphone open.

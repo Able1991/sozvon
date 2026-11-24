@@ -120,6 +120,10 @@ MESSAGES = {
     "err_model_missing": ("модель {model} не скачана", "model {model} is not downloaded"),
     "err_ffmpeg": ("ffmpeg не смог прочитать {file}: {err}", "ffmpeg could not read {file}: {err}"),
     "err_engine": ("движок повреждён: {err}", "the engine is broken: {err}"),
+    "err_trim_short": ("после обрезки должно остаться не меньше {n} с", "at least {n} s must remain after trimming"),
+    "err_trim_range": ("отрезок {start:.1f}..{end:.1f} с выходит за звонок длиной {length:.1f} с",
+                       "the range {start:.1f}..{end:.1f} s lies outside the call of {length:.1f} s"),
+    "err_trim_no_audio": ("в выбранном отрезке нет ни одной дорожки", "no track has audio in the chosen range"),
 
     # Voice prints (bin/voice.py: RESULT: error <code> <message>)
     "voice_no_model": ("нет модели образцов голосов: переустанови движок",
@@ -255,9 +259,29 @@ MESSAGES = {
                                  "text syncs as usual"),
     "remote_status_failed": ("Не получилось с {id}: {err}. Повторю при следующей синхронизации",
                              "Failed for {id}: {err}. The next sync retries"),
+    "remote_status_trimmed_elsewhere": ("звонок обрезан на другом Mac ({at})", "the call was trimmed on another Mac ({at})"),
+    "remote_status_trimmed_skip": ("Пропускаю {id}: звонок обрезан на другом Mac, копия здесь заменится при следующей "
+                                   "синхронизации",
+                                   "Skipping {id}: the call was trimmed on another Mac, the copy here is replaced on the "
+                                   "next sync"),
+    "remote_status_trimmed_replace": ("Звонок {id} обрезан на другом Mac: беру его копию с сервера",
+                                      "Call {id} was trimmed on another Mac: taking its copy from the server"),
+    "remote_trim_mismatch": ("копия здесь не совпадает с обрезанной на другом Mac (нужно оставить {start:.1f} до "
+                             "{end:.1f} с из {length:.1f} с): звонок здесь не тронут",
+                             "the copy here does not match the one trimmed on another Mac (it would keep {start:.1f} "
+                             "to {end:.1f} s of {length:.1f} s): the call here is left as it is"),
+    "remote_trim_unreadable": ("не получилось обрезать копию здесь так же, как на другом Mac ({err}): звонок здесь не "
+                               "тронут",
+                               "could not trim the copy here like on the other Mac ({err}): the call here is left "
+                               "as it is"),
+    "remote_trim_stale": ("дорожка {track} здесь длится {real:.1f} с, а в call.json {said:.1f} с: звонок здесь не тронут",
+                          "the {track} track here is {real:.1f} s long, call.json says {said:.1f} s: the call here is "
+                          "left as it is"),
     "remote_trash_failed": ("Не удалось убрать в Корзину {id}: {err}", "Could not move {id} to the Trash: {err}"),
     "remote_push_gone": ("звонок удалён на своём сервере с другого Mac, остаётся только на этом Mac",
                          "the call was deleted on your server from another Mac, it stays on this Mac only"),
+    "remote_push_trimmed": ("звонок обрезан на другом Mac, эта копия не отправлена: синхронизация возьмёт обрезанную",
+                            "the call was trimmed on another Mac, this copy was not sent: the sync takes the trimmed one"),
     "remote_pushed": ("звонок отправлен на свой сервер", "call sent to your server"),
     "remote_push_failed": ("ВНИМАНИЕ: звонок не отправлен на свой сервер ({err}), отправится при следующей синхронизации",
                            "WARNING: the call was not sent to your server ({err}), the next sync will send it"),

@@ -52,17 +52,40 @@ final class CallsModel: ObservableObject {
     var onResummarize: (Call) -> Void = { _ in }
     /// Folders whose summary is being made again.
     @Published var summarizing: Set<String> = []
+    /// Folders being cut by the engine now (`trim_call.py`).
+    @Published var trimming: Set<String> = []
+    func isTrimming(_ url: URL) -> Bool { trimming.contains(url.standardizedFileURL.path) }
+    /// "Trim…": cut the call to start...end seconds, then transcribe it again. true when the cut went through.
+    var onTrim: (Call, Double, Double) async -> Bool = { _, _, _ in false }
+    /// "Trim…" from the list's context menu: the card of this call opens its trim panel.
+    @Published var trimRequest: Call.ID?
     func isSummarizing(_ url: URL) -> Bool { summarizing.contains(url.standardizedFileURL.path) }
     /// An imported recording is ready: ask what the call was about, then transcribe.
     var onImported: (URL) -> Void = { _ in }
     private var watcher: DirectoryWatcher?
 
+    /// Time estimate text for a running or waiting call (set by ProcessingController's owner).
+    var estimate: (URL) -> String? = { _ in nil }
+
     func isProcessing(_ url: URL) -> Bool { processing.contains(url.standardizedFileURL.path) }
     func isQueued(_ url: URL) -> Bool { queued.contains(url.standardizedFileURL.path) }
     func isRecording(_ url: URL) -> Bool { recordingDir?.standardizedFileURL.path == url.standardizedFileURL.path }
     func isImporting(_ url: URL) -> Bool { importing?.dir.standardizedFileURL.path == url.standardizedFileURL.path }
-    /// Being transcribed, waiting for it, recorded or imported: can't be deleted, transcribed or edited.
-    func isBusy(_ url: URL) -> Bool { isProcessing(url) || isQueued(url) || isRecording(url) || isImporting(url) }
+    /// Being transcribed, waiting for it, recorded, imported or trimmed: can't be deleted, transcribed or edited.
+    func isBusy(_ url: URL) -> Bool {
+        isProcessing(url) || isQueued(url) || isRecording(url) || isImporting(url) || isTrimming(url)
+    }
+
+    /// Why "Trim…" is off for a call now, or nil. Busy (summary runs and trims included) comes first.
+    func trimUnavailable(_ c: Call) -> TrimUnavailable? {
+        c.trimUnavailable(busy: isBusy(c.url) || isSummarizing(c.url))
+    }
+
+    /// "×" on the quiet start or end hint: never shown again for this call.
+    func dismissTrimHint(_ c: Call) {
+        _ = CallFile.update(c.url) { $0[Trim.hintDismissedKey] = true }
+        reload()
+    }
     /// The transcript can't be edited: busy here, or call.json says `processing` (an engine run Sozvon didn't
     /// start, `process_call.py` by hand, or one left over from a crash): the engine would overwrite the edit.
     func isEditLocked(_ url: URL) -> Bool {

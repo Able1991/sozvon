@@ -116,6 +116,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#calls">Окно «Звонки»</a></li>
       <li class="sub"><a href="#calls-list">Список и поиск</a></li>
       <li class="sub"><a href="#player">Слушать звонок</a></li>
+      <li class="sub"><a href="#trim">Обрезать запись</a></li>
       <li class="sub"><a href="#fix">Исправить расшифровку</a></li>
       <li class="sub"><a href="#import">Импортировать запись</a></li>
       <li class="sub"><a href="#reminders">В Напоминания</a></li>
@@ -234,8 +235,12 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li>микрофон молчит слишком долго. Панель пишет «Тебя не слышно»: проверь, что выбран нужный микрофон и он не выключен в самом звонке;</li>
         <li>громкость входа в системе ниже 50%. Её часто убавляют звонки в браузере;</li>
-        <li>твой голос три минуты почти не слышен.</li>
+        <li>твой голос три минуты почти не слышен;</li>
+        <li>запись не удаётся сохранить на диск. Капсула пишет «Запись не сохраняется: на диске нет места» или «Запись не сохраняется: не удаётся записать файл», и приходит уведомление. Запись не останавливается: Sozvon продолжает писать, и как только файл снова сохраняется, предупреждение пропадает;</li>
+        <li>на диске осталось меньше 1 ГБ, в том числе уже в момент старта записи: «На диске меньше 1 ГБ, запись скоро остановится». Самое время освободить место, запись при этом идёт.</li>
       </ul>
+      <p id="awake"><b>Mac не засыпает.</b> Пока идёт запись или расшифровка, Sozvon не даёт Mac уснуть без дела: звонок не оборвётся, а долгая расшифровка не встанет, пока тебя нет рядом. Экран гаснет как обычно, а если закрыть крышку, Mac всё равно уснёт. Настройки для этого нет.</p>
+      <p id="quiet-icon"><b>Спокойный значок.</b> Если включить «Спокойный значок во время записи» в Настройках, «Основные», в строке меню во время записи будет обычный значок вместо красного: удобно, когда показываешь экран. Что идёт запись, всё равно видно в меню. Спрятать значок совсем нельзя.</p>
       <p id="remind"><b>Напоминание о записи.</b> «Напоминать сказать о записи» в Настройках покажет на капсуле на несколько секунд, что собеседников стоит предупредить.</p>
       <p><b>Если выйти из Sozvon.</b> Во время записи он сначала аккуратно допишет файлы. Во время расшифровки спросит, прервать ли её.</p>
       <h3 id="marks">Отметить важное</h3>
@@ -396,19 +401,20 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>Помощник пишет саммари.</li>
         <li>Для плеера записывается копия с <a href="#player">выровненной громкостью</a>.</li>
       </ol>
-      <p>Час звонка на Whisper Turbo обрабатывается за несколько минут. Когда всё готово, приходит уведомление.</p>
+      <p>Час звонка на Whisper Turbo обрабатывается за несколько минут. Когда всё готово, приходит уведомление. Пока идёт расшифровка, <a href="#awake">Mac не засыпает</a>.</p>
+      <p id="estimate"><b>Сколько ждать.</b> В окне «Звонки» у звонка, который расшифровывается, видно «осталось ≈ 12 мин», у звонка в очереди его собственное время, например «≈ 7 мин». То же показывает меню, а если в очереди несколько звонков, ещё и общее время. Оценка учится на расшифровках этого Mac: считаются только звонки от 10 минут, поэтому до первой такой расшифровки оценки нет, а дальше она всё точнее. Если расшифровка идёт дольше оценки, видно «почти готово».</p>
 
       <h2 id="calls">Окно «Звонки»</h2>
-      <nav class="insec" aria-label="В этом разделе"><a href="#calls-list">Список и поиск</a><a href="#player">Слушать звонок</a><a href="#fix">Исправить расшифровку</a><a href="#import">Импортировать запись</a><a href="#reminders">В Напоминания</a><a href="#keep-audio">Автоудаление аудио</a></nav>
+      <nav class="insec" aria-label="В этом разделе"><a href="#calls-list">Список и поиск</a><a href="#player">Слушать звонок</a><a href="#trim">Обрезать запись</a><a href="#fix">Исправить расшифровку</a><a href="#import">Импортировать запись</a><a href="#reminders">В Напоминания</a><a href="#keep-audio">Автоудаление аудио</a></nav>
       <p>Открывается из меню. Слева звонки по дням, справа саммари и расшифровка выбранного.</p>
       <figure class="shot wide"><picture><source media="(prefers-color-scheme: dark)" srcset="images/ru-calls-dark.png"><img src="images/ru-calls.png" width="1180" alt="Окно «Звонки»: звонки и размышления слева, саммари справа, плеер внизу" loading="lazy"></picture><figcaption>Окно «Звонки»: звонки и размышления слева, саммари и расшифровка справа, плеер внизу</figcaption></figure>
       <h3 id="calls-list">Список и поиск</h3>
       <ul>
         <li><b>Поиск</b> ищет по дате, теме, проекту, участникам и по тексту саммари и расшифровок.</li>
         <li><b><kbd>⌘F</kbd></b> на вкладке расшифровки ищет слова внутри этого звонка. На вкладке саммари или с <kbd>⌥⌘F</kbd> поиск идёт по всем звонкам.</li>
-        <li><b>Меню звонка:</b> открыть папку в Finder, расшифровать заново (например, с другой моделью или исправленными участниками), переместить в корзину.</li>
+        <li><b>Меню звонка:</b> открыть папку в Finder, расшифровать заново (например, с другой моделью или исправленными участниками), <a href="#trim">обрезать</a>, переместить в корзину.</li>
         <li><b>«Поделиться»</b> на панели инструментов копирует звонок, открывает расшифровку и отправляет задачи в Напоминания.</li>
-        <li><b>«Ещё»</b> расшифровывает заново, показывает папку в Finder, журнал и удаляет звонок.</li>
+        <li><b>«Ещё»</b> расшифровывает заново, <a href="#trim">обрезает запись</a>, показывает папку в Finder, журнал и удаляет звонок.</li>
         <li><b>Заметки.</b> Над саммари карточка с <a href="#notes">заметками</a> звонка.</li>
         <li><b>Идёт запись.</b> Звонок, который сейчас записывается, отмечен «Идёт запись». Его нельзя удалить или расшифровать.</li>
         <li><b>Быстрый переход.</b> «Последняя расшифровка» в меню и уведомление «Расшифровка готова» открывают звонок здесь.</li>
@@ -432,6 +438,26 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>Каждая сторона звучит в полной полосе. Исключение: микрофон на звонке, где убрано эхо. Там очищенный звук 16 кГц.</li>
         <li>Копия записывается примерно 2 минуты на час звонка, уже после расшифровки и саммари.</li>
         <li>Она занимает около 33 МБ на час звонка. Расшифровка и образцы голосов её не используют.</li>
+      </ul>
+      <h3 id="trim">Обрезать запись</h3>
+      <p>Запись часто начинается, пока все подключаются, и ещё пишет тишину после прощаний. Начало и конец можно отрезать: плеер откроет звонок сразу на разговоре, длительность в списке станет честной, а распознаванию не достанется тишина, на которой оно иногда сочиняет «Спасибо».</p>
+      <!-- TODO: trim screenshot. Uncomment once docs/images/ru-trim.png and docs/images/ru-trim-dark.png are captured.
+      <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="images/ru-trim-dark.png"><img src="images/ru-trim.png" width="640" alt="Панель обрезки: волна звонка, две ручки, время и кнопки «Прослушать конец», «Отмена» и «Обрезать…»" loading="lazy"></picture><figcaption>Панель обрезки на месте плеера</figcaption></figure>
+      -->
+      <ol class="howto">
+        <li>Выбери «Обрезать…» в меню «Ещё» карточки звонка или в контекстном меню звонка в списке. Плеер внизу вырастет в панель обрезки: волна всего звонка и две ручки, начало и конец.</li>
+        <li>Перетащи ручки. Что останется, подсвечено, отрезанное приглушено. Рядом время обеих ручек и сколько останется, например «6:12 → 58:40 останется 52:28». Пока тянешь ручку, плеер переходит за ней.</li>
+        <li>С клавиатуры: <kbd>Tab</kbd> до ручки, стрелки двигают её на секунду, с <kbd>⇧</kbd> на десять секунд. VoiceOver называет ручки «Начало» и «Конец» вместе с их временем.</li>
+        <li>Проверь на слух. Кнопка воспроизведения играет с начала обрезки и останавливается на конце, «Прослушать конец» играет последние 5 секунд перед концом.</li>
+        <li>Нажми «Обрезать…». Панель переспросит: «Отрезанный звук удалится, вернуть его нельзя. Расшифровка и саммари будут сделаны заново.» Нажми «Обрезать и расшифровать» или «Отмена», чтобы вернуться к ручкам.</li>
+      </ol>
+      <p>«Отмена» или <kbd>Esc</kbd> на ручке закрывают панель без изменений, и возвращается обычный плеер.</p>
+      <ul>
+        <li><b>Что дальше.</b> Sozvon отрезает звук и сразу ставит звонок в очередь на расшифровку, без окна «О чём был звонок?»: ответы уже есть. Карточка показывает обычное «В очереди» и «Расшифровывается…». Заметки остаются. Отметки важного сдвигаются вместе с записью, а попавшие в отрезанное пропадают.</li>
+        <li><b>Навсегда.</b> Отрезанный звук удаляется с диска, отменить обрезку нельзя. Режутся только начало и конец: длинная пауза посередине остаётся.</li>
+        <li><b>Подсказка о тишине.</b> Если в начале или в конце записи минута тишины или больше, над расшифровкой появляется полоса вроде «Первые 6 минут тишина. Обрезать?». «Обрезать» открывает панель с ручками уже на краях речи, с запасом в 2 секунды, чтобы не задеть первое слово. «×» больше не предлагает это для звонка. Сам Sozvon ничего не обрезает.</li>
+        <li><b>Когда нельзя.</b> Пункт «Обрезать…» серый, а подсказка у него говорит почему: звонок записывается, ждёт в очереди или расшифровывается, его звук удалён <a href="#keep-audio">автоудалением</a> или его нет на этом Mac, это демонстрационный звонок или он короче 30 секунд. Между ручками остаётся не меньше 10 секунд.</li>
+        <li><b>На других Mac.</b> С <a href="#sync">своим сервером</a> обрезка побеждает везде: остальные Mac заменяют свой звук обрезанным и получают новую расшифровку, а необрезанную копию назад на сервер не отправят. Для этого нужен сервер 0.5.0: один раз нажми «Обновить сервер» на вкладке «Облако».</li>
       </ul>
       <h3 id="fix">Исправить расшифровку</h3>
       <p>Обе правки живут в контекстном меню реплики.</p>
@@ -629,7 +655,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ol>
       <h3 id="server-admin">Права, обновление и ручная установка</h3>
       <p><b>Какие права просит Sozvon:</b> чтение настроек аккаунта (узнать его имя и адрес workers.dev), запись в D1 (база звонков), Workers Editor и Workers Admin (загрузить сервер; без Admin Cloudflare не даст создать новый Worker) и Workers KV (сессии входа Claude и ChatGPT и <a href="#sync">копия пароля</a> для других Mac). Доступ нужен только на время настройки: Sozvon держит его только в памяти и забывает, как только настройка закончится. Отозвать разрешение можно в Cloudflare: My Profile, Access Management, список авторизованных приложений (<a href="https://dash.cloudflare.com/?to=/profile/access-management/authorization">прямая ссылка</a>), кнопка Revoke. Сервер после этого продолжит работать.</p>
-      <p><b>Обновление.</b> Когда в новой версии Sozvon есть новый сервер, на вкладке появляется «Обновить сервер»: войди в Cloudflare ещё раз, и Sozvon загрузит новую версию. Звонки, пароль и коннекторы остаются как были. После обновления Sozvon один раз нажми «Обновить сервер»: синхронизация звука и голосов нужна серверу 0.4.0.</p>
+      <p><b>Обновление.</b> Когда в новой версии Sozvon есть новый сервер, на вкладке появляется «Обновить сервер»: войди в Cloudflare ещё раз, и Sozvon загрузит новую версию. Звонки, пароль и коннекторы остаются как были. После обновления Sozvon один раз нажми «Обновить сервер»: синхронизации звука и голосов нужен сервер 0.4.0, а <a href="#trim">обрезке</a> на всех Mac сервер 0.5.0.</p>
       <p><b>Вручную.</b> Можно поднять сервер и без кнопки: кнопкой Deploy или через <code>wrangler</code> по <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a>, а потом вставить адрес и пароль в разделе «Свой адрес» на той же вкладке.</p>
       <p>Подробности, лимиты бесплатного тарифа и удаление сервера: <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a> на GitHub.</p>
 
@@ -638,6 +664,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li><b>Новые звонки</b> уходят на сервер после расшифровки, остальные Mac забирают их при следующей синхронизации. Синхронизировать сразу можно кнопкой «Синхронизировать» на вкладке «Облако».</li>
         <li><b>Заметки</b> идут в обе стороны: оставленные Claude или ChatGPT на сервере приходят в окно «Звонки», твои уходят на сервер.</li>
+        <li><b>Обрезка</b> побеждает: <a href="#trim">обрезанный</a> на одном Mac звонок обрезается и на остальных, со свежей расшифровкой. Звонок, который там сейчас записывается или расшифровывается, ждёт следующей синхронизации. Нужен сервер 0.5.0.</li>
         <li><b>Удаление только из Sozvon.</b> С сервера удаляются только звонки, которые ты удалил в Sozvon (в корзину из окна «Звонки»). Звонок, которого просто нет в папке, сервер не трогает, а скачивает обратно. Поэтому удаляй звонки в Sozvon, а не в Finder.</li>
         <li><b>Удалённый на одном Mac</b> звонок на других переносится в Корзину macOS, оттуда его можно вернуть. Отмена удаления в Sozvon возвращает звонок и на сервер. Звонок, который сейчас записывается или расшифровывается, ждёт следующей синхронизации.</li>
         <li><b>Если звонок не отправился</b>, остальные всё равно синхронизируются, на вкладке «Облако» видно «Не отправились: N», а следующая синхронизация попробует снова.</li>
@@ -646,7 +673,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
 
       <h2 id="settings">Настройки</h2>
       <table>
-        <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Когда начинается звонок» (<a href="#record">спрашивать</a>, <a href="#auto-record">записывать сам</a> или ничего не делать), «Останавливать после звонка» (<a href="#auto-stop">автостоп</a>), «Предупреждать о тишине», звук при старте и остановке. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «Записи с телефона»: <a href="#phone">папка для записей</a>. «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>.</td></tr>
+        <tr><td>Основные</td><td>«Профиль»: как тебя подписывать в расшифровке и язык интерфейса. «Запись»: плавающая панель, показывать её и без записи, «Когда начинается звонок» (<a href="#record">спрашивать</a>, <a href="#auto-record">записывать сам</a> или ничего не делать), «Останавливать после звонка» (<a href="#auto-stop">автостоп</a>), «Предупреждать о тишине», звук при старте и остановке, <a href="#quiet-icon">спокойный значок во время записи</a>. «Голоса»: <a href="#voices">твой голос</a> («Записать заново…», «Добавить образец…») и голоса собеседников («Управлять…»: список, удаление по одному или всех). «Записи с телефона»: <a href="#phone">папка для записей</a>. «После звонка»: <a href="#calendar">тема и участники из Календаря</a>, <a href="#keep-audio">автоудаление аудио</a>.</td></tr>
         <tr><td>Распознавание</td><td>«Модель»: модель распознавания, языки звонков, смена языка посреди речи. «Производительность»: расшифровка с низким приоритетом, чтобы Zoom, браузер и сборки не тормозили. «Движок»: состояние Python, модели и MCP-сервера с кнопкой «Проверить», последняя ошибка с журналом. «Файлы»: папка записей, папка данных, «Переустановить…».</td></tr>
         <tr><td>Ассистенты</td><td>Помощник для саммари, подключение Claude Code, Codex, Cursor, OpenCode и ZCode по MCP, команда для терминала, если подключаешь вручную.</td></tr>
         <tr><td>Облако</td><td>«Подключить Cloudflare» для <a href="#server">своего сервера</a>, «Обновить сервер», адрес коннектора и пароль, кнопки «Открыть Claude» и «Открыть ChatGPT», «Отправлять аудио звонков» и «Отправлять отпечатки голосов», состояние <a href="#sync">синхронизации</a>, раздел «Свой адрес» для сервера, поднятого вручную.</td></tr>
@@ -797,6 +824,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <li><a href="#en-calls">Calls window</a></li>
       <li class="sub"><a href="#en-calls-list">The list and search</a></li>
       <li class="sub"><a href="#en-player">Listening to a call</a></li>
+      <li class="sub"><a href="#en-trim">Trimming a recording</a></li>
       <li class="sub"><a href="#en-fix">Fixing the transcript</a></li>
       <li class="sub"><a href="#en-import">Importing a recording</a></li>
       <li class="sub"><a href="#en-reminders">To Reminders</a></li>
@@ -915,8 +943,12 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li>your mic stays silent for too long. The panel says “Can’t hear you”: check the selected microphone and that you aren’t muted in the call;</li>
         <li>the system input volume is below 50%. Browser calls often lower it;</li>
-        <li>your voice has been barely audible for three minutes.</li>
+        <li>your voice has been barely audible for three minutes;</li>
+        <li>the recording can’t be saved to the disk. The capsule says “Not saving the recording: the disk is full” or “Not saving the recording: can’t write the file”, and a notification comes. The recording doesn’t stop: Sozvon keeps writing, and the warning goes away as soon as the file is saved again;</li>
+        <li>less than 1 GB is left on the disk, including right when a recording starts: “Under 1 GB left on the disk, the recording will stop soon”. Time to free some space; the recording goes on.</li>
       </ul>
+      <p id="en-awake"><b>The Mac stays awake.</b> While a recording or a transcription runs, Sozvon keeps the Mac from idle sleep, so a call isn’t cut and a long transcription doesn’t stall while you’re away. The screen still turns off as usual, and closing the lid still puts the Mac to sleep. There is no setting for it.</p>
+      <p id="en-quiet-icon"><b>Quiet icon.</b> With Quiet icon while recording on in Settings, General, the menu bar shows an ordinary icon instead of the red one while recording, handy when you share your screen. The menu still says a recording is on. The icon can’t be hidden altogether.</p>
       <p id="en-remind"><b>Consent reminder.</b> Remind Me to Say the Call Is Recorded in Settings shows a note on the capsule for a few seconds when recording starts.</p>
       <p><b>If you quit Sozvon.</b> During a recording it finishes writing the files first. During transcription it asks whether to stop it.</p>
       <h3 id="en-marks">Marking what matters</h3>
@@ -1077,19 +1109,20 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>The assistant writes the summary.</li>
         <li>A copy with <a href="#en-player">levelled loudness</a> is written for the player.</li>
       </ol>
-      <p>An hour-long call takes a few minutes on Whisper Turbo. You get a notification when it’s done.</p>
+      <p>An hour-long call takes a few minutes on Whisper Turbo. You get a notification when it’s done. While it runs, <a href="#en-awake">the Mac stays awake</a>.</p>
+      <p id="en-estimate"><b>How long it takes.</b> In the Calls window, the call being transcribed shows “≈ 12 min left”, and a call in the queue shows its own time, such as “≈ 7 min”. The menu shows the same, plus the total when several calls wait. The estimate is learned from this Mac’s own transcriptions: only calls of 10 minutes or more count, so there is none before the first such run, and it gets closer with use. When a run takes longer than estimated, it says “almost done”.</p>
 
       <h2 id="en-calls">Calls window</h2>
-      <nav class="insec" aria-label="In this section"><a href="#en-calls-list">The list and search</a><a href="#en-player">Listening to a call</a><a href="#en-fix">Fixing the transcript</a><a href="#en-import">Importing a recording</a><a href="#en-reminders">To Reminders</a><a href="#en-keep-audio">Deleting audio automatically</a></nav>
+      <nav class="insec" aria-label="In this section"><a href="#en-calls-list">The list and search</a><a href="#en-player">Listening to a call</a><a href="#en-trim">Trimming a recording</a><a href="#en-fix">Fixing the transcript</a><a href="#en-import">Importing a recording</a><a href="#en-reminders">To Reminders</a><a href="#en-keep-audio">Deleting audio automatically</a></nav>
       <p>It opens from the menu. Calls by day on the left, the summary and transcript of the selected one on the right.</p>
       <figure class="shot wide"><picture><source media="(prefers-color-scheme: dark)" srcset="images/en-calls-dark.png"><img src="images/en-calls.png" width="1180" alt="The Calls window: calls and a reflection on the left, the summary on the right, the player at the bottom" loading="lazy"></picture><figcaption>The Calls window: calls and a reflection on the left, summary and transcript on the right, player at the bottom</figcaption></figure>
       <h3 id="en-calls-list">The list and search</h3>
       <ul>
         <li><b>Search</b> covers date, topic, project, participants and the text of summaries and transcripts.</li>
         <li><b><kbd>⌘F</kbd></b> on the Transcript tab finds words inside this call. On the Summary tab, or with <kbd>⌥⌘F</kbd>, it searches across all calls.</li>
-        <li><b>A call’s menu:</b> show in Finder, transcribe again (say, with another model or corrected participants), move to Trash.</li>
+        <li><b>A call’s menu:</b> show in Finder, transcribe again (say, with another model or corrected participants), <a href="#en-trim">trim</a>, move to Trash.</li>
         <li><b>Share</b> in the toolbar copies the call, opens the transcript and sends tasks to Reminders.</li>
-        <li><b>More</b> transcribes again, shows the folder in Finder, opens the log and deletes the call.</li>
+        <li><b>More</b> transcribes again, <a href="#en-trim">trims the recording</a>, shows the folder in Finder, opens the log and deletes the call.</li>
         <li><b>Notes.</b> Above the summary is a card with the call’s <a href="#en-notes">notes</a>.</li>
         <li><b>Recording now.</b> The call being recorded right now is marked as recording. It can’t be deleted or transcribed.</li>
         <li><b>Shortcuts here.</b> Latest Transcript in the menu and the Transcript Ready notification open the call here.</li>
@@ -1113,6 +1146,26 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
         <li>Each side keeps its full bandwidth. The exception is your microphone on a call where echo was removed: that is the cleaned 16 kHz signal.</li>
         <li>Writing the copy takes about 2 minutes per hour of call, after the transcript and summary are ready.</li>
         <li>The copy takes about 33 MB per hour of call. Transcription and voice prints never use it.</li>
+      </ul>
+      <h3 id="en-trim">Trimming a recording</h3>
+      <p>A recording often starts while everyone is still joining, and keeps recording silence after the goodbyes. You can cut the start and the end: the player then opens on the conversation, the length in the list is honest, and recognition gets no silence to invent a “Thank you” on.</p>
+      <!-- TODO: trim screenshot. Uncomment once docs/images/en-trim.png and docs/images/en-trim-dark.png are captured.
+      <figure class="shot"><picture><source media="(prefers-color-scheme: dark)" srcset="images/en-trim-dark.png"><img src="images/en-trim.png" width="640" alt="The trim panel: the call’s waveform, two handles, the times, and Play the end, Cancel and Trim…" loading="lazy"></picture><figcaption>The trim panel in place of the player</figcaption></figure>
+      -->
+      <ol class="howto">
+        <li>Choose Trim… in the call card’s More menu, or in the call’s context menu in the list. The player at the bottom grows into the trim panel: the waveform of the whole call with two handles, the start and the end.</li>
+        <li>Drag the handles. What stays is highlighted, what goes is dimmed. Next to it are the times of both handles and what remains, such as “6:12 → 58:40 keeps 52:28”. While you drag a handle, the player follows it.</li>
+        <li>From the keyboard: <kbd>Tab</kbd> to a handle, the arrow keys move it by a second, with <kbd>⇧</kbd> by ten seconds. VoiceOver reads the handles as Start and End with their times.</li>
+        <li>Check by ear. The play button plays from the trim start and stops at the end; Play the end plays the last 5 seconds before the end.</li>
+        <li>Press Trim…. The panel asks once more: “The cut audio will be deleted and can’t be restored. The transcript and summary will be made again.” Press Trim and Transcribe, or Cancel to go back to the handles.</li>
+      </ol>
+      <p>Cancel, or <kbd>Esc</kbd> on a handle, closes the panel without changes and brings the player back.</p>
+      <ul>
+        <li><b>What happens next.</b> Sozvon cuts the audio and queues the call for transcription right away, without the What Was the Call About? window: the answers are already there. The card shows the usual queued and transcribing state. Notes stay. Marks move with the recording, and the ones in the cut part are dropped.</li>
+        <li><b>For good.</b> The cut audio is deleted from the disk; a trim can’t be undone. Only the start and the end are cut: a long pause in the middle stays.</li>
+        <li><b>The silence hint.</b> When a recording starts or ends with a minute or more of silence, a strip above the transcript says so, for example “Silence for the first 6 minutes. Trim it?”. Trim opens the panel with the handles already on the edges of the speech, 2 seconds early so the first word is never clipped. The × button stops suggesting it for that call. Sozvon never trims anything by itself.</li>
+        <li><b>When it’s unavailable.</b> Trim… is dimmed, and its tooltip says why: the call is being recorded, waits in the queue or is being transcribed, its audio was removed by <a href="#en-keep-audio">automatic deletion</a> or isn’t on this Mac, it is a demo call, or it is shorter than 30 seconds. At least 10 seconds stay between the handles.</li>
+        <li><b>On your other Macs.</b> With <a href="#en-sync">your own server</a>, the trim wins everywhere: the other Macs replace their audio with the trimmed one and get the new transcript, and never push the untrimmed copy back. That needs server 0.5.0: press Update server on the Cloud tab once.</li>
       </ul>
       <h3 id="en-fix">Fixing the transcript</h3>
       <p>Both fixes live in a line’s context menu.</p>
@@ -1310,7 +1363,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       </ol>
       <h3 id="en-server-admin">Permissions, updating and manual setup</h3>
       <p><b>Permissions Sozvon asks for:</b> read account settings (the account name and its workers.dev address), write to D1 (the calls database), Workers Editor and Workers Admin (to upload the server; without Admin Cloudflare won’t let it create a new Worker) and Workers KV (sign-in sessions of Claude and ChatGPT, and the <a href="#en-sync">password copy</a> for your other Macs). The access is needed only during setup: Sozvon keeps it only in memory and drops it as soon as setup finishes. You can revoke it in Cloudflare under My Profile, Access Management, the list of authorized applications (<a href="https://dash.cloudflare.com/?to=/profile/access-management/authorization">direct link</a>), Revoke. The server keeps working after that.</p>
-      <p><b>Updating.</b> When a newer Sozvon ships a newer server, the tab shows Update server: sign in to Cloudflare again and Sozvon uploads the new version. Your calls, the password and the connectors stay as they are. After updating Sozvon, press Update server once: audio and voice sync need server 0.4.0.</p>
+      <p><b>Updating.</b> When a newer Sozvon ships a newer server, the tab shows Update server: sign in to Cloudflare again and Sozvon uploads the new version. Your calls, the password and the connectors stay as they are. After updating Sozvon, press Update server once: audio and voice sync need server 0.4.0, and <a href="#en-trim">trimming</a> on every Mac needs server 0.5.0.</p>
       <p><b>Manually.</b> You can also set up the server without the button, with the Deploy button or <code>wrangler</code> as described in <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a>, and then paste the address and password under Own address on the same tab.</p>
       <p>Details, free plan limits and removing the server: <a href="https://github.com/Able1991/sozvon/blob/main/docs/SERVER.md">docs/SERVER.md</a> on GitHub.</p>
 
@@ -1319,6 +1372,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
       <ul>
         <li><b>New calls</b> go to the server once transcribed, and the other Macs pick them up on their next sync. Sync now with the Sync button on the Cloud tab.</li>
         <li><b>Notes</b> go both ways: notes Claude or ChatGPT leave on the server show up in the Calls window, and yours go up to the server.</li>
+        <li><b>A trim wins:</b> a call <a href="#en-trim">trimmed</a> on one Mac is trimmed on the others too, with the fresh transcript. A call being recorded or transcribed there waits for the next sync. Needs server 0.5.0.</li>
         <li><b>Deletions only from Sozvon.</b> Only calls you delete in Sozvon (move to Trash from the Calls window) are deleted on the server. A call that is merely missing from the folder is left alone there and downloaded back. So delete calls in Sozvon, not in Finder.</li>
         <li><b>A call deleted on one Mac</b> is moved to the macOS Trash on the others, so you can put it back. Undoing the delete in Sozvon brings it back to the server too. A call being recorded or transcribed waits for the next sync.</li>
         <li><b>If a call fails to upload</b>, the rest still sync, the Cloud tab shows “Not sent: N”, and the next sync tries again.</li>
@@ -1327,7 +1381,7 @@ kbd { font: 500 13px var(--sans); border: 1px solid var(--rule); border-bottom-w
 
       <h2 id="en-settings">Settings</h2>
       <table>
-        <tr><td>General</td><td>Profile: your name in transcripts and the interface language. Recording: the floating panel, showing it when idle, When a Call Starts (<a href="#en-record">ask</a>, <a href="#en-auto-record">record automatically</a> or do nothing), Stop When the Call Ends (<a href="#en-auto-stop">automatic stop</a>), Warn about silence, start and stop sounds. Voices: <a href="#en-voices">your voice</a> (Record again…, Add sample…) and other people's voices (Manage…: the list, delete one or all). Recordings from your phone: <a href="#en-phone">the recordings folder</a>. After a call: <a href="#en-calendar">topic and participants from Calendar</a>, <a href="#en-keep-audio">deleting audio automatically</a>.</td></tr>
+        <tr><td>General</td><td>Profile: your name in transcripts and the interface language. Recording: the floating panel, showing it when idle, When a Call Starts (<a href="#en-record">ask</a>, <a href="#en-auto-record">record automatically</a> or do nothing), Stop When the Call Ends (<a href="#en-auto-stop">automatic stop</a>), Warn about silence, start and stop sounds, <a href="#en-quiet-icon">Quiet icon while recording</a>. Voices: <a href="#en-voices">your voice</a> (Record again…, Add sample…) and other people's voices (Manage…: the list, delete one or all). Recordings from your phone: <a href="#en-phone">the recordings folder</a>. After a call: <a href="#en-calendar">topic and participants from Calendar</a>, <a href="#en-keep-audio">deleting audio automatically</a>.</td></tr>
         <tr><td>Recognition</td><td>Model: the recognition model, call languages, mid-sentence switching. Performance: transcribe at low priority so Zoom, your browser and builds stay smooth. Engine: Python, model and MCP server status with Check, the last error with its log. Files: the recordings folder, the data folder, Reinstall….</td></tr>
         <tr><td>Assistants</td><td>The summary assistant, connecting Claude Code, Codex, Cursor, OpenCode and ZCode over MCP, and the Terminal command for a manual setup.</td></tr>
         <tr><td>Cloud</td><td>Connect Cloudflare for <a href="#en-server">your own server</a>, Update server, the connector address and password, Open Claude and Open ChatGPT, Send call audio and Send voice prints, <a href="#en-sync">sync</a> status, and Own address for a server you deployed by hand.</td></tr>

@@ -3,7 +3,7 @@ speech detector (silero) hears no voice under it."""
 from pathlib import Path
 
 from sozvon_engine import install, models, vad
-from sozvon_engine.pipeline import transcribe
+from sozvon_engine.pipeline import silence, transcribe
 
 
 def test_a_line_over_silence_goes():
@@ -73,3 +73,35 @@ def test_whisper_models_get_the_speech_detector_too(tmp_path):
     install.ensure_model(tmp_path, "turbo", hub)
     assert hub.repos[-1] == models.VAD["repo"]
     assert vad.available(tmp_path)
+
+
+def test_head_tail_from_paragraphs():
+    paras = [(372.4, 380.0, "Привет", "Anna"), (900.0, 3301.2, "Пока", "Me")]
+    assert silence.head_tail(paras, 3600.0) == {"head": 372.4, "tail": 298.8}
+
+
+def test_no_speech_is_all_head():
+    assert silence.head_tail([], 125.0) == {"head": 125.0, "tail": 0.0}
+
+
+def test_speech_past_the_duration_never_goes_negative():
+    assert silence.head_tail([(1.0, 130.0, "x", "A")], 125.0) == {"head": 1.0, "tail": 0.0}
+
+
+def test_call_duration_counts_each_track_offset():
+    meta = {"mic_seconds": 100.0, "system_seconds": 90.0}
+    assert silence.call_duration(meta, {"mic": 0.0, "system": 20.0}) == 110.0
+    assert silence.call_duration({}, {"mic": 0.0, "system": 0.0}) == 0.0
+
+
+def test_complete_writes_silence_and_a_later_run_without_it_removes_it(tmp_path, monkeypatch):
+    from sozvon_engine import calls, remote
+    from sozvon_engine.pipeline import run
+
+    monkeypatch.setattr(remote, "push_after_transcription", lambda d, log: None)
+    calls.write_call(tmp_path, {"id": "x", "status": "transcribing"})
+    spec = run.CallSpec(dir=tmp_path, id="x", me="Me")
+    run.complete(spec, [], {"head": 372.4, "tail": 298.8})
+    assert calls.read_call(tmp_path)["silence"] == {"head": 372.4, "tail": 298.8}
+    run.complete(spec, [])
+    assert "silence" not in calls.read_call(tmp_path)
