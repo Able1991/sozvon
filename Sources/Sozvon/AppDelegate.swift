@@ -18,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let calls = CallsModel()
     private(set) lazy var recording = RecordingController(panel: panel.model)
     private(set) lazy var processing = ProcessingController(calls: calls)
+    /// Holds off idle sleep while recording or transcribing; every state change calls `update`.
+    private let sleepGuard = SleepGuard(
+        begin: { ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled, .userInitiated], reason: $0) },
+        end: { if let a = $0 as? NSObjectProtocol { ProcessInfo.processInfo.endActivity(a) } },
+        log: { RecorderLog.write($0) })
     private(set) var menu: MenuController!
     let callPrompt = CallPromptController()
     let pendingInfo = PendingInfoController()
@@ -235,6 +240,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         callPrompt.onMicChange = { [weak self] in self?.processing.startNext() }
         calls.onRemoveFromQueue = { [weak self] call in self?.processing.removeFromQueue(call.url) }
         calls.onResummarize = { [weak self] call in self?.processing.resummarize(call.url) }
+        calls.onTrim = { [weak self] call, start, end in
+            guard let self else { return false }
+            return await self.processing.trim(call.url, start: start, end: end).isOK
+        }
         pendingInfo.isBusy = { [weak self] in
             guard let self else { return false }
             if case .idle = self.recording.state { return CallInfoPrompt.isOpen }
@@ -269,6 +278,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuSnapshot: MenuSnapshot {
         let lastDir = processing.lastDir
         return MenuSnapshot(recording: recording.state, processing: processing.isProcessing,
+                            estimate: processing.runningDir.flatMap { processing.estimateText(for: $0) },
+                            queueEstimate: processing.queueEstimateText(),
                             engineUpdating: processing.isEngineUpdating, engine: engineState, update: AppUpdater.shared.available,
                             updateReady: AppUpdater.shared.updateReady,
                             hasLastTranscript: processing.lastTranscript != nil,
@@ -283,6 +294,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let s = recording.state
         let p = panel.model
         engineUsable = engineState.isUsable
+        sleepGuard.update(recording: s.isRecording || s.isStopping, hasWork: processing.hasWork)
         // Recording started or stopped: re-check the call prompt (may call back into stateChanged once).
         callPrompt.sync()
         pendingInfo.activity()
@@ -478,6 +490,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
             }
         }
+        sleepGuard.update(recording: false, hasWork: false)
         processing.abortAll()  // also with nothing running: no waiting call may start while the app quits
         guard let finalize = recording.finalizeForTermination() else { return .terminateNow }
         Task {

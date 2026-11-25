@@ -13,6 +13,8 @@ struct CallRow: View {
     var queued = false
     var recording = false
     var importing = false
+    /// Time estimate for a running or waiting call (CallsModel.estimate).
+    var estimate: (URL) -> String? = { _ in nil }
     /// The List draws the selected row on an accent background: state colors turn white on it.
     @Environment(\.backgroundProminence) private var prominence
     private var selected: Bool { prominence == .increased }
@@ -60,15 +62,15 @@ struct CallRow: View {
                 Text(L("Идёт запись")).fontWeight(.medium).foregroundStyle(selected ? Color.white : SZ.red)
             } else if importing {
                 Text(L("Импортируется…"))
-            } else if processing {
-                ProgressView().controlSize(.mini).scaleEffect(0.8).frame(width: 12, height: 12)
-                Text(L("Расшифровывается…"))
-                dotted(duration)
-            } else if queued {
-                Image(systemName: "clock").font(.system(size: 9))
-                    .foregroundStyle(selected ? Color.white : SZ.label3)
-                Text(L("В очереди"))
-                dotted(duration)
+            } else if processing || queued {
+                // Redraws every 15 s: the time left of a running call changes.
+                TimelineView(.periodic(from: .now, by: 15)) { _ in
+                    let left = estimate(call.url)
+                    ViewThatFits(in: .horizontal) {
+                        stateLine(left, withState: true)
+                        stateLine(left, withState: false)
+                    }
+                }
             } else if call.infoPending {
                 SZBadge(L("Ждёт описания"))
                     .help(L("Нажми «Расшифровать…», чтобы описать звонок"))
@@ -106,10 +108,34 @@ struct CallRow: View {
         }
     }
 
+    /// "· 22 мин": the duration keeps its place, the text before it truncates first.
     @ViewBuilder private func dotted(_ s: String) -> some View {
         if !s.isEmpty {
-            Text(verbatim: "·")
-            Text(s)
+            separator
+            Text(s).layoutPriority(1)
+        }
+    }
+
+    private var separator: some View { Text(verbatim: "·").fixedSize().layoutPriority(2) }
+
+    /// A transcribing or waiting call on one line: "⟳ Расшифровывается… · осталось ≈ 2 мин · 22 мин". When that
+    /// doesn't fit, the state words go (the spinner or the clock still says it) and only then does anything truncate;
+    /// the estimate and the duration keep their place.
+    private func stateLine(_ left: String?, withState: Bool) -> some View {
+        let parts = [withState ? (processing ? L("Расшифровывается…") : L("В очереди")) : nil, left,
+                     duration.isEmpty ? nil : duration].compactMap { $0 }
+        return HStack(spacing: 5) {
+            if processing {
+                ProgressView().controlSize(.mini).scaleEffect(0.8).frame(width: 12, height: 12)
+            } else {
+                Image(systemName: "clock").font(.system(size: 9))
+                    .foregroundStyle(selected ? Color.white : SZ.label3)
+            }
+            ForEach(Array(parts.enumerated()), id: \.offset) { i, part in
+                if i > 0 { separator }
+                // The state is the first to truncate.
+                Text(part).layoutPriority(withState && i == 0 ? 0 : 1)
+            }
         }
     }
 }
@@ -293,7 +319,7 @@ struct CallsSidebar: View {
     }
 
     private func row(_ c: Call) -> some View {
-        CallRow(call: c, processing: m.isProcessing(c.url), queued: m.isQueued(c.url), recording: m.isRecording(c.url), importing: m.isImporting(c.url))
+        CallRow(call: c, processing: m.isProcessing(c.url), queued: m.isQueued(c.url), recording: m.isRecording(c.url), importing: m.isImporting(c.url), estimate: m.estimate)
             .tag(c.id)
             .id(c.id)
         .contextMenu {
@@ -304,6 +330,15 @@ struct CallsSidebar: View {
             Button(L("Показать в Finder")) { NSWorkspace.shared.activateFileViewerSelecting([c.url]) }
             if c.hasAudio && !m.isBusy(c.url) && !c.infoPending {
                 Button(c.hasTranscript ? L("Расшифровать заново…") : L("Расшифровать…")) { m.onRetranscribe(c) }
+            }
+            if !c.isLegacy {
+                let why = m.trimUnavailable(c)
+                Button(L("Обрезать…")) {
+                    m.selection = c.id
+                    m.trimRequest = c.id
+                }
+                .disabled(why != nil)
+                .help(why?.reason ?? L("Отрезать тишину или лишнее в начале и в конце записи"))
             }
             if m.isQueued(c.url) { Button(L("Убрать из очереди")) { m.onRemoveFromQueue(c) } }
             Divider()

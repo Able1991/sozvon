@@ -12,8 +12,11 @@ designs (drawn on 2026-11-06: "Вчера" = 5 ноября, then 4 and 3 ноя
 pins them to the designs' dates on any day.
 
 Audio: billing webhooks gets real speech (macOS `say` placed at the transcript times, padded to 22:43,
-encoded with ffmpeg) when `say` and `ffmpeg` are available; other calls get placeholder tracks of the right
-size. `--no-audio` skips the speech.
+encoded with ffmpeg) when `say` and `ffmpeg` are available. Without them (the CI runner has no ffmpeg), it gets
+synthetic talk instead, and so does "договор с подрядчиком" (the trim and silence hint screens): speech-like
+bursts in turns, mic for the user and system for everyone else, silent for the head its "silence" claims,
+encoded to AAC with /usr/bin/afconvert at a low rate (a few MB). Other calls, and any call when afconvert is
+missing, get placeholder tracks of the right size. `--no-audio` skips all of it.
 
 Run the app on it:
   build/Demo.app/Contents/MacOS/Sozvon -engineDir <dir>/engine -callsDir <dir>/Calls ...
@@ -24,12 +27,16 @@ or
 Project dot colors in the designs: Northwind blue, Acme purple, Студия «Луч» teal (tokens project-blue,
 project-purple, project-teal). The app derives the color from the name, see projectColor in CallsView.swift.
 """
+import array
 import json
+import math
 import os
+import random
 import shutil
 import subprocess
 import sys
 import tempfile
+import wave
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
@@ -225,8 +232,9 @@ CONTRACT_SUMMARY = """## Коротко
 ## Задачи
 - [ ] Мария Соколова: Правки юриста в договор, понедельник"""
 CONTRACT_LINES = [
-    (6, "Мария Соколова", "Юрист просит добавить приёмку по каждому этапу."),
-    (21, ME, "Согласна, и аванс не больше тридцати процентов."),
+    # Speech starts after the quiet first six minutes (see its "silence" in CALLS).
+    (378, "Мария Соколова", "Юрист просит добавить приёмку по каждому этапу."),
+    (393, ME, "Согласна, и аванс не больше тридцати процентов."),
 ]
 
 ONBOARD_SUMMARY = """## Summary
@@ -280,8 +288,9 @@ CALLS = [
     (1, 9, 12, "", "", [], 6 * 60 + 8, "", "recorded", None, None, {"info_pending": True}),
     (2, 17, 45, "studio", "съёмка для каталога", ["Екатерина Лебедева"], 31 * 60 + 4, "ru", "done",
      PHOTO_SUMMARY, PHOTO_LINES, {}),
+    # Quiet for its first six minutes (the engine's measure): the card offers to trim it.
     (2, 14, 5, "acme", "договор с подрядчиком", ["Мария Соколова"], 65 * 60 + 20, "ru", "done",
-     CONTRACT_SUMMARY, CONTRACT_LINES, {}),
+     CONTRACT_SUMMARY, CONTRACT_LINES, {"silence": {"head": 372.0, "tail": 0.0}}),
     (2, 10, 30, "northwind", "онбординг Sarah", ["Sarah Miller"], 14 * 60 + 2, "en", "done",
      ONBOARD_SUMMARY, ONBOARD_LINES, {}),
     (3, 16, 0, "acme", "ретро по релизу", ["Иван Петров", "Олег"], 52 * 60 + 30, "ru", "done",
@@ -323,6 +332,75 @@ def speech_tracks(d: Path, lines, seconds):
     return True
 
 
+RATE = 8000  # Hz: plenty for a waveform and a listen, and keeps the m4a small
+
+
+def phrase_bank(rng):
+    """Speech-like phrases: voiced syllables (a few harmonics over a gliding pitch) under a syllable envelope."""
+    bank = []
+    for _ in range(16):
+        out = array.array("h")
+        base = rng.uniform(0.4, 0.9) * 32767
+        f0 = rng.uniform(100, 230)
+        phase = 0.0
+        for _ in range(rng.randint(4, 16)):
+            n = int(rng.uniform(0.1, 0.3) * RATE)
+            amp = base * rng.uniform(0.35, 1.0)
+            pitch = f0 * rng.uniform(0.85, 1.2)
+            for i in range(n):
+                env = math.sin(math.pi * i / n) ** 2
+                phase += 2 * math.pi * pitch * (1 + 0.04 * math.sin(i / 300)) / RATE
+                v = math.sin(phase) + 0.5 * math.sin(2 * phase) + 0.25 * math.sin(3 * phase) + rng.uniform(-0.3, 0.3)
+                out.append(int(max(-32767, min(32767, amp * env * v / 2))))
+            out.extend([0] * int(rng.uniform(0.02, 0.1) * RATE))
+        bank.append(out)
+    return bank
+
+
+def synthetic_tracks(d: Path, seconds, head=0.0, tail=0.0, seed=0):
+    """mic.m4a and system.m4a of exactly `seconds`: turn-taking talk between `head` and `seconds - tail`, near
+    silence around it. AAC through /usr/bin/afconvert; False (and no files) when it is missing or fails."""
+    afconvert = shutil.which("afconvert") or ("/usr/bin/afconvert" if Path("/usr/bin/afconvert").exists() else None)
+    if not afconvert:
+        return False
+    rng = random.Random(seed)
+    bank = phrase_bank(rng)
+    # Turns: (start, end, mine), with short gaps between phrases and turns, and now and then a longer pause.
+    turns, t, end = [], float(head), float(seconds - tail)
+    while t < end - 1:
+        length = rng.uniform(3, 18)
+        turns.append((t, min(end, t + length), rng.random() < 0.4))
+        t += length + (rng.uniform(3, 8) if rng.random() < 0.05 else rng.uniform(0.3, 1.2))
+    floor = array.array("h", (rng.randint(-10, 10) for _ in range(RATE)))
+    with tempfile.TemporaryDirectory() as tmp:
+        for mine, out in ((True, "mic.m4a"), (False, "system.m4a")):
+            track = floor * (int(seconds) + 1)
+            del track[int(seconds * RATE):]
+            for a, b, who in turns:
+                if who != mine:
+                    continue
+                at = a
+                while at < b:
+                    ph = rng.choice(bank)
+                    i = int(at * RATE)
+                    piece = ph[:max(0, min(len(ph), int(b * RATE) - i))]
+                    track[i:i + len(piece)] = piece
+                    at += len(ph) / RATE + rng.uniform(0.15, 0.7)
+            wav = Path(tmp) / "t.wav"
+            with wave.open(str(wav), "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(RATE)
+                w.writeframes(track.tobytes())
+            r = subprocess.run([afconvert, "-f", "m4af", "-d", "aac", "-b", "16000", str(wav), str(d / out)],
+                               capture_output=True)
+            if r.returncode != 0:
+                for f in ("mic.m4a", "system.m4a"):
+                    (d / f).unlink(missing_ok=True)
+                return False
+    return True
+
+
 for ago, hh, mm, profile, topic, names, secs, lang, status, summary, lines, extra in CALLS:
     d0 = day(ago)
     cid = f"{d0.isoformat()} {hh:02d}-{mm:02d}"
@@ -336,6 +414,9 @@ for ago, hh, mm, profile, topic, names, secs, lang, status, summary, lines, extr
     d = calls / name
     d.mkdir()
     real = with_audio and lines is BILLING_LINES and speech_tracks(d, say, secs)
+    if with_audio and not real and any(lines is x for x in (BILLING_LINES, CONTRACT_LINES)):
+        quiet = extra.get("silence", {})
+        real = synthetic_tracks(d, secs, quiet.get("head", 0.0), quiet.get("tail", 0.0), seed=secs)
     if not real:
         # Placeholder tracks of the right size, so the size is shown.
         (d / "mic.m4a").write_bytes(b"\0" * (secs * 8000))

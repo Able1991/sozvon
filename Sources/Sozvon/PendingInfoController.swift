@@ -55,7 +55,8 @@ final class PendingInfoController {
     static func title(_ p: PendingCall) -> String {
         guard let d = p.date else { return L("Звонок %@ ждёт описания", p.id) }
         let time = DateFormatter()
-        time.dateFormat = "HH:mm"
+        time.dateStyle = .none
+        time.timeStyle = .short
         if Calendar.current.isDateInToday(d) { return L("Звонок в %@ ждёт описания", time.string(from: d)) }
         let day = DateFormatter()
         day.setLocalizedDateFormatFromTemplate("dMMM")

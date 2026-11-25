@@ -35,6 +35,14 @@ public struct Call: Identifiable, Sendable {
     public var isDemo = false
     /// Old call without call.json: project and topic are guessed from the folder name.
     public var isLegacy: Bool
+    /// Why Trim is off for this call apart from it being busy (`Trim.unavailable` with `busy: false`); nil: it can
+    /// be trimmed. Legacy calls are never trimmed (the engine needs call.json).
+    public var trimBlock: TrimUnavailable?
+    /// The "quiet at the start or end" hint, nil when there is none (dismissed, not measured, under a minute).
+    public var trimHint: TrimHint?
+
+    /// Why Trim is off now: `busy` (recording, queued, processing, trimming) comes first, as in `Trim.unavailable`.
+    public func trimUnavailable(busy: Bool) -> TrimUnavailable? { busy ? .busy : trimBlock }
 
     public var transcriptURL: URL { url.appendingPathComponent("transcript.md") }
     public var summaryURL: URL { url.appendingPathComponent("summary.md") }
@@ -63,7 +71,8 @@ public struct Call: Identifiable, Sendable {
         var call = Call(url: url, callID: CallFolder.id(fromName: name), date: nil, title: "", project: "", topic: "",
                         languages: [], people: "", duration: 0, bytes: 0,
                         hasTranscript: has("transcript.md"), hasSummary: has("summary.md"),
-                        hasAudio: has("mic.m4a") || has("system.m4a"), info: defaults, status: nil, isLegacy: legacy)
+                        hasAudio: has("mic.m4a") || has("system.m4a"), info: defaults, status: nil, isLegacy: legacy,
+                        trimBlock: legacy ? .noAudio : nil)
 
         if !legacy {
             let c = CallFile.read(url)
@@ -84,6 +93,8 @@ public struct Call: Identifiable, Sendable {
             call.project = call.info.profile.isEmpty ? "" : (projects[call.info.profile] ?? remoteTitle ?? call.info.profile)
             call.participants = CallParticipants.stored(c)
             call.people = (call.participants ?? splitList(call.info.names)).joined(separator: ", ")
+            call.trimBlock = Trim.unavailable(call: c, hasAudio: call.hasAudio, busy: false)
+            call.trimHint = TrimHint(call: c, duration: call.duration)
         } else {
             // Before contract 1: "date · project · topic · people" in the folder name, duration in meta.json.
             call.date = parseID(name)

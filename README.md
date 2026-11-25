@@ -26,6 +26,9 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 - **Later.** No time to describe the call? It waits in the menu, and Sozvon reminds you.
 - **Mark what matters.** Press the star or ⌃⌥I: that moment is starred in the transcript and explained in the summary.
 - **Never a silent recording.** If your mic or the other side goes silent for two minutes, Sozvon captures that audio again.
+- **Warns before the disk does.** If the recording can't be written or less than 1 GB is left, the capsule and a notification say so while there is time to act. The recording keeps going.
+- **The Mac stays awake** while Sozvon records or transcribes, so an idle sleep doesn't cut a call or stall a long transcription. The screen can still turn off.
+- **Quiet icon for screen sharing.** An ordinary menu bar icon instead of the red one, if you turn it on. The menu still says a recording is on.
 
 ### Clean sound
 
@@ -46,6 +49,8 @@ Recording, transcription and speaker separation run on your Mac. Audio leaves it
 
 - **Calls window.** Grouped by day, with search across everything, including transcript text.
 - **Listen along.** Click a line and the call plays from there, at up to 2x.
+- **Trim the dead air.** Two handles on the call's waveform cut the waiting at the start and the chatter at the end, and the call is transcribed again. When a call starts or ends with a minute or more of silence, Sozvon offers the cut.
+- **Time estimate.** The list shows about how long a transcription will take and how much is left, learned from this Mac's own runs.
 - **Fix the transcript.** Rename a speaker, swap two people, correct a word, and the project remembers the fix.
 - **Notes.** Yours or an assistant's, shown under the call and found by search.
 - **Tasks to Reminders.** Your action items go to Apple Reminders, with due dates when the call names a day.
@@ -151,6 +156,7 @@ Ask Claude or ChatGPT about your calls from your phone or the web while the Mac 
 - **Claude and ChatGPT get text only,** never audio or voice prints. They can list, read and search calls and add or delete notes, but never change or delete a call.
 - **Second Mac.** Connect it to the same server: it downloads your calls with audio, notes and voices, and the connectors stay signed in.
 - **Deleting.** Only calls you delete in Sozvon are deleted on the server. On your other Macs they go to the Trash.
+- **Trimming.** A trimmed call is trimmed on your other Macs too, once the server is 0.5.0 or later.
 - **Updates.** When a new Sozvon brings a new server, press Update server on the Cloud tab once.
 
 How it works: [docs/SERVER.md](docs/SERVER.md).

@@ -55,6 +55,8 @@ const DDL = [
      PRIMARY KEY (call_id, track, idx))`,
   // Calls whose audio a Mac removed (DELETE /api/calls/{id}/audio): no Mac uploads or downloads their audio again.
   `CREATE TABLE IF NOT EXISTS audio_removed (call_id TEXT PRIMARY KEY, at TEXT NOT NULL)`,
+  // When a Mac trimmed the call (0.5.0+): the trim wins over older copies, see trimConflict.
+  `CREATE TABLE IF NOT EXISTS call_trims (call_id TEXT PRIMARY KEY, at TEXT NOT NULL)`,
 ];
 
 const ready = new WeakSet<D1Database>();
@@ -189,7 +191,39 @@ export async function putCall(db: D1Database, p: CallPayload, restore = false): 
   }
   if (changes(merge)) stmts.push(...noteStatements(db, p.id, merge));
   if (restore) stmts.push(db.prepare(`DELETE FROM call_tombstones WHERE id = ?1`).bind(p.id));
+  const trimmedAt = trimmedAtOf(p.call);
+  if (trimmedAt) {
+    // Only a trim at least as new as the stored one gets here (the API checks trimConflict first).
+    stmts.push(db.prepare(`INSERT INTO call_trims (call_id, at) VALUES (?1, ?2) ON CONFLICT (call_id) DO UPDATE SET at = excluded.at`)
+      .bind(p.id, trimmedAt));
+  }
   await db.batch(stmts);
+}
+
+/** call.trimmed.at of an upload payload's call: a string, or null when there is no valid trim. */
+export function trimmedAtOf(call: Record<string, unknown>): string | null {
+  const t = call.trimmed;
+  if (!t || typeof t !== "object" || Array.isArray(t)) return null;
+  const at = (t as Record<string, unknown>).at;
+  return typeof at === "string" && Number.isFinite(Date.parse(at)) ? at : null;
+}
+
+/** The stored trim time of a call, or null. */
+export async function storedTrim(db: D1Database, id: string): Promise<string | null> {
+  await ensureSchema(db);
+  return (await db.prepare(`SELECT at FROM call_trims WHERE call_id = ?1`).bind(id).first<{ at: string }>())?.at ?? null;
+}
+
+/** The stored trim time when the client's copy (its trim time, empty or null: untrimmed) is older than the server's
+ *  or untrimmed while the server's is set: the upload must be refused (409 trimmed). Otherwise null. Times are
+ *  compared as times, so "…:00Z" and "…:00.000Z" are the same moment. */
+export async function trimConflict(db: D1Database, id: string, sent: string | null): Promise<string | null> {
+  const stored = await storedTrim(db, id);
+  if (!stored) return null;
+  const a = sent ? Date.parse(sent) : NaN;
+  if (!Number.isFinite(a)) return stored;
+  const b = Date.parse(stored);
+  return Number.isFinite(b) && a < b ? stored : null;
 }
 
 interface NotesPlan {
@@ -320,6 +354,7 @@ export async function deleteCall(db: D1Database, id: string, now = new Date().to
     db.prepare(`DELETE FROM calls WHERE id = ?1`).bind(id),
     db.prepare(`DELETE FROM notes WHERE call_id = ?1`).bind(id),
     db.prepare(`DELETE FROM note_tombstones WHERE call_id = ?1`).bind(id),
+    db.prepare(`DELETE FROM call_trims WHERE call_id = ?1`).bind(id),
     ...deleteAudioStatements(db, id),
     db.prepare(`INSERT INTO call_tombstones (id, at) VALUES (?1, ?2) ON CONFLICT (id) DO UPDATE SET at = excluded.at`)
       .bind(id, now),
@@ -352,6 +387,7 @@ export interface CallSummary {
   project_title: string;
   audio?: Record<string, string>;
   audio_removed_at?: string;
+  trimmed_at?: string;
 }
 
 /** GET /api/calls: every call with what the client needs to diff (hash, folder, note ids, tombstones). */
@@ -362,10 +398,11 @@ export async function listHashes(db: D1Database): Promise<CallSummary[]> {
        (SELECT json_group_array(n.id) FROM notes n WHERE n.call_id = calls.id) AS notes,
        (SELECT json_group_array(t.id) FROM note_tombstones t WHERE t.call_id = calls.id) AS notes_deleted,
        (SELECT json_group_object(a.track, a.sha256) FROM audio_tracks a WHERE a.call_id = calls.id) AS audio,
-       (SELECT r.at FROM audio_removed r WHERE r.call_id = calls.id) AS audio_removed_at
+       (SELECT r.at FROM audio_removed r WHERE r.call_id = calls.id) AS audio_removed_at,
+       (SELECT tr.at FROM call_trims tr WHERE tr.call_id = calls.id) AS trimmed_at
      FROM calls ORDER BY id`,
   ).all<{ id: string; hash: string; folder: string; project_title: string; notes: string; notes_deleted: string; audio: string | null;
-          audio_removed_at: string | null }>();
+          audio_removed_at: string | null; trimmed_at: string | null }>();
   return results.map((r) => {
     const audio = r.audio ? (JSON.parse(r.audio) as Record<string, string>) : {};
     return { id: r.id, hash: r.hash, folder: r.folder,
@@ -375,7 +412,9 @@ export async function listHashes(db: D1Database): Promise<CallSummary[]> {
              // track -> sha256 of the stored audio (0.4.0+), only for calls that have some
              ...(Object.keys(audio).length ? { audio } : {}),
              // when a Mac removed the call's audio (0.4.0+): no Mac syncs its audio again
-             ...(r.audio_removed_at ? { audio_removed_at: r.audio_removed_at } : {}) };
+             ...(r.audio_removed_at ? { audio_removed_at: r.audio_removed_at } : {}),
+             // when the call was trimmed (0.5.0+): older copies are refused, see trimConflict
+             ...(r.trimmed_at ? { trimmed_at: r.trimmed_at } : {}) };
   });
 }
 

@@ -258,6 +258,11 @@ public enum DefaultsKey {
     public static let callsProject = "callsProject"
 }
 
+/// "Quiet icon while recording": the menu bar shows a plain template circle instead of the red one.
+public enum QuietIcon {
+    public static let defaultsKey = "quietRecordingIcon"
+}
+
 /// "Warn About Silence": the notifications when you or the other side can't be heard even after the
 /// automatic recapture. Off silences only those notifications; the recapture itself always runs.
 public enum SilenceAlerts {

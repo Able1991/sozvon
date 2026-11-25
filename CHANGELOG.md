@@ -2,7 +2,15 @@
 
 ## Unreleased
 
+- **Trim a recording.** "Trim..." in a call's menu opens a waveform with two handles: drag them (or use the arrow keys), listen to the range, and Sozvon cuts the call there and transcribes it again. When a recording starts or ends with a minute or more of silence, it suggests cutting it in one click. On your own server the trim wins on every Mac, so the other Macs show the trimmed call too; update the server to 0.5.0 (Settings, Cloud, Update server) for that.
+- **The Mac stays awake while Sozvon records or transcribes.** An idle sleep no longer cuts a recording or stalls a long transcription; the screen can still turn off.
+- **A warning when the recording can't be saved.** When writing the recording fails (a full disk, for example) or the free space drops below 1 GB, the capsule and a notification say so while there is still time to act, instead of an empty recording found afterwards. The recording keeps going.
+- **Transcription time estimate.** Calls and the menu show about how long a transcription will take, and how much is left of the running one. The estimate is learned from this Mac's own transcriptions of calls of 10 minutes or more, so nothing is shown before the first such run, and it gets closer to the real time with use.
+- **Quiet menu bar icon.** A setting shows an ordinary monochrome recording symbol in the menu bar instead of the red one, handy when sharing your screen. The menu still says a recording is on.
+- **Smaller fixes.** The "waiting for a description" notification shows the time in the system format (12 or 24 hours) instead of a fixed one.
 - **Summaries work with OpenCode 1.x.** npm's `opencode-ai` is still 1.x, the usual install on Windows and an easy one on the Mac, and it refused Sozvon's run outright: the agent's `permissions` list is 2.x only, and `--archived` doesn't exist there (1.x printed its help instead of running). The run's agent is now written in the 1.x `permission` form, which 2.x reads into the same rules in the same order (checked on 1.19.6 and 2.3.2), `--archived` is passed only to 2.x, and on 1.x the run's session is deleted afterwards so it stays out of the session list. Found by the Windows port.
+
+Ideas borrowed from boring-meeting by ninilich (github.com/ninilich/boring-meeting).
 
 ## 0.1.7
 

@@ -34,6 +34,18 @@ class Fake:
         self.audio_limit = None  # bytes: a chunk past it answers 507
         self.fail_chunk = None  # (call id, track, idx) whose PUT answers 500 once
         self.audio_removed = {}  # call id -> when a Mac removed its audio (DELETE .../audio): uploads answer 410
+        self.trims = {}  # call id -> call.trimmed.at of the stored copy (server 0.5.0+)
+        self.no_trims = False  # a server older than 0.5.0: ignores call.trimmed and the trim header
+        self.hide_trims = False  # the listing leaves trimmed_at out (a trim that lands between listing and upload)
+        self.trim_headers = []  # (method, path, X-Sozvon-Trimmed-At) of the audio uploads
+
+    def trim_conflict(self, cid, sent):
+        """The stored trim time when an upload's trim (sent) is older than it or missing, as the real server."""
+        stored = None if self.no_trims else self.trims.get(cid)
+        if not stored:
+            return None
+        a, b = _when(sent), _when(stored)
+        return stored if a is None or (b is not None and a < b) else None
 
     def merge(self, cid, items, deleted):
         tombs = self.tombs.setdefault(cid, set())
@@ -50,7 +62,18 @@ class Fake:
         """A stored call as a real server holds it (tests seed the server with it)."""
         cid = body["id"]
         self.calls[cid] = {k: v for k, v in body.items() if k not in ("notes", "notes_deleted")}
+        trimmed = (body.get("call") or {}).get("trimmed")
+        if not self.no_trims and isinstance(trimmed, dict) and _when(trimmed.get("at")) is not None:
+            self.trims[cid] = trimmed["at"]
         self.merge(cid, body.get("notes"), body.get("notes_deleted"))
+
+
+def _when(v):
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(v).timestamp() if isinstance(v, str) and v else None
+    except ValueError:
+        return None
 
 
 @pytest.fixture
@@ -89,7 +112,8 @@ def fake(monkeypatch):
                      "notes": sorted(state.notes.get(k, {})), "notes_deleted": sorted(state.tombs.get(k, set())),
                      **({} if state.old else {"project_title": v.get("project_title", "")}),
                      **({"audio": {tr: a["sha256"] for tr, a in state.audio[k].items()}} if state.audio.get(k) else {}),
-                     **({"audio_removed_at": state.audio_removed[k]} if k in state.audio_removed else {})}
+                     **({"audio_removed_at": state.audio_removed[k]} if k in state.audio_removed else {}),
+                     **({"trimmed_at": state.trims[k]} if k in state.trims and not state.hide_trims else {})}
                     for k, v in state.calls.items()]}
                 if not state.old:
                     reply["deleted"] = [{"id": k, "at": at} for k, at in sorted(state.gone.items())]
@@ -135,6 +159,10 @@ def fake(monkeypatch):
                         if body.get("restore") is not True:
                             return self.reply(410, {"error": "deleted"})
                         del state.gone[cid]
+                    stale = None if body.get("restore") is True else state.trim_conflict(
+                        cid, ((body.get("call") or {}).get("trimmed") or {}).get("at"))
+                    if stale:
+                        return self.reply(409, {"error": "trimmed", "trimmed_at": stale})
                     state.put(body)
                     return self.reply(204)
                 if len(parts) == 1 and method == "DELETE":
@@ -181,6 +209,11 @@ def fake(monkeypatch):
             track, what = rest
             if cid in state.audio_removed and method in ("PUT", "POST"):
                 return self.reply(410, {"error": "audio removed"})
+            if method in ("PUT", "POST"):
+                sent = self.headers.get("X-Sozvon-Trimmed-At")
+                state.trim_headers.append((method, self.path, sent))
+                if stale := state.trim_conflict(cid, sent):
+                    return self.reply(409, {"error": "trimmed", "trimmed_at": stale})
             if what == "commit":
                 st = state.staged.get((cid, track))
                 if not st or st["sha256"] != body["sha256"] or sorted(st["chunks"]) != list(range(body["chunks"])):
@@ -1200,3 +1233,94 @@ def test_demo_calls_are_not_synced_when_the_server_knows_the_id(fake, root):
     remote.sync(root=root)
     assert not [r for r in fake.requests if r[0] in ("PUT", "DELETE")]
     assert (demo / "transcript.txt").read_text() == "[00:00] Я: Привет.\n"
+
+
+# --- the trim wins on every Mac (server 0.5.0+) ---
+
+TRIM_AT = "2026-11-05T09:30:00Z"
+
+
+def trimmed_call(root, cid="2026-11-04 15-01", at=TRIM_AT, **extra) -> Path:
+    d = make_call(root, cid, cid)
+    (d / "call.json").write_text(json.dumps({**read(d), "trimmed": {"at": at, "head": 366.0, "tail": 290.0},
+                                             **extra}, ensure_ascii=False))
+    return d
+
+
+def test_untrimmed_call_hash_is_unchanged(root):
+    """The trim field adds nothing for a call that was never trimmed: no call re-uploads after the update."""
+    d = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01")
+    call = {"schema": 1, "id": "2026-11-04 15-01", "status": "done", "topic": "запуск"}
+    canon = json.dumps({"call": call, "transcript": "[00:00] Я: Привет.\n", "summary": None},
+                       sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    body = remote.payload(d)
+    assert body["call"] == call and body["hash"] == hashlib.sha256(canon.encode()).hexdigest()
+    for bad in ("2026-11-05", None, {"head": 3}, {"at": ""}, {"at": "not a time"}, ["x"]):
+        (d / "call.json").write_text(json.dumps({**call, "trimmed": bad}))
+        assert remote.payload(d)["hash"] == body["hash"], f"a broken trim {bad!r} counts as none"
+
+
+def test_trimmed_at_is_sent_and_hashed(fake, root):
+    fake.version = "0.5.0"
+    plain = remote.payload(make_call(root, "x", "2026-11-04 15-01"))
+    d = trimmed_call(root, "2026-11-04 16-00")
+    body = remote.payload(d)
+    # Whole seconds as integers: the server stores JSON through JavaScript, a restored copy must hash the same.
+    assert body["call"]["trimmed"] == {"at": TRIM_AT, "head": 366, "tail": 290}
+    assert body["hash"] == remote.content_hash(body["call"], body["transcript"], None)
+    other = {**read(d), "trimmed": {"at": "2026-11-06T09:30:00Z", "head": 366.0, "tail": 290.0}}
+    assert remote.content_hash(other, body["transcript"], None) != body["hash"], "a new trim resends the call"
+    assert "trimmed" not in plain["call"]
+    assert remote.sync(root=root).sent == 2
+    assert fake.trims == {"2026-11-04 16-00": TRIM_AT}
+    assert fake.calls["2026-11-04 16-00"]["call"]["trimmed"]["at"] == TRIM_AT
+    before = len(fake.requests)
+    assert tuple(remote.sync(root=root)) == (0, 0, 0, 0, 0)
+    assert not [m for m, *_ in fake.requests[before:] if m in ("PUT", "POST")], "in step: nothing is sent again"
+    # The same moment spelled another way is not newer: no replace, no upload.
+    fake.trims["2026-11-04 16-00"] = "2026-11-05T09:30:00.000Z"
+    assert tuple(remote.sync(root=root)) == (0, 0, 0, 0, 0)
+    assert (d / "mic.m4a").exists()
+
+
+def test_older_server_without_trims_keeps_working(fake, root):
+    fake.version = "0.4.0"
+    fake.no_trims = True
+    trimmed_call(root)
+    make_call(root, "2026-11-04 16-00", "2026-11-04 16-00")
+    assert remote.sync(root=root).sent == 2
+    assert remote.sync(root=root).sent == 0
+    assert (root / "2026-11-04 16-00" / "mic.m4a").exists() and (root / "2026-11-04 15-01" / "mic.m4a").exists()
+
+
+def test_refused_upload_is_skipped_then_replaced(fake, root):
+    fake.version = "0.5.0"
+    d = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01")
+    srv_copy = server_copy("2026-11-04 15-01", folder="2026-11-04 15-01", call={
+        "schema": 1, "id": "2026-11-04 15-01", "status": "done", "topic": "запуск",
+        "trimmed": {"at": TRIM_AT, "head": 366, "tail": 290}})
+    fake.put(srv_copy)
+    fake.hide_trims = True  # trimmed on another Mac after this one listed the calls
+    lines = []
+    assert tuple(remote.sync(root=root, status=lines.append)) == (0, 0, 0, 0, 0), "skipped, not a failure"
+    assert any("2026-11-04 15-01" in x and "обрезан" in x for x in lines)
+    assert fake.calls["2026-11-04 15-01"]["hash"] == srv_copy["hash"], "the trimmed copy stays on the server"
+    assert (d / "transcript.txt").read_text() == "[00:00] Я: Привет.\n"
+    fake.hide_trims = False
+    assert remote.sync(root=root).downloaded == 1
+    assert (d / "transcript.txt").read_text() == srv_copy["transcript"]
+    assert (d / "mic.m4a").read_bytes() == b"audio", "too small to be a track: nothing to cut, nothing deleted"
+    assert read(d)["trimmed"] == {"at": TRIM_AT, "head": 366, "tail": 290}
+
+
+def test_copy_taken_from_a_mac_whose_clock_is_ahead_still_syncs(fake, root):
+    """The server's transcript is the text of its trim, even when the trim time is later than this Mac's clock."""
+    fake.version = "0.5.0"
+    d = make_call(root, "2026-11-04 15-01", "2026-11-04 15-01")
+    ahead = "2099-01-01T00:00:00Z"
+    fake.put(server_copy("2026-11-04 15-01", folder="2026-11-04 15-01", call={
+        "schema": 1, "id": "2026-11-04 15-01", "status": "done", "topic": "запуск",
+        "trimmed": {"at": ahead, "head": 366, "tail": 290}}))
+    assert remote.sync(root=root).downloaded == 1
+    assert read(d)["trimmed"]["at"] == ahead
+    assert remote.payload(d) is not None, "not taken for a call waiting for its rerun"

@@ -54,7 +54,8 @@ jobs:
           retention-days: 14
 
   # Every screen clicked with the real mouse on the runner's own screen (tools/uitest.sh): toggles toggle,
-  # popups open and change, fields take typing, "…" buttons open their sheet. Screenshots of failures are kept.
+  # popups open and change, fields take typing, "…" buttons open their sheet. Screenshots of failures are kept;
+  # on ci/** branches every run keeps the shots of the new screens (shot-*-light/dark.png) for review.
   ui:
     runs-on: macos-26
     timeout-minutes: 60
@@ -81,6 +82,13 @@ jobs:
           name: ui-failures
           path: ${{ runner.temp }}/ui-shots
           retention-days: 14
+      - if: always() && startsWith(github.ref, 'refs/heads/ci/')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-shots
+          path: ${{ runner.temp }}/ui-shots
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Optional self-hosted server (server/, Cloudflare Worker): unit and local D1 tests, no Cloudflare account.
   server:

@@ -236,6 +236,7 @@ private struct GeneralPane: View {
     @AppStorage(FloatingPanel.defaultsKey) private var panelOn = true
     @AppStorage(FloatingPanel.idleKey) private var panelIdle = true
     @State private var sounds = Sounds.enabled
+    @AppStorage(QuietIcon.defaultsKey) private var quietIcon = false
     @State private var callStart = CallPromptController.mode
     @State private var autoStop = CallPromptController.autoStop
     @State private var silenceAlerts = SilenceAlerts.enabled
@@ -333,6 +334,10 @@ private struct GeneralPane: View {
                     Text(L("Если тебя или собеседников не слышно больше двух минут или тебя очень тихо слышно"))
                 }
                 Toggle(L("Звук при старте и остановке записи"), isOn: $sounds)
+                Toggle(isOn: $quietIcon) {
+                    Text(L("Спокойный значок во время записи"))
+                    Text(L("Обычный значок вместо красного, удобно при демонстрации экрана. Что идёт запись, всё равно видно в меню."))
+                }
             } header: {
                 Text(L("Запись"))
             } footer: {

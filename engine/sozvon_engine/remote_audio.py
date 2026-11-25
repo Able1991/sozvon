@@ -12,6 +12,8 @@ Tracks (mic.m4a, system.m4a) go up in chunks of CHUNK bytes, stored in D1 (no R2
   DELETE {url}/api/calls/{id}/audio                       -> 204, and the server marks the call's audio removed:
                                                            chunk PUTs and commits for it answer 410 from then on
 GET /api/calls lists "audio": {track: sha256} per call that has some, and "audio_removed_at" per call so marked.
+Chunk PUTs and commits carry X-Sozvon-Trimmed-At: the call's call.json trimmed.at, empty when untrimmed. A server
+0.5.0+ refuses them with 409 {"error": "trimmed"} when it holds the call trimmed later (remote.TrimmedElsewhere: skipped).
 
 Files are streamed chunk by chunk: a track is never read into memory whole. An interrupted upload resumes from the
 chunks the server already staged. "start" is the track's start offset in seconds relative to the earlier track
@@ -69,6 +71,14 @@ def _raw(srv, method: str, path: str, data: bytes | None = None, headers: dict |
             raise remote.RemoteError(2, t("remote_auth")) from None
         if e.code == 507:
             raise StorageFull() from None
+        if e.code == 409:
+            try:
+                raw = e.read()
+            except OSError:
+                raw = None
+            trimmed, _ = remote.refusal(409, raw)
+            if trimmed:
+                raise trimmed from None
         if missing_ok and e.code in (404, 405, 410):
             return e.code, b""
         if e.code == 410:
@@ -171,9 +181,10 @@ def start_offsets(meta: dict) -> dict:
 
 
 def upload_track(srv, cid: str, track: str, path: Path, sha: str, size: int, staged: dict,
-                 start: float | None = None) -> None:
+                 start: float | None = None, trimmed_at: str | None = None) -> None:
     """Send the chunks the server has not staged yet, then commit (with the start offset when known).
-    Reads one chunk at a time."""
+    Reads one chunk at a time. trimmed_at: the call's trim time (X-Sozvon-Trimmed-At, empty when untrimmed)."""
+    trim = {"X-Sozvon-Trimmed-At": trimmed_at or ""}
     n = max(1, -(-size // CHUNK))
     with open(path, "rb") as f:
         for idx in range(n):
@@ -182,9 +193,9 @@ def upload_track(srv, cid: str, track: str, path: Path, sha: str, size: int, sta
                 continue  # resumed: the server has this chunk of this version already
             f.seek(idx * CHUNK)
             data = f.read(CHUNK)
-            _raw(srv, "PUT", _audio_path(cid, track, idx), data, {"X-Sozvon-Sha256": sha})
+            _raw(srv, "PUT", _audio_path(cid, track, idx), data, {"X-Sozvon-Sha256": sha, **trim})
     body = {"size": size, "chunks": n, "sha256": sha, **({"start": start} if start is not None else {})}
-    _remote()._request(srv, "POST", _audio_path(cid, track, "commit"), body)
+    _remote()._request(srv, "POST", _audio_path(cid, track, "commit"), body, headers=trim)
 
 
 def push_call_audio(srv, d: Path, hashes: Hashes | None = None) -> int:
@@ -195,6 +206,10 @@ def push_call_audio(srv, d: Path, hashes: Hashes | None = None) -> int:
     call = calls.read_call(d)
     if call.get("audio_removed_at") or call.get("status", "done") != "done" or not (d / "transcript.txt").is_file():
         return 0
+    if _remote().awaiting_rerun(d, call):
+        return 0  # the cut tracks go up with the rerun's text, never under the old one
+    if call.get("audio_cut_from") and call["audio_cut_from"] == _remote().trimmed_at(call):
+        return 0  # cut here to match another Mac's trim (remote.replace_trimmed): never sent over that Mac's own
     files = local_tracks(d)
     if not files:
         return 0
@@ -210,7 +225,7 @@ def push_call_audio(srv, d: Path, hashes: Hashes | None = None) -> int:
         if (state["tracks"].get(track) or {}).get("sha256") == sha:
             continue
         upload_track(srv, cid, track, files[track], sha, size, state["pending"].get((track, sha), {}),
-                     offsets.get(track))
+                     offsets.get(track), _remote().trimmed_at(call))
         sent += 1
     return sent
 
@@ -268,8 +283,21 @@ def pull_call_audio(srv, d: Path) -> int:
     drop_stale_downloads(d)
     got = 0
     meta_add = {}
+    trimmed = _remote().trim_of(call) is not None
+    meta = call.get("audio") if isinstance(call.get("audio"), dict) else {}
+    unfit = [x for x in call.get("audio_unfit") or [] if isinstance(x, str)] if isinstance(
+        call.get("audio_unfit"), list) else []
     for track, info in sorted(state["tracks"].items()):
+        if trimmed and info.get("sha256") in unfit:
+            continue  # downloaded once already: not this call's trimmed track
         if download_track(srv, call["id"], d, track, info):
+            if trimmed and not _remote()._fits(d / f"{track}.m4a", meta.get(f"{track}_seconds")):
+                # The server still serves the tracks from before the trim: never under a trimmed call.json, and
+                # not downloaded again (call.json "audio_unfit", this Mac only).
+                (d / f"{track}.m4a").unlink(missing_ok=True)
+                unfit = (unfit + [info.get("sha256")])[-8:]
+                calls.update_call(d, audio_unfit=unfit)
+                continue
             got += 1
             if _number(info.get("start")) and info["start"] >= 0:
                 meta_add[f"{track}_start"] = info["start"]
@@ -278,7 +306,6 @@ def pull_call_audio(srv, d: Path) -> int:
             except Exception:  # noqa: BLE001  the duration is only for display
                 pass
     if meta_add:
-        meta = call.get("audio") if isinstance(call.get("audio"), dict) else {}
         has_starts = any(_number(meta.get(f"{k}_start")) for k in TRACKS)
         missing = {k: v for k, v in meta_add.items() if not _number(meta.get(k))
                    and not (k.endswith("_start") and has_starts)}  # never mix offsets with absolute times
@@ -310,7 +337,7 @@ def sync_audio(srv, root: Path, status, attempt, skip: set, enabled: bool) -> tu
     try:
         for cid, c in sorted(local.items()):
             r = theirs.get(cid)
-            if r is None or cid in skip or cid in attempt.failed:
+            if r is None or cid in skip or cid in attempt.failed or cid in attempt.trimmed:
                 continue
             if r.audio_removed_at:  # removed on some Mac: never synced again, the tracks here stay
                 continue
@@ -320,8 +347,8 @@ def sync_audio(srv, root: Path, status, attempt, skip: set, enabled: bool) -> tu
                 ok, _ = attempt.run(cid, delete_call_audio, srv, cid)
                 deleted += 1 if ok and r.audio else 0
                 continue
-            if not enabled:
-                continue
+            if not enabled or remote.awaiting_rerun(c.path, call):
+                continue  # a call waiting for its rerun: neither up nor down until it is transcribed again
             files = local_tracks(c.path)
             if files and not full:
                 if all(r.audio.get(k) == hashes.of(cid, k, f)[0] for k, f in files.items()):
