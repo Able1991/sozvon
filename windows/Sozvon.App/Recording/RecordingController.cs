@@ -8,11 +8,12 @@ using Sozvon.Audio;
 using Sozvon.Core.Automation;
 using Sozvon.Core.Calls;
 using Sozvon.Core.Engine;
+using Sozvon.Core.Foundation;
 
 namespace Sozvon.App.Recording;
 
 /// <summary>Connects the capsule to the recorder and the engine: one recording, then its transcription.</summary>
-public sealed class RecordingController
+public sealed partial class RecordingController
 {
     private static readonly TimeSpan ReminderShownFor = TimeSpan.FromSeconds(8);
 
@@ -53,6 +54,9 @@ public sealed class RecordingController
 
     /// <summary>A recording started or ended, or a call got or lost its description.</summary>
     public event EventHandler? StateChanged;
+
+    /// <summary>No idle sleep while a call is recorded or the queue has work, as on the Mac. Taken and given back on the UI thread.</summary>
+    private readonly SleepGuard _sleep = new(() => KeepAwake(true), () => KeepAwake(false));
 
     /// <summary>Something the user has to know about, as a sentence ready to show.</summary>
     public event EventHandler<string>? Problem;
@@ -106,6 +110,7 @@ public sealed class RecordingController
         };
         _processor.Changed += () => _ui.TryEnqueue(() =>
         {
+            UpdateSleepGuard();
             ShowProcessing();
             CallsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -215,7 +220,19 @@ public sealed class RecordingController
         }
         _markKeys.Dispose();
         await _processor.AbortAllAsync();
+        _sleep.Update(recording: false, hasWork: false);
     }
+
+    /// <summary>Starting, recording or saving counts as recording: the stop must not be cut by a sleep either.</summary>
+    private void UpdateSleepGuard() => _sleep.Update(_recording || _changing, _processor.HasWork);
+
+    private const uint EsContinuous = 0x80000000, EsSystemRequired = 0x00000001;
+
+    [System.Runtime.InteropServices.LibraryImport("kernel32.dll")]
+    private static partial uint SetThreadExecutionState(uint flags);
+
+    /// <summary>ES_CONTINUOUS keeps the state for this thread until it is changed again: the UI thread, which lives as long as the app.</summary>
+    private static void KeepAwake(bool on) => SetThreadExecutionState(on ? EsContinuous | EsSystemRequired : EsContinuous);
 
     public void Start()
     {
@@ -266,6 +283,7 @@ public sealed class RecordingController
             _clock.Stop();
             ReleaseMarkKeys();
             _saved.End();
+            UpdateSleepGuard();
             StateChanged?.Invoke(this, EventArgs.Empty);
             Problem?.Invoke(this, Loc.L("Не получилось: подробности в журнале программы."));
             ShowProcessing();
@@ -318,6 +336,7 @@ public sealed class RecordingController
             Problem?.Invoke(this, CapsuleText.TellOthers);
         }
         RenderRecording();
+        UpdateSleepGuard();
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -336,6 +355,7 @@ public sealed class RecordingController
         _changing = true;
         _clock.Stop();
         ReleaseMarkKeys();
+        UpdateSleepGuard();
         StateChanged?.Invoke(this, EventArgs.Empty);
         _capsule.Render(new CapsuleModel(CapsulePhase.Starting));
         var result = await _recorder.StopAsync();
@@ -346,6 +366,7 @@ public sealed class RecordingController
         if (!askNow)
         {
             _changing = false;
+            UpdateSleepGuard();
             StateChanged?.Invoke(this, EventArgs.Empty);
             return;
         }
@@ -361,6 +382,7 @@ public sealed class RecordingController
         var countdown = sure && _settings.TranscribeWhenClear ? CallGuess.FormCountdown : (int?)null;
         Ask(DescribeRequest(info, countdown), answer => Apply(dir, answer));
         _changing = false;
+        UpdateSleepGuard();
         StateChanged?.Invoke(this, EventArgs.Empty);
         await Task.Delay(SavedNotice.ShownFor);
         _saved.End();
@@ -401,6 +423,7 @@ public sealed class RecordingController
         {
             Problem?.Invoke(this, Loc.L("Не удалось сохранить данные звонка"));
         }
+        UpdateSleepGuard();
         StateChanged?.Invoke(this, EventArgs.Empty);
         // The answer changed call.json ("waits for description", the topic): the calls list shows it at once.
         CallsChanged?.Invoke(this, EventArgs.Empty);

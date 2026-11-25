@@ -42,6 +42,18 @@ public sealed class Call
     public bool IsDemo { get; set; }
     public bool IsLegacy { get; init; }
 
+    /// <summary>
+    /// Why Trim is off for this call apart from it being busy (<see cref="Trim.Unavailable"/> with busy false); null: it
+    /// can be trimmed. Old calls without call.json never are: the engine needs it.
+    /// </summary>
+    public TrimUnavailable? TrimBlock { get; set; }
+
+    /// <summary>The "quiet at the start or end" hint; null when there is none (dismissed, not measured, under a minute).</summary>
+    public TrimHint? TrimHint { get; set; }
+
+    /// <summary>Why Trim is off now: busy (recording, queued, processing, trimming) comes first.</summary>
+    public TrimUnavailable? TrimUnavailable(bool busy) => busy ? Calls.TrimUnavailable.Busy : TrimBlock;
+
     public string TranscriptPath => Path.Combine(Dir, "transcript.md");
     public string SummaryPath => Path.Combine(Dir, "summary.md");
     public string LogPath => Path.Combine(Dir, "process.log");
@@ -90,6 +102,7 @@ public sealed class Call
             call.Date = ParseId(name);
             if (call.Date is null && !Has("meta.json")) return null;
             call.LoadLegacy(name);
+            call.TrimBlock = Calls.TrimUnavailable.NoAudio;
         }
         else
         {
@@ -145,6 +158,8 @@ public sealed class Call
         Participants = CallParticipants.Stored(c);
         People = string.Join(", ", Participants ?? TextRules.SplitList(Info.Names));
         FillFromFolderName(Path.GetFileName(Dir), projects.ContainsKey(Info.Profile) || c.Text("project_title") is { Length: > 0 });
+        TrimBlock = Trim.Unavailable(c, HasAudio, busy: false);
+        TrimHint = Trim.Hint(c, Duration);
     }
 
     /// <summary>
