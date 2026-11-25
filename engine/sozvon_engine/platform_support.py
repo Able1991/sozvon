@@ -86,6 +86,15 @@ def rename_file(src, dst) -> None:
     os.rename(src, dst)
 
 
+def remove_file(path) -> None:
+    """Path.unlink(missing_ok=True), with the same wait on Windows (the app's player may still hold the file a moment)."""
+    if SYSTEM == "win32":
+        from . import platform_win32
+        platform_win32.retry_while_busy(lambda: Path(path).unlink(missing_ok=True))
+        return
+    Path(path).unlink(missing_ok=True)
+
+
 # --- programs the engine starts ---
 
 def tool_path(name: str) -> str:

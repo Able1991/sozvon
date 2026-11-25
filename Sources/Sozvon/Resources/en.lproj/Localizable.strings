@@ -854,3 +854,52 @@
 "Версия %@ скачана" = "Version %@ is downloaded";
 "Sozvon перезапустится, звонки и настройки останутся" = "Sozvon restarts, calls and settings stay";
 "Поставится после записи или расшифровки" = "Installs after the recording or transcription";
+
+/* Disk warnings while recording */
+"Запись не сохраняется: на диске нет места" = "Not saving the recording: the disk is full";
+"Запись не сохраняется: не удаётся записать файл" = "Not saving the recording: can't write the file";
+"На диске меньше 1 ГБ, запись скоро остановится" = "Under 1 GB left on the disk, the recording will stop soon";
+
+"Спокойный значок во время записи" = "Quiet icon while recording";
+"Обычный значок вместо красного, удобно при демонстрации экрана. Что идёт запись, всё равно видно в меню." = "An ordinary icon instead of the red one, handy when sharing your screen. The menu still shows that a recording is on.";
+
+"≈ %@ мин" = "≈ %@ min";
+"≈ %@ ч %@ мин" = "≈ %@ h %@ min";
+"≈ %@ ч" = "≈ %@ h";
+"осталось %@" = "%@ left";
+"почти готово" = "almost done";
+"Очередь: %@" = "Queue: %@";
+
+"Звонок записывается или расшифровывается" = "The call is being recorded or transcribed";
+"Звук удалён по настройке «Автоудаление аудио»" = "The audio was removed by the \"Delete audio automatically\" setting";
+"Звука этого звонка нет на этом Mac" = "This call's audio is not on this Mac";
+"Это демонстрационный звонок" = "This is a demo call";
+"Звонок короче 30 секунд" = "The call is shorter than 30 seconds";
+"Звонок обрезается" = "The call is being trimmed";
+"Не получилось обрезать звонок" = "Could not trim the call";
+"Обрезаю…" = "Trimming…";
+"Обрезать…" = "Trim…";
+"Отрезать тишину или лишнее в начале и в конце записи" = "Cut silence or anything extra at the start and end of the recording";
+"Строю волну…" = "Drawing the waveform…";
+"Волну не получилось построить: звук не читается." = "Could not draw the waveform: the audio can't be read.";
+"Начало, %@" = "Start, %@";
+"Конец, %@" = "End, %@";
+"Стрелки двигают на секунду, с Shift на десять секунд" = "Arrow keys move it by a second, with Shift by ten seconds";
+"Обрезка записи" = "Trim recording";
+"Слушать с начала обрезки" = "Play from the trim start";
+"Прослушать конец" = "Play the end";
+"Последние 5 секунд перед концом" = "The last 5 seconds before the end";
+"останется %@" = "keeps %@";
+"Отрезанный звук удалится, вернуть его нельзя. Расшифровка и саммари будут сделаны заново." = "The cut audio will be deleted and can't be restored. The transcript and summary will be made again.";
+"Отрезанный звук удалится, вернуть его нельзя." = "The cut audio will be deleted and can't be restored.";
+"Обрезать и расшифровать" = "Trim and Transcribe";
+"В начале %@ и в конце %@ тишина." = "Silence for %@ at the start and %@ at the end.";
+"Первая минута тишина." = "Silence for the first minute.";
+"Первая %@ тишина." = "Silence for the first %@.";
+"Первые %@ тишина." = "Silence for the first %@.";
+"Последняя минута тишина." = "Silence for the last minute.";
+"Последняя %@ тишина." = "Silence for the last %@.";
+"Последние %@ тишина." = "Silence for the last %@.";
+"Обрезать?" = "Trim it?";
+"Обрезать" = "Trim";
+"Больше не предлагать для этого звонка" = "Don't suggest this for this call again";

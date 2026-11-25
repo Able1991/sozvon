@@ -50,6 +50,9 @@ final class CallPlayer: ObservableObject {
     private var seeking = false
     /// A line clicked before the mix was ready: played from there as soon as it is.
     private var queuedStart: Double?
+    /// Playback pauses here (the trim panel: the kept range, "Listen to the end"); nil plays on to the end.
+    private var stopAt: Double?
+    private var boundary: Any?
 
     init(dir: URL) { self.dir = dir }
 
@@ -79,6 +82,7 @@ final class CallPlayer: ObservableObject {
                 MainActor.assumeIsolated { self?.tick(t.seconds) }
             }
             self.ready = true
+            self.installStop()
             if let t = self.queuedStart {
                 self.queuedStart = nil
                 self.seek(t)
@@ -109,6 +113,8 @@ final class CallPlayer: ObservableObject {
     private func tick(_ t: Double) {
         guard let player, !scrubbing, !seeking else { return }
         if t.isFinite { time = t }
+        // The boundary observer pauses on time; this catches a stop it missed (a seek right past it).
+        if let s = stopAt, isPlaying, t.isFinite, t >= s + 0.3 { pause() }
         let playing = player.rate != 0
         if playing != isPlaying { isPlaying = playing }
         updateLine()
@@ -168,6 +174,35 @@ final class CallPlayer: ObservableObject {
         if !isPlaying { toggle() }
     }
 
+    /// Play `from...to` and pause at `to` (the trim panel: the kept range, the last seconds before the end handle).
+    func playRange(from: Double, to: Double) {
+        stopAt = to > from ? to : nil
+        installStop()
+        play(from: from)
+    }
+
+    /// Move the point where playback pauses (the end handle dragged), or nil to play on (trim mode closed).
+    func pauseAt(_ t: Double?) {
+        guard t != stopAt else { return }
+        stopAt = t
+        installStop()
+    }
+
+    private func installStop() {
+        if let boundary { player?.removeTimeObserver(boundary) }
+        boundary = nil
+        guard let player, let s = stopAt else { return }
+        boundary = player.addBoundaryTimeObserver(forTimes: [NSValue(time: CMTime(seconds: s, preferredTimescale: 600))],
+                                                  queue: .main) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.isPlaying else { return }
+                self.pause()
+                // Show the playhead on the stop, not a tick before it.
+                if let s = self.stopAt { self.time = s; self.updateLine() }
+            }
+        }
+    }
+
     /// Jump back or forward by a few seconds (the -15 / +15 buttons).
     func skip(_ seconds: Double) {
         seek(time + seconds)
@@ -192,6 +227,9 @@ final class CallPlayer: ObservableObject {
         loading = nil
         if let observer { player?.removeTimeObserver(observer) }
         observer = nil
+        if let boundary { player?.removeTimeObserver(boundary) }
+        boundary = nil
+        stopAt = nil
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
@@ -271,12 +309,19 @@ struct PlayerBar: View {
 }
 
 /// The player floats over the transcript as a Liquid Glass capsule on macOS 26 (a bar material before).
-private struct PlayerGlass: ViewModifier {
+/// The trim panel is the same glass in a rounded rectangle with the capsule's corner radius.
+struct PlayerGlass<S: Shape>: ViewModifier {
+    var shape: S
+
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
-            content.glassEffect(.regular, in: .capsule)
+            content.glassEffect(.regular, in: shape)
         } else {
-            content.background(.bar, in: Capsule())
+            content.background(.bar, in: shape)
         }
     }
+}
+
+extension PlayerGlass where S == Capsule {
+    init() { shape = Capsule() }
 }

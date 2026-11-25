@@ -178,6 +178,8 @@ let external = ["Finder", "Подключ", "Connect", "Claude", "ChatGPT", "Cod
                 "Скачать модель", "Переустановить", "Установить", "Повторить", "Записать", "Обновить сервер",
                 "Проверить", "Сохранить архив", "Save Archive", "Синхронизировать", "Импорт", "Выбрать папку", "Choose Folder", "Сменить папку", "Change Folder",
                 "Показать логи", "Show Logs",
+                // Asks in place inside the trim panel (no sheet): trimBoardTest and trimInCallsTest click it.
+                "Обрезать…", "Trim…",
                 "Запись одним нажатием", "Record in one tap"]
 /// Toggles that ask macOS for a permission (Calendar, Reminders, notifications): hit-tested, never switched.
 let permissionToggles = ["Календар", "Calendar", "Напоминан", "Reminders", "уведомлен"]
@@ -583,6 +585,338 @@ func capsuleDrag(_ app: TestApp) {
     }
 }
 
+// MARK: - Trim, silence hint, time estimate, quiet icon, disk warnings
+
+/// The app's largest window: the screen's own, not the capsule.
+func mainWindow(_ app: TestApp) -> AXUIElement? {
+    func area(_ w: AXUIElement) -> CGFloat { frame(w).map { $0.width * $0.height } ?? 0 }
+    return app.windows().max { area($0) < area($1) }
+}
+/// The first element under `root` whose name starts with `prefix` (of the role, when given).
+func firstNamed(_ root: AXUIElement, _ prefix: String, role r: String? = nil) -> AXUIElement? {
+    all(root).first { e in (r == nil || role(e) == r) && name(e).hasPrefix(prefix) }
+}
+/// A button under `root` named exactly `n`.
+func button(_ root: AXUIElement, _ n: String) -> AXUIElement? {
+    all(root).first { role($0) == "AXButton" && name($0) == n }
+}
+/// Any text under `root` (a value or a name) that contains `part`.
+func textContaining(_ root: AXUIElement, _ part: String) -> String? {
+    for e in all(root) { for s in [value(e), name(e)] where s.contains(part) { return s } }
+    return nil
+}
+/// A real click at the element's center, after scrolling it into view.
+@discardableResult func press(_ app: TestApp, _ w: AXUIElement, _ e: AXUIElement) -> Bool {
+    app.activate()
+    guard let f = reveal(e, in: w) else { return false }
+    click(CGPoint(x: f.midX, y: f.midY))
+    return true
+}
+/// A real click at the center of a control pinned over the scrolling content (the trim panel at the bottom of the
+/// card): no AXScrollToVisible and no wheel, which only scroll the content under it. False, with the frames in the
+/// log, when the control is not inside the window.
+@discardableResult func pressPinned(_ app: TestApp, _ w: AXUIElement, _ e: AXUIElement) -> Bool {
+    app.activate()
+    guard let f = frame(e), let wf = frame(w), wf.contains(CGPoint(x: f.midX, y: f.midY)) else {
+        print("    note: «\(label(e))» at \(frame(e).map { "\($0)" } ?? "-") is outside the window \(frame(w).map { "\($0)" } ?? "-")")
+        return false
+    }
+    click(CGPoint(x: f.midX, y: f.midY))
+    return true
+}
+/// Waits up to `limit` seconds for `done`; its last answer.
+@discardableResult func waitFor(_ limit: Double, _ done: () -> Bool) -> Bool {
+    let end = Date().addingTimeInterval(limit)
+    while Date() < end { if done() { return true }; wait(0.1) }
+    return done()
+}
+
+/// Seconds of a "6:12" or "1:05:20" at the end of a label ("Начало, 6:12").
+func seconds(_ label: String) -> Int? {
+    guard let t = label.split(separator: " ").last else { return nil }
+    let parts = t.split(separator: ":").compactMap { Int($0) }
+    guard parts.count >= 2 else { return nil }
+    return parts.reduce(0) { $0 * 60 + $1 }
+}
+/// The card's "Ещё" menu: by its identifier ("call-more-menu" in CallDetail), else by name. The toolbar names it
+/// "Еще" (without ё) on the CI runner, so both spellings count.
+func moreMenu(_ w: AXUIElement) -> AXUIElement? {
+    let items = all(w)
+    if let e = items.first(where: { str($0, "AXIdentifier") == "call-more-menu" }) { return e }
+    for n in ["Ещё", "Еще"] {
+        if let e = items.first(where: { role($0) == "AXMenuButton" && name($0).hasPrefix(n) }) { return e }
+    }
+    return items.first { e in ["Ещё", "Еще"].contains { name(e).hasPrefix($0) } }
+}
+/// The card's "Ещё" menu opened, and its item `n` (nil, with a failure, when either is missing).
+func moreMenuItem(_ app: TestApp, _ w: AXUIElement, _ n: String) -> AXUIElement? {
+    guard let more = moreMenu(w) else {
+        let menus = all(w).filter { role($0) == "AXMenuButton" }.map { "\(name($0))#\(str($0, "AXIdentifier"))" }
+        fail("«Ещё»", "no «Ещё» menu in the card's toolbar; menu buttons: \(menus)"); return nil
+    }
+    press(app, w, more); wait(0.8)
+    guard let m = app.openMenu() else { fail("«Ещё»", "click doesn't open its menu"); return nil }
+    guard let item = kids(m).first(where: { name($0) == n }) else {
+        fail("«Ещё»", "no «\(n)» in the menu: \(kids(m).map(name))"); key(escape); wait(0.4); return nil
+    }
+    return item
+}
+/// The trim panel (its group), or nil when it is closed.
+func trimPanel(_ w: AXUIElement) -> AXUIElement? { firstNamed(w, "Обрезка записи") }
+func trimHandle(_ w: AXUIElement, _ which: String) -> AXUIElement? { firstNamed(w, which + ", ") }
+/// The player bar under the card: its controls, or the "can't be read" line in their place.
+func playerShown(_ w: AXUIElement) -> Bool {
+    button(w, "Назад на 15 секунд") != nil || textContaining(w, "Запись недоступна") != nil
+}
+let rightArrow: CGKeyCode = 124, leftArrow: CGKeyCode = 123
+/// What a real arrow key carries.
+let arrowFlags: CGEventFlags = [.maskNumericPad, .maskSecondaryFn]
+
+/// Focus a handle with a click on its knob, as the user would, press an arrow, and check the handle and the
+/// "6:12 → 58:40" times moved by exactly that much.
+func nudgeHandle(_ app: TestApp, _ w: AXUIElement, _ which: String, _ code: CGKeyCode, shift: Bool) {
+    checked += 1
+    let step = (code == rightArrow ? 1 : -1) * (shift ? 10 : 1)
+    let keyName = "\(shift ? "Shift+" : "")\(code == rightArrow ? "→" : "←")"
+    guard let h = trimHandle(w, which), let f = frame(h) else { fail("handle «\(which)»", "not found"); return }
+    let before = name(h), timesBefore = textContaining(w, "→") ?? ""
+    app.activate()
+    AXUIElementSetAttributeValue(h, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+    click(CGPoint(x: f.midX, y: f.midY)); wait(0.4)
+    key(code, flags: shift ? arrowFlags.union(.maskShift) : arrowFlags); wait(0.6)
+    let after = trimHandle(w, which).map(name) ?? ""
+    print("  \(which) \(keyName): «\(before)» → «\(after)»")
+    guard let b = seconds(before), let a = seconds(after) else { fail("handle «\(which)»", "no time in its label «\(before)» / «\(after)»"); return }
+    if a - b != step { fail("handle «\(which)»", "\(keyName) moved it from «\(before)» to «\(after)», not by \(step) s") }
+    let timesAfter = textContaining(w, "→") ?? ""
+    if timesAfter == timesBefore { fail("times", "«\(timesBefore)» didn't change after \(keyName) on «\(which)»") }
+}
+
+/// The panel's controls: both handles with their VoiceOver labels, the arrows, "Прослушать конец", and
+/// "Обрезать…" with its in-panel confirmation, "Отмена" back to editing. `listenMustWork`: the player can play
+/// (the preview board); in the Calls window the demo tracks may not decode on the runner.
+func checkTrimPanel(_ app: TestApp, _ w: AXUIElement, listenMustWork: Bool) {
+    checked += 2
+    guard trimPanel(w) != nil else { fail("panel", "no «Обрезка записи» panel"); return }
+    for which in ["Начало", "Конец"] {
+        guard let h = trimHandle(w, which) else { fail("handle «\(which)»", "no handle with a VoiceOver label «\(which), m:ss»"); return }
+        if seconds(name(h)) == nil { fail(label(h), "the VoiceOver label has no time") }
+        if str(h, kAXHelpAttribute).isEmpty { print("    note: \(label(h)) has no AXHelp (the arrows hint)") }
+    }
+    nudgeHandle(app, w, "Начало", rightArrow, shift: false)
+    nudgeHandle(app, w, "Начало", rightArrow, shift: true)
+    nudgeHandle(app, w, "Конец", leftArrow, shift: false)
+
+    checked += 1
+    guard let p = trimPanel(w), let listen = firstNamed(p, "Прослушать конец") else { fail("«Прослушать конец»", "not in the panel"); return }
+    let play = firstNamed(p, "Слушать с начала обрезки") ?? firstNamed(p, "Пауза")
+    if listenMustWork, !enabled(listen) { fail(label(listen), "disabled") }
+    if !listenMustWork, !enabled(listen) {
+        if let play, enabled(play) { fail(label(listen), "disabled while play works") }
+        else { print("    note: the demo tracks can't be read here, play and «Прослушать конец» are off") }
+    }
+
+    checked += 3
+    guard let trim = button(p, "Обрезать…"), enabled(trim) else { fail("«Обрезать…»", "no enabled «Обрезать…» in the panel"); return }
+    pressPinned(app, w, trim)
+    waitFor(2) { trimPanel(w).flatMap { button($0, "Обрезать и расшифровать") } != nil }
+    guard let p2 = trimPanel(w) else { fail("«Обрезать…»", "the panel closed instead of asking"); return }
+    if button(p2, "Обрезать и расшифровать") == nil { fail("confirmation", "no «Обрезать и расшифровать»") }
+    if textContaining(p2, "вернуть его нельзя") == nil { fail("confirmation", "no warning that the cut audio is gone for good") }
+    guard let cancel = button(p2, "Отмена") else { fail("confirmation", "no «Отмена»"); return }
+    pressPinned(app, w, cancel)
+    waitFor(2) { trimPanel(w).flatMap { button($0, "Обрезать…") } != nil }
+    guard let p3 = trimPanel(w) else { fail("confirmation «Отмена»", "closed the panel instead of going back to editing"); return }
+    if button(p3, "Обрезать и расшифровать") != nil { fail("confirmation «Отмена»", "the confirmation is still shown") }
+    if button(p3, "Обрезать…") == nil || trimHandle(w, "Начало") == nil { fail("confirmation «Отмена»", "not back to editing") }
+}
+
+/// The preview board: the handles where the board puts them, and every control of the panel.
+func trimBoardTest(_ app: TestApp) {
+    screen = "Обрезка · ручки и подтверждение"
+    print("• \(screen)")
+    app.launch(["--preview", "trim"])
+    guard let w = mainWindow(app) else { fail("window", "no window opened"); return }
+    checked += 1
+    let s = trimHandle(w, "Начало").map(name), e = trimHandle(w, "Конец").map(name)
+    if s != "Начало, 6:12" || e != "Конец, 58:40" { fail("handles", "labels «\(s ?? "-")», «\(e ?? "-")», not «Начало, 6:12», «Конец, 58:40»") }
+    checkTrimPanel(app, w, listenMustWork: true)
+}
+
+/// The Calls window: "Ещё" > "Обрезать…" grows the player into the trim panel; "Отмена" and Escape give the
+/// player back.
+func trimInCallsTest(_ app: TestApp) {
+    screen = "Обрезка · из меню «Ещё»"
+    print("• \(screen)")
+    app.launch(["--preview", "calls", "--size", callsSize])
+    wait(0.8)
+    guard let w = mainWindow(app) else { fail("window", "no window opened"); return }
+    checked += 2
+    if !playerShown(w) { fail("player", "no player bar under the card") }
+    guard let item = moreMenuItem(app, w, "Обрезать…") else { return }
+    guard enabled(item), let f = frame(item) else {
+        fail("«Обрезать…»", "disabled on a call that can be trimmed (\(str(item, kAXHelpAttribute)))"); key(escape); return
+    }
+    click(CGPoint(x: f.midX, y: f.midY)); wait(1.2)
+    guard trimPanel(w) != nil, trimHandle(w, "Начало").map(name) == "Начало, 0:00" else {
+        fail("«Обрезать…»", "no trim panel with the handles on the whole call (start «\(trimHandle(w, "Начало").map(name) ?? "-")»)"); return
+    }
+    if button(w, "Назад на 15 секунд") != nil { fail("panel", "the player bar is still shown next to the panel") }
+    checkTrimPanel(app, w, listenMustWork: false)
+
+    checked += 2
+    guard let p = trimPanel(w), let cancel = button(p, "Отмена") else { fail("«Отмена»", "not in the panel"); return }
+    // VoiceOver (and `press`) ask for "scroll to visible" first: the panel floats over the card and stays put.
+    checked += 1
+    if let before = frame(p) {
+        AXUIElementPerformAction(cancel, "AXScrollToVisible" as CFString); wait(0.5)
+        let after = trimPanel(w).flatMap(frame), wf = frame(w)
+        if after == nil || wf == nil || !wf!.contains(after!) || abs(after!.minY - before.minY) > 2 {
+            fail("«Отмена»", "scroll to visible moved the panel from \(before) to \(after.map { "\($0)" } ?? "-") (window \(wf.map { "\($0)" } ?? "-"))")
+        }
+    }
+    pressPinned(app, w, cancel)
+    waitFor(2) { trimPanel(w) == nil && playerShown(w) }
+    if trimPanel(w) != nil || trimHandle(w, "Начало") != nil { fail("«Отмена»", "the panel is still open") }
+    if !playerShown(w) { fail("«Отмена»", "the player bar didn't come back") }
+
+    // Escape from a focused handle closes it too.
+    guard let again = moreMenuItem(app, w, "Обрезать…"), let af = frame(again) else { return }
+    click(CGPoint(x: af.midX, y: af.midY)); wait(1.2)
+    guard let h = trimHandle(w, "Конец"), let hf = frame(h) else { fail("«Обрезать…»", "the panel didn't open a second time"); return }
+    click(CGPoint(x: hf.midX, y: hf.midY)); wait(0.3)
+    key(escape)
+    waitFor(2) { trimPanel(w) == nil && playerShown(w) }
+    if trimPanel(w) != nil { fail("Escape", "Escape on a handle doesn't close the panel") }
+    if !playerShown(w) { fail("Escape", "the player bar didn't come back") }
+}
+
+/// The demo contract call is quiet for its first six minutes (call.json `silence`): the card offers the trim,
+/// "Обрезать" opens the panel on the speech edges, "×" hides it for good. Runs last among the Calls tests: the
+/// dismissal is written to the demo call.
+func trimHintTest(_ app: TestApp) {
+    screen = "Обрезка · подсказка о тишине"
+    print("• \(screen)")
+    app.launch(["--preview", "calls", "--size", callsSize, "--select", "14-05"])
+    wait(1.2)
+    guard let w = mainWindow(app) else { fail("window", "no window opened"); return }
+    checked += 1
+    guard textContaining(w, "Первые 6 минут тишина") != nil else {
+        fail("banner", "no «Первые 6 минут тишина.» on the quiet contract call"); return
+    }
+    guard let trim = button(w, "Обрезать") else { fail("banner", "no «Обрезать» button"); return }
+    checked += 2
+    press(app, w, trim); wait(1.2)
+    let s = trimHandle(w, "Начало").map(name) ?? "-", e = trimHandle(w, "Конец").map(name) ?? "-"
+    // 372 s of quiet less the 2 s margin; the end stays at the call's end (65:20).
+    if s != "Начало, 6:10" || seconds(e) != 3920 { fail("banner «Обрезать»", "handles at «\(s)», «\(e)», not 6:10 and the end 1:05:20") }
+    if textContaining(w, "минут тишина") != nil { fail("banner", "still shown while the panel is open") }
+    checked += 1
+    if let p = trimPanel(w), let cancel = button(p, "Отмена") {
+        pressPinned(app, w, cancel)
+        waitFor(2) { textContaining(w, "Первые 6 минут тишина") != nil }
+    }
+    else { fail("«Отмена»", "not in the panel"); return }
+    if textContaining(w, "Первые 6 минут тишина") == nil { fail("banner", "didn't come back after «Отмена»") }
+    checked += 2
+    guard let x = button(w, "Больше не предлагать для этого звонка") else { fail("banner «×»", "no «×» with a VoiceOver label"); return }
+    press(app, w, x); wait(1.0)
+    if textContaining(w, "Первые 6 минут тишина") != nil { fail("banner «×»", "the banner is still shown") }
+    let calls = app.data.appendingPathComponent("Calls")
+    let folder = (try? FileManager.default.contentsOfDirectory(atPath: calls.path))?.first { $0.contains("14-05") }
+    let json = folder.flatMap { try? Data(contentsOf: calls.appendingPathComponent($0).appendingPathComponent("call.json")) }
+        .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    if json?["trim_hint_dismissed"] as? Bool != true { fail("banner «×»", "call.json has no trim_hint_dismissed: true") }
+}
+
+/// One call transcribing, one waiting, with a speed of this Mac: the list shows "осталось ≈ …" and "≈ …", and
+/// "Обрезать…" is off with its reason while the call is busy.
+func trimBusyAndEstimateTest(_ app: TestApp) {
+    screen = "Звонки · очередь и оценка времени"
+    print("• \(screen)")
+    app.launch(["--preview", "calls", "--size", callsSize, "--queue"])
+    wait(1.5)
+    guard let w = mainWindow(app) else { fail("window", "no window opened"); return }
+    checked += 2
+    let texts = all(w).flatMap { [value($0), name($0)] }.filter { $0.contains("≈") || $0.contains("почти готово") }
+    print("  estimates: \(Set(texts).sorted())")
+    if !texts.contains(where: { $0.contains("осталось ≈") || $0.contains("почти готово") }) {
+        fail("estimate", "no «осталось ≈ …» on the call being transcribed")
+    }
+    if !texts.contains(where: { $0.contains("≈") && !$0.contains("осталось") }) { fail("estimate", "no «≈ …» on the waiting call") }
+    checked += 1
+    guard let item = moreMenuItem(app, w, "Обрезать…") else { return }
+    if enabled(item) { fail("«Обрезать…»", "enabled while the call is being transcribed") }
+    let help = str(item, kAXHelpAttribute)
+    if help.isEmpty { print("    note: the disabled «Обрезать…» has no AXHelp; its reason shows as a tooltip only") }
+    else if !help.contains("расшифровывается") { fail("«Обрезать…»", "reason «\(help)», not the busy one") }
+    key(escape); wait(0.4)
+}
+
+/// Settings > General: "Спокойный значок во время записи" is there and flips both ways.
+func quietIconTest(_ app: TestApp) {
+    screen = "Настройки · спокойный значок"
+    print("• \(screen)")
+    app.launch(["--preview", "settings", "--tab", "0"])
+    guard let w = app.windows().first else { fail("window", "no window opened"); return }
+    checked += 2
+    guard let t = firstNamed(w, "Спокойный значок во время записи", role: "AXCheckBox") else {
+        fail("toggle", "no «Спокойный значок во время записи» switch"); return
+    }
+    let before = value(t)
+    guard press(app, w, t) else { fail(label(t), "can't scroll it into view"); return }
+    wait(0.5)
+    let after = value(t)
+    if after == before { fail(label(t), "click doesn't flip it (stays \(before))") }
+    press(app, w, t); wait(0.5)
+    if value(t) != before { fail(label(t), "second click doesn't flip it back") }
+}
+
+/// The capsule's disk warnings render (the capsule states board).
+func diskWarningsTest(_ app: TestApp) {
+    screen = "Капсула · предупреждения о диске"
+    print("• \(screen)")
+    app.launch(["--preview", "capsules"])
+    guard let w = mainWindow(app) else { fail("window", "no window opened"); return }
+    for t in ["Запись не сохраняется: на диске нет места", "Запись не сохраняется: не удаётся записать файл",
+              "На диске меньше 1 ГБ, запись скоро остановится"] {
+        checked += 1
+        if textContaining(w, t) == nil { fail("warning", "«\(t)» not shown") }
+    }
+}
+
+/// Screenshots of the new screens, light and dark, for review: shot-<screen>-<light|dark>.png in the shots folder.
+func newScreenShots(_ app: TestApp) {
+    screen = "Снимки новых экранов"
+    print("• \(screen)")
+    let calls = ["--preview", "calls", "--size", callsSize]
+    let list: [(String, [String])] = [
+        ("trim-panel", ["--preview", "trim"]),
+        ("trim-confirm", ["--preview", "trim-confirm"]),
+        ("trim-working", ["--preview", "trim-working"]),
+        ("trim-hints", ["--preview", "trim-banner"]),
+        ("calls-trim", calls + ["--trim"]),
+        ("calls-silence-hint", calls + ["--select", "14-05"]),
+        ("calls-queue-estimate", calls + ["--queue"]),
+        ("capsule-states", ["--preview", "capsules"]),
+        // Not --tall: the whole pane is taller than the runner's screen, and a window past the screen's edge lays
+        // its pane out under the toolbar (the first section cut off). A normal window, scrolled to the new row.
+        ("settings-general", ["--preview", "settings", "--tab", "0"]),
+    ]
+    for (n, args) in list {
+        for look in ["light", "dark"] {
+            app.launch(args + ["--appearance", look])
+            wait(1.5)
+            if n == "settings-general", let w = mainWindow(app),
+               let row = firstNamed(w, "Спокойный значок", role: "AXCheckBox") {
+                _ = reveal(row, in: w); wait(0.4)
+            }
+            checked += 1
+            if windowShot(app.pid, "shot \(n) \(look)") == nil { fail("shot \(n) \(look)", "no screenshot of the window") }
+        }
+    }
+}
+
 // MARK: - Main
 
 guard AXIsProcessTrusted() else { print("Give the terminal Accessibility access (System Settings > Privacy)."); exit(2) }
@@ -614,6 +948,11 @@ let screens: [(String, [String], [String])] = [
     ("Звонки · Расшифровка", ["--preview", "calls", "--size", callsSize], ["Расшифровка"]),
     ("Звонки · Новая заметка", ["--preview", "calls", "--size", callsSize], ["Добавить заметку"]),
     ("Звонки · Идёт запись", ["--preview", "calls", "--size", callsSize, "--live"], []),
+    ("Обрезка", ["--preview", "trim"], []),
+    ("Обрезка · подтверждение", ["--preview", "trim-confirm"], []),
+    ("Обрезка · идёт", ["--preview", "trim-working"], []),
+    ("Обрезка · подсказка", ["--preview", "trim-banner"], []),
+    ("Звонки · Обрезка", ["--preview", "calls", "--size", callsSize, "--trim"], []),
     ("Проекты", ["--preview", "projects"], []),
     ("Проекты · новый", ["--preview", "projects"], ["Новый проект"]),
     ("О чём был звонок", ["--preview", "callinfo"], []),
@@ -625,6 +964,17 @@ let screens: [(String, [String], [String])] = [
 for (t, a, st) in screens where only.isEmpty || t.localizedCaseInsensitiveContains(only) { run(app, t, a, steps: st) }
 if only.isEmpty || "Настройки · переключение вкладок".localizedCaseInsensitiveContains(only) { settingsTabSwitching(app) }
 if only.isEmpty || "Капсула · перетаскивание".localizedCaseInsensitiveContains(only) { capsuleDrag(app) }
+// The new screens: shots first (the hint test below dismisses the demo call's hint).
+let newTests: [(String, (TestApp) -> Void)] = [
+    ("Снимки новых экранов", newScreenShots),
+    ("Обрезка · ручки и подтверждение", trimBoardTest),
+    ("Обрезка · из меню «Ещё»", trimInCallsTest),
+    ("Звонки · очередь и оценка времени", trimBusyAndEstimateTest),
+    ("Обрезка · подсказка о тишине", trimHintTest),
+    ("Настройки · спокойный значок", quietIconTest),
+    ("Капсула · предупреждения о диске", diskWarningsTest),
+]
+for (t, test) in newTests where only.isEmpty || t.localizedCaseInsensitiveContains(only) { test(app) }
 app.quit()
 
 print("\nCovered:"); coverage.forEach { print("  \($0)") }

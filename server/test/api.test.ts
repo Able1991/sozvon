@@ -49,7 +49,7 @@ describe("sync API", () => {
 
   it("serves health without a password", async () => {
     const r = await call("GET", "/api/health", { auth: "" });
-    expect(await r.json()).toEqual({ ok: true, version: "0.4.2", schema: 1 });
+    expect(await r.json()).toEqual({ ok: true, version: "0.5.0", schema: 1 });
   });
   it("puts, lists and deletes calls", async () => {
     expect((await call("PUT", "/api/calls/2026-11-04%2015-01", { body: JSON.stringify(body()) })).status).toBe(204);

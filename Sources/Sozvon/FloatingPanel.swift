@@ -23,8 +23,15 @@ final class PanelModel: ObservableObject {
     enum Warning: Equatable {
         case mic(seconds: Int)
         case them(seconds: Int)
+        /// Writes to the recording file fail (`full`: no space left). Beats every other warning.
+        case notSaving(full: Bool)
+        /// Under 1 GB free: the recording will stop reaching the disk soon. The silence warnings beat it.
+        case lowSpace
     }
     @Published var warning: Warning?
+    static func notSavingText(full: Bool) -> String {
+        full ? L("Запись не сохраняется: на диске нет места") : L("Запись не сохраняется: не удаётся записать файл")
+    }
     /// Level history for the waveform, newest on the right.
     @Published var history: [Level] = Array(repeating: Level(mic: 0, sys: 0), count: PanelModel.bars)
     static let bars = 22
@@ -237,12 +244,17 @@ struct PanelView: View {
         switch w {
         case .mic(let s): return L("Тебя не слышно %@", Call.clock(s, empty: "0:00"))
         case .them(let s): return L("Их не слышно %@", Call.clock(s, empty: "0:00"))
+        case .notSaving(let full): return PanelModel.notSavingText(full: full)
+        case .lowSpace: return L("На диске меньше 1 ГБ, запись скоро остановится")
         }
     }
 
     private func warningSymbol(_ w: PanelModel.Warning) -> String {
-        if case .mic = w { return "mic.slash.fill" }
-        return "speaker.slash.fill"
+        switch w {
+        case .mic: return "mic.slash.fill"
+        case .them: return "speaker.slash.fill"
+        case .notSaving, .lowSpace: return "exclamationmark.triangle.fill"
+        }
     }
 
     /// "Recorded · 22 min": the length of the recording that just ended, when known.

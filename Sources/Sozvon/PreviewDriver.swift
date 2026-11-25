@@ -92,6 +92,25 @@ enum PreviewDriver {
                 try? FileManager.default.removeItem(at: live)
             }
             app.showCalls()
+            // --select <text>: the call whose folder name contains it (the demo contract call "14-05" has a quiet start).
+            if let s = args.firstIndex(of: "--select").flatMap({ $0 + 1 < args.count ? args[$0 + 1] : nil }) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    if let c = app.calls.calls.first(where: { $0.url.lastPathComponent.contains(s) }) { app.calls.selection = c.id }
+                }
+            }
+            // --queue: the selected call transcribing and a long one waiting, with time estimates (Trim is off).
+            if args.contains("--queue") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    guard let running = app.calls.selected,
+                          let waiting = app.calls.calls.first(where: { $0.id != running.id && $0.duration >= 600 && $0.hasAudio })
+                    else { return }
+                    app.processing.previewQueue(running: running.url, waiting: waiting.url)
+                }
+            }
+            // --trim: the selected call's card in trim mode (its real waveform, or the "can't be read" line).
+            if args.contains("--trim") {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { app.calls.trimRequest = app.calls.selection }
+            }
             if let s = args.firstIndex(of: "--size").flatMap({ $0 + 1 < args.count ? args[$0 + 1] : nil }),
                case let wh = s.split(separator: "x").compactMap({ Double($0) }), wh.count == 2,
                let w = WindowsRegistry.shared.window("calls") {
@@ -173,6 +192,11 @@ enum PreviewDriver {
                 let summary = (try? String(contentsOf: call.summaryURL, encoding: .utf8)) ?? ""
                 showFormSheet(RemindersSheet(call: call, items: ActionItems.parse(summary), me: Settings.shared.name))
             }
+        case "trim", "trim-confirm", "trim-working", "trim-banner":
+            // The trim panel with the handles placed, its confirmation, the engine at work; the quiet-start hint.
+            let kind = args[i + 1]
+            showSheet(TrimBoard(phase: kind == "trim-confirm" ? .confirming : kind == "trim-working" ? .working : .editing,
+                                banner: kind == "trim-banner"))
         case "capsules":
             // Every capsule state side by side (the real panels are too small for the snapshot filter).
             showSheet(CapsuleStates())
@@ -293,7 +317,7 @@ enum PreviewDriver {
 /// The capsule's states on the design's wallpaper, drawn with the --glass fill and the capsule shadow.
 private struct CapsuleStates: View {
     private static func model(_ state: PanelModel.State, prompt: String? = nil, warn: Bool = false,
-                              marks: Int = 0) -> PanelModel {
+                              marks: Int = 0, warning: PanelModel.Warning? = nil) -> PanelModel {
         let m = PanelModel()
         m.state = .recording
         m.elapsed = state == .saved ? "22:04" : (warn ? "4:51" : "12:37")
@@ -302,6 +326,7 @@ private struct CapsuleStates: View {
             m.push(mic: i < 16 ? 0.45 + 0.4 * abs(sin(t * 1.3)) : 0.05, sys: i >= 16 ? 0.4 + 0.45 * abs(sin(t * 0.9 + 1)) : 0.03)
         }
         if warn { m.warning = .them(seconds: 154) }
+        if let warning { m.warning = warning }
         m.marks = marks
         m.state = state
         m.callPrompt = prompt
@@ -313,6 +338,10 @@ private struct CapsuleStates: View {
         [model(.idle), model(.recording, warn: true)],
         [model(.idle, prompt: L("Идёт звонок в %@. Записать?", "Zoom"))],
         [model(.saved), model(.processing)],
+        // The disk warnings are the widest texts the capsule shows.
+        [model(.recording, warning: .notSaving(full: true))],
+        [model(.recording, warning: .notSaving(full: false))],
+        [model(.recording, warning: .lowSpace)],
     ]
 
     var body: some View {
@@ -332,6 +361,50 @@ private struct CapsuleStates: View {
         .background(LinearGradient(colors: [SZ.dynamic(0xdfe7f5ff, 0x3b4a73ff, name: "wallA"),
                                             SZ.dynamic(0x6f82a8ff, 0x0b0d16ff, name: "wallB")],
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+}
+#endif
+
+#if SOZVON_PREVIEW
+/// The trim panel and the hint banner over the card's background, with a made-up waveform: a 65 minute call,
+/// quiet for its first six minutes and its last six and a half.
+private struct TrimBoard: View {
+    let banner: Bool
+    @State private var state: TrimState
+    @StateObject private var player = CallPlayer(dir: URL(fileURLWithPath: "/nonexistent"))
+
+    private static let duration = 3900.0
+
+    init(phase: TrimState.Phase, banner: Bool) {
+        self.banner = banner
+        _state = State(initialValue: TrimState(start: 372, end: 3520, phase: phase))
+    }
+
+    private static let peaks: [Float] = (0..<WaveformCache.bins).map { i in
+        let t = Double(i) / Double(WaveformCache.bins) * duration
+        guard t >= 380, t <= 3510 else { return i % 7 == 0 ? 0.03 : 0 }
+        let x = Double(i)
+        let pause = sin(x * 0.045) > 0.93 ? 0.15 : 1.0
+        return Float(pause * (0.25 + 0.7 * abs(sin(x * 0.37) * cos(x * 0.113))))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if banner {
+                TrimHintBanner(hint: TrimHint(start: 370, end: 3900, headMinutes: 6, tailMinutes: 0), onTrim: {}, onDismiss: {})
+                TrimHintBanner(hint: TrimHint(start: 0, end: 3660, headMinutes: 0, tailMinutes: 4), onTrim: {}, onDismiss: {})
+                TrimHintBanner(hint: TrimHint(start: 370, end: 3660, headMinutes: 6, tailMinutes: 4), onTrim: {}, onDismiss: {})
+                TrimHintBanner(hint: TrimHint(start: 58, end: 3900, headMinutes: 1, tailMinutes: 0), onTrim: {}, onDismiss: {})
+            } else {
+                Spacer(minLength: 40)
+                TrimPanel(player: player, duration: Self.duration, state: $state, wave: .ready(Self.peaks),
+                          redoesText: true, onCancel: {}, onTrim: {})
+            }
+        }
+        .padding(.horizontal, banner ? 36 : 20)
+        .padding(.vertical, 24)
+        .frame(width: 640, alignment: .leading)
+        .background(SZ.windowBg)
     }
 }
 #endif

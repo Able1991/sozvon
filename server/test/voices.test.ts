@@ -41,8 +41,8 @@ describe("voices API", () => {
       headers: { "CF-Connecting-IP": opts.ip ?? "2.2.2.2", ...(opts.auth === undefined ? { Authorization: "Bearer pw-long-enough-for-tests" } : opts.auth ? { Authorization: opts.auth } : {}) },
     }), env);
 
-  it("reports version 0.4.2", async () => {
-    expect(await (await call("GET", "/api/health", { auth: "" })).json()).toEqual({ ok: true, version: "0.4.2", schema: 1 });
+  it("reports version 0.5.0", async () => {
+    expect(await (await call("GET", "/api/health", { auth: "" })).json()).toEqual({ ok: true, version: "0.5.0", schema: 1 });
   });
   it("needs the password", async () => {
     expect((await call("GET", "/api/voices", { auth: "Bearer nope", ip: "9.9.9.9" })).status).toBe(401);

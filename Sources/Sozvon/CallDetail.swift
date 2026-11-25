@@ -63,6 +63,12 @@ struct CallDetail: View {
     @State private var reminders = false
     /// The files as last read: body evaluations (a keystroke in search, a reload) don't read or parse them again.
     @State private var texts = CardTexts()
+    /// Trim mode: the trim panel takes the player bar's place.
+    @State private var trim: TrimState?
+    @State private var wave = WaveformState.loading
+    /// The height of the player bar or the trim panel: the card's text keeps this much room under it.
+    @State private var bottomBarHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(call: Call, m: CallsModel, tab: Binding<Int>) {
         self.call = call
@@ -201,6 +207,7 @@ struct CallDetail: View {
                     // Notes come first: what the user wrote down matters more than what the model made of the call.
                     if !call.isLegacy { NotesSection(call: call, m: m) }
                     statusBanner
+                    trimHint
                     content(doc, found: matches, current: currentMatch)
                 }
                 .frame(maxWidth: 720, alignment: .leading)
@@ -234,9 +241,13 @@ struct CallDetail: View {
                 findFocus += 1
             }
             .onChange(of: showsTranscript) { _, on in if !on { findOpen = false; findQuery = "" } }
+            // Room for the player bar or the trim panel at the end of the text. The bar itself floats over the card
+            // (the overlay below), outside the scroll view: its buttons are not part of the scroll view's
+            // accessibility tree, so "scroll to visible" on one of them (VoiceOver, the UI test) has nothing to scroll.
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if playable { PlayerBar(player: player, hasTranscript: call.hasTranscript) }
+                Color.clear.frame(height: bottomBarHeight).accessibilityHidden(true)
             }
+            .overlay(alignment: .bottom) { bottomBar }
             .onReceive(player.line.$time) { _ in
                 // Keep the line being played in view, scrolling only when it changes.
                 guard let i = player.line.index(in: doc.starts), i != followed, player.isPlaying else { return }
@@ -245,9 +256,12 @@ struct CallDetail: View {
             }
         }
         .task(id: CardTexts.key(call)) { await load() }
+        .task(id: trim == nil) { await loadWave() }
+        .onChange(of: m.trimRequest) { _, _ in takeTrimRequest() }
         // The player bar is on both tabs; the transcript works out its playing line from the time.
         .onAppear {
             if playable { player.prepare() }
+            takeTrimRequest()
             #if SOZVON_PREVIEW
             // Screenshot check that the highlight follows playback: play from the start right away.
             if CommandLine.arguments.contains("--autoplay") {
@@ -278,7 +292,9 @@ struct CallDetail: View {
             }
             #endif
         }
-        .onChange(of: playable) { _, on in if on { player.prepare() } else { player.pause() } }
+        .onChange(of: playable) { _, on in
+            if on { player.prepare() } else { player.pause(); closeTrim() }
+        }
         .onDisappear { player.stop() }
         .sheet(item: $renaming) { t in
             RenameSpeakerSheet(target: t, lines: texts.doc.lines, suggestions: speakerSuggestions(except: t.line.speaker)) { action in
@@ -363,7 +379,10 @@ struct CallDetail: View {
     /// Transcribing again, the summary being made again, the last run failed, or the transcript edited after
     /// the summary.
     @ViewBuilder private var statusBanner: some View {
-        if m.isProcessing(call.url) && call.hasTranscript {
+        if m.isTrimming(call.url) {
+            // The panel shows its own progress while it is open.
+            if trim == nil { progress(L("Обрезаю…")) }
+        } else if m.isProcessing(call.url) && call.hasTranscript {
             progress(L("Расшифровываю заново…"))
         } else if m.isSummarizing(call.url) {
             progress(L("Обновляю саммари…"))
@@ -386,6 +405,85 @@ struct CallDetail: View {
                     .buttonStyle(.borderedProminent).controlSize(.small)
             }
         }
+    }
+
+    /// "Первые 6 минут тишина. Обрезать?" above the transcript, while the call can be trimmed.
+    @ViewBuilder private var trimHint: some View {
+        if trim == nil, playable, let h = call.trimHint, m.trimUnavailable(call) == nil {
+            TrimHintBanner(hint: h, onTrim: { openTrim() }, onDismiss: { m.dismissTrimHint(call) })
+        }
+    }
+
+    /// Trim mode on, the handles on the silence hint's speech edges when there is one.
+    private func openTrim() {
+        guard trim == nil, playable, m.trimUnavailable(call) == nil else { return }
+        let t = TrimState(duration: call.duration, hint: call.trimHint)
+        player.prepare()
+        player.pause()
+        player.seek(t.start)
+        trim = t
+    }
+
+    private func closeTrim() {
+        guard trim != nil else { return }
+        player.pauseAt(nil)
+        trim = nil
+    }
+
+    /// "Trim…" from the list's context menu, for this call.
+    private func takeTrimRequest() {
+        guard let id = m.trimRequest, id == call.id else { return }
+        m.trimRequest = nil
+        openTrim()
+    }
+
+    /// The cut confirmed: the engine trims, then the call is transcribed again (ProcessingController.trim).
+    /// The player lets go of the tracks first and reads the new ones after.
+    private func runTrim() {
+        guard let t = trim, t.phase == .confirming else { return }
+        trim?.phase = .working
+        player.stop()
+        let call = self.call, m = self.m, player = self.player
+        Task {
+            let ok = await m.onTrim(call, t.start, t.end)
+            if ok { trim = nil } else { trim?.phase = .editing }
+            player.prepare()
+        }
+    }
+
+    /// The waveform for an open trim panel (cached per call in memory).
+    private func loadWave() async {
+        guard trim != nil else { return }
+        if let cached = WaveformCache.shared.cached(call.url) {
+            wave = .ready(cached)
+            return
+        }
+        wave = .loading
+        let peaks = await WaveformCache.shared.peaks(call.url, duration: call.duration)
+        guard !Task.isCancelled else { return }
+        wave = peaks.map(WaveformState.ready) ?? .failed
+    }
+
+    /// The player bar under the card, or in trim mode the trim panel: the player capsule grown in place.
+    private var bottomBar: some View {
+        ZStack(alignment: .bottom) {
+            if trim != nil && playable {
+                TrimPanel(player: player, duration: call.duration,
+                          state: Binding(get: { trim ?? TrimState(start: 0, end: call.duration) },
+                                         set: { if trim != nil { trim = $0 } }),
+                          wave: wave, redoesText: call.hasTranscript,
+                          unavailable: trim?.phase == .working ? nil : m.trimUnavailable(call)?.reason,
+                          onCancel: closeTrim, onTrim: runTrim)
+                    .transition(reduceMotion ? .opacity
+                                : .opacity.combined(with: .scale(scale: 0.97, anchor: .bottom)))
+            } else if playable {
+                PlayerBar(player: player, hasTranscript: call.hasTranscript)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: trim == nil)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { bottomBarHeight = $0 }
     }
 
     private var hasLog: Bool { FileManager.default.fileExists(atPath: call.logURL.path) }
@@ -420,6 +518,8 @@ struct CallDetail: View {
         let (symbol, title): (String, String) =
             m.isRecording(call.url) ? ("record.circle", L("Идёт запись"))
             : m.isImporting(call.url) ? ("square.and.arrow.down", L("Импортируется…"))
+            // The open trim panel says "Обрезаю…" itself: here only the symbol, so it is said once.
+            : m.isTrimming(call.url) ? ("scissors", trim != nil && playable ? "" : L("Обрезаю…"))
             : m.isProcessing(call.url) ? ("hourglass", L("Расшифровывается…"))
             : m.isQueued(call.url) ? ("clock", L("В очереди"))
             : call.infoPending ? ("text.badge.plus", L("Ждёт описания"))
@@ -428,7 +528,12 @@ struct CallDetail: View {
         return VStack(spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 28)).foregroundStyle(m.isRecording(call.url) ? SZ.red : SZ.label3)
-            Text(title).szFont(.h2).foregroundStyle(SZ.label2)
+            if !title.isEmpty { Text(title).szFont(.h2).foregroundStyle(SZ.label2) }
+            if m.isProcessing(call.url) || m.isQueued(call.url) {
+                TimelineView(.periodic(from: .now, by: 15)) { _ in
+                    if let text = m.estimate(call.url) { Text(text).szFont(.small).foregroundStyle(.secondary) }
+                }
+            }
             if call.hasAudio && !m.isBusy(call.url) {
                 HStack(spacing: 8) {
                     if failed { logButton }
@@ -480,6 +585,12 @@ struct CallDetail: View {
                     Button(call.infoPending ? L("Описать…")
                            : call.hasTranscript ? L("Расшифровать заново…") : L("Расшифровать…")) { m.onRetranscribe(call) }
                 }
+                if !call.isLegacy {
+                    let why = m.trimUnavailable(call)
+                    Button(L("Обрезать…")) { openTrim() }
+                        .disabled(why != nil || trim != nil)
+                        .help(why?.reason ?? L("Отрезать тишину или лишнее в начале и в конце записи"))
+                }
                 if m.isQueued(call.url) { Button(L("Убрать из очереди")) { m.onRemoveFromQueue(call) } }
                 if call.hasTranscript {
                     Button(L("Обновить саммари")) { m.onResummarize(call) }
@@ -501,6 +612,8 @@ struct CallDetail: View {
                 Label(L("Ещё"), systemImage: "ellipsis.circle")
             }
             .help(L("Ещё"))
+            // A stable handle for the UI test: the toolbar may name this item in its own words ("Еще").
+            .accessibilityIdentifier("call-more-menu")
         }
     }
 }
