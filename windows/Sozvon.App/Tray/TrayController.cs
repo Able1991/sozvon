@@ -74,7 +74,7 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         _icon.UpdateIcon(CurrentIcon());
     }
 
-    private Icon CurrentIcon() => state.State == TrayState.Recording ? _recording! : _ready!;
+    private Icon CurrentIcon() => state.State == TrayState.Recording && !state.QuietIcon ? _recording! : _ready!;
 
     private MenuFlyout BuildMenu()
     {
@@ -135,6 +135,10 @@ public sealed partial class TrayController(AppHost host, TrayViewModel state) : 
         {
             var text = L("Ждут описания: %d", state.WaitingForDescription);
             menu.Items.Add(new MenuFlyoutItem { Text = text, Command = new RelayCommand(() => host.Recording?.DescribePending()) });
+        }
+        if (state.QueueEstimate is { } queue)
+        {
+            Add(menu, new MenuFlyoutItem { Text = queue, IsEnabled = false });
         }
         if (state.LatestCallId is { } id)
         {

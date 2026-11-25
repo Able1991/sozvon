@@ -36,6 +36,15 @@ public sealed record CallRecord
     public bool HasSummaryWarning => SummaryWarning is not null;
     public bool IsUnreadable { get; init; }
 
+    /// <summary>Why Trim is off apart from the call being busy; null: it can be trimmed (Core's <see cref="Sozvon.Core.Calls.Call.TrimBlock"/>).</summary>
+    public Sozvon.Core.Calls.TrimUnavailable? TrimBlock { get; init; } = Sozvon.Core.Calls.TrimUnavailable.NoAudio;
+
+    /// <summary>"Quiet at the start or end": the handles the trim panel opens with, or null.</summary>
+    public Sozvon.Core.Calls.TrimHint? TrimHint { get; init; }
+
+    /// <summary>Why Trim is off now: busy comes first.</summary>
+    public Sozvon.Core.Calls.TrimUnavailable? TrimUnavailable(bool busy) => busy ? Sozvon.Core.Calls.TrimUnavailable.Busy : TrimBlock;
+
     /// <summary>Text of a call that lives only in memory (the demo call); real calls are read from the folder.</summary>
     public CallContent? InlineContent { get; init; }
 

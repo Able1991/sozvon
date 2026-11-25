@@ -433,6 +433,10 @@ public sealed class AppHost
             ApplyFloatingPanel();
             _tray.Refresh();
         }
+        else if (e.PropertyName == nameof(AppSettings.QuietRecordingIcon))
+        {
+            _tray.Refresh();
+        }
     }
 
     /// <summary>A shorter "Delete audio automatically" that removes audio right now asks first, as on the Mac.</summary>

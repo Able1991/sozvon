@@ -240,7 +240,7 @@ public sealed partial class CallsViewModel : ObservableObject, IDisposable
             { IsWaitingForDescription: true } => new CallRow(call, description, Loc.L("Ждёт описания"), "", false),
             { Status: CallStatus.Processing } => new CallRow(call, Loc.L("Расшифровывается…"), "", "", false),
             { Status: CallStatus.Failed } => new CallRow(call, Loc.L("Не получилось расшифровать"), "", "", true),
-            { IsQueued: true } => new CallRow(call, Loc.L("В очереди"), "", "", false),
+            { IsQueued: true } => new CallRow(call, Actions.WaitEstimate(call) is { Length: > 0 } wait ? Loc.L("В очереди") + " · " + wait : Loc.L("В очереди"), "", "", false),
             { Status: CallStatus.Recorded } => new CallRow(call, Loc.L("Без расшифровки"), "", "", false),
             { IsDemo: true } => new CallRow(call, description, "", Loc.L("Демо"), false),
             { HasSummaryWarning: true } => new CallRow(call, description, "", Loc.L("Без саммари"), false),

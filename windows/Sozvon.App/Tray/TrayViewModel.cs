@@ -38,6 +38,19 @@ public sealed partial class TrayViewModel : ObservableObject
 
     public bool FloatingPanel => _settings.FloatingPanel;
 
+    /// <summary>The ordinary icon while recording: the tooltip and the menu still say a recording is on.</summary>
+    public bool QuietIcon => _settings.QuietRecordingIcon;
+
+    /// <summary>"осталось ≈ 12 мин" for the running transcription; empty without the speed of this computer.</summary>
+    public string Estimate => Recording?.Processor is { Running: { } job } processor && processor.Estimate(job.Dir) is ({ } total, { } elapsed)
+        ? EstimateText.Remaining(total, elapsed, Loc.L)
+        : "";
+
+    /// <summary>"Очередь: ≈ 1 ч 10 мин" when more than one call waits; null without the speed of this computer.</summary>
+    public string? QueueEstimate => Recording?.Processor.QueueEstimate() is { } seconds
+        ? Loc.L("Очередь: %@", EstimateText.Duration(seconds, Loc.L))
+        : null;
+
     public int WaitingForDescription { get; private set; }
 
     public string? LatestCallId { get; private set; }
@@ -57,7 +70,7 @@ public sealed partial class TrayViewModel : ObservableObject
         // Set up, but the model is missing: the menu offers "Finish Setup…", so it is not "ready" either.
         _ when !EngineUsable => Loc.L("Нужна настройка"),
         // As the Mac's menu: the engine has work, though a recording can still start.
-        _ when !IsPreview && Recording?.Processor.HasWork == true => Loc.L("Расшифровка…"),
+        _ when !IsPreview && Recording?.Processor.HasWork == true => Loc.L("Расшифровка…") + (Estimate.Length > 0 ? " " + Estimate : ""),
         _ => Loc.L("Готов к записи"),
     };
 

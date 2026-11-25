@@ -107,6 +107,7 @@ public sealed partial class RecordingController
         {
             // As on the Mac, transcription waits while a call is on: the call app needs the processor more.
             HoldsQueue = () => _recording || _call.InCall,
+            SpeedFolder = layout.Data,
         };
         _processor.Changed += () => _ui.TryEnqueue(() =>
         {
@@ -193,6 +194,37 @@ public sealed partial class RecordingController
         var initial = CallFile.Info(call, fallback: _engine.NewCall());
         var pending = PendingInfo.IsPending(call);
         Ask(new CallInfoRequest(initial, Loc.L("О чём был звонок?"), Loc.L("Расшифровать"), AllowLater: pending), answer => Apply(dir, answer));
+    }
+
+    /// <summary>
+    /// Cuts the call to <paramref name="start"/>..<paramref name="end"/> seconds (<c>bin\trim_call.py</c>), then
+    /// transcribes it again with the answers it has, as on the Mac; a call still waiting for its description gets the
+    /// form instead. The reason it did not, or null. The caller lets the call's audio files go first: the engine replaces them.
+    /// </summary>
+    public async Task<string?> TrimAsync(string dir, double start, double end)
+    {
+        if (_dir is { } recordingInto && Calls.CallActions.SameFolder(recordingInto, dir) && (_recording || _changing))
+        {
+            return Loc.L(Trim.Reason(TrimUnavailable.Busy));
+        }
+        var outcome = await _processor.TrimAsync(dir, start, end);
+        CallsChanged?.Invoke(this, EventArgs.Empty);
+        if (!outcome.IsOk)
+        {
+            return Loc.L("Не получилось обрезать звонок") + ": " + (outcome.Message.Length > 0 ? outcome.Message : Loc.L("Подробности в process.log"));
+        }
+        var call = CallFile.Read(dir);
+        if (PendingInfo.IsPending(call))
+        {
+            Retranscribe(dir);
+        }
+        else if (_processor.Transcribe(dir, CallFile.Info(call, fallback: _engine.NewCall())) == EnqueueResult.NotSaved)
+        {
+            Problem?.Invoke(this, Loc.L("Не удалось сохранить данные звонка"));
+        }
+        UpdateSleepGuard();
+        CallsChanged?.Invoke(this, EventArgs.Empty);
+        return null;
     }
 
     /// <summary>"Update summary": a new summary from the transcript as it is now.</summary>

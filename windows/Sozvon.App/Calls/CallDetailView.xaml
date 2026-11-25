@@ -100,6 +100,11 @@
                             </MenuFlyoutItem>
                             <MenuFlyoutSeparator />
                             <MenuFlyoutItem x:Name="TranscribeItem" Click="OnRetranscribe" />
+                            <MenuFlyoutItem x:Name="TrimItem" Text="{s:L K='Обрезать…'}" Click="OnTrimItem">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE7A8;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
                             <MenuFlyoutItem x:Name="RemoveFromQueueItem" Text="{s:L K='Убрать из очереди'}" Click="OnRemoveFromQueue" />
                             <MenuFlyoutItem x:Name="ResummarizeItem" Text="{s:L K='Обновить саммари'}" Click="OnResummarize" />
                             <MenuFlyoutItem x:Name="ShowFolderItem" Text="{s:L K='Показать в проводнике'}" Click="OnShowFolder" />
@@ -202,6 +207,14 @@
                 </InfoBar>
 
                 <InfoBar x:Name="StatusBar" IsClosable="False" />
+
+                <!-- "Первые 6 минут тишина. Обрезать?", as on the Mac; × never offers it for this call again. -->
+                <InfoBar x:Name="TrimHintBar" Severity="Informational" IsClosable="True" Visibility="Collapsed" Message="{s:L K='Обрезать?'}"
+                         CloseButtonClick="OnTrimHintClosed">
+                    <InfoBar.ActionButton>
+                        <Button Content="{s:L K='Обрезать'}" Click="OnTrimHint" />
+                    </InfoBar.ActionButton>
+                </InfoBar>
 
                 <!-- Notes come first: what the user wrote down matters more than what the model made of the call. -->
                 <StackPanel x:Name="NotesSection" Spacing="8">
@@ -353,5 +366,8 @@
                 </DropDownButton.Flyout>
             </DropDownButton>
         </Grid>
+
+        <calls:TrimPanel x:Name="TrimPanelView" Grid.Row="2" Margin="16,0,16,16" VerticalAlignment="Bottom" Visibility="Collapsed"
+                         Closed="OnTrimClosed" TrimRequested="OnTrimRequested" />
     </Grid>
 </UserControl>

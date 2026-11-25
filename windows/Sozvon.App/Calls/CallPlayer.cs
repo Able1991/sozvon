@@ -19,6 +19,9 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
     private readonly SynchronizationContext _ui = SynchronizationContext.Current!;
     private bool _disposed;
 
+    /// <summary>Where <see cref="PlayRange"/> pauses; null: play on to the end.</summary>
+    private double? _stopAt;
+
     /// <param name="call">The call to play.</param>
     /// <param name="busy">The engine is working on the call: no file is opened, so it can rename the folder.</param>
     public CallPlayer(CallRecord call, bool busy = false)
@@ -64,12 +67,37 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         if (IsPlaying)
         {
             _clock.Pause();
+            _stopAt = null;
         }
         else
         {
             _clock.Resume();
         }
         IsPlaying = !IsPlaying;
+    }
+
+    /// <summary>The trim panel: plays from <paramref name="from"/> and pauses at <paramref name="to"/>.</summary>
+    public void PlayRange(double from, double to)
+    {
+        if (!IsAvailable || _disposed)
+        {
+            return;
+        }
+        Seek(from);
+        _stopAt = to;
+        if (!IsPlaying)
+        {
+            _clock.Resume();
+            IsPlaying = true;
+        }
+    }
+
+    public void Pause()
+    {
+        if (IsPlaying)
+        {
+            TogglePlay();
+        }
     }
 
     [RelayCommand]
@@ -115,7 +143,8 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         }
     }
 
-    private static List<(string Path, double Offset)> FindTracks(CallRecord call)
+    /// <summary>What plays, in this order of preference, and where each file starts on the call's timeline.</summary>
+    internal static List<(string Path, double Offset)> FindTracks(CallRecord call)
     {
         var listen = Path.Combine(call.Folder, "listen.m4a");
         if (File.Exists(listen) && new FileInfo(listen).Length >= MinListenFileBytes)
@@ -175,6 +204,13 @@ public sealed partial class CallPlayer : ObservableObject, IDisposable
         _ui.Post(_ =>
         {
             Position = Math.Min(seconds, Duration);
+            if (IsPlaying && _stopAt is { } stop && seconds >= stop)
+            {
+                _clock.Pause();
+                _stopAt = null;
+                IsPlaying = false;
+                return;
+            }
             if (IsPlaying && Duration > 0 && seconds >= Duration)
             {
                 _clock.Pause();

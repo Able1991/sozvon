@@ -140,14 +140,90 @@ public sealed partial class CallDetailView : UserControl
     private void OnMoreOpening(object? sender, object e)
     {
         FindItem.IsEnabled = ShowsTranscript;
+        if (ViewModel is { } call)
+        {
+            // As on the Mac: off with its reason beside it, never hidden.
+            var why = call.Actions.TrimUnavailable(call.Call) ?? (call.Player.IsAvailable ? null : Sozvon.Core.Calls.TrimUnavailable.NoAudio);
+            TrimItem.IsEnabled = why is null && !TrimShown;
+            ToolTipService.SetToolTip(TrimItem, why is { } reason ? L(Sozvon.Core.Calls.Trim.Reason(reason)) : L("Отрезать тишину или лишнее в начале и в конце записи"));
+        }
         UndoTrashItem.Visibility = ViewModel?.Actions.CanUndoTrash == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnFindItem(object sender, RoutedEventArgs e) => OpenFind();
 
+    private bool TrimShown => TrimPanelView.Visibility == Visibility.Visible;
+
+    private void OnTrimItem(object sender, RoutedEventArgs e) => OpenTrim();
+
+    private void OnTrimHint(object sender, RoutedEventArgs e) => OpenTrim();
+
+    private void OnTrimHintClosed(InfoBar sender, object args)
+    {
+        if (ViewModel is { } call)
+        {
+            call.Actions.DismissTrimHint(call.Call);
+        }
+    }
+
+    /// <summary>Trim mode: the panel takes the player bar's place, on the silence hint's handles or the whole call.</summary>
+    private void OpenTrim()
+    {
+        if (ViewModel is not { } call || TrimShown || !call.Player.IsAvailable || call.Actions.TrimUnavailable(call.Call) is not null)
+        {
+            return;
+        }
+        PlayerBar.Visibility = Visibility.Collapsed;
+        TrimHintBar.IsOpen = false;
+        TrimHintBar.Visibility = Visibility.Collapsed;
+        TrimPanelView.Visibility = Visibility.Visible;
+        TrimPanelView.Open(call.Call, call.Player, call.Actions.Ffmpeg, File.Exists(Path.Combine(call.Call.Folder, "transcript.md")));
+        DispatcherQueue.TryEnqueue(() => Page.Padding = new Thickness(24, 16, 24, TrimPanelView.ActualHeight + TrimPanelView.Margin.Bottom + 24));
+    }
+
+    private void OnTrimClosed(object? sender, EventArgs e) => CloseTrim();
+
+    private void CloseTrim()
+    {
+        TrimPanelView.Detach();
+        TrimPanelView.Visibility = Visibility.Collapsed;
+        if (ViewModel is { } call)
+        {
+            ShowCall(call, same: true);
+        }
+    }
+
+    /// <summary>
+    /// The files go first (the player and the waveform's decoding hold them, and Windows would not let the engine replace
+    /// them), then the cut and the transcription again. The card is read again afterwards in any case.
+    /// </summary>
+    private async void OnTrimRequested(object? sender, (double Start, double End) range)
+    {
+        if (ViewModel is not { } call)
+        {
+            return;
+        }
+        TrimPanelView.Detach();
+        call.Player.Dispose();
+        var problem = await call.Actions.TrimAsync(call.Call, range.Start, range.End);
+        TrimPanelView.Visibility = Visibility.Collapsed;
+        if (ViewModel is { } now && ReferenceEquals(now, call))
+        {
+            ShowCall(now, same: true);
+        }
+        await ShowProblem(problem);
+    }
+
     private void ShowCall(CallDetailViewModel call, bool same)
     {
+        // Another call, or this one read again while the panel was open but not cutting: back to the player.
+        if (TrimShown && !(same && TrimPanelView.IsWorking))
+        {
+            TrimPanelView.Detach();
+            TrimPanelView.Visibility = Visibility.Collapsed;
+        }
         ShowBanner(call);
+        ShowTrimHint(call);
         ShowVoices(call);
         NoSummaryText.Visibility = call.HasSummary ? Visibility.Collapsed : Visibility.Visible;
         NoTranscriptText.Visibility = call.HasTranscript ? Visibility.Collapsed : Visibility.Visible;
@@ -183,8 +259,9 @@ public sealed partial class CallDetailView : UserControl
         // The player only for a call whose audio is there, as on the Mac; the page keeps room for it. A player that
         // went on from the previous reading of the call shows where it is.
         var player = call.Player;
-        PlayerBar.Visibility = player.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
-        Page.Padding = new Thickness(24, 16, 24, player.IsAvailable ? PlayerBar.Height + PlayerBar.Margin.Bottom + 24 : 24);
+        PlayerBar.Visibility = player.IsAvailable && !TrimShown ? Visibility.Visible : Visibility.Collapsed;
+        Page.Padding = new Thickness(24, 16, 24, TrimShown ? TrimPanelView.ActualHeight + TrimPanelView.Margin.Bottom + 24
+            : player.IsAvailable ? PlayerBar.Height + PlayerBar.Margin.Bottom + 24 : 24);
         var failed = player.Error.Length > 0;
         UnavailableText.Text = player.Error;
         PositionSlider.Visibility = failed ? Visibility.Collapsed : Visibility.Visible;
@@ -643,6 +720,16 @@ public sealed partial class CallDetailView : UserControl
             CallBannerAction.Transcribe => BannerButton(L("Расшифровать…"), () => call.Actions.Retranscribe(call.Call)),
             _ => null,
         };
+    }
+
+    /// <summary>The silence hint above the text, while the call can be trimmed and the panel is not open.</summary>
+    private void ShowTrimHint(CallDetailViewModel call)
+    {
+        var hint = call.Call.TrimHint;
+        var show = hint is not null && !TrimShown && call.Player.IsAvailable && call.Actions.TrimUnavailable(call.Call) is null;
+        TrimHintBar.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        TrimHintBar.IsOpen = show;
+        TrimHintBar.Title = hint is null ? "" : TrimPanel.HintText(hint);
     }
 
     /// <summary>"Names right?" with the speakers to remember, and what the last voice run did.</summary>

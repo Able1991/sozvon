@@ -21,6 +21,9 @@ public interface IEngineRunner
 {
     /// <param name="onLine">Called on a background thread, in order, for every output line.</param>
     IEngineRun Start(ProcessingJob job, Action<string>? onLine = null);
+
+    /// <summary><c>bin\trim_call.py</c>: cuts the call to <paramref name="start"/>..<paramref name="end"/> seconds of its timeline.</summary>
+    IEngineRun StartTrim(string dir, double start, double end) => throw new NotSupportedException();
 }
 
 /// <summary>Runs <c>bin\process_call.py</c> for a call folder with the contract's environment.</summary>
@@ -37,16 +40,29 @@ public sealed class EngineSupervisor(EngineLayout layout, Func<EngineOptions> op
 
     public IEngineRun Start(ProcessingJob job, Action<string>? onLine = null)
     {
-        var log = Path.Combine(job.Dir, LogName);
+        List<string> arguments = [job.Dir];
+        if (job.Kind == ProcessingKind.SummaryOnly) arguments.Add("--summary-only");
+        return Run(Script, job.Dir, arguments, appendLog: false, onLine);
+    }
+
+    /// <summary>The cut goes into the call's process.log after the transcription's lines, as on the Mac.</summary>
+    public IEngineRun StartTrim(string dir, double start, double end) =>
+        Run(Trim.Script, dir, [dir, "--start", Seconds(start), "--end", Seconds(end)], appendLog: true, onLine: null);
+
+    private static string Seconds(double s) => s.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+
+    private IEngineRun Run(string script, string dir, List<string> scriptArguments, bool appendLog, Action<string>? onLine)
+    {
+        var log = Path.Combine(dir, LogName);
         if (!layout.IsInstalled) return Refused(log, $"the engine is not installed: {layout.Python}");
 
-        var arguments = new List<string> { layout.Script(Script), job.Dir };
-        if (job.Kind == ProcessingKind.SummaryOnly) arguments.Add("--summary-only");
-        var stop = new EngineStopEvent(CallFile.CallId(job.Dir));
+        var arguments = new List<string> { layout.Script(script) };
+        arguments.AddRange(scriptArguments);
+        var stop = new EngineStopEvent(CallFile.CallId(dir));
         var environment = EngineEnvironment.Build(layout, options());
         environment[EngineEnvironment.StopEventVariable] = stop.Name;
         var tracker = new OutputTracker();
-        var request = new EngineRunRequest(layout.Python, arguments, environment, layout.Data, log);
+        var request = new EngineRunRequest(layout.Python, arguments, environment, layout.Data, log, appendLog);
         try
         {
             var process = EngineProcess.Start(request, line =>
@@ -54,7 +70,7 @@ public sealed class EngineSupervisor(EngineLayout layout, Func<EngineOptions> op
                 tracker.Consume(line);
                 onLine?.Invoke(line);
             });
-            return new EngineRun(process, stop, tracker, job.Dir, _stopGrace);
+            return new EngineRun(process, stop, tracker, dir, _stopGrace);
         }
         catch (EngineStartException e)
         {

@@ -88,6 +88,18 @@ Status: **done** (checked on a real Windows machine), **synthetic** (a real run,
 | The profile being unloaded | not verified |
 | Calls live outside OneDrive by default | done |
 
+## Trim, time estimate, quiet icon (main 38158e5)
+
+| Case | Status |
+|---|---|
+| Silence hint «Первая минута тишина. Обрезать?» from call.json `silence`, × writes `trim_hint_dismissed` | test instance with a synthetic call (70 s silence, a tone, 10 s silence) |
+| Trim panel: waveform from the files the player plays (the engine's ffmpeg, mono 1 kHz), the kept range, handles by mouse, ←/→ 1 s and Shift 10 s on the focused handle (Tab reaches the other one), Escape, play the range, «Прослушать конец», the in-panel confirmation | test instance: keys, Escape, reopen from «Ещё», confirmation |
+| The cut: the player and the waveform's ffmpeg let the files go first (Windows would refuse the engine's renames), trim_call.py under the call's lock, then the transcription again with the call's answers (a call waiting for its description gets the form) | test instance: 180 s cut to 1:08–2:57, both tracks 109 s, marks 75/150 to 7/82, `trimmed` written, the rerun queued (it failed there only for the missing model) |
+| Off with its reason: busy, demo, audio removed, no audio, under 30 s | tests |
+| The engine's stop on Windows (SIGBREAK) waits for the trim's commit, as SIGTERM does on the Mac; its renames wait out a file a player or an antivirus holds | engine tests |
+| Time estimate: speed.json from runs of calls of 10 min or more, the last 10 per model; «В очереди · ≈ 12 мин» in the list, «Расшифровка… осталось ≈ 5 мин» and «Очередь: ≈ 1 ч» in the tray | tests of the numbers; real: after a few long calls, needs Boris |
+| Quiet tray icon while recording (Settings, Recording) | by code; real: needs Boris |
+
 ## Capture: devices and failures
 
 Checked by tests with fake devices and real ffmpeg, plus a read-only scan of this laptop's outputs. Nothing here changed a Windows setting, so every row that needs a device plugged, pulled or switched is on Boris's manual list.
@@ -109,7 +121,9 @@ Checked by tests with fake devices and real ffmpeg, plus a read-only scan of thi
 | Microphone muted by a key, by the app, by privacy settings mid-recording | Digital silence: capture again after 2 min, then the warning; privacy off: the stream fails, reopen is refused, «Тебя не слышно» after 8 s. Nothing stops | tests; real: needs Boris |
 | Audio service restarted (`AUDCLNT_E_SERVICE_NOT_RUNNING`) | Opens retry every second; after ten refusals, or when Windows can't give a device list, the track asks for the devices again (83e07ff) | tests |
 | Any other capture error | Costs that stream a second, never the track | tests |
-| A track that can't be written (full disk, drive gone, folder removed) | Told at once in a toast and the capsule, the other track goes on; both lost: the recording stops and saves what there is | tests of the rule; a real full disk: not checked |
+| A track that can't be written (full disk, drive gone, folder removed) | As on the Mac (main 38158e5): the recording never stops for it. Every block goes to its own place in the file, a block that fails is lost and stays silence, the spool keeps trying and goes on when the disk takes writes again; the first failure is a toast («Запись не сохраняется: на диске нет места» or «…не удаётся записать файл»), the capsule says so while any track fails | tests (a disk that refuses writes for a while: the hole is silence, what follows keeps its time); a real full disk: needs Boris |
+| Under 1 GB free | Checked at the start and every minute: one toast «На диске меньше 1 ГБ, запись скоро остановится», the capsule says so below the silence warnings | by code; real: needs Boris |
+| Idle sleep during a recording or a transcription | No idle sleep while recording or while the queue has work (SetThreadExecutionState ES_CONTINUOUS \| ES_SYSTEM_REQUIRED on the UI thread); a sleep the user asks for still happens and saves the recording first | tests of the rule; real: needs Boris (a call longer than the sleep timeout on battery) |
 | Sleep, hibernation, lid close | Saved as a stop before sleep (e467da9) | test instance; real: needs Boris |
 | Screen lock | Nothing changes, the recording goes on | by code |
 | Fast user switching, RDP | Not handled specially: a stream Windows takes away is reopened when it gives it back | not verified: needs Boris |

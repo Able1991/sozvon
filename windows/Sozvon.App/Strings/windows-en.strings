@@ -204,3 +204,4 @@
 "Запись идёт дальше и продолжит сохраняться, как только файл снова удастся записать." = "The recording goes on and is saved again as soon as the file can be written.";
 "На диске меньше 1 ГБ, запись скоро остановится" = "Under 1 GB free on the disk, the recording will stop soon";
 "Освободи место на диске, чтобы запись сохранилась целиком." = "Free up disk space so the whole recording is saved.";
+"Звука этого звонка нет на этом компьютере" = "This call's audio is not on this computer";

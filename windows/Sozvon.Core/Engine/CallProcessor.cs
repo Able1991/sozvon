@@ -30,6 +30,26 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
 
     private readonly ProcessingQueue _queue = new();
     private readonly object _gate = new();
+
+    /// <summary>Where speed.json lives; null: no time estimates (tests, a run without a data folder).</summary>
+    public string? SpeedFolder
+    {
+        get => _speedFolder;
+        init
+        {
+            _speedFolder = value;
+            if (value is not null) _speed = SpeedBook.Load(value);
+        }
+    }
+
+    private readonly string? _speedFolder;
+    private SpeedBook _speed = new();
+
+    /// <summary>When the running transcription started: for the estimate and the speed sample.</summary>
+    private DateTimeOffset? _startedAt;
+
+    /// <summary>Folders being cut by trim_call.py now (full paths, as given).</summary>
+    private readonly HashSet<string> _trimming = new(StringComparer.OrdinalIgnoreCase);
     private IEngineRun? _run;
 
     /// <summary>The bookkeeping after the running engine: a quit waits for it, so the call is saved before the app ends.</summary>
@@ -48,9 +68,41 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
     public bool HasWork { get { lock (_gate) return !_queue.IsEmpty; } }
     public bool IsEngineUpdating { get { lock (_gate) return _queue.EngineUpdating; } }
 
+    /// <summary>Queued, running or being trimmed: busy for audio cleanup, editing and the like.</summary>
     public bool Contains(string dir)
     {
-        lock (_gate) return _queue.Contains(dir);
+        lock (_gate) return _queue.Contains(dir) || _trimming.Contains(Key(dir));
+    }
+
+    public bool IsTrimming(string dir)
+    {
+        lock (_gate) return _trimming.Contains(Key(dir));
+    }
+
+    private static string Key(string dir) => Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar);
+
+    /// <summary>
+    /// Cuts the call to <paramref name="start"/>..<paramref name="end"/> seconds (<c>bin\trim_call.py</c>). Refused while
+    /// the call is queued, running or already being cut. The cut is never stopped halfway, not even by a quit: the engine
+    /// finishes it under the call's lock. Queuing the transcription afterwards is the caller's.
+    /// </summary>
+    public async Task<RunOutcome> TrimAsync(string dir, double start, double end)
+    {
+        lock (_gate)
+        {
+            if (_queue.Contains(dir) || !_trimming.Add(Key(dir))) return new RunOutcome.Failed(1, "busy");
+        }
+        Changed?.Invoke();
+        try
+        {
+            var result = await runner.StartTrim(dir, start, end).Completion.ConfigureAwait(false);
+            return result.Outcome;
+        }
+        finally
+        {
+            lock (_gate) _trimming.Remove(Key(dir));
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>Writes the answers to call.json and queues the call: the engine reads them from there.</summary>
@@ -68,7 +120,8 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
         var result = EnqueueResult.Accepted;
         lock (_gate)
         {
-            if (_queue.Admit(dir, kind) != QueueAdmission.Queued) return EnqueueResult.Duplicate;
+            // Being cut: a run now would only wait on the call's lock and then read the old tracks.
+            if (_trimming.Contains(Key(dir)) || _queue.Admit(dir, kind) != QueueAdmission.Queued) return EnqueueResult.Duplicate;
             CallFile.ClearRetries(dir); // asked for by the user: a later crash gets its retry again
             StartNextLocked();
             if (_queue.IsWaiting(dir) && !CallFile.SetQueued(dir, DateTimeOffset.UtcNow, kind == ProcessingKind.SummaryOnly))
@@ -166,6 +219,7 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
                 continue;
             }
             CallFile.SetQueued(job.Dir, null);
+            _startedAt = job.Kind == ProcessingKind.Transcribe ? DateTimeOffset.UtcNow : null;
             var run = runner.Start(job, line => OutputLine?.Invoke(job.Dir, line));
             _run = run;
             _watch = WatchAsync(job, run);
@@ -176,6 +230,9 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
     private async Task WatchAsync(ProcessingJob job, IEngineRun run)
     {
         var result = await run.Completion.ConfigureAwait(false);
+        DateTimeOffset? started;
+        lock (_gate) started = _startedAt;
+        if (job.Kind == ProcessingKind.Transcribe && result.Outcome.IsOk && !result.Stopped) RecordSpeed(job.Dir, started);
         var dir = job.Dir;
         if (job.Kind == ProcessingKind.Transcribe) dir = FinishCall(job.Dir, result);
         lock (_gate)
@@ -204,6 +261,58 @@ public sealed class CallProcessor(Func<string> callsFolder, IEngineRunner runner
         CallFile.ClearRetries(dir);
         return Rename(dir);
     }
+
+    /// <summary>A finished transcription of a long call teaches the speed of this computer, as on the Mac.</summary>
+    private void RecordSpeed(string dir, DateTimeOffset? started)
+    {
+        if (_speedFolder is null || started is not { } at) return;
+        var call = CallFile.Read(dir);
+        if (call.Object("engine")?.Text("model") is not { Length: > 0 } model) return;
+        lock (_gate)
+        {
+            _speed.Record(model, CallSeconds(call), (DateTimeOffset.UtcNow - at).TotalSeconds);
+            _speed.Save(_speedFolder);
+        }
+    }
+
+    private static double CallSeconds(System.Text.Json.Nodes.JsonObject call) => AudioTimes.From(call.Object("audio")).Duration;
+
+    /// <summary>
+    /// The time estimate of a call: for the running one its total and how long it has run, for a waiting one its own
+    /// total (with the model of the latest sample: the engine picks its model during the run). Null without samples and
+    /// for summary runs.
+    /// </summary>
+    public (double Total, double? Elapsed)? Estimate(string dir)
+    {
+        lock (_gate)
+        {
+            if (_speed.LastModel is not { } model) return null;
+            if (_queue.Running is { Kind: ProcessingKind.Transcribe } running && SameDir(running.Dir, dir))
+            {
+                if (_startedAt is not { } at || _speed.Estimate(model, CallSeconds(CallFile.Read(dir))) is not { } total) return null;
+                return (total, (DateTimeOffset.UtcNow - at).TotalSeconds);
+            }
+            if (!_queue.Waiting.Any(j => j.Kind == ProcessingKind.Transcribe && SameDir(j.Dir, dir))) return null;
+            return _speed.Estimate(model, CallSeconds(CallFile.Read(dir))) is { } own ? (own, null) : null;
+        }
+    }
+
+    /// <summary>Seconds for everything in the queue when more than one call waits; null without samples.</summary>
+    public double? QueueEstimate()
+    {
+        lock (_gate)
+        {
+            if (_queue.Waiting.Count <= 1 || _speed.LastModel is not { } model) return null;
+            var total = _queue.Waiting.Where(j => j.Kind == ProcessingKind.Transcribe)
+                .Sum(j => _speed.Estimate(model, CallSeconds(CallFile.Read(j.Dir))) ?? 0);
+            if (_queue.Running is { Kind: ProcessingKind.Transcribe } running && _startedAt is { } at
+                && _speed.Estimate(model, CallSeconds(CallFile.Read(running.Dir))) is { } own)
+                total += Math.Max(0, own - (DateTimeOffset.UtcNow - at).TotalSeconds);
+            return total > 0 ? total : null;
+        }
+    }
+
+    private static bool SameDir(string a, string b) => string.Equals(Key(a), Key(b), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A queue time just before every waiting call: the run cut short by a quit keeps its turn at the next launch.</summary>
     private DateTimeOffset AheadOfTheWaiting()

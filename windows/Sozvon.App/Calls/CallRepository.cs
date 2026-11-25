@@ -101,6 +101,8 @@ public sealed partial class CallRepository(Func<string> callsFolder, string data
             HasAudio = call.HasAudio,
             IsQueued = Text(root, "queued_at").Length > 0,
             SummaryWarning = Warning(root, "summary"),
+            TrimBlock = call.TrimBlock,
+            TrimHint = call.TrimHint,
         };
     }
 

@@ -22,6 +22,19 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
 
     public bool CanTranscribe => recording() is not null;
 
+    /// <summary>The engine's ffmpeg: the trim panel decodes the waveform with it.</summary>
+    public string Ffmpeg => Path.Combine(dataDir, ".venv", "Scripts", "ffmpeg.exe");
+
+    /// <summary>
+    /// "≈ 12 мин" for a call waiting in the queue, from the speed of this computer; empty without it. The running call's
+    /// time left is the tray's: the list is not redrawn while it runs, and a stale "left" would mislead.
+    /// </summary>
+    public string WaitEstimate(CallRecord call) =>
+        recording()?.Processor.Estimate(call.Folder) is ({ } total, null) ? Sozvon.Core.Engine.EstimateText.Duration(total, Loc.L) : "";
+
+    /// <summary>trim_call.py is cutting this call right now.</summary>
+    public bool IsTrimming(CallRecord call) => !call.IsDemo && call.Folder.Length > 0 && recording()?.Processor.IsTrimming(call.Folder) == true;
+
     /// <summary>Remembers speakers' voices with the engine.</summary>
     public VoiceStore Voices { get; } = voices;
 
@@ -139,6 +152,35 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
         }
     }
 
+    /// <summary>Why Trim is off for the call now, or null.</summary>
+    public TrimUnavailable? TrimUnavailable(CallRecord call) =>
+        call.TrimUnavailable(busy: IsBusy(call) || IsRecording(call) || call.Status == CallStatus.Processing || recording() is null);
+
+    /// <summary>The cut, then the transcription again; the reason it did not, or null. The card let the files go first.</summary>
+    public async Task<string?> TrimAsync(CallRecord call, double start, double end)
+    {
+        if (TrimUnavailable(call) is { } why)
+        {
+            return Loc.L(Sozvon.Core.Calls.Trim.Reason(why));
+        }
+        if (recording() is not { } controller)
+        {
+            return Loc.L(Sozvon.Core.Calls.Trim.Reason(Sozvon.Core.Calls.TrimUnavailable.Busy));
+        }
+        var problem = await controller.TrimAsync(call.Folder, start, end);
+        Changed?.Invoke(null);
+        return problem;
+    }
+
+    /// <summary>The silence hint goes away for this call for good.</summary>
+    public void DismissTrimHint(CallRecord call)
+    {
+        if (!call.IsDemo && Sozvon.Core.Calls.Trim.DismissHint(call.Folder))
+        {
+            Changed?.Invoke(null);
+        }
+    }
+
     /// <summary>"Remove from queue": back to how it was before.</summary>
     public void RemoveFromQueue(CallRecord call)
     {
@@ -156,7 +198,7 @@ public sealed class CallActions(string dataDir, EngineSettings engine, Func<Reco
     {
         var problems = new List<string>();
         string? last = null;
-        var ffmpeg = Path.Combine(dataDir, ".venv", "Scripts", "ffmpeg.exe");
+        var ffmpeg = Ffmpeg;
         foreach (var file in files)
         {
             var name = Path.GetFileName(file);

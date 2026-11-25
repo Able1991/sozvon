@@ -222,6 +222,10 @@ public sealed partial class CallDetailViewModel : ObservableObject, IDisposable
         {
             return new(CallBannerKind.Critical, Loc.L("Не удалось прочитать call.json"));
         }
+        if (actions.IsTrimming(call))
+        {
+            return new(CallBannerKind.Informational, Loc.L("Обрезаю…"), Progress: true);
+        }
         if (actions.IsTranscribing(call))
         {
             return new(CallBannerKind.Informational, Loc.L(hasTranscript ? "Расшифровываю заново…" : "Расшифровывается…"), Progress: true);

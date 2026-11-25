@@ -18,6 +18,9 @@ public sealed partial class AppSettings : ObservableObject
     [ObservableProperty] public partial string DisplayName { get; set; } = "";
 
     [ObservableProperty] public partial bool FloatingPanel { get; set; } = true;
+
+    /// <summary>"Quiet icon while recording", as on the Mac: the ordinary tray icon instead of the red one.</summary>
+    [ObservableProperty] public partial bool QuietRecordingIcon { get; set; }
     [ObservableProperty] public partial int? CapsuleX { get; set; }
     [ObservableProperty] public partial int? CapsuleY { get; set; }
     /// <summary>
