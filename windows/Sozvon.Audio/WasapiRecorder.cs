@@ -18,6 +18,14 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
     private readonly object _gate = new();
     private readonly List<double> _markTimes = [];
     private readonly Dictionary<string, double> _failedAt = [];
+
+    /// <summary>Tracks whose writes fail now, with whether the disk is full.</summary>
+    private readonly Dictionary<string, bool> _writeFailing = [];
+
+    private bool _toldNotSaving;
+    private bool _toldLowSpace;
+    private bool _lowSpace;
+    private double _spaceCheckedAt = double.NegativeInfinity;
     private readonly Action<string> _log = CreateLog(options.LogPath);
 
     private Active? _active;
@@ -55,6 +63,9 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             {
                 _markTimes.Clear();
                 _failedAt.Clear();
+                _writeFailing.Clear();
+                _toldNotSaving = _toldLowSpace = _lowSpace = false;
+                _spaceCheckedAt = double.NegativeInfinity;
             }
             SaveJournal(active);
             await OpenTracksAsync(active, cancellationToken).ConfigureAwait(false);
@@ -147,14 +158,91 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
     private TrackRecorder CreateTrack(string name, string wav, int channels, Func<ICaptureDevices> devices,
         bool settlesAtStart = false, bool anchorsAtStart = true)
     {
-        var spool = new TrackSpool(wav, RecordingFormat.SampleRate, channels, error => ReportFailure(name, error));
+        var spool = new TrackSpool(wav, RecordingFormat.SampleRate, channels, error => ReportWrite(name, error));
         return new TrackRecorder(name, channels, devices, spool, _log, error => ReportFailure(name, error), () => SharedClock.Now,
             settlesAtStart, anchorsAtStart);
     }
 
     /// <summary>
-    /// A track that can no longer be written is said at once and the others go on. Only when neither the user's voice
-    /// nor the other side is written any more does the recording have to stop.
+    /// A track's writes failed or work again (the spool tells only the changes). The recording never stops for it: the
+    /// spool keeps trying, and what could not be written becomes silence. The first failure of a recording is told at
+    /// once; the capsule shows it for as long as some track fails.
+    /// </summary>
+    private void ReportWrite(string track, Exception? error)
+    {
+        bool tell = false, full = false;
+        lock (_gate)
+        {
+            if (error is null)
+            {
+                if (!_writeFailing.Remove(track)) return;
+            }
+            else
+            {
+                full = TrackSpool.IsDiskFull(error);
+                _writeFailing[track] = full;
+                tell = !_toldNotSaving;
+                _toldNotSaving = true;
+            }
+        }
+        _log(error is null ? $"{track}: writes work again" : $"{track}: write error: {error.Message}");
+        if (!tell) return;
+        try
+        {
+            AlertRaised?.Invoke(this, new RecorderAlert(full ? RecorderAlertKind.DiskFull : RecorderAlertKind.NotSaving, 0));
+        }
+        catch (Exception ex)
+        {
+            _log($"telling about the write error failed: {ex}");
+        }
+    }
+
+    /// <summary>Free space under the call folder, at the start and every minute: under 1 GB is told once.</summary>
+    private void CheckFreeSpace(Active active, double now)
+    {
+        if (now - _spaceCheckedAt < 60) return;
+        _spaceCheckedAt = now;
+        long? free = FreeBytes(active.Files.CallDirectory);
+        bool low = free is < LowSpaceBytes, tell;
+        lock (_gate)
+        {
+            _lowSpace = low;
+            tell = low && !_toldLowSpace;
+            _toldLowSpace |= low;
+        }
+        if (!tell) return;
+        _log($"low disk space: {free} bytes free");
+        AlertRaised?.Invoke(this, new RecorderAlert(RecorderAlertKind.LowSpace, 0));
+    }
+
+    /// <summary>Not reaching the disk beats low space; the capsule puts the silence warnings between them.</summary>
+    private DiskWarning? DiskNow()
+    {
+        lock (_gate)
+        {
+            if (_writeFailing.Count > 0) return _writeFailing.ContainsValue(true) ? DiskWarning.DiskFull : DiskWarning.NotSaving;
+            return _lowSpace ? DiskWarning.LowSpace : null;
+        }
+    }
+
+    /// <summary>As the diagnostics count it: under this a model or an environment update fails too.</summary>
+    internal const long LowSpaceBytes = 1_000_000_000;
+
+    private static long? FreeBytes(string path)
+    {
+        try
+        {
+            return new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!).AvailableFreeSpace;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A track whose capture ended for good is said at once and the others go on. Only when neither the user's voice
+    /// nor the other side is captured any more does the recording have to stop.
     /// </summary>
     private void ReportFailure(string track, Exception error)
     {
@@ -164,7 +252,7 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             if (!_failedAt.TryAdd(track, SharedClock.Now)) return;
             bothLost = _failedAt.ContainsKey(MicName) && _failedAt.ContainsKey(SystemName);
         }
-        _log($"{track}: cannot be written: {error.Message}");
+        _log($"{track}: capture ended: {error.Message}");
         try
         {
             AlertRaised?.Invoke(this, new RecorderAlert(
@@ -233,7 +321,8 @@ public sealed class WasapiRecorder(RecorderOptions options) : IRecorder
             active.Second?.Recapture();
         }
         foreach (RecorderAlert alert in result.Alerts) AlertRaised?.Invoke(this, alert);
-        LevelsChanged?.Invoke(this, result.Levels);
+        CheckFreeSpace(active, now);
+        LevelsChanged?.Invoke(this, result.Levels with { Disk = DiskNow() });
     }
 
     private void SaveJournal(Active active)

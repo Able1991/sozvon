@@ -20,6 +20,9 @@ internal static class CapsuleText
     public static string TellOthers => T("Скажи собеседникам, что идёт запись", "Tell the others you are recording");
     public static string MicSilent(string time) => T($"Тебя не слышно {time}", $"You can't be heard {time}");
     public static string SystemSilent(string time) => T($"Их не слышно {time}", $"They can't be heard {time}");
+    public static string NotSaving => T("Запись не сохраняется: не удаётся записать файл", "Not saving the recording: can't write the file");
+    public static string DiskFull => T("Запись не сохраняется: на диске нет места", "Not saving the recording: the disk is full");
+    public static string LowSpace => T("На диске меньше 1 ГБ, запись скоро остановится", "Under 1 GB free, the recording will stop soon");
     public static string Prompt(string app) => T($"Идёт звонок в {app}. Записать?", $"A call is on in {app}. Record?");
     public static string PromptAuto(string app, int seconds) => T($"Звонок в {app} · запись через {seconds} с", $"Call in {app} · recording in {seconds} s");
     public static string NotNow => T("Не сейчас", "Not now");

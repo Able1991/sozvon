@@ -167,7 +167,7 @@ public sealed class SecondOutputTests : IDisposable
 
     private static async Task WriteAsync(string path, int seconds, float value, int channels = RecordingFormat.SystemChannels)
     {
-        var spool = new TrackSpool(path, Rate, channels, ex => throw ex);
+        var spool = new TrackSpool(path, Rate, channels, _ => { });
         var samples = new float[seconds * Rate * channels];
         Array.Fill(samples, value);
         spool.Write(samples);
@@ -176,7 +176,7 @@ public sealed class SecondOutputTests : IDisposable
 
     private static async Task WriteToneAsync(string path, int seconds)
     {
-        var spool = new TrackSpool(path, Rate, RecordingFormat.SystemChannels, ex => throw ex);
+        var spool = new TrackSpool(path, Rate, RecordingFormat.SystemChannels, _ => { });
         var samples = new float[seconds * Rate * RecordingFormat.SystemChannels];
         for (int i = 0; i < samples.Length; i++) samples[i] = 0.3f * MathF.Sin(i / 2 * 0.06f);
         spool.Write(samples);

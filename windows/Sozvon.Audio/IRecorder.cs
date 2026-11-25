@@ -10,8 +10,8 @@ public interface IRecorder
     event EventHandler<RecorderAlert>? AlertRaised;
 
     /// <summary>
-    /// Neither track can be written any more (a full disk). The caller should stop to save what was written. One track
-    /// that fails only raises <see cref="RecorderAlertKind.MicrophoneNotWritten"/> or <see cref="RecorderAlertKind.SystemNotWritten"/>.
+    /// Neither track can be captured any more (both capture threads failed). The caller should stop to save what was
+    /// written. A disk that refuses the writes never stops the recording: see <see cref="RecorderAlertKind.NotSaving"/>.
     /// </summary>
     event EventHandler<Exception>? Failed;
 
@@ -34,10 +34,20 @@ public enum RecordingTrack { Microphone, System }
 /// <summary>A track silent right now, for the capsule. <paramref name="Seconds"/> is how long it has been.</summary>
 public sealed record TrackWarning(RecordingTrack Track, int Seconds);
 
-/// <summary>Levels on the capsule's display scale, 0 to 1.</summary>
-public sealed record RecorderLevels(float Microphone, float System, TrackWarning? Warning);
+/// <summary>Levels on the capsule's display scale, 0 to 1. <paramref name="Disk"/>: what the disk does to the recording now.</summary>
+public sealed record RecorderLevels(float Microphone, float System, TrackWarning? Warning, DiskWarning? Disk = null);
 
-public enum RecorderAlertKind { MicrophoneSilent, SystemSilent, MicrophoneQuiet, MicrophoneNotWritten, SystemNotWritten }
+/// <summary>
+/// As on the Mac (DiskHealth): writes fail now (<see cref="DiskFull"/>: no space left), or under 1 GB is free and they
+/// soon will. The recording goes on either way; a write that works again ends the warning.
+/// </summary>
+public enum DiskWarning { NotSaving, DiskFull, LowSpace }
+
+/// <summary>
+/// MicrophoneNotWritten and SystemNotWritten: that track's capture ended for good. NotSaving and DiskFull: the first
+/// write that failed in this recording; LowSpace: under 1 GB free, once per recording.
+/// </summary>
+public enum RecorderAlertKind { MicrophoneSilent, SystemSilent, MicrophoneQuiet, MicrophoneNotWritten, SystemNotWritten, NotSaving, DiskFull, LowSpace }
 
 public sealed record RecorderAlert(RecorderAlertKind Kind, int Seconds);
 

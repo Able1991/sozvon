@@ -381,6 +381,15 @@ public sealed partial class CapsuleWindow : Window
             case CapsuleHint.SystemSilent:
                 Warn(CapsuleText.SystemSilent(time));
                 break;
+            case CapsuleHint.NotSaving:
+                Warn(CapsuleText.NotSaving);
+                break;
+            case CapsuleHint.DiskFull:
+                Warn(CapsuleText.DiskFull);
+                break;
+            case CapsuleHint.LowSpace:
+                Warn(CapsuleText.LowSpace);
+                break;
         }
     }
 

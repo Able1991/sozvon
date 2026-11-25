@@ -309,7 +309,7 @@ public sealed class TrackRecorderTests : IDisposable
     {
         int created = 0;
         string wav = Path.Combine(_folder, "renew.wav");
-        var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
+        var spool = new TrackSpool(wav, Rate, 1, e => _failures.Add(e!));
         var track = new TrackRecorder("test", 1, () =>
         {
             created++;
@@ -333,7 +333,7 @@ public sealed class TrackRecorderTests : IDisposable
     {
         bool serviceUp = false;
         string wav = Path.Combine(_folder, "service.wav");
-        var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
+        var spool = new TrackSpool(wav, Rate, 1, e => _failures.Add(e!));
         var track = new TrackRecorder("test", 1, () => serviceUp
             ? _devices
             : throw new System.Runtime.InteropServices.COMException("audio service not running", unchecked((int)0x88890010)),
@@ -361,7 +361,7 @@ public sealed class TrackRecorderTests : IDisposable
     private (TrackRecorder Track, TrackSpool Spool, string Wav) Create(bool settlesAtStart = false, bool anchorsAtStart = true)
     {
         string wav = Path.Combine(_folder, $"{Guid.NewGuid():N}.wav");
-        var spool = new TrackSpool(wav, Rate, 1, _failures.Add);
+        var spool = new TrackSpool(wav, Rate, 1, e => _failures.Add(e!));
         var track = new TrackRecorder("test", 1, () => _devices, spool, _ => { }, _failures.Add, () => _now, settlesAtStart,
             anchorsAtStart);
         return (track, spool, wav);

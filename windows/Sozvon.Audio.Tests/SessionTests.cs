@@ -121,7 +121,7 @@ public sealed class SessionTests : IDisposable
     public async Task TheStreamingWavDecodesToTheEndOfTheFile()
     {
         string wav = Path.Combine(_call, "t.wav");
-        var spool = new TrackSpool(wav, Rate, 1, ex => throw ex);
+        var spool = new TrackSpool(wav, Rate, 1, _ => { });
         spool.Write(new float[Rate / 2]);
         spool.WriteSilence(Rate / 2);
         await spool.CloseAsync();
@@ -134,7 +134,7 @@ public sealed class SessionTests : IDisposable
     {
         const int ClickAt = 2 * Rate;
         string wav = Path.Combine(_call, "t.wav");
-        var spool = new TrackSpool(wav, Rate, 1, ex => throw ex);
+        var spool = new TrackSpool(wav, Rate, 1, _ => { });
         var samples = new float[3 * Rate];
         for (int i = 0; i < 480; i++) samples[ClickAt + i] = 0.8f * MathF.Sin(i * 0.3f);
         spool.Write(samples);
@@ -195,7 +195,7 @@ public sealed class SessionTests : IDisposable
     {
         var files = new SessionFiles(_call);
         files.Create();
-        var spool = new TrackSpool(files.MicWav, Rate, 1, ex => throw ex);
+        var spool = new TrackSpool(files.MicWav, Rate, 1, _ => { });
 
         Assert.DoesNotContain(_call, RecordingRecovery.FindInterrupted(Path.GetDirectoryName(_call)!));
 
@@ -205,7 +205,7 @@ public sealed class SessionTests : IDisposable
 
     private static async Task WriteToneAsync(string path, int channels, int seconds)
     {
-        var spool = new TrackSpool(path, Rate, channels, ex => throw ex);
+        var spool = new TrackSpool(path, Rate, channels, _ => { });
         var samples = new float[seconds * Rate * channels];
         for (int i = 0; i < samples.Length; i++) samples[i] = 0.2f * MathF.Sin(i * 0.05f);
         spool.Write(samples);

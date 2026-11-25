@@ -38,6 +38,7 @@ public sealed class RecordingController
     private CallInfo _info = new();
     private int _marks;
     private TrackWarning? _warning;
+    private DiskWarning? _disk;
     private bool _recording;
     private bool _changing;
     private bool _remind;
@@ -307,6 +308,7 @@ public sealed class RecordingController
         _info = _engine.NewCall() with { Profile = _settings.LastProject };
         _marks = 0;
         _warning = null;
+        _disk = null;
         _recording = true;
         _clock.Start();
         _markShortcut.Registered(_markKeys.Register());
@@ -434,6 +436,7 @@ public sealed class RecordingController
     {
         _capsule.PushLevels(levels.Microphone, levels.System);
         _warning = levels.Warning;
+        _disk = levels.Disk;
         _systemLevel = levels.System;
         _levelsAt = DateTimeOffset.Now;
     }
@@ -498,7 +501,8 @@ public sealed class RecordingController
     /// </summary>
     private void Tell(RecorderAlert alert)
     {
-        var notWritten = alert.Kind is RecorderAlertKind.MicrophoneNotWritten or RecorderAlertKind.SystemNotWritten;
+        var notWritten = alert.Kind is RecorderAlertKind.MicrophoneNotWritten or RecorderAlertKind.SystemNotWritten
+            or RecorderAlertKind.NotSaving or RecorderAlertKind.DiskFull or RecorderAlertKind.LowSpace;
         if (!_recording || (!_settings.WarnOnSilence && !notWritten))
         {
             return;
@@ -510,10 +514,16 @@ public sealed class RecordingController
                 + Loc.L("Микрофон молчит, и переподключение не помогло. Проверь, какой микрофон выбран в параметрах Windows: Система, Звук, и не отключились ли наушники."),
             RecorderAlertKind.SystemSilent => Loc.L("Их не слышно %@", time) + "\n"
                 + Loc.L("Звук собеседников не приходит, и переподключение не помогло. Если они говорят, проверь, что звук звонка идёт через этот компьютер, а не через телефон или другое устройство."),
+            RecorderAlertKind.DiskFull => Loc.L("Запись не сохраняется: на диске нет места") + "\n"
+                + Loc.L("Освободи место на диске: запись идёт дальше и продолжит сохраняться, как только место появится."),
+            RecorderAlertKind.NotSaving => Loc.L("Запись не сохраняется: не удаётся записать файл") + "\n"
+                + Loc.L("Запись идёт дальше и продолжит сохраняться, как только файл снова удастся записать."),
+            RecorderAlertKind.LowSpace => Loc.L("На диске меньше 1 ГБ, запись скоро остановится") + "\n"
+                + Loc.L("Освободи место на диске, чтобы запись сохранилась целиком."),
             RecorderAlertKind.MicrophoneNotWritten => Loc.L("Твой голос не записывается") + "\n"
-                + Loc.L("Не получается записать файл микрофона. Проверь, хватает ли места на диске. Звук собеседников записывается дальше."),
+                + Loc.L("Запись микрофона остановилась из-за ошибки, подробности в recorder.log. Звук собеседников записывается дальше."),
             RecorderAlertKind.SystemNotWritten => Loc.L("Звук собеседников не записывается") + "\n"
-                + Loc.L("Не получается записать файл звука собеседников. Проверь, хватает ли места на диске. Твой голос записывается дальше."),
+                + Loc.L("Запись звука собеседников остановилась из-за ошибки, подробности в recorder.log. Твой голос записывается дальше."),
             _ => Loc.L("Тебя очень тихо слышно") + "\n"
                 + Loc.L("Три минуты твой голос почти не слышен в микрофоне. Подними громкость входа или сядь ближе к компьютеру."),
         });
@@ -525,12 +535,17 @@ public sealed class RecordingController
         {
             return;
         }
-        // The call is over: the countdown to the automatic stop comes before any warning.
-        var (hint, seconds) = (_call.StopIn, _warning) switch
+        // The call is over: the countdown to the automatic stop comes before any warning. Not reaching the disk beats the
+        // silence warnings (something to fix right now), which beat low space (told once, and the recording still reaches
+        // the disk), as on the Mac.
+        var (hint, seconds) = (_call.StopIn, _warning, _disk) switch
         {
-            ({ } stopIn, _) => (CapsuleHint.StopCountdown, stopIn),
-            (_, { Track: RecordingTrack.Microphone } w) => (CapsuleHint.MicSilent, w.Seconds),
-            (_, { Track: RecordingTrack.System } w) => (CapsuleHint.SystemSilent, w.Seconds),
+            ({ } stopIn, _, _) => (CapsuleHint.StopCountdown, stopIn),
+            (_, _, DiskWarning.DiskFull) => (CapsuleHint.DiskFull, 0),
+            (_, _, DiskWarning.NotSaving) => (CapsuleHint.NotSaving, 0),
+            (_, { Track: RecordingTrack.Microphone } w, _) => (CapsuleHint.MicSilent, w.Seconds),
+            (_, { Track: RecordingTrack.System } w, _) => (CapsuleHint.SystemSilent, w.Seconds),
+            (_, _, DiskWarning.LowSpace) => (CapsuleHint.LowSpace, 0),
             _ when _remind && Elapsed < ReminderShownFor => (CapsuleHint.TellOthers, 0),
             _ => (CapsuleHint.None, 0),
         };
